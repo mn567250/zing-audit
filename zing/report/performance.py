@@ -29,7 +29,7 @@ STAT_ROWS: tuple[tuple[str, str, Callable[[EndpointPerformance], PerfStats]], ..
     ("End-to-end speed (local count)", "tok/s", lambda e: e.e2e_tps_local),
     ("Inter-chunk latency", "ms", lambda e: e.itl_ms),
     ("Inter-chunk jitter", "ms", lambda e: e.itl_jitter_ms),
-    ("Server time (sent → headers)", "ms", lambda e: e.server_ms),
+    ("Server time (sent → first output)", "ms", lambda e: e.server_ms),
     ("Relay-reported processing", "ms", lambda e: e.relay_processing_ms),
     ("Network round trip (GET /models)", "ms", lambda e: e.network_rtt_ms),
     ("TCP connect", "ms", lambda e: e.connect_ms),
@@ -285,8 +285,9 @@ def timeline_svg(
         )
     for i in range(5):
         s = x_max * i / 4
+        anchor = "start" if i == 0 else "end" if i == 4 else "middle"
         out.append(
-            f'<text class="tick" x="{x(s):.1f}" y="{_H - _MB + 16}" text-anchor="middle">{fmt_num(s)}s</text>'
+            f'<text class="tick" x="{x(s):.1f}" y="{_H - _MB + 16}" text-anchor="{anchor}">{fmt_num(s)}s</text>'
         )
     out.append(
         f'<text class="tick" x="{_ML}" y="{_H - 2}">seconds since audit start · {_esc(unit)}</text>'

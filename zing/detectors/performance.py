@@ -383,12 +383,14 @@ class PerformanceDetector(Detector):
                         else "."
                     ),
                     evidence={
-                        "target": head,
-                        "baseline": self._headline(baseline),
+                        "target_latency_p50_ms": _r(lat_t),
+                        "baseline_latency_p50_ms": _r(lat_b),
                         "latency_p50_delta_ms": _r(lat_t - lat_b),
                         "ttft_p50_delta_ms": _r(ttft_t - ttft_b)
                         if ttft_t is not None and ttft_b is not None
                         else None,
+                        "target": head,
+                        "baseline": self._headline(baseline),
                     },
                 )
             )

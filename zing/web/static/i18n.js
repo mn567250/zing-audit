@@ -346,6 +346,10 @@
     r.notes = (r.notes || []).map(function (n) {
       return L.exportText(n);
     });
+    if (r.performance && r.performance.notes)
+      r.performance.notes = r.performance.notes.map(function (n) {
+        return L.exportText(n);
+      });
     return r;
   }
 

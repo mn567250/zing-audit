@@ -90,19 +90,26 @@ class NetTrace:
             return None
         return (end - start) * 1000
 
-    def breakdown(self, started: float) -> dict[str, float | None]:
-        """connect/TLS time and time to response headers, in ms."""
+    def sent_ms(self, started: float) -> float | None:
+        """When the request was fully sent, in ms from ``started``."""
         sent = self._mark("send_request_body.complete") or self._mark(
             "send_request_headers.complete"
         )
-        headers_at = self._mark("receive_response_headers.complete")
+        return (sent - started) * 1000 if sent is not None else None
+
+    def breakdown(self, started: float) -> dict[str, float | None]:
+        """connect/TLS time, time to response headers, and the server's share
+        (request fully sent -> response headers), in ms."""
+        sent = self.sent_ms(started)
+        at = self._mark("receive_response_headers.complete")
+        headers = (at - started) * 1000 if at is not None else None
         return {
             "connect_ms": self._span("connect_tcp"),
             "tls_ms": self._span("start_tls"),
-            "headers_ms": (headers_at - started) * 1000 if headers_at is not None else None,
+            "headers_ms": headers,
             "server_ms": (
-                (headers_at - sent) * 1000
-                if headers_at is not None and sent is not None and headers_at >= sent
+                headers - sent
+                if headers is not None and sent is not None and headers >= sent
                 else None
             ),
         }
@@ -231,6 +238,15 @@ class RequestRecorder:
         if net is not None:
             for key, value in net.breakdown(started).items():
                 setattr(record, key, value)
+            # A stream sends its headers before any output, so for streams the
+            # server's share runs from the request being sent to the first token.
+            sent = net.sent_ms(started)
+            if record.stream:
+                record.server_ms = (
+                    record.ttft_ms - sent
+                    if record.ttft_ms is not None and sent is not None and record.ttft_ms >= sent
+                    else None
+                )
         self.records.append(record)
         _LAST.set(record)
         if self.on_record is not None:

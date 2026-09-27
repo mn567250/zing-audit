@@ -61,11 +61,10 @@ NOTE_RELAY_HEADERS = (
 )
 
 
-def note_cached(n: int) -> str:
-    return (
-        f"{n} request(s) were served fully or partly from a cache and are left out "
-        "of the statistics."
-    )
+NOTE_CACHED = (
+    "Some requests were served fully or partly from a cache and are left out of "
+    "the statistics."
+)
 
 
 def _stats(values: Sequence[float | None]) -> PerfStats:
@@ -288,9 +287,8 @@ def build_performance(
     completes = [r for r in records if r.op == "complete"]
     if hidden_reasoning(completes):
         notes.append(NOTE_REASONING)
-    cached = sum(1 for r in completes if r.ok and r.cached)
-    if cached:
-        notes.append(note_cached(cached))
+    if any(r.ok and r.cached for r in completes):
+        notes.append(NOTE_CACHED)
     if not tokens_exact:
         notes.append(NOTE_ESTIMATED)
     floor = PERCENTILE_MIN_SAMPLES["p99"]

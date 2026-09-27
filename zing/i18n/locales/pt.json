@@ -387,7 +387,67 @@
   "{1} ({2})": "{1} ({2})",
   "Alert language": "Idioma dos alertas",
   "Add a monitor: zing re-runs the black-box audit on your machine at the interval you set. As soon as the risk crosses your threshold or gets worse than last time, it pushes an alert in the language you choose to the webhooks you configured (Slack / Feishu / DingTalk / generic JSON).": "Adicione um monitor: o zing volta a executar a auditoria de caixa preta no seu computador com o intervalo definido. Assim que o risco ultrapassa o seu limite ou piora em relação à vez anterior, envia um alerta, no idioma que escolher, para os webhooks configurados (Slack / Feishu / DingTalk / JSON genérico).",
-  "Probe languages": "Idiomas das sondas"
+  "Probe languages": "Idiomas das sondas",
+  "No samples yet": "Ainda sem amostras",
+  "baseline": "referência",
+  "target": "alvo",
+  "failed": "falhou",
+  "Latency": "Latência",
+  "cached (excluded)": "do cache (excluída)",
+  "audit request (lighter)": "requisição da auditoria (mais clara)",
+  "failed request": "requisição com falha",
+  "No successful requests to summarize.": "Nenhuma requisição bem-sucedida para resumir.",
+  "Metric": "Métrica",
+  "Latency p50": "Latência p50",
+  "Decode speed p50": "Velocidade de decodificação p50",
+  "Error rate": "Taxa de erros",
+  "succeeded": "bem-sucedidas",
+  "timeouts": "tempos esgotados",
+  "Cold start (first request)": "Arranque a frio (primeira requisição)",
+  "Under load": "Sob carga",
+  "aggregate": "total",
+  "Prompt size": "Tamanho do prompt",
+  "Source: dedicated probe": "Fonte: sonda dedicada",
+  "Source: the audit's own requests": "Fonte: as próprias requisições da auditoria",
+  "Informational — not scored": "Informativo — não pontua",
+  "Target vs baseline": "Alvo vs referência",
+  "Ratio": "Razão",
+  "Probe cost": "Custo da sonda",
+  "Requests": "Requisições",
+  "Performance · live": "Desempenho · ao vivo",
+  "Performance probe": "Sonda de desempenho",
+  "TTFT": "TTFT",
+  "Decode speed": "Velocidade de decodificação",
+  "Inter-chunk latency": "Latência entre fragmentos",
+  "Time to first token": "Tempo até o primeiro token",
+  "Decode speed (usage)": "Velocidade de decodificação (usage)",
+  "Decode speed (local count)": "Velocidade de decodificação (contagem local)",
+  "End-to-end speed (usage)": "Velocidade de ponta a ponta (usage)",
+  "End-to-end speed (local count)": "Velocidade de ponta a ponta (contagem local)",
+  "Inter-chunk jitter": "Variação entre fragmentos",
+  "Server time (sent → first output)": "Tempo do servidor (envio → primeira saída)",
+  "Relay-reported processing": "Processamento declarado pelo relay",
+  "Network round trip (GET /models)": "Ida e volta de rede (GET /models)",
+  "TCP connect": "Conexão TCP",
+  "TLS handshake": "Negociação TLS",
+  "Latency p90": "Latência p90",
+  "TTFT p50": "TTFT p50",
+  "TTFT p90": "TTFT p90",
+  "Decode speed p50 (usage)": "Velocidade de decodificação p50 (usage)",
+  "Decode speed p50 (local)": "Velocidade de decodificação p50 (local)",
+  "End-to-end speed p50 (local)": "Velocidade de ponta a ponta p50 (local)",
+  "Inter-chunk latency p50": "Latência entre fragmentos p50",
+  "Server time p50": "Tempo do servidor p50",
+  "Network round trip p50": "Ida e volta de rede p50",
+  "Performance": "Desempenho",
+  "Headline numbers come from the audit's own requests, which mix prompt and output sizes; the deep and full suites add a controlled, uncacheable probe.": "Os números principais vêm das próprias requisições da auditoria, com tamanhos de prompt e de saída variados; as suítes deep e full acrescentam uma sonda controlada e não armazenável em cache.",
+  "Reasoning tokens detected: TTFT is the time to the first visible token and includes hidden thinking, and usage-based throughput counts thinking tokens. zing does not set a reasoning effort (the modes a relay accepts are unknown), so the model thinks at its default effort.": "Tokens de raciocínio detectados: o TTFT é o tempo até o primeiro token visível e inclui o raciocínio oculto, e a vazão baseada em usage conta os tokens de raciocínio. O zing não define um esforço de raciocínio (os modos aceitos pelo relay são desconhecidos), então o modelo raciocina com o esforço padrão.",
+  "Local token counts are estimates (about ±15-20%): no exact tokenizer is available for this model family.": "As contagens locais de tokens são estimativas (cerca de ±15-20%): não há tokenizador exato para esta família de modelos.",
+  "Percentiles need enough samples: p75 from 4, p90 from 10, p95 from 20, p99 from 100 requests.": "Os percentis exigem amostras suficientes: p75 a partir de 4, p90 a partir de 10, p95 a partir de 20, p99 a partir de 100 requisições.",
+  "Relay processing times come from the relay's own response headers and are unverified.": "Os tempos de processamento do relay vêm dos seus próprios cabeçalhos de resposta e não são verificados.",
+  "Some requests were served fully or partly from a cache and are left out of the statistics.": "Algumas requisições foram atendidas total ou parcialmente por um cache e ficaram fora das estatísticas.",
+  "A relay that caches unique prompts may be serving stored answers; compare with a trusted baseline.": "Um relay que armazena em cache prompts únicos pode estar servindo respostas guardadas; compare com uma referência confiável.",
+  "Weigh this together with the model-identity findings; speed alone is not proof of substitution.": "Avalie isso junto com as constatações de identidade do modelo; a velocidade sozinha não prova uma substituição."
  },
  "findings": {
   "connectivity.models": [
@@ -685,6 +745,34 @@
   "rerank.known_answer": [
    "A resposta óbvia fica em primeiro?",
    "Em primeiro ficou o documento {top_index}; esperava-se o documento {expected} (ordem {ranking})."
+  ],
+  "performance.summary": [
+   "Resultados da sonda de desempenho",
+   "{successes}/{requests} requisições da sonda bem-sucedidas; latência p50 {latency_p50_ms} ms, TTFT p50 {ttft_p50_ms} ms, decodificação p50 {decode_tps_p50} tok/s."
+  ],
+  "performance.errors": [
+   "Requisições da sonda falharam",
+   "{errors} erros e {timeouts} tempos esgotados em {requests} requisições da sonda para {endpoint} ({rate_limited} limitadas)."
+  ],
+  "performance.cache_hit": [
+   "Prompts únicos da sonda vieram de um cache",
+   "{cached} requisição(ões) da sonda para {endpoint} voltaram do cache embora cada prompt fosse único; ficaram fora das estatísticas."
+  ],
+  "performance.reasoning": [
+   "Tokens de raciocínio na sonda",
+   "O modelo gasta tokens de raciocínio ocultos ({reasoning_tokens} declarados): o TTFT inclui o raciocínio. O zing não define esforço de raciocínio; o modelo raciocina com o esforço padrão."
+  ],
+  "performance.relay_overhead": [
+   "Latência em relação à referência",
+   "Latência p50 do alvo {target_latency_p50_ms} ms vs referência {baseline_latency_p50_ms} ms (diferença {latency_p50_delta_ms} ms)."
+  ],
+  "performance.throughput_mismatch": [
+   "O alvo gera muito mais rápido que a referência",
+   "O alvo decodifica a {target_decode_tps_p50} tok/s vs {baseline_decode_tps_p50} tok/s da referência ({ratio}x) — compatível com um modelo menor."
+  ],
+  "performance.skipped": [
+   "Sonda de desempenho desativada",
+   "performance_requests = {performance_requests}; nenhuma requisição da sonda foi enviada."
   ]
  }
 }

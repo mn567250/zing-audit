@@ -81,6 +81,9 @@
 
   /* ---- inline saved-report drawer ---- */
   .drawer{background:#fafdf8;border-top:1px solid var(--line)}
+  .lspark{display:flex;align-items:center;gap:5px;margin-left:6px;padding-left:10px;border-left:1px solid var(--line)}
+  .lspark .lv{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink2)}
+  .lspark small{color:var(--faint);font-weight:500}
   .doc{padding:2px 0 8px}
   .vhero{display:flex;gap:18px;align-items:center;padding:20px 22px 12px}
   @media(max-width:520px){.vhero{flex-direction:column;align-items:flex-start;gap:12px}}
@@ -115,6 +118,7 @@
   .zicon{vertical-align:middle;flex:none}
 </style>
 <script src="/i18n.js"></script>
+<script src="/perf.js"></script>
 <script src="/icons.js"></script>
 </head>
 <body>
@@ -247,11 +251,13 @@ function toggleRow(tr){
   tr.after(dr);openRow=tr;
   const id=tr.dataset.id;
   fetch("/api/history/"+id).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
-    .then(rep=>{dr.querySelector(".drawer").innerHTML=reportHTML(rep,id);wireDrawer(dr,id);})
+    .then(rep=>{dr.querySelector(".drawer").innerHTML=reportHTML(rep,id);wireDrawer(dr,id,rep);})
     .catch(e=>{dr.querySelector(".drawer").innerHTML=`<div class="loading">${T("无法加载这份报告：","Could not load this report: ")}${esc(String(e.message||e))}</div>`;});
 }
 
-function wireDrawer(dr,id){
+function wireDrawer(dr,id,rep){
+  const ps=dr.querySelector(".perf-sect");
+  if(ps&&rep&&rep.performance&&window.ZingPerf)ZingPerf.wireSection(ps,rep.performance);
   dr.querySelectorAll(".more").forEach(m=>m.onclick=ev=>{ev.stopPropagation();const e=m.previousElementSibling;
     e.classList.toggle("show");m.textContent=e.classList.contains("show")?T("收起证据","Hide evidence"):T("查看证据","Show evidence");});
   requestAnimationFrame(()=>dr.querySelectorAll(".ba i").forEach(i=>{i.style.width=i.dataset.w+"%";i.style.background=i.dataset.c;}));
@@ -299,6 +305,7 @@ function reportHTML(r,id){
     ${findings.length
       ?`<div class="sect"><h3>${T("关注点","Findings")} <span>${findings.length} findings</span></h3>${findings.map(findRow).join("")}</div>`
       :`<div class="sect"><h3>${T("关注点","Findings")} <span>findings</span></h3><p style="color:var(--ink2);font-size:13px;margin:0">${T("未发现警告或失败项。","No warnings or failures.")}</p></div>`}
+    ${r.performance&&window.ZingPerf?`<div class="sect perf-sect"><h3>${T("性能","Performance")} <span>performance</span></h3>${ZingPerf.section(r.performance)}</div>`:""}
     <div class="drawer-foot">
       <button class="dl-json">${T("下载 JSON","Download JSON")}</button>
       <button class="del">${T("删除此记录","Delete entry")}</button>
@@ -329,6 +336,27 @@ function zhConf(c){const m={high:["高","High"],medium:["中","Medium"],low:["�
 
 /* ---- sparkline ---- */
 function drawSpark(host,trend){
+  drawScoreSpark(host,trend);
+  drawLatencySpark(host,trend);
+}
+// p50 latency of the target across runs (runs without a performance section are skipped)
+function drawLatencySpark(host,trend){
+  const pts=trend.filter(p=>p&&typeof p.latency_p50_ms==="number");
+  if(!pts.length)return;
+  const last=pts[pts.length-1];
+  const label=T("延迟 p50","Latency p50")+": "+Math.round(last.latency_p50_ms)+" ms"+
+    (typeof last.decode_tps_p50==="number"?" · "+Math.round(last.decode_tps_p50)+" tok/s":"");
+  const wrap=document.createElement("span");wrap.className="lspark";wrap.title=label;
+  let svg="";
+  if(pts.length>=2){
+    const W=70,H=22,P=3,vals=pts.map(p=>p.latency_p50_ms),mx=Math.max(...vals),mn=Math.min(...vals),rg=(mx-mn)||1;
+    const d=vals.map((v,i)=>`${i?"L":"M"}${(P+i*(W-2*P)/(vals.length-1)).toFixed(1)},${(H-P-(v-mn)/rg*(H-2*P)).toFixed(1)}`).join(" ");
+    svg=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true"><path d="${d}" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+  wrap.innerHTML=`${svg}<span class="lv">${Math.round(last.latency_p50_ms)}<small> ms</small></span>`;
+  host.appendChild(wrap);
+}
+function drawScoreSpark(host,trend){
   const pts=trend.filter(p=>p&&typeof p.score==="number");
   const last=trend.length?trend[trend.length-1]:null;
   const curScore=last&&last.score!=null?Math.round(last.score):null;

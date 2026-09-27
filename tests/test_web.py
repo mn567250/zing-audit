@@ -166,3 +166,63 @@ def test_audit_stream_invalid_baseline_errors(client):
         },
     )
     assert '"type": "error"' in r.text
+
+
+def test_serves_perf_js_and_pages_load_it(client):
+    js = client.get("/perf.js")
+    assert js.status_code == 200
+    assert "application/javascript" in js.headers["content-type"]
+    assert "ZingPerf" in js.text
+    for path in ("/", "/history"):
+        assert '<script src="/perf.js"></script>' in client.get(path).text
+
+
+def test_audit_stream_batches_request_records(tmp_path, monkeypatch, client):
+    import asyncio
+    import json
+
+    from zing.models import AuditReport, RedactedTarget, Verdict
+
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+
+    async def fake_run_audit(target, options, *, on_event=None, **_):
+        on_event({"type": "start", "total": 1, "probe_requests": 0})
+        for seq in range(3):  # a burst: batched into one event
+            on_event({"type": "request_done", "record": {"seq": seq}})
+        await asyncio.sleep(0.35)  # past the batch window: flushed on its own
+        on_event({"type": "request_done", "record": {"seq": 3}})
+        on_event({"type": "detector_done", "id": "x"})
+        return AuditReport(
+            tool_version="0", mode="check", suite="standard",
+            target=RedactedTarget(name="t", kind="target", base_url=target.base_url, model="m"),
+            verdict=Verdict(),
+        )
+
+    monkeypatch.setattr("zing.web.server.run_audit", fake_run_audit)
+    r = client.post("/api/audit/stream", json={"base_url": "https://x.example/v1", "model": "m"})
+    events = [
+        json.loads(line[5:]) for line in r.text.splitlines() if line.startswith("data:")
+    ]
+    types = [e["type"] for e in events]
+    assert "request_done" not in types
+    batches = [[rec["seq"] for rec in e["records"]] for e in events if e["type"] == "requests"]
+    assert batches == [[0, 1, 2], [3]]
+    # a pending batch is flushed before the next non-request event
+    assert types.index("requests") < types.index("detector_done") < types.index("report")
+    assert types[-1] == "done"
+
+
+def test_history_trend_carries_performance_headline(tmp_path, monkeypatch):
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    from zing.web import history
+
+    base = {"target": {"base_url": "https://x/v1", "claimed_model": "m", "model": "m"},
+            "verdict": {"overall_score": 90.0}}
+    history.save(base)
+    history.save({**base, "performance": {"target": {
+        "latency_ms": {"p50": 812.5}, "ttft_ms": {"p50": 240.0},
+        "decode_tps_local": {"p50": None}, "decode_tps_reported": {"p50": 55.0}}}})
+    old, new = history.trend("https://x/v1", "m")
+    assert old["latency_p50_ms"] is None and old["score"] == 90.0
+    assert new["latency_p50_ms"] == 812.5 and new["ttft_p50_ms"] == 240.0
+    assert new["decode_tps_p50"] == 55.0

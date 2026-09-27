@@ -316,3 +316,21 @@ async def test_audit_report_has_passive_performance(patched_make_client, target_
     assert "content" not in live[0]["record"]
     # The JSON export carries the section.
     assert '"performance"' in report.model_dump_json()
+
+
+async def test_stream_server_time_runs_to_first_token():
+    # A stream's headers arrive before any output, so its server share is
+    # measured from the request being sent to the first token.
+    rec = RequestRecorder()
+    net = NetTrace()
+    started = 100.0
+    net.marks = {
+        "http11.send_request_body.complete": started + 0.010,
+        "http11.receive_response_headers.complete": started + 0.012,
+    }
+    outcome = CompletionOutcome(ok=True, duration_ms=900.0, ttft_ms=310.0, content="a b c")
+    r = rec.record_completion("target", _spec(stream=True), outcome, started, net)
+    assert r.headers_ms == pytest.approx(12.0)
+    assert r.server_ms == pytest.approx(300.0)
+    plain = rec.record_completion("target", _spec(), outcome, started, net)
+    assert plain.server_ms == pytest.approx(2.0)

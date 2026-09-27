@@ -170,10 +170,31 @@ def get(rid: int) -> dict[str, Any] | None:
         return None
 
 
+def _perf_headline(report_json: str | None) -> dict[str, float | None]:
+    """Target p50 latency / TTFT / decode speed of a saved report (None if absent)."""
+    out: dict[str, float | None] = {"latency_p50_ms": None, "ttft_p50_ms": None, "decode_tps_p50": None}
+    try:
+        target = (json.loads(report_json or "{}").get("performance") or {}).get("target") or {}
+    except (ValueError, TypeError, AttributeError):
+        return out
+
+    def p50(key: str) -> float | None:
+        stats = target.get(key)
+        value = stats.get("p50") if isinstance(stats, dict) else None
+        return float(value) if isinstance(value, (int, float)) else None
+
+    out["latency_p50_ms"] = p50("latency_ms")
+    out["ttft_p50_ms"] = p50("ttft_ms")
+    tps = p50("decode_tps_local")
+    out["decode_tps_p50"] = tps if tps is not None else p50("decode_tps_reported")
+    return out
+
+
 def trend(
     base_url: str, claimed_model: str, limit: int = 30
 ) -> list[dict[str, Any]]:
-    """Score history for one target+model, oldest→newest, for a sparkline."""
+    """Score and performance history for one target+model, oldest→newest, for a
+    sparkline."""
     try:
         limit = max(1, min(int(limit), 365))
     except (TypeError, ValueError):
@@ -183,12 +204,17 @@ def trend(
             return []
         # Take the newest `limit`, then flip to chronological order.
         rows = conn.execute(
-            """SELECT ts, score, risk_level FROM history
+            """SELECT ts, score, risk_level, report_json FROM history
                WHERE base_url = ? AND claimed_model = ?
                ORDER BY id DESC LIMIT ?""",
             (base_url, claimed_model, limit),
         ).fetchall()
-    return [dict(r) for r in reversed(rows)]
+    out: list[dict[str, Any]] = []
+    for r in reversed(rows):
+        item = {"ts": r["ts"], "score": r["score"], "risk_level": r["risk_level"]}
+        item.update(_perf_headline(r["report_json"]))
+        out.append(item)
+    return out
 
 
 def delete(rid: int) -> None:

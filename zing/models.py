@@ -271,7 +271,8 @@ class RequestRecord(BaseModel):
     connect_ms: float | None = None  # TCP connect, including DNS
     tls_ms: float | None = None
     headers_ms: float | None = None  # request start -> response headers
-    server_ms: float | None = None  # request sent -> response headers
+    # Request fully sent -> response headers (a stream: -> first token).
+    server_ms: float | None = None
     # Upstream processing time a relay reports in its own headers (untrusted).
     relay_processing_ms: float | None = None
 

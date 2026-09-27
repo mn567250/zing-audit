@@ -4,7 +4,8 @@ Endpoints:
   GET  /                     the single-page app
   GET  /api/health           {ok, version}
   POST /api/models           list a relay's /models (connection check + model ids)
-  POST /api/audit/stream     run an audit; stream detector progress + final report
+  POST /api/audit/stream     run an audit; stream detector progress, batched
+                             per-request timing records and the final report
                              as Server-Sent Events (text/event-stream)
 
 The audit runs in-process with the same `run_audit` the CLI uses; a progress
@@ -45,6 +46,9 @@ _STATIC = Path(__file__).parent / "static"
 # individual watch runs on is its own (much larger) interval_sec; this is just
 # the polling tick.
 _SCHEDULER_TICK_SEC = 30.0
+
+# Live per-request events are batched into one SSE message per window.
+_REQUEST_BATCH_SEC = 0.25
 
 # Built-in known-answer rerank probe: one document (index 2) is unmistakably the
 # most relevant answer to the query. A genuine reranker must rank it first.
@@ -255,6 +259,10 @@ def create_app() -> FastAPI:
             _STATIC / "modelpicker.js", media_type="application/javascript"
         )
 
+    @app.get("/perf.js")
+    async def perf_js() -> Any:
+        return FileResponse(_STATIC / "perf.js", media_type="application/javascript")
+
     @app.get("/api/kb")
     async def kb() -> Any:
         # Public model metadata only — no keys, no secrets. Mirrors the grouping
@@ -382,9 +390,28 @@ def create_app() -> FastAPI:
                     queue.put_nowait({"type": "done"})
 
             task = asyncio.create_task(run())
+            loop = asyncio.get_running_loop()
+            # Per-request records arrive in bursts (the reliability and probe
+            # bursts); batch them into one "requests" event per window.
+            pending: list[dict[str, Any]] = []
+            flush_at = 0.0
             try:
                 while True:
-                    event = await queue.get()
+                    timeout = max(0.0, flush_at - loop.time()) if pending else None
+                    try:
+                        event = await asyncio.wait_for(queue.get(), timeout)
+                    except asyncio.TimeoutError:
+                        yield sse({"type": "requests", "records": pending})
+                        pending = []
+                        continue
+                    if event.get("type") == "request_done":
+                        if not pending:
+                            flush_at = loop.time() + _REQUEST_BATCH_SEC
+                        pending.append(event["record"])
+                        continue
+                    if pending:
+                        yield sse({"type": "requests", "records": pending})
+                        pending = []
                     yield sse(event)
                     if event.get("type") == "done":
                         break

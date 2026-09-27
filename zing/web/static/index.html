@@ -221,6 +221,7 @@
         <div class="pbar"><i id="pbar"></i></div>
         <div class="dets" id="dets"></div>
         <div class="feed" id="feed"></div>
+        <div id="perf-live"></div>
       </div>
     </div>
   </section>
@@ -238,6 +239,7 @@
 </div>
 
 <script src="/i18n.js"></script>
+<script src="/perf.js"></script>
 <script src="/icons.js"></script>
 <script src="/modelpicker.js"></script>
 <script>
@@ -265,6 +267,7 @@ const ico=(name,opts)=>(window.zingIcon?zingIcon(name,opts||{}):"");
 const ICON=new Proxy({},{get:(_,k)=>ico(ICON_NAME[k]||"info")});
 
 let lastReport=null;
+const live=window.ZingPerf?new ZingPerf.Live(document.getElementById("perf-live")):null;
 // live scan state, kept so a language switch can re-render it in place
 let nowText=()=>T("连接端点…","Connecting to endpoint…"), feedItems=[], formErr=null;
 function setNow(fn){nowText=fn;$("#now").textContent=fn();}
@@ -293,7 +296,7 @@ async function startAudit(){
   const bUrl=$("#b-url").value.trim(), bModel=$("#b-model").value.trim();
   if(bUrl&&bModel){payload.baseline={base_url:bUrl,api_key:$("#b-key").value.trim(),model:bModel,api:$("#b-api .on").dataset.v};}
   $("#go").disabled=true;
-  $("#dets").innerHTML=""; $("#feed").innerHTML=""; feedItems=[]; $("#pbar").style.width="0"; setNow(()=>T("连接端点…","Connecting to endpoint…"));
+  $("#dets").innerHTML=""; $("#feed").innerHTML=""; feedItems=[]; if(live)live.reset({}); $("#pbar").style.width="0"; setNow(()=>T("连接端点…","Connecting to endpoint…"));
   go(2);
   const seen={};
   try{
@@ -318,6 +321,9 @@ async function startAudit(){
 function handle(ev,seen){
   if(ev.type==="start"){
     setNow(()=>T("开始检测 ","Starting audit of ")+(ev.claimed_model||"")+" …");
+    if(live)live.reset({probeTotal:ev.probe_requests||0,hasBaseline:!!ev.has_baseline});
+  }else if(ev.type==="requests"){
+    if(live)live.add(ev.records);
   }else if(ev.type==="detector_start"){
     if(!seen[ev.id]){
       const d=document.createElement("div");d.className="det run";d.id="det-"+ev.id;d.__ev=ev;
@@ -400,10 +406,13 @@ function renderReport(r){
     ${findings.length?`<div class="sect"><h3>${T("关注点","Findings")} <span>${findings.length} findings</span></h3>${findings.map(findRow).join("")}</div>`
       :`<div class="sect"><h3>${T("关注点","Findings")} <span>findings</span></h3><p style="color:var(--ink2);font-size:14px;margin:0">${T("未发现警告或失败项 —— 各维度表现与所声称模型一致。","No warnings or failures — every dimension is consistent with the claimed model.")}</p></div>`}
 
+    ${r.performance&&window.ZingPerf?`<div class="sect" id="perf-sect"><h3>${T("性能","Performance")} <span>performance</span></h3>${ZingPerf.section(r.performance)}</div>`:""}
+
     <div class="disc">${T("zing 出具的是<strong>行为偏离与风险的可复现证据</strong>，不是欺诈的法律/密码学证明。中转站可能按概率路由；请结合样本量、计费设置与当地法律自行判断，切勿仅凭单次结果公开指控厂商。",
       "zing provides <strong>reproducible evidence of behavioral deviation and risk</strong>, not legal or cryptographic proof of fraud. Relays may route probabilistically; weigh sample size, billing settings and local law yourself, and never publicly accuse a vendor based on a single run.")}</div>`;
 
   requestAnimationFrame(()=>{$$("#doc .ba i").forEach(i=>{i.style.width=i.dataset.w+"%";i.style.background=i.dataset.c;});});
+  if(r.performance&&window.ZingPerf)ZingPerf.wireSection($("#perf-sect"),r.performance);
   $$("#doc .more").forEach(m=>m.onclick=()=>{const ev=m.previousElementSibling;ev.classList.toggle("show");m.textContent=ev.classList.contains("show")?T("收起证据","Hide evidence"):T("查看证据","Show evidence");});
 }
 function dimRow(d){const [nm,desc]=dimName(d.dimension)||[d.dimension,""];const c=VAR(scoreC(d.score));const sc=d.score==null?"—":d.score;
@@ -433,6 +442,7 @@ window.addEventListener("zing:lang",()=>{
   $$("#dets .det").forEach(d=>{const s=d.querySelector(".dt");if(s&&d.__ev)s.textContent=zhDet(d.__ev);});
   feedItems.forEach(({el,ev,f})=>{el.innerHTML=feedHTML(ev,f);});
   if(formErr)setFormErr(formErr);
+  if(live)live.render();
   if(lastReport){
     // keep expanded evidence panels open across the re-render
     const open=$$("#doc .ev").map(e=>e.classList.contains("show"));

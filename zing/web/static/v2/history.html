@@ -139,7 +139,12 @@
     .c-mode .perf::before { content: " · "; }
     .rline { align-items: start; }
     .rdel { margin-top: 4px; }
-    .trend { margin-left: 0; }
+    .grp-h { flex-wrap: nowrap; align-items: flex-start; }
+    .gtitle { flex: 1 1 auto; }
+    .trend { flex-direction: column; align-items: flex-end; gap: 6px; }
+    .trend svg { width: 84px; height: 26px; }
+    .trend .latest { order: -1; }
+    .lat { border-left: 0; padding-left: 0; font-size: 11px; }
   }
 </style>
 </head>

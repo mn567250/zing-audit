@@ -38,6 +38,7 @@ from zing.config import (
 )
 from zing.knowledge import load_knowledge_base
 from zing.models import AuditReport, RiskLevel, Status, TargetConfig
+from zing.report.performance import fmt_num
 
 # Risk ordering for the `watch` alert threshold (clean < low < medium < high).
 _WATCH_RISK_RANK = {
@@ -155,6 +156,27 @@ def _print_summary(report: AuditReport, written: list[Path]) -> None:
             f"({r.success_rate * 100:.0f}%)"
             + (f", p95 {p95:.0f} ms" if p95 else "")
         )
+
+    if report.performance:
+        perf = report.performance
+        for ep in (perf.target, perf.baseline):
+            if ep is None:
+                continue
+            tps = ep.decode_tps_local.p50
+            if tps is None:
+                tps = ep.decode_tps_reported.p50
+            bits = [
+                f"latency p50 {fmt_num(ep.latency_ms.p50)} ms",
+                f"TTFT p50 {fmt_num(ep.ttft_ms.p50)} ms",
+                f"decode {fmt_num(tps)} tok/s",
+            ]
+            if ep.network_rtt_ms.p50 is not None:
+                bits.append(f"RTT {fmt_num(ep.network_rtt_ms.p50)} ms")
+            label = "Performance" if perf.baseline is None else f"Performance ({ep.endpoint})"
+            console.print(
+                f"\n[bold]{label}[/bold] [dim]({perf.source}, n={ep.requests})[/dim]: "
+                + ", ".join(bits)
+            )
 
     if report.warnings:
         console.print("\n[yellow]Warnings[/yellow]")

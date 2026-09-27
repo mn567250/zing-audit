@@ -18,6 +18,12 @@ import html
 import json
 
 from zing.models import AuditReport, RiskLevel, Severity, Status
+from zing.report.performance import (
+    PERF_CSS,
+    compact_performance,
+    html_section,
+    markdown_section,
+)
 
 _DISCLAIMER = (
     "zing performs black-box auditing. It gathers reproducible evidence of "
@@ -185,6 +191,7 @@ def compact_dict(report: AuditReport) -> dict:
             for f in det.findings
         ],
         "reliability": rel,
+        "performance": compact_performance(report.performance),
         "judge_used": report.judge_used,
         "warnings": report.warnings or [],
     }
@@ -330,6 +337,8 @@ def render_markdown(report: AuditReport) -> str:
             errs = ", ".join(f"{k}: {n}" for k, n in r.errors.items())
             lines.append(f"- Errors: {errs}")
         lines.append("")
+
+    lines.extend(markdown_section(report.performance))
 
     # Notes & warnings.
     if report.notes:
@@ -533,6 +542,8 @@ def render_html(report: AuditReport) -> str:
             out.append(f"<li>Errors: {errs}</li>")
         out.append("</ul></section>")
 
+    out.append(html_section(report.performance))
+
     # Notes & warnings.
     if report.notes:
         out.append('<section class="card"><h2>Notes</h2><ul>')
@@ -623,4 +634,4 @@ td.ekey { color: #57606a; white-space: nowrap; font-weight: 500; }
   .pill.info { background: #0b2942; color: #58a6ff; }
   .pill.muted { background: #21262d; color: #8b949e; }
 }
-</style>"""
+""" + PERF_CSS + """</style>"""

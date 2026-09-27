@@ -124,7 +124,7 @@ zing check --base-url ... --model gpt-4o --suite deep --judge \
 |---|---|---|
 | `smoke` | connectivity, security | 极低 |
 | `standard` | + protocol, model_identity, capability, streaming, billing, reliability | 低–中 |
-| `deep` | + context_window, determinism, quality_judge（加 `--judge` 时）| 较高（长上下文探测消耗 token）|
+| `deep` | + context_window, determinism, performance, quality_judge（加 `--judge` 时）| 较高（长上下文探测消耗 token）|
 | `full` | 全部 | 最高 |
 
 上下文窗口探测受 `--max-context-tokens`（默认 200K）约束，因此审计 1M 上下文的模型也能控制花费。

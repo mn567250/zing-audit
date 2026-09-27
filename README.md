@@ -1,16 +1,16 @@
 # zing — LLM relay reality check
 
-> **English** · [中文](README.zh-CN.md)
+> **🇬🇧 English** · [🇨🇳 Chinese](README.zh-CN.md) · [🇫🇷 Français](README.fr.md) · [🇪🇸 Español](README.es.md) · [🇵🇹 Português](README.pt.md) · [🇮🇹 Italiano](README.it.md) · [🇩🇪 Deutsch](README.de.md)
 
 [![CI](https://github.com/cenbonew/zing/actions/workflows/ci.yml/badge.svg)](https://github.com/cenbonew/zing/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
-**zing** is a local-first CLI that audits whether an API relay (中转站 / reseller /
-proxy) actually serves the model it claims to — or quietly substitutes a cheaper
+**zing** is a local-first CLI that audits whether an API relay (reseller / proxy)
+actually serves the model it claims to — or quietly substitutes a cheaper
 one, truncates your context window, fakes streaming, or inflates token billing
-(**货不对板检测**). It speaks both **OpenAI Chat Completions** and the
-**Anthropic Messages API**, and the **OpenAI Responses API** (`/v1/responses`) —
+— in short, whether you get what you paid for. It speaks both **OpenAI Chat
+Completions** and the **Anthropic Messages API**, and the **OpenAI Responses API** (`/v1/responses`) —
 auto-detected, or forced with `--api openai|anthropic|responses`.
 
 You point it at a relay endpoint and the model it advertises; zing runs a battery
@@ -193,7 +193,7 @@ its placeholders and markup intact.
 
 ## What it checks
 
-zing scores nine dimensions. The three that most directly reveal 货不对板
+zing scores nine dimensions. The three that most directly reveal a bait-and-switch
 (model identity, real context window, capability claims) carry the most weight.
 
 | Dimension | What it catches |
@@ -267,13 +267,13 @@ zing watch --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
   --alert-lang en                                     # or --once for cron
 ```
 
-Alerts are formatted for **Slack / Feishu (飞书) / DingTalk (钉钉) / generic JSON**,
+Alerts are formatted for **Slack / Feishu / DingTalk / generic JSON**,
 auto-detected from the webhook URL, and written in the alert language — English by
 default; `--alert-lang en|zh|fr|es|pt|it|de`. The generic JSON payload keeps its keys
 and machine values (`risk_level`, `score`, …) language-neutral, translates the
 human-readable ones (`text`, `headline`, `key_findings`) and reports the `language`.
 
-Prefer a UI? `zing serve` has a built-in monitor at **`/watches`** (🔔 监控): add a
+Prefer a UI? `zing serve` has a built-in monitor at **`/watches`** (🔔 Monitors): add a
 watch in the browser and an in-process background scheduler re-runs it on its interval,
 persists every run to history, and fires the same webhook alerts on a threshold cross or
 regression. Each monitor has its own alert language (chosen in the form, defaulting to
@@ -300,14 +300,14 @@ zing rerank --base-url https://relay.example.com/v1 --model my-rerank
 ```
 
 `embed` checks connectivity, **dimension match** (returned vector length vs the claimed
-model's native dimension — the headline 货不对板 signal; a relay claiming 3072-d
+model's native dimension — the headline bait-and-switch signal; a relay claiming 3072-d
 `text-embedding-3-large` but returning 1024-d is a substituted model), determinism (same
 input → cosine ≈ 1), distinctness (unrelated inputs → cosine well below 1), and the
 echoed `model` field. Bundled KB profiles: OpenAI `text-embedding-3-small` (1536),
 `text-embedding-3-large` (3072), `text-embedding-ada-002` (1536), Qwen
 `text-embedding-v3`/`-v4` (1024).
 
-Both also live in the web UI — `zing serve` has a **工具箱 / Tools** page at `/tools`
+Both also live in the web UI — `zing serve` has a **Tools** page at `/tools`
 (linked from the nav) with embed/rerank forms that render the same localized verdict.
 
 ## Image & audio (TTS) generation audits
@@ -319,7 +319,7 @@ dimensions from header bytes (PNG/JPEG/GIF/WebP), WAV duration via the `wave` mo
 ```bash
 # Does a relay claiming DALL·E 3 actually return the requested 1792x1024? A
 # downscaled / wrong-size image (or a size outside the claimed model's native sizes,
-# resolved from the KB) is the headline 货不对板 signal.
+# resolved from the KB) is the headline bait-and-switch signal.
 zing image --base-url https://relay.example.com/v1 --api-key env:RELAY_KEY \
   --model dall-e-3 --claimed-model dall-e-3 --size 1792x1024 --fail-on-risk high
 

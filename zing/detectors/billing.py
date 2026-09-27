@@ -10,25 +10,15 @@ inconsistent totals.
 
 from __future__ import annotations
 
+from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import usage_field
 from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
 from zing.utils.tokenize import estimate_messages_tokens, estimate_tokens, is_exact_tokenizer
 
-# A fixed paragraph (~110 words) so the prompt size is stable across runs.
-_KNOWN_PARAGRAPH = (
-    "The municipal water authority published its annual report on Tuesday, "
-    "outlining a decade-long plan to modernize aging pipelines across the "
-    "northern districts. Engineers warned that several mains, installed in the "
-    "early twentieth century, had begun to corrode and leak, wasting an "
-    "estimated fifteen percent of treated water before it reached homes. The "
-    "proposed budget allocates funds for sensor networks that detect pressure "
-    "drops in real time, allowing crews to locate ruptures within hours rather "
-    "than days. Residents at the public hearing voiced concern about rate "
-    "increases, while council members emphasized that deferring repairs would "
-    "ultimately cost far more in emergency excavation and water loss over time."
-)
+# The probe summarizes a fixed paragraph (~110 words, "billing.known_paragraph" in
+# zing/prompts/en.json) so the prompt size is stable across runs.
 
 
 @register
@@ -47,9 +37,8 @@ class BillingDetector(Detector):
             messages=[
                 {
                     "role": "user",
-                    "content": (
-                        f"{_KNOWN_PARAGRAPH}\n\n"
-                        "Summarize the text above in exactly two sentences."
+                    "content": prompts.text(
+                        "billing.summarize", paragraph=prompts.get("billing.known_paragraph")
                     ),
                 }
             ],

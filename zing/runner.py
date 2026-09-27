@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import zing.detectors  # noqa: F401  -- populates the detector REGISTRY
-from zing import __version__
+from zing import __version__, prompts
 from zing.clients import make_client
 from zing.config import AuditOptions
 from zing.context import AuditContext
@@ -68,6 +68,15 @@ def _event_findings(result: DetectorResult) -> list[dict[str, Any]]:
             }
         )
     return out
+
+
+def _prompt_languages(detectors: list[DetectorResult]) -> list[str]:
+    """Languages of everything sent to the endpoint: the prompt library's plus
+    those of the language-bound fingerprints that actually ran."""
+    langs = {prompts.PROBE_LANG}
+    for det in detectors:
+        langs.update(det.evidence.get("fingerprint_prompt_langs") or [])
+    return sorted(langs)
 
 
 def _extract_reliability(detectors: list[DetectorResult]) -> ReliabilitySummary | None:
@@ -189,4 +198,5 @@ async def run_audit(
         judge_model=judge_endpoint.model if (options.judge and judge_endpoint is not None) else None,
         notes=notes,
         warnings=warnings,
+        prompt_languages=_prompt_languages(results),
     )

@@ -58,9 +58,67 @@ def test_build_text_caps_key_findings():
 
 def test_build_text_delta_when_previous_given():
     worse = notify.build_text(REPORT, PREV_LOW)
-    assert "较上次" in worse and "恶化" in worse
+    assert "Since last run" in worse and "worse" in worse
     none = notify.build_text(REPORT, None)
-    assert "较上次" not in none
+    assert "Since last run" not in none
+
+
+def test_build_text_defaults_to_english():
+    text = notify.build_text(REPORT, PREV_LOW)
+    assert text.startswith("🛰️ zing relay audit alert")
+    assert "Risk: 🔴 High risk (HIGH)" in text and "Score: 42.0/100 (grade D)" in text
+    # the only Chinese left is the fixture's own sample finding titles
+    for sample in REPORT["verdict"]["key_findings"]:
+        text = text.replace(sample, "")
+    assert not any("\u4e00" <= ch <= "\u9fff" for ch in text)
+
+
+def test_build_text_chinese_keeps_original_wording():
+    text = notify.build_text(REPORT, PREV_LOW, lang="zh")
+    assert text.startswith("🛰️ zing 中继体检告警")
+    assert "风险：🔴 高风险（HIGH）" in text and "评分：42.0/100（评级 D）" in text
+    assert "较上次：🔵 低风险（LOW） → 🔴 高风险（HIGH）（恶化 ⬆️）" in text
+
+
+def test_unknown_language_falls_back_to_english():
+    assert notify.build_text(REPORT, lang="xx") == notify.build_text(REPORT)
+
+
+# A real report (from `zing check` against a dishonest local relay).
+def _real_report():
+    from pathlib import Path
+
+    return json.loads((Path(__file__).parent / "fixtures" / "web_report.json").read_text("utf-8"))
+
+
+@pytest.mark.parametrize("lang", ["en", "zh", "fr", "es", "pt", "it", "de"])
+def test_real_alert_is_fully_in_its_language(lang):
+    from zing import i18n
+
+    report = _real_report()
+    text = notify.build_text(report, PREV_LOW, lang=lang)
+    has_cjk = any("\u4e00" <= ch <= "\u9fff" for ch in text)
+    assert has_cjk == (lang == "zh")
+    en_headline = report["verdict"]["headline"]
+    en_findings = report["verdict"]["key_findings"][:5]
+    if lang == "en":
+        assert en_headline in text and all(f in text for f in en_findings)
+    else:
+        # headline and every key finding translated, not copied in English
+        assert en_headline not in text
+        assert not any(f"• {f}" in text for f in en_findings)
+        assert i18n.ui(lang, "Key findings:") in text
+
+
+def test_generic_payload_keys_stay_english_values_follow_language():
+    report = _real_report()
+    en = notify.format_generic(report, PREV_LOW)
+    de = notify.format_generic(report, PREV_LOW, lang="de")
+    assert set(en) == set(de)
+    assert en["language"] == "en" and de["language"] == "de"
+    for key in ("risk_level", "score", "rating", "base_url", "claimed_model", "previous_risk_level", "regressed"):
+        assert en[key] == de[key]
+    assert de["headline"] != en["headline"] and de["key_findings"] != en["key_findings"]
 
 
 # --------------------------------------------------------------------------- #
@@ -203,7 +261,15 @@ async def test_send_posts_and_returns_true(monkeypatch):
     body = json.loads(req.content.decode())
     # Auto-detected slack shape, with the regression delta in the text.
     assert set(body) == {"text"}
-    assert "较上次" in body["text"]
+    assert "Since last run" in body["text"]
+
+
+async def test_send_uses_the_requested_language(monkeypatch):
+    rec = _Recorder(status=200)
+    _patch_async_client(monkeypatch, rec.transport)
+    ok = await notify.send("https://hooks.slack.com/services/T/B/X", REPORT, previous=PREV_LOW, lang="zh")
+    assert ok is True
+    assert "较上次" in json.loads(rec.requests[0].content.decode())["text"]
 
 
 async def test_send_explicit_kind_feishu(monkeypatch):

@@ -137,6 +137,33 @@ breakdown, plain-language findings, downloadable JSON). It runs entirely on your
 machine — a key typed in the browser reaches only your local server and the target
 relay, never a third party. Bind stays on `127.0.0.1` by default.
 
+A language dropdown in the header of every page switches the UI between
+**🇬🇧 English** (default), **🇨🇳 Chinese** (the original UI), **🇫🇷 French**, **🇪🇸 Spanish**,
+**🇵🇹 Portuguese**, **🇮🇹 Italian** and **🇩🇪 German**; the choice is remembered per browser.
+Reports downloaded from the UI (**Download report (JSON)**) follow the selected language
+too: the JSON keys, enum values (`risk_level`, `status`, `severity`, …), ids and evidence
+stay exactly as in the CLI's report (it is still a valid zing report), while the
+human-readable values (verdict headline/summary, finding titles/summaries,
+recommendations, detector names, notes) are translated, and the file name carries the
+language (`zing-report.de.json`). The CLI's own `--format json|md|html` reports stay
+English.
+
+**Prompts sent to the audited endpoint do not follow the UI language.** Every text zing
+sends to an LLM API — chat probes, the LLM judge's prompt, tool schemas, embedding /
+rerank / image / audio inputs — lives in one prompt library, `zing/prompts/en.json`, and
+is English, so the same relay gets the same verdict whoever reads the report (answer
+checks and token estimates are calibrated to these exact texts). The only exceptions are
+knowledge-base fingerprints whose language *is* the measurement — e.g. the Chinese
+fluency, tokenizer and self-identification probes of China-native models — which declare
+`prompt_lang` and a `language_bound` reason in `zing/knowledge/data/*.yaml`. Each report
+records the probe languages it actually used (`prompt_languages`, e.g. `["en", "zh"]`).
+
+The translations are data, shared by the web UI and the webhook alerts:
+`zing/i18n/locales/<code>.json`, one file per language. To add a language, add one file
+(copy `de.json`); the dropdown, the pages and the alerts pick it up.
+`tests/test_web_locales.py` fails until every UI string and finding is translated with
+its placeholders and markup intact.
+
 ## What it checks
 
 zing scores nine dimensions. The three that most directly reveal 货不对板
@@ -181,16 +208,22 @@ risk crosses a threshold or **regresses** versus the previous run.
 ```bash
 zing watch --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
   --model gpt-4o --suite standard --interval 3600 \
-  --alert-on medium --webhook "$FEISHU_WEBHOOK"      # or --once for cron
+  --alert-on medium --webhook "$FEISHU_WEBHOOK" \
+  --alert-lang en                                     # or --once for cron
 ```
 
 Alerts are formatted for **Slack / Feishu (飞书) / DingTalk (钉钉) / generic JSON**,
-auto-detected from the webhook URL.
+auto-detected from the webhook URL, and written in the alert language — English by
+default; `--alert-lang en|zh|fr|es|pt|it|de`. The generic JSON payload keeps its keys
+and machine values (`risk_level`, `score`, …) language-neutral, translates the
+human-readable ones (`text`, `headline`, `key_findings`) and reports the `language`.
 
 Prefer a UI? `zing serve` has a built-in monitor at **`/watches`** (🔔 监控): add a
 watch in the browser and an in-process background scheduler re-runs it on its interval,
 persists every run to history, and fires the same webhook alerts on a threshold cross or
-regression. Run-now / pause / delete from the page. Keys are stored only in `~/.zing` and
+regression. Each monitor has its own alert language (chosen in the form, defaulting to
+the UI language, and changeable on the monitor's card). Run-now / pause / delete from
+the page. Keys are stored only in `~/.zing` and
 never returned to the browser.
 
 ## Embedding & rerank audits

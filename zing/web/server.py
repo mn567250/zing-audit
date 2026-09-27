@@ -25,10 +25,10 @@ from typing import Any
 # fastapi is the optional [web] extra. This module is only imported when serving
 # (CLI `serve`) or by the web tests, both of which handle a missing dependency.
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from zing import __version__
+from zing import __version__, prompts
 from zing.config import (
     AuditOptions,
     ConfigError,
@@ -47,13 +47,8 @@ _SCHEDULER_TICK_SEC = 30.0
 
 # Built-in known-answer rerank probe: one document (index 2) is unmistakably the
 # most relevant answer to the query. A genuine reranker must rank it first.
-_RERANK_PROBE_QUERY = "What is the capital of France?"
-_RERANK_PROBE_DOCS = [
-    "Bananas are a good source of potassium.",
-    "The Great Wall of China is very long.",
-    "Paris is the capital of France.",
-    "Photosynthesis happens in plants.",
-]
+_RERANK_PROBE_QUERY = prompts.text("rerank.web.query")
+_RERANK_PROBE_DOCS: list[str] = prompts.get("rerank.web.documents")
 _RERANK_PROBE_TOP = 2
 
 
@@ -112,7 +107,7 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
         options = AuditOptions(suite=suite)
 
         # Previous saved run for this target+model — used for the regression check
-        # and the "较上次" delta in the alert. notify.send needs the full report,
+        # and the "since last run" delta in the alert. notify.send needs the full report,
         # so find the most recent prior history row for this target and re-fetch it.
         claimed = target.claimed_model or target.model
         previous: dict[str, Any] | None = None
@@ -149,7 +144,7 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
                 if not isinstance(url, str) or not url.strip():
                     continue
                 with contextlib.suppress(Exception):
-                    await send(url.strip(), report_dict, previous=previous)
+                    await send(url.strip(), report_dict, previous=previous, lang=row.get("language"))
     finally:
         # Record the run no matter what so cadence stays honest.
         with contextlib.suppress(Exception):
@@ -237,6 +232,17 @@ def create_app() -> FastAPI:
     @app.get("/i18n.js")
     async def i18n_js() -> Any:
         return FileResponse(_STATIC / "i18n.js", media_type="application/javascript")
+
+    @app.get("/locales.js")
+    async def locales_js() -> Any:
+        # Translation data (zing/i18n/locales/*.json) + the lookup logic.
+        from zing.i18n import locales_script
+
+        return Response(locales_script(), media_type="application/javascript")
+
+    @app.get("/lang.js")
+    async def lang_js() -> Any:
+        return FileResponse(_STATIC / "lang.js", media_type="application/javascript")
 
     @app.get("/icons.js")
     async def icons_js() -> Any:
@@ -444,6 +450,8 @@ def create_app() -> FastAPI:
         body = await request.json()
         if "enabled" in body:
             watches.set_enabled(wid, bool(body.get("enabled")))
+        if "language" in body:
+            watches.set_language(wid, body.get("language"))
         return JSONResponse({"ok": True})
 
     @app.post("/api/watches/{wid}/run")

@@ -19,15 +19,16 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from zing import prompts
 from zing.clients import make_client
 from zing.models import RiskLevel, Severity, Status, TargetConfig
 from zing.utils.redact import fingerprint_secret
 
 # A pair of clearly-unrelated inputs for the distinctness probe, plus a repeated
-# input for the determinism probe.
-_DET_INPUT = "The quick brown fox jumps over the lazy dog."
-_DISTINCT_A = "A recipe for chocolate chip cookies with butter and brown sugar."
-_DISTINCT_B = "Quarterly revenue grew on strong cloud-infrastructure demand."
+# input for the determinism probe (zing/prompts/en.json).
+_DET_INPUT = prompts.text("embed.determinism_input")
+_DISTINCT_A = prompts.text("embed.distinct_a")
+_DISTINCT_B = prompts.text("embed.distinct_b")
 
 # Cosine thresholds. Determinism should be essentially 1.0; distinct texts should
 # be comfortably below 1.0 (identical vectors for different inputs is the tell).

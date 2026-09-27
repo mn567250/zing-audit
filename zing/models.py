@@ -270,3 +270,8 @@ class AuditReport(BaseModel):
 
     notes: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    # Languages of the prompts sent to the audited endpoint: the English prompt
+    # library (zing/prompts/en.json) plus any language-bound knowledge-base
+    # fingerprints (e.g. "zh" for the Chinese fluency probes of China-native
+    # models). Independent of the UI and alert language.
+    prompt_languages: list[str] = Field(default_factory=list)

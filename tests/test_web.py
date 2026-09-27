@@ -65,6 +65,27 @@ def test_serves_console_and_history_and_i18n(client):
     assert j.status_code == 200 and "ZING_I18N" in j.text
 
 
+def test_serves_lang_js_and_pages_load_it(client):
+    js = client.get("/lang.js")
+    assert js.status_code == 200
+    assert "application/javascript" in js.headers["content-type"]
+    assert "ZING_LANG" in js.text
+    loc = client.get("/locales.js")
+    assert loc.status_code == 200
+    assert "application/javascript" in loc.headers["content-type"]
+    assert "ZING_LOCALES" in loc.text
+    for path in ("/", "/console", "/history", "/tools", "/watches"):
+        html = client.get(path).text
+        # locales must load before lang.js, which reads them at switch time
+        assert '<script src="/locales.js"></script>\n<script src="/lang.js"></script>' in html
+        # the dropdown is filled from LANG_LIST in lang.js, not per page
+        assert 'class="lang-sel"' in html and "<option" not in html.split('class="lang-sel"')[1].split("</select>")[0]
+    # the language list and translations come from zing/i18n/locales/*.json
+    assert loc.text.startswith("window.ZING_I18N_DATA = {")
+    for code in ("en", "zh", "fr", "es", "pt", "it", "de"):
+        assert f'"code":"{code}"' in loc.text
+
+
 def test_serves_icons_and_modelpicker_js(client):
     icons = client.get("/icons.js")
     assert icons.status_code == 200

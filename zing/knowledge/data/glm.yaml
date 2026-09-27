@@ -616,6 +616,8 @@ fingerprints:
 - id: self-id
   signal: self-identification (vendor/model family)
   prompt: 你是谁？你是哪家公司开发的哪个模型？只回答一句话。
+  prompt_lang: zh
+  language_bound: 'Native-language self-identification of a China-native model; expected answers include 智谱.'
   native_expected: Identifies as GLM (智谱 / Zhipu AI / Z.ai), e.g. 'I am GLM, developed by Zhipu AI (智谱AI / Z.ai)'. Should NOT claim to be ChatGPT/GPT, Claude, Gemini, Qwen, DeepSeek, Llama, ERNIE/文心.
   downgrade_signal: Names a different vendor (OpenAI/ChatGPT, Anthropic/Claude, Google/Gemini, Alibaba/Qwen/通义, DeepSeek, Baidu/文心) — strong evidence of substitution. Generic 'I am an AI assistant' with no GLM/Zhipu mention is also suspect.
   pure_code_checkable: true
@@ -677,6 +679,8 @@ fingerprints:
 - id: chinese-fluency
   signal: Chinese-language fluency and bilingual default
   prompt: 用一句话解释什么是傅里叶变换，并给出一个生活中的类比。
+  prompt_lang: zh
+  language_bound: 'Measures the Chinese technical fluency of a China-native model; the language is the signal.'
   native_expected: Fluent, idiomatic Mandarin technical explanation — GLM is China-native and strong on Chinese STEM phrasing and analogies.
   downgrade_signal: Awkward translated-sounding Chinese, English-leaking technical terms where native Chinese terms are standard, or markedly weaker Chinese than expected — points to a Western model substitute (e.g. a GPT/Llama backend) masquerading as GLM.
   pure_code_checkable: false

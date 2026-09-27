@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 
+from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.models import (
@@ -56,7 +57,7 @@ class ReliabilityDetector(Detector):
 
         conc = max(1, ctx.options.reliability_concurrency)
         spec = RequestSpec(
-            messages=[{"role": "user", "content": "Reply with the single word: ok"}],
+            messages=[{"role": "user", "content": prompts.text("reliability.ping")}],
             temperature=0.0,
             max_tokens=8,
         )

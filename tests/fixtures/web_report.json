@@ -1,0 +1,570 @@
+{
+ "tool_version": "0.11.0",
+ "mode": "check",
+ "generated_at": "2026-09-27T07:47:04.472446+00:00",
+ "command": "zing check --base-url http://127.0.0.1:9099/v1 --model gpt-4o --suite standard",
+ "suite": "standard",
+ "target": {
+  "name": "target",
+  "kind": "target",
+  "base_url": "http://127.0.0.1:9099/v1",
+  "model": "gpt-4o",
+  "claimed_model": null,
+  "declared_provider": null,
+  "api_key_fingerprint": "sha256:000000000000"
+ },
+ "baseline": null,
+ "verdict": {
+  "overall_score": 52.6,
+  "rating": "F",
+  "risk_level": "high",
+  "headline": "Strong evidence the relay does not deliver the claimed model as advertised. (confidence: medium)",
+  "confidence": "medium",
+  "summary": "Overall health score 52.6/100. Findings: 4 high, 5 medium. Run `zing compare` against a trusted baseline to strengthen the verdict. zing reports black-box evidence of divergence and risk, not proof of fraud.",
+  "key_findings": [
+   "Reported prompt tokens far exceed estimate",
+   "Self-identifies as a rival brand",
+   "Fingerprint divergence: self-identification style",
+   "Endpoint is not HTTPS",
+   "Reported completion tokens well above heuristic estimate",
+   "Claimed tool-calling not delivered"
+  ]
+ },
+ "dimensions": [
+  {
+   "dimension": "connectivity",
+   "score": 92.5,
+   "weight": 8.0,
+   "status": "pass",
+   "reason": "All checks passed."
+  },
+  {
+   "dimension": "protocol",
+   "score": 75.0,
+   "weight": 8.0,
+   "status": "fail",
+   "reason": "Stop-sequence handling; Error response schema"
+  },
+  {
+   "dimension": "context_window",
+   "score": null,
+   "weight": 20.0,
+   "status": "not_run",
+   "reason": "Not run in this suite."
+  },
+  {
+   "dimension": "model_identity",
+   "score": 20.0,
+   "weight": 22.0,
+   "status": "fail",
+   "reason": "Self-identifies as a rival brand; Fingerprint divergence: self-identification style; Fingerprint divergence: max-output / context truncation; Echoed model field differs from requested"
+  },
+  {
+   "dimension": "capability",
+   "score": 25.0,
+   "weight": 14.0,
+   "status": "fail",
+   "reason": "Claimed tool-calling not delivered; Claimed JSON mode not delivered; Claimed strict JSON schema not enforced; Output stopped far below requested length"
+  },
+  {
+   "dimension": "streaming",
+   "score": 100.0,
+   "weight": 6.0,
+   "status": "pass",
+   "reason": "All checks passed."
+  },
+  {
+   "dimension": "billing",
+   "score": 55.0,
+   "weight": 8.0,
+   "status": "fail",
+   "reason": "Reported prompt tokens far exceed estimate; Reported completion tokens well above heuristic estimate"
+  },
+  {
+   "dimension": "reliability",
+   "score": 100.0,
+   "weight": 8.0,
+   "status": "pass",
+   "reason": "All checks passed."
+  },
+  {
+   "dimension": "security",
+   "score": 40.0,
+   "weight": 6.0,
+   "status": "fail",
+   "reason": "Endpoint is not HTTPS"
+  }
+ ],
+ "detectors": [
+  {
+   "id": "billing",
+   "name": "Token/usage billing audit",
+   "dimension": "billing",
+   "status": "fail",
+   "score": 55.0,
+   "findings": [
+    {
+     "id": "billing.usage-inflation",
+     "title": "Reported prompt tokens far exceed estimate",
+     "status": "fail",
+     "severity": "high",
+     "summary": "Reported prompt tokens (900) far exceed independent estimate (~135).",
+     "evidence": {
+      "reported_prompt": 900,
+      "estimated_prompt": 135,
+      "ratio": 6.666666666666667,
+      "exact_tokenizer": false
+     },
+     "recommendation": "Cross-check billing against a known-size prompt; possible per-token overbilling."
+    },
+    {
+     "id": "billing.usage-inflation-completion",
+     "title": "Reported completion tokens well above heuristic estimate",
+     "status": "warn",
+     "severity": "medium",
+     "summary": "Reported completion tokens (400) are far above the heuristic estimate (~7); the estimate is approximate for this tokenizer, so corroborate before concluding overbilling.",
+     "evidence": {
+      "reported_completion": 400,
+      "estimated_completion": 7,
+      "ratio": 57.14,
+      "exact_tokenizer": false
+     },
+     "recommendation": "Compare token accounting against a trusted baseline of the same model."
+    }
+   ],
+   "evidence": {
+    "reported": {
+     "prompt": 900,
+     "completion": 400,
+     "total": 1300
+    },
+    "estimated": {
+     "prompt": 135,
+     "completion": 7
+    },
+    "ratio_prompt": 6.667,
+    "ratio_completion": 57.143,
+    "tokenizer": "o200k_base",
+    "estimate_note": "Token estimate uses a heuristic fallback; treat as ~±25% unless an exact tiktoken encoding was available."
+   },
+   "duration_ms": 23.312508999879356,
+   "error": null,
+   "used_judge": false
+  },
+  {
+   "id": "capability",
+   "name": "Capability-claim verification",
+   "dimension": "capability",
+   "status": "fail",
+   "score": 25.0,
+   "findings": [
+    {
+     "id": "capability.tools",
+     "title": "Claimed tool-calling not delivered",
+     "status": "fail",
+     "severity": "medium",
+     "summary": "Profile claims tool-calling support but the relay returned no tool call for an explicit tool-use request.",
+     "evidence": {
+      "finish_reason": "stop",
+      "had_content": true
+     },
+     "recommendation": "Confirm the served engine actually supports function calling."
+    },
+    {
+     "id": "capability.json_mode",
+     "title": "Claimed JSON mode not delivered",
+     "status": "fail",
+     "severity": "medium",
+     "summary": "Profile claims JSON-mode support but the relay did not return a valid JSON object carrying the requested value.",
+     "evidence": {
+      "parsed": false,
+      "value_matched": false
+     },
+     "recommendation": "Verify the served engine honors response_format=json_object."
+    },
+    {
+     "id": "capability.json_schema",
+     "title": "Claimed strict JSON schema not enforced",
+     "status": "warn",
+     "severity": "low",
+     "summary": "Profile claims json_schema support but the response did not conform.",
+     "evidence": {
+      "conforms": false,
+      "parsed": false
+     },
+     "recommendation": null
+    },
+    {
+     "id": "capability.max_output",
+     "title": "Output stopped far below requested length",
+     "status": "warn",
+     "severity": "low",
+     "summary": "Model gave up early (finish_reason=stop) at roughly 0% of the 2048-token request despite a large declared max_output of 16384. Weak signal (short probe).",
+     "evidence": {
+      "declared_max_output": 16384,
+      "requested_max_tokens": 2048,
+      "finish_reason": "stop",
+      "line_count": 1,
+      "char_count": 23,
+      "note": "probe capped at 2048 tokens; full declared ceiling not exercised"
+     },
+     "recommendation": "Long-form generation may under-deliver relative to the claimed ceiling; confirm with a longer probe."
+    }
+   ],
+   "evidence": {
+    "has_profile": true
+   },
+   "duration_ms": 9.74260799989679,
+   "error": null,
+   "used_judge": false
+  },
+  {
+   "id": "connectivity",
+   "name": "Connectivity & basic completion",
+   "dimension": "connectivity",
+   "status": "pass",
+   "score": 92.5,
+   "findings": [
+    {
+     "id": "connectivity.models",
+     "title": "/v1/models reachable",
+     "status": "pass",
+     "severity": "info",
+     "summary": "Listed 1 models; claimed model is present.",
+     "evidence": {
+      "model_count": 1,
+      "claimed_listed": true
+     },
+     "recommendation": null
+    },
+    {
+     "id": "connectivity.chat",
+     "title": "Basic chat completion works",
+     "status": "pass",
+     "severity": "info",
+     "summary": "Returned content in 2 ms; canary not echoed.",
+     "evidence": {
+      "duration_ms": 2.0326839999142976,
+      "model_returned": "gpt-4o-mini",
+      "canary_echoed": false
+     },
+     "recommendation": null
+    }
+   ],
+   "evidence": {
+    "model_ids_sample": [
+     "gpt-4o"
+    ]
+   },
+   "duration_ms": 4.498593000107576,
+   "error": null,
+   "used_judge": false
+  },
+  {
+   "id": "model_identity",
+   "name": "Model identity & downgrade fingerprinting",
+   "dimension": "model_identity",
+   "status": "fail",
+   "score": 20.0,
+   "findings": [
+    {
+     "id": "model_identity.self_id",
+     "title": "Self-identifies as a rival brand",
+     "status": "fail",
+     "severity": "high",
+     "summary": "Self-identifies as a rival brand (claude) under the claimed model id gpt-4o, without naming the genuine brand.",
+     "evidence": {
+      "prompt": "self-id",
+      "target_answer": "I am Claude, a model made by Anthropic.",
+      "forbidden_hits": [
+       "claude",
+       "anthropic"
+      ]
+     },
+     "recommendation": "A response naming a different vendor strongly suggests model substitution."
+    },
+    {
+     "id": "model_identity.fp.self-id",
+     "title": "Fingerprint divergence: self-identification style",
+     "status": "fail",
+     "severity": "high",
+     "summary": "Probe 'self-identification style' surfaced a forbidden brand (claude); expected behavior consistent with gpt-4o.",
+     "evidence": {
+      "probe": "self-id",
+      "native_expected": "Genuine OpenAI models identify as an OpenAI model (a GPT/ChatGPT/GPT-5-family model trained by OpenAI). They do NOT claim to be Claude, Gemini, Llama, Qwen, or DeepSeek.",
+      "downgrade_signal": "A substituted backend self-identifies as Claude/Anthropic, Gemini/Google, Llama/Meta, Qwen/Alibaba, or DeepSeek — an immediate tell. Note exact OpenAI version self-ID is unreliable (models are not reliably aware of their own minor version), so judge only the vendor/family claim. Keyword check for foreign-vendor names.",
+      "observed": "I am Claude, a model made by Anthropic.",
+      "weight": 1.0
+     },
+     "recommendation": null
+    },
+    {
+     "id": "model_identity.fp.max-output-truncation",
+     "title": "Fingerprint divergence: max-output / context truncation",
+     "status": "warn",
+     "severity": "low",
+     "summary": "Probe 'max-output / context truncation' diverged from native behavior. Expected: Genuine GPT-5.x/4.1 honors a very large max_completion_tokens; with max set to e.g. 40000 it streams tens of thousands of tokens before stopping. Reaching well past 16384 output tokens proves it is not a 4o-class (16384 cap) or a quietly capped relay..",
+     "evidence": {
+      "probe": "max-output-truncation",
+      "native_expected": "Genuine GPT-5.x/4.1 honors a very large max_completion_tokens; with max set to e.g. 40000 it streams tens of thousands of tokens before stopping. Reaching well past 16384 output tokens proves it is not a 4o-class (16384 cap) or a quietly capped relay.",
+      "downgrade_signal": "A relay fronting gpt-4o/4o-mini hard-stops at 16384 output tokens; a context-truncating relay stops far earlier. Set max_completion_tokens=40000 and check the emitted line count / completion_tokens.",
+      "observed": "Blue. The answer is 42.",
+      "weight": 1.0
+     },
+     "recommendation": null
+    },
+    {
+     "id": "model_identity.model_field",
+     "title": "Echoed model field differs from requested",
+     "status": "warn",
+     "severity": "medium",
+     "summary": "Response 'model' field (gpt-4o-mini) differs from requested (gpt-4o).",
+     "evidence": {
+      "requested": "gpt-4o",
+      "returned": "gpt-4o-mini"
+     },
+     "recommendation": "A smaller-tier or different-family model id in the response suggests routing to a substitute."
+    }
+   ],
+   "evidence": {
+    "fingerprints_run": 2,
+    "fingerprints_violated": 2,
+    "match_confidence": "exact"
+   },
+   "duration_ms": 21.369902999822443,
+   "error": null,
+   "used_judge": false
+  },
+  {
+   "id": "protocol",
+   "name": "OpenAI-compatibility conformance",
+   "dimension": "protocol",
+   "status": "fail",
+   "score": 75.0,
+   "findings": [
+    {
+     "id": "protocol.multi_turn",
+     "title": "Multi-turn conversation memory",
+     "status": "pass",
+     "severity": "info",
+     "summary": "Prior turns were honored; the recalled color was returned.",
+     "evidence": {
+      "recalled_blue": true,
+      "content_preview": "Blue. The answer is 42."
+     },
+     "recommendation": null
+    },
+    {
+     "id": "protocol.stop",
+     "title": "Stop-sequence handling",
+     "status": "warn",
+     "severity": "low",
+     "summary": "Could not confirm stop handling from the response text.",
+     "evidence": {
+      "contains_alpha": false,
+      "contains_beta": false,
+      "finish_reason": "stop",
+      "content_preview": "Blue. The answer is 42."
+     },
+     "recommendation": null
+    },
+    {
+     "id": "protocol.shape",
+     "title": "Response envelope shape",
+     "status": "pass",
+     "severity": "info",
+     "summary": "finish_reason and an integer usage object were present.",
+     "evidence": {
+      "finish_reason": "stop",
+      "has_usage": true,
+      "prompt_tokens": 900,
+      "completion_tokens": 400,
+      "total_tokens": 1300
+     },
+     "recommendation": null
+    },
+    {
+     "id": "protocol.error_schema",
+     "title": "Error response schema",
+     "status": "fail",
+     "severity": "medium",
+     "summary": "Empty-messages request was accepted (2xx) instead of being rejected.",
+     "evidence": {
+      "status_code": 200,
+      "conforming_error_body": false,
+      "raw_error_keys": null,
+      "accepted_invalid": true
+     },
+     "recommendation": "A conformant relay should reject invalid input with a 4xx and an {'error': {...}} body."
+    }
+   ],
+   "evidence": {},
+   "duration_ms": 6.919094000068071,
+   "error": null,
+   "used_judge": false
+  },
+  {
+   "id": "reliability",
+   "name": "Concurrent reliability & latency",
+   "dimension": "reliability",
+   "status": "pass",
+   "score": 100.0,
+   "findings": [
+    {
+     "id": "reliability.success_rate",
+     "title": "All concurrent requests succeeded",
+     "status": "pass",
+     "severity": "info",
+     "summary": "4 of 4 attempted requests succeeded at concurrency 2.",
+     "evidence": {
+      "requests": 4,
+      "successes": 4,
+      "rate_limited": 0,
+      "concurrency": 2,
+      "success_rate": 1.0
+     },
+     "recommendation": null
+    }
+   ],
+   "evidence": {
+    "reliability": {
+     "requests": 4,
+     "successes": 4,
+     "success_rate": 1.0,
+     "rate_limited": 0,
+     "latency_ms": {
+      "count": 4.0,
+      "min": 2.3146949999954813,
+      "mean": 3.3006777500190765,
+      "p50": 2.5485170000365542,
+      "p95": 5.317998550003721,
+      "p99": 5.696385310006916,
+      "max": 5.790982000007716,
+      "stdev": 1.4423242611833436
+     },
+     "errors": {}
+    }
+   },
+   "duration_ms": 8.035932999973738,
+   "error": null,
+   "used_judge": false
+  },
+  {
+   "id": "security",
+   "name": "Transport & secret-handling signals",
+   "dimension": "security",
+   "status": "fail",
+   "score": 40.0,
+   "findings": [
+    {
+     "id": "security.tls",
+     "title": "Endpoint is not HTTPS",
+     "status": "fail",
+     "severity": "high",
+     "summary": "Endpoint is not HTTPS; the API key is sent in clear text.",
+     "evidence": {
+      "scheme": "http"
+     },
+     "recommendation": "Use an https:// base_url so the bearer token is not exposed on the wire."
+    },
+    {
+     "id": "security.headers",
+     "title": "Response leaks upstream/proxy headers",
+     "status": "info",
+     "severity": "low",
+     "summary": "Found 1 revealing header(s): server. Informational — can corroborate the upstream identity, not a failure.",
+     "evidence": {
+      "revealing_headers": {
+       "server": "uvicorn"
+      }
+     },
+     "recommendation": null
+    },
+    {
+     "id": "security.key_echo",
+     "title": "API key not reflected in response",
+     "status": "pass",
+     "severity": "info",
+     "summary": "The API key does not appear in the response content or error text.",
+     "evidence": {},
+     "recommendation": null
+    },
+    {
+     "id": "security.note",
+     "title": "Prompt logging & shared upstream keys are not black-box provable",
+     "status": "info",
+     "severity": "info",
+     "summary": "Whether a relay logs prompts or multiplexes a shared upstream key cannot be verified from the client side. Treat the reliability and streaming-timing dimensions as indirect signals (e.g. cross-request latency coupling).",
+     "evidence": {},
+     "recommendation": null
+    }
+   ],
+   "evidence": {
+    "https": false,
+    "key_present": true
+   },
+   "duration_ms": 1.9239850000758452,
+   "error": null,
+   "used_judge": false
+  },
+  {
+   "id": "streaming",
+   "name": "Streaming authenticity",
+   "dimension": "streaming",
+   "status": "pass",
+   "score": 100.0,
+   "findings": [
+    {
+     "id": "streaming.healthy",
+     "title": "Streaming looks authentic",
+     "status": "pass",
+     "severity": "info",
+     "summary": "2 chunks over 3 ms, first token at 2 ms.",
+     "evidence": {
+      "chunk_count": 2,
+      "duration_ms": 3.0,
+      "ttft_ms": 1.8
+     },
+     "recommendation": null
+    }
+   ],
+   "evidence": {
+    "chunk_count": 2,
+    "content_chars": 23,
+    "duration_ms": 3.0,
+    "ttft_ms": 1.8,
+    "usage_present": true,
+    "buffered_signals": []
+   },
+   "duration_ms": 3.048068999987663,
+   "error": null,
+   "used_judge": false
+  }
+ ],
+ "baseline_detectors": [],
+ "reliability": {
+  "requests": 4,
+  "successes": 4,
+  "success_rate": 1.0,
+  "rate_limited": 0,
+  "latency_ms": {
+   "count": 4.0,
+   "min": 2.3146949999954813,
+   "mean": 3.3006777500190765,
+   "p50": 2.5485170000365542,
+   "p95": 5.317998550003721,
+   "p99": 5.696385310006916,
+   "max": 5.790982000007716,
+   "stdev": 1.4423242611833436
+  },
+  "errors": {}
+ },
+ "judge_used": false,
+ "judge_model": null,
+ "notes": [
+  "zing performs black-box auditing: it gathers reproducible evidence of behavioral divergence, not cryptographic proof of model identity.",
+  "Use `zing compare` against a trusted baseline of the same declared model for the strongest downgrade evidence.",
+  "Do not publish a report that names a vendor without reviewing sample size, cost, and local law/policy."
+ ],
+ "warnings": []
+}

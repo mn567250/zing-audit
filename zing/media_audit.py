@@ -25,22 +25,20 @@ import struct
 import wave
 from typing import Any
 
+from zing import prompts
 from zing.clients import make_client
 from zing.embed_audit import _finding, _verdict
 from zing.models import Severity, Status, TargetConfig
 
-# Two clearly-different prompts for the image distinctness probe.
-_IMG_PROMPT_A = "A photorealistic red apple on a white table, studio lighting."
-_IMG_PROMPT_B = "A blue sailboat on a calm ocean at sunset, watercolor style."
+# Two clearly-different prompts for the image distinctness probe
+# (zing/prompts/en.json).
+_IMG_PROMPT_A = prompts.text("image.prompt_a")
+_IMG_PROMPT_B = prompts.text("image.prompt_b")
 
-# Two clearly-different inputs for the audio probes. ``B`` is markedly LONGER than
-# ``A`` so a genuine TTS engine must produce a longer clip.
-_AUD_SHORT = "Hello."
-_AUD_LONG = (
-    "Hello there. This is a substantially longer sentence used to verify that a "
-    "genuine text-to-speech engine produces audio whose length grows with the "
-    "input text rather than returning a fixed-size placeholder clip."
-)
+# Two clearly-different inputs for the audio probes. The long one is markedly
+# LONGER than the short one so a genuine TTS engine must produce a longer clip.
+_AUD_SHORT = prompts.text("audio.short")
+_AUD_LONG = prompts.text("audio.long")
 
 
 # --------------------------------------------------------------------------- #

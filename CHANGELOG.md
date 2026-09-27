@@ -6,6 +6,59 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Web UI: language switch.** Every page (`/`, `/console`, `/history`, `/tools`,
+  `/watches`) gets a **🇬🇧 EN · 🇨🇳 CN · 🇫🇷 FR · 🇪🇸 ES · 🇵🇹 PT · 🇮🇹 IT · 🇩🇪 DE**
+  dropdown in its header; English is the default. Every user-facing string is translated (labels,
+  placeholders, tooltips, dialogs, verdicts, finding titles/summaries, detector names,
+  recommendations, status codes, the model picker); CN keeps the original Chinese UI
+  unchanged. Switching is live (no reload) and remembered in `localStorage`. Backed
+  by new shared `/lang.js` and `/locales.js`. The dropdown is generated from a single
+  language registry, a new language is one registry entry plus one translation block,
+  and `tests/test_web_locales.py` enforces that every language is complete.
+- **Web UI: downloaded reports follow the UI language.** "Download report (JSON)" (on
+  `/` and in `/history`) translates every human-readable value — verdict headline and
+  summary, key findings, finding titles/summaries/recommendations, detector names,
+  dimension reasons, notes — into the selected language (CN included), keeping the
+  JSON keys, enums, ids and evidence unchanged so the file still validates as a zing
+  `AuditReport`; the file name carries the language (`zing-report.<lang>.json`).
+
+- **Webhook alerts in the monitor's language.** Alerts from `zing watch` and the
+  `/watches` monitors were always Chinese (with the verdict headline and key findings in
+  English). They are now written entirely in the alert language — English by default,
+  or any supported language: `zing watch --alert-lang <code>`, and a per-monitor
+  **Alert language** in the web UI (stored in `~/.zing`; existing monitors are migrated
+  and send English). The generic JSON payload gains a `language` field; its other keys
+  and machine values are unchanged.
+- **Translations are shared data.** All translations now live in
+  `zing/i18n/locales/<code>.json`, used by the web UI (served as `/locales.js`) and by
+  Python (`zing.i18n`, for alerts). Adding a language is adding one file.
+
+- **Prompt library.** Every text sent to an LLM API (chat probes, the judge prompt,
+  tool schemas, embedding / rerank / image / audio inputs — 53 entries) moved out of the
+  code into `zing/prompts/en.json`, loaded via `zing.prompts`. Probes are English and
+  independent of the UI/alert language, so verdicts don't depend on who reads them; a
+  capture of every request of a full audit is byte-identical before and after the move
+  except the vision probe (below). Knowledge-base fingerprints gained `prompt_lang` and
+  `language_bound`: the 7 Chinese probes of China-native models (fluency, tokenizer
+  echo, native self-id, cultural recall) stay Chinese because the language is the
+  measurement, and must say so. Reports gain `prompt_languages`, shown in the web UI.
+
+### Changed
+
+- **Vision probe asks in English only.** It was bilingual
+  ("仅用一个词回答：图片是什么颜色？/ In one word, what color is this image?"); Chinese
+  answers are still accepted.
+
+### Fixed
+
+- **Web UI: finding summaries that fell back to English.** Findings emitted by several
+  detector branches (pass / warn / inconclusive, request failures) had no matching
+  translation template, so their summary appeared in English even in the Chinese UI;
+  `embed.dimension` without a known claimed dimension read "should produce 0-d".
+  Branch-specific and generic "request failed" templates now cover them.
+
 ## [0.11.0] — web UI: claimed-model picker + all-SVG icons
 
 ### Added

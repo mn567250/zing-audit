@@ -14,6 +14,7 @@ parameters (e.g. deepseek-reasoner ignores temperature) and can repeat output.
 
 from __future__ import annotations
 
+from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
@@ -45,10 +46,7 @@ class DeterminismDetector(Detector):
             messages=[
                 {
                     "role": "user",
-                    "content": (
-                        "Write an original six-line free-verse poem about the sea at "
-                        "dawn. Make unexpected word choices."
-                    ),
+                    "content": prompts.text("determinism.creative"),
                 }
             ],
             temperature=1.0,
@@ -140,7 +138,7 @@ class DeterminismDetector(Detector):
 
         # 2) Determinism sanity at temperature=0 — informational only.
         factual = RequestSpec(
-            messages=[{"role": "user", "content": "Name the capital of France in one word."}],
+            messages=[{"role": "user", "content": prompts.text("determinism.factual")}],
             temperature=0.0,
             max_tokens=16,
         )

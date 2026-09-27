@@ -35,9 +35,9 @@
     return window.ZING_LANG && window.ZING_LANG.tr ? window.ZING_LANG.tr(en) : en;
   };
   // Backend notes are fixed English sentences with translations in every
-  // language, CN included (exportText translates in CN too; server() doesn't).
+  // language, CN included; server() translates backend text in every language.
   var note = function (s) {
-    return window.ZING_LANG ? window.ZING_LANG.exportText(s) : s;
+    return window.ZING_LANG ? window.ZING_LANG.server(s) : s;
   };
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
@@ -202,7 +202,7 @@
     var rows = calls.filter(function (r) { return !r.ok || m.get(r) != null; });
     if (!rows.length) return "";
     return '<details class="zp-data"' + (open ? " open" : "") + "><summary>" + esc(T("查看数据表", "Show data table")) +
-      '</summary><div class="zp-data-scroll"><table class="zp-table zp-small"><thead><tr><th class="r">#</th><th>' +
+      '</summary><div class="zp-data-scroll" tabindex="0"><table class="zp-table zp-small"><thead><tr><th class="r">#</th><th>' +
       esc(T("端点", "Endpoint")) + "</th><th>" + esc(T("阶段", "Phase")) + '</th><th class="r">' +
       esc(T("开始", "Start")) + ' <span class="zp-unit">s</span></th><th class="r">' + esc(T(m.zh, m.en)) +
       ' <span class="zp-unit">' + m.unit + "</span></th><th>" + esc(T("状态", "Status")) + "</th></tr></thead><tbody>" +
@@ -526,7 +526,12 @@
       if (act.getAttribute("data-metric")) refocus = '.zp-tabs [data-metric="' + act.getAttribute("data-metric") + '"]';
       else if (act.tagName === "SUMMARY") refocus = ".zp-data summary";
     }
+    // ... nor jump an open data table back to its top.
+    var box = this.host.querySelector(".zp-data-scroll"), scrollTop = box ? box.scrollTop : 0;
+    if (act && box && box.contains(act)) refocus = ".zp-data-scroll";
     this.host.innerHTML = o.join("");
+    box = this.host.querySelector(".zp-data-scroll");
+    if (box && scrollTop) box.scrollTop = scrollTop;
     if (refocus) {
       var el = this.host.querySelector(refocus);
       if (el) el.focus();

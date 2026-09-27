@@ -3,6 +3,7 @@
 Endpoints:
   GET  /                     the single-page app
   GET  /api/health           {ok, version}
+  POST /api/models           list a relay's /models (connection check + model ids)
   POST /api/audit/stream     run an audit; stream detector progress + final report
                              as Server-Sent Events (text/event-stream)
 
@@ -271,6 +272,45 @@ def create_app() -> FastAPI:
             for prov in provs
         ]
         return JSONResponse({"providers": providers})
+
+    @app.post("/api/models")
+    async def relay_models(request: Request) -> Any:
+        # List the relay's own /models so the picker can offer ids it really
+        # accepts. The API key is optional: self-hosted relays (Ollama, LM Studio)
+        # need none, and an empty key sends no auth header.
+        from zing.clients import detect_api, make_client
+
+        body = await request.json()
+        try:
+            target = build_target(
+                kind="target",
+                name="models",
+                base_url=body.get("base_url"),
+                api_key=body.get("api_key"),
+                model="-",  # required by build_target; unused by GET /models
+                api=validate_api(body.get("api")),
+            )
+        except ConfigError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+        # Error text is already redacted by the client (key scrubbed).
+        outcome, ids = await make_client(target).list_models()
+        if not outcome.ok:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "status_code": outcome.status_code,
+                    "error": outcome.error_message or outcome.error_type or "error",
+                }
+            )
+        return JSONResponse(
+            {
+                "ok": True,
+                "api": detect_api(target),
+                "models": sorted(set(ids)),
+                "duration_ms": round(outcome.duration_ms or 0.0, 1),
+            }
+        )
 
     @app.post("/api/audit/stream")
     async def audit_stream(request: Request) -> Any:

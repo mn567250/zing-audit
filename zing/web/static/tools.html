@@ -284,7 +284,8 @@ window.addEventListener("zing:lang",()=>{
 
 // wire the model picker on the claimed-model input (canonical value source unchanged)
 if(window.ZingModelPicker){
-  ZingModelPicker.enhance({claimedInput:"#e-claimed",providerInput:"#e-provider"});
+  ZingModelPicker.enhance({claimedInput:"#e-claimed",providerInput:"#e-provider",
+    urlInput:"#e-url",keyInput:"#e-key",modelInput:"#e-model",api:()=>segVal("e-api")});
 }
 </script>
 </body>

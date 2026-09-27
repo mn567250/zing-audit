@@ -222,3 +222,95 @@ def test_serves_tools_page_and_index_nav(client):
     # The home page links to /tools in its nav.
     index = client.get("/").text
     assert 'href="/tools"' in index
+
+
+# ----- /api/models: relay model listing for the picker's custom provider ----- #
+
+
+def _mock_relay(monkeypatch, handler):
+    """Route every client make_client builds through an httpx.MockTransport."""
+    import httpx
+
+    import zing.clients as clients
+
+    real = clients.make_client
+    seen: list = []
+
+    def recording(request):
+        seen.append(request)
+        return handler(request)
+
+    monkeypatch.setattr(
+        clients,
+        "make_client",
+        lambda cfg, **_: real(cfg, transport=httpx.MockTransport(recording)),
+    )
+    return seen
+
+
+def test_models_endpoint_lists_relay_models_and_hides_secret(client, monkeypatch):
+    import httpx
+
+    seen = _mock_relay(
+        monkeypatch,
+        lambda req: httpx.Response(
+            200, json={"data": [{"id": "gpt-4o"}, {"id": "deepseek-chat"}, {"id": "gpt-4o"}]}
+        ),
+    )
+    r = client.post(
+        "/api/models",
+        json={"base_url": "https://relay.example.com/v1", "api_key": SECRET, "api": "openai"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["ok"] is True
+    assert data["api"] == "openai"
+    assert data["models"] == ["deepseek-chat", "gpt-4o"]
+    assert SECRET not in r.text
+    assert str(seen[0].url) == "https://relay.example.com/v1/models"
+    assert seen[0].headers["authorization"] == f"Bearer {SECRET}"
+
+
+def test_models_endpoint_works_without_api_key(client, monkeypatch):
+    import httpx
+
+    seen = _mock_relay(
+        monkeypatch, lambda req: httpx.Response(200, json={"data": [{"id": "llama3.2"}]})
+    )
+    # Self-hosted relays (Ollama, LM Studio) need no key.
+    r = client.post("/api/models", json={"base_url": "http://localhost:11434/v1"})
+    assert r.status_code == 200
+    assert r.json()["models"] == ["llama3.2"]
+    assert "authorization" not in seen[0].headers
+
+
+def test_models_endpoint_reports_relay_error_without_secret(client, monkeypatch):
+    import httpx
+
+    _mock_relay(
+        monkeypatch,
+        lambda req: httpx.Response(401, json={"error": {"message": f"bad key {SECRET}"}}),
+    )
+    r = client.post(
+        "/api/models",
+        json={"base_url": "https://relay.example.com/v1", "api_key": SECRET},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["ok"] is False
+    assert data["status_code"] == 401
+    assert "bad key" in data["error"]
+    assert SECRET not in r.text
+
+
+def test_models_endpoint_bad_base_url_is_400(client):
+    r = client.post("/api/models", json={"base_url": "ftp://nope", "api_key": SECRET})
+    assert r.status_code == 400
+    assert "base_url" in r.json()["error"]
+
+
+def test_modelpicker_offers_custom_relay_provider(client):
+    r = client.get("/modelpicker.js")
+    assert r.status_code == 200
+    assert "/api/models" in r.text
+    assert "Custom (from relay)" in r.text

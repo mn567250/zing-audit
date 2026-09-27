@@ -599,7 +599,8 @@ $("#verdict").textContent=verdictIdle();
 /* model picker: enhance the claimed-model input (stays the value source) */
 try{
   if(window.ZingModelPicker){
-    window.ZingModelPicker.enhance({claimedInput:"#i-claimed",providerInput:"#i-prov"});
+    window.ZingModelPicker.enhance({claimedInput:"#i-claimed",providerInput:"#i-prov",
+      urlInput:"#i-url",keyInput:"#i-key",modelInput:"#i-model",api:()=>$("#api .on").dataset.v});
   }
 }catch(e){}
 </script>

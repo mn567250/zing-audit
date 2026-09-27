@@ -1,10 +1,12 @@
-/* zing web UI — language switch (EN · CN · FR · ES · PT · IT).
+/* zing web UI — language switch (English · 中文 · Français · Español ·
+ * Português · Italiano · Deutsch; the list comes from zing/i18n/locales/).
  *
  * Plain browser global, no modules. Load it in <head> after /locales.js and
  * before any page script, so the current language is known while the page
  * renders. Exposes window.ZING_LANG with:
  *   - get()            -> a code from LANGS below ("en", "zh", "fr", …)
  *   - langs()          the registry: [{ code, label, html, locale }] in menu order
+ *                      (label is the language's own name: "English", "中文", …)
  *   - isZh()           true when the original Chinese UI is shown
  *   - set(lang)        persist + re-translate static markup + fire "zing:lang"
  *   - t(zh, en)        CN -> zh; otherwise the English text translated via tr()
@@ -12,25 +14,37 @@
  *   - trFor(lang, en)  English string -> the given language
  *   - locale()         BCP 47 locale for dates/numbers ("fr-FR", …)
  *   - code(v)          uppercase enum code ("HIGH", "FAIL") in the UI language
- *   - server(text)     clean-up / translation of free text from the backend
- *   - exportText(text) same, for downloaded files (also translates in CN)
+ *   - server(text)     translation of free text from the backend (detector
+ *                      names, recommendations, verdict sentences, notes) into
+ *                      the UI language, CN included; unknown text stays English
+ *   - exportText(text) same, for downloaded files
  *   - stripCJK(text)   drop CJK runs (e.g. "Moonshot AI (月之暗面 / Kimi)")
  *   - apply(root)      (re)translate static markup under root
  * and a global shorthand T(zh, en).
  *
  * The Chinese text in the HTML is the original and stays untouched: elements
  * carry their English text in data attributes (the English doubles as the
- * lookup key for FR/ES/PT/IT) and the Chinese is remembered on first switch,
- * so CN always shows exactly what shipped.
+ * lookup key for the other languages) and the Chinese is remembered on first
+ * switch, so CN always shows exactly what shipped.
  *   data-en="…"              innerHTML outside CN (only text/inline markup inside!)
  *   data-en-placeholder="…"  / data-en-title / data-en-aria-label  attributes
  * A <select class="lang-sel"> anywhere on the page becomes the switcher; its
  * options are generated from LANGS, the single list of supported languages.
  *
  * Adding a language: add zing/i18n/locales/<code>.json (its "meta" gives the
- * flag + code label, <html lang>, locale and menu order). Nothing else changes:
- * pages, T(zh, en) call sites and data-en markup stay as they are, and any
- * string missing from a translation falls back to English.
+ * menu label — the language's own name, not a flag — <html lang>, locale and
+ * menu order). Nothing else changes: pages, T(zh, en) call sites and data-en
+ * markup stay as they are, and any string missing from a translation falls
+ * back to English. Feature work may ship its strings as fragments,
+ * zing/i18n/locales/fragments/<feature>/<code>.json ({"strings": {…}}), which
+ * zing/i18n merges into that language's strings before serving /locales.js.
+ *
+ * Outside CN the page is hidden (html visibility) until the static markup is
+ * translated. So a failure never leaves it blank, it is shown anyway after
+ * ~1.5 s or on the first window "error" (e.g. a later script throws, or boot
+ * never runs). Pages may also add
+ *   <noscript><style>html{visibility:visible!important}</style></noscript>
+ * for browsers with JavaScript disabled.
  */
 (function () {
   "use strict";
@@ -43,8 +57,8 @@
   var LANG_LIST = ((window.ZING_LOCALES || {}).languages || []).slice();
   if (!LANG_LIST.length)
     LANG_LIST = [
-      { code: "en", label: "🇬🇧 EN", html: "en", locale: "en-US" },
-      { code: "zh", label: "🇨🇳 CN", html: "zh-CN", locale: "zh-CN" },
+      { code: "en", label: "English", html: "en", locale: "en-US" },
+      { code: "zh", label: "中文", html: "zh-CN", locale: "zh-CN" },
     ];
   var LANGS = {};
   LANG_LIST.forEach(function (l) {
@@ -144,13 +158,14 @@
     return s;
   }
 
-  // Backend text in the UI: CN shows it verbatim (as it always did).
+  // Backend text in the UI, in the UI language (CN included: zh.json carries
+  // the backend's sentences too).
   function server(text) {
-    return lang === "zh" ? text : backendIn(lang, text);
+    return backendIn(lang, text);
   }
 
-  // Backend text in a downloaded artefact: translated in every language,
-  // CN included, so the file is in the chosen language throughout.
+  // Backend text in a downloaded artefact: the same translation, so the file
+  // is in the chosen language throughout.
   function exportText(text) {
     return backendIn(lang, text);
   }
@@ -218,13 +233,35 @@
 
   // Keep the page hidden until the static markup is in the chosen language,
   // so a non-CN user never sees a flash of the Chinese original.
-  if (lang !== "zh") document.documentElement.style.visibility = "hidden";
+  // Never leave it blank, though: if boot doesn't run or a script fails,
+  // show the page anyway after a short delay or on the first error.
+  var revealTimer = null;
+  function reveal() {
+    if (revealTimer != null) clearTimeout(revealTimer);
+    revealTimer = null;
+    try {
+      window.removeEventListener("error", reveal);
+    } catch (e) {}
+    document.documentElement.style.visibility = "";
+  }
+  if (lang !== "zh") {
+    document.documentElement.style.visibility = "hidden";
+    try {
+      revealTimer = setTimeout(reveal, 1500);
+      window.addEventListener("error", reveal);
+    } catch (e) {
+      reveal();
+    }
+  }
   document.documentElement.lang = LANGS[lang].html;
 
   function boot() {
-    apply(document);
-    wireSwitchers();
-    document.documentElement.style.visibility = "";
+    try {
+      apply(document);
+      wireSwitchers();
+    } finally {
+      reveal();
+    }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

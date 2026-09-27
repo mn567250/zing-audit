@@ -414,7 +414,11 @@
     var payload = { base_url: $("#r-url").value.trim(), api_key: $("#r-key").value.trim(), model: $("#r-model").value.trim(), api: segVal("r-api") };
     if (!payload.base_url || !payload.model) { showErr("#r-out", needTarget); (payload.base_url ? $("#r-model") : $("#r-url")).focus(); return; }
     var q = $("#r-query").value.trim();
-    var docs = $("#r-docs").value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
+    // line numbers refer to the textarea as typed: drop trailing blank lines only,
+    // and map the expected line past any blank lines in between
+    var lines = $("#r-docs").value.split("\n").map(function (s) { return s.trim(); });
+    while (lines.length && !lines[lines.length - 1]) lines.pop();
+    var docs = lines.filter(Boolean);
     var top = $("#r-top").value.trim();
     if (q || docs.length || top) {
       // a half-filled custom probe would silently fall back to the built-in one
@@ -422,15 +426,15 @@
         showErr("#r-out", function () { return esc(tt("自定义探针需要一个查询和至少两段文档。", "The custom probe needs a query and at least two documents.")); });
         return;
       }
-      var ti = top ? parseInt(top, 10) : 0;
-      if (!(ti >= 0 && ti < docs.length)) {
-        var n = docs.length - 1;
+      var line = top ? parseInt(top, 10) : 0;
+      if (!(line >= 0 && line < lines.length && lines[line])) {
+        var n = lines.length - 1;
         showErr("#r-out", function () { return esc(tt("预期行号必须在 0 到 {n} 之间。", "The expected line must be between 0 and {n}.").replace("{n}", n)); });
         return;
       }
       payload.query = q;
       payload.documents = docs;
-      payload.expected_top_index = ti;
+      payload.expected_top_index = lines.slice(0, line).filter(Boolean).length;
     }
     if (window.ZingSecret) ZingSecret.remember($("#rerank-form"));
     postAudit("/api/rerank", payload, $("#r-go"), "#r-out");

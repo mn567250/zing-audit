@@ -20,7 +20,7 @@ from zing.clients import make_client
 from zing.config import AuditOptions
 from zing.context import AuditContext
 from zing.detectors.base import run_detector, select_detectors
-from zing.detectors.performance import planned_probe_requests
+from zing.detectors.performance import planned_probe_requests, probe_modes
 from zing.judge import Judge
 from zing.knowledge import load_knowledge_base
 from zing.models import (
@@ -158,8 +158,9 @@ async def run_audit(
         )
         total = len(detectors)
         has_baseline = baseline_client is not None
+        # Target probe requests across all modes, for the live progress bar.
         probe_planned = (
-            planned_probe_requests(options, has_baseline=has_baseline)
+            planned_probe_requests(options, has_baseline=has_baseline) * len(probe_modes(options))
             if any(d.id == "performance" for d in detectors)
             else 0
         )

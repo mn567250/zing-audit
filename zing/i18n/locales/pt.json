@@ -447,7 +447,19 @@
   "Relay processing times come from the relay's own response headers and are unverified.": "Os tempos de processamento do relay vêm dos seus próprios cabeçalhos de resposta e não são verificados.",
   "Some requests were served fully or partly from a cache and are left out of the statistics.": "Algumas requisições foram atendidas total ou parcialmente por um cache e ficaram fora das estatísticas.",
   "A relay that caches unique prompts may be serving stored answers; compare with a trusted baseline.": "Um relay que armazena em cache prompts únicos pode estar servindo respostas guardadas; compare com uma referência confiável.",
-  "Weigh this together with the model-identity findings; speed alone is not proof of substitution.": "Avalie isso junto com as constatações de identidade do modelo; a velocidade sozinha não prova uma substituição."
+  "Weigh this together with the model-identity findings; speed alone is not proof of substitution.": "Avalie isso junto com as constatações de identidade do modelo; a velocidade sozinha não prova uma substituição.",
+  "Performance probe requests": "Requisições da sonda de desempenho",
+  "Non-streaming": "Sem streaming",
+  "non-streaming": "sem streaming",
+  "The smoke suite runs no performance probe.": "A suíte smoke não executa a sonda de desempenho.",
+  "The full suite measures both streaming and non-streaming.": "A suíte full mede com e sem streaming.",
+  "On standard the probe runs only with a baseline; otherwise the audit's own requests are used.": "No standard a sonda só é executada com uma referência; caso contrário, usam-se as próprias requisições da auditoria.",
+  "Non-streaming measures relays that cannot stream.": "Sem streaming é possível medir relays que não suportam streaming.",
+  "non-streaming request (hollow)": "requisição sem streaming (vazada)",
+  "End-to-end speed p50": "Velocidade de ponta a ponta p50",
+  "target better": "alvo melhor",
+  "target worse": "alvo pior",
+  "(within 2% counts as even)": "(até 2% conta como empate)"
  },
  "findings": {
   "connectivity.models": [

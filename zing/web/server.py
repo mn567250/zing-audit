@@ -354,7 +354,11 @@ def create_app() -> FastAPI:
                     model=bl.get("model"),
                     api=validate_api(bl.get("api")),
                 )
-            options = AuditOptions(suite=suite)
+            options = AuditOptions(
+                suite=suite,
+                # probe request mode (standard/deep; the full suite measures both)
+                performance_streaming=body.get("performance_streaming") is not False,
+            )
         except ConfigError as exc:
             msg = str(exc)  # bind now: `exc` is cleared when the except block exits
 

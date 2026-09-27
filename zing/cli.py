@@ -159,24 +159,31 @@ def _print_summary(report: AuditReport, written: list[Path]) -> None:
 
     if report.performance:
         perf = report.performance
-        for ep in (perf.target, perf.baseline):
-            if ep is None:
-                continue
-            tps = ep.decode_tps_local.p50
-            if tps is None:
-                tps = ep.decode_tps_reported.p50
-            bits = [
-                f"latency p50 {fmt_num(ep.latency_ms.p50)} ms",
-                f"TTFT p50 {fmt_num(ep.ttft_ms.p50)} ms",
-                f"decode {fmt_num(tps)} tok/s",
-            ]
-            if ep.network_rtt_ms.p50 is not None:
-                bits.append(f"RTT {fmt_num(ep.network_rtt_ms.p50)} ms")
-            label = "Performance" if perf.baseline is None else f"Performance ({ep.endpoint})"
-            console.print(
-                f"\n[bold]{label}[/bold] [dim]({perf.source}, n={ep.requests})[/dim]: "
-                + ", ".join(bits)
-            )
+        blocks = [(perf.mode, perf.target, perf.baseline)]
+        blocks += [(m.mode, m.target, m.baseline) for m in perf.modes]
+        for mode, *sides in blocks:
+            for ep in sides:
+                if ep is None:
+                    continue
+                bits = [f"latency p50 {fmt_num(ep.latency_ms.p50)} ms"]
+                if ep.ttft_ms.count:
+                    tps = ep.decode_tps_local.p50
+                    if tps is None:
+                        tps = ep.decode_tps_reported.p50
+                    bits += [f"TTFT p50 {fmt_num(ep.ttft_ms.p50)} ms", f"decode {fmt_num(tps)} tok/s"]
+                else:
+                    bits.append(f"end-to-end {fmt_num(ep.e2e_tps_local.p50)} tok/s")
+                if ep.network_rtt_ms.p50 is not None:
+                    bits.append(f"RTT {fmt_num(ep.network_rtt_ms.p50)} ms")
+                tags = [t for t in (
+                    ep.endpoint if perf.baseline is not None else "",
+                    mode.replace("_", "-") if mode != "mixed" else "",
+                ) if t]
+                label = "Performance" + (f" ({', '.join(tags)})" if tags else "")
+                console.print(
+                    f"\n[bold]{label}[/bold] [dim]({perf.source}, n={ep.requests})[/dim]: "
+                    + ", ".join(bits)
+                )
 
     if report.warnings:
         console.print("\n[yellow]Warnings[/yellow]")
@@ -264,6 +271,7 @@ def _build_options(cfg: dict, **overrides) -> AuditOptions:
         max_context_probe_tokens=int(pick("max_context_tokens", "max_context_probe_tokens", 200_000)),
         performance_requests=int(pick("performance_requests", "performance_requests", 100)),
         performance_max_tokens=int(pick("performance_max_tokens", "performance_max_tokens", 128)),
+        performance_streaming=bool(pick("performance_streaming", "performance_streaming", True)),
     )
     return opts
 
@@ -457,6 +465,7 @@ def check_command(
     max_context_tokens: Annotated[int | None, typer.Option("--max-context-tokens", help="Cap for the real-context-window probe.")] = None,
     performance_requests: Annotated[int | None, typer.Option("--performance-requests", help="Performance probe requests per endpoint (deep/full; 0 disables).")] = None,
     performance_max_tokens: Annotated[int | None, typer.Option("--performance-max-tokens", help="Output tokens per performance probe request.")] = None,
+    performance_streaming: Annotated[bool | None, typer.Option("--performance-streaming/--performance-non-streaming", help="Probe with streaming or non-streaming requests (standard/deep; full measures both).")] = None,
     kb_dir: Annotated[list[Path] | None, typer.Option("--kb-dir", help="Extra knowledge-base directory (repeatable).")] = None,
     fail_under: Annotated[float | None, typer.Option("--fail-under", help="Exit 1 if overall score < this.")] = None,
     fail_on_risk: Annotated[str | None, typer.Option("--fail-on-risk", help="Exit 1 if risk >= this (low|medium|high).")] = None,
@@ -478,6 +487,7 @@ def check_command(
             max_context_tokens=max_context_tokens,
             performance_requests=performance_requests,
             performance_max_tokens=performance_max_tokens,
+            performance_streaming=performance_streaming,
         )
         fail_on_risk = validate_risk(fail_on_risk)
         baseline = None
@@ -524,6 +534,7 @@ def compare_command(
     max_context_tokens: Annotated[int | None, typer.Option("--max-context-tokens", help="Cap for the context-window probe.")] = None,
     performance_requests: Annotated[int | None, typer.Option("--performance-requests", help="Performance probe requests per endpoint (0 disables; standard suite uses 5).")] = None,
     performance_max_tokens: Annotated[int | None, typer.Option("--performance-max-tokens", help="Output tokens per performance probe request.")] = None,
+    performance_streaming: Annotated[bool | None, typer.Option("--performance-streaming/--performance-non-streaming", help="Probe with streaming or non-streaming requests (standard/deep; full measures both).")] = None,
     kb_dir: Annotated[list[Path] | None, typer.Option("--kb-dir", help="Extra knowledge-base directory (repeatable).")] = None,
     fail_under: Annotated[float | None, typer.Option("--fail-under", help="Exit 1 if overall score < this.")] = None,
     fail_on_risk: Annotated[str | None, typer.Option("--fail-on-risk", help="Exit 1 if risk >= this.")] = None,
@@ -548,6 +559,7 @@ def compare_command(
             cfg, suite=suite or "deep", judge=judge, max_context_tokens=max_context_tokens,
             performance_requests=performance_requests,
             performance_max_tokens=performance_max_tokens,
+            performance_streaming=performance_streaming,
         )
         fail_on_risk = validate_risk(fail_on_risk)
         judge_t = _judge_target(cfg, None, None, judge_model, baseline) if options.judge else None

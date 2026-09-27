@@ -447,7 +447,19 @@
   "Relay processing times come from the relay's own response headers and are unverified.": "Die vom Relay gemeldeten Verarbeitungszeiten stammen aus seinen eigenen Antwort-Headern und sind ungeprüft.",
   "Some requests were served fully or partly from a cache and are left out of the statistics.": "Einige Anfragen wurden ganz oder teilweise aus einem Cache bedient und sind aus der Statistik ausgeschlossen.",
   "A relay that caches unique prompts may be serving stored answers; compare with a trusted baseline.": "Ein Relay, das einmalige Prompts cacht, liefert womöglich gespeicherte Antworten; vergleichen Sie mit einer vertrauenswürdigen Referenz.",
-  "Weigh this together with the model-identity findings; speed alone is not proof of substitution.": "Bewerten Sie dies zusammen mit den Befunden zur Modellidentität; Geschwindigkeit allein beweist keinen Austausch."
+  "Weigh this together with the model-identity findings; speed alone is not proof of substitution.": "Bewerten Sie dies zusammen mit den Befunden zur Modellidentität; Geschwindigkeit allein beweist keinen Austausch.",
+  "Performance probe requests": "Anfragen der Leistungsmessung",
+  "Non-streaming": "Ohne Streaming",
+  "non-streaming": "ohne Streaming",
+  "The smoke suite runs no performance probe.": "Die Suite smoke führt keine Leistungsmessung aus.",
+  "The full suite measures both streaming and non-streaming.": "Die Suite full misst Streaming und Nicht-Streaming.",
+  "On standard the probe runs only with a baseline; otherwise the audit's own requests are used.": "Bei standard läuft die Messung nur mit einer Referenz; sonst werden die Anfragen der Prüfung selbst verwendet.",
+  "Non-streaming measures relays that cannot stream.": "Ohne Streaming lassen sich Relays messen, die nicht streamen können.",
+  "non-streaming request (hollow)": "Anfrage ohne Streaming (hohl)",
+  "End-to-end speed p50": "Gesamttempo p50",
+  "target better": "Ziel besser",
+  "target worse": "Ziel schlechter",
+  "(within 2% counts as even)": "(bis 2 % Unterschied gilt als gleich)"
  },
  "findings": {
   "connectivity.models": [

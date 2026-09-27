@@ -14,6 +14,7 @@ from collections.abc import Callable
 
 from zing.models import (
     EndpointPerformance,
+    PerformanceComparison,
     PerformanceReport,
     PerfStats,
     RequestRecord,
@@ -87,23 +88,51 @@ def _signed(value: float | None, unit: str) -> str:
     return ("+" if value > 0 else "") + fmt_num(value)
 
 
+MODE_LABELS = {"stream": "streaming", "non_stream": "non-streaming"}
+MODE_TITLES = {"stream": "Streaming", "non_stream": "Non-streaming"}
+
+
 def _source_line(perf: PerformanceReport) -> str:
     if perf.source == "probe":
+        modes = [perf.mode] + [m.mode for m in perf.modes]
+        kind = " and ".join(MODE_LABELS.get(m, m) for m in modes)
         return (
-            f"Source: dedicated probe — {perf.probe_requests} uncacheable streaming "
+            f"Source: dedicated probe — {perf.probe_requests} uncacheable {kind} "
             f"requests per endpoint, {perf.probe_max_tokens or '?'} output tokens each."
         )
     return "Source: the audit's own requests (no dedicated probe in this suite)."
 
 
-def _endpoints(perf: PerformanceReport) -> list[EndpointPerformance]:
-    return [e for e in (perf.target, perf.baseline) if e is not None]
+# One block per measured request mode: (mode, target, baseline, comparison).
+Block = tuple[str, EndpointPerformance, "EndpointPerformance | None", "list[PerformanceComparison]"]
 
 
-def _visible_rows(perf: PerformanceReport):
+def _blocks(perf: PerformanceReport) -> list[Block]:
+    out: list[Block] = [(perf.mode, perf.target, perf.baseline, perf.comparison)]
+    out += [(m.mode, m.target, m.baseline, m.comparison) for m in perf.modes]
+    return out
+
+
+def _endpoints(block: Block) -> list[EndpointPerformance]:
+    return [e for e in (block[1], block[2]) if e is not None]
+
+
+def _visible_rows(eps: list[EndpointPerformance]):
     """Stat rows with data for at least one endpoint."""
-    eps = _endpoints(perf)
     return [row for row in STAT_ROWS if any(row[2](e).count for e in eps)]
+
+
+def _block_title(perf: PerformanceReport, mode: str) -> str | None:
+    """A heading per mode once more than one mode was measured."""
+    return MODE_TITLES.get(mode, mode) if perf.modes else None
+
+
+def _verdict_mark(c: PerformanceComparison) -> tuple[str, str]:
+    """(css class, marker) for the target-vs-baseline delta."""
+    better = c.target_better
+    if better is None:
+        return "same", ""
+    return ("better", "✓ ") if better else ("worse", "✗ ")
 
 
 def _reliability_line(e: EndpointPerformance) -> str:
@@ -146,6 +175,7 @@ def compact_performance(perf: PerformanceReport | None) -> dict | None:
     def ep(e: EndpointPerformance) -> dict:
         tps = e.decode_tps_local.p50
         return {
+            "e2e_tps_p50": r(e.e2e_tps_local.p50),
             "requests": e.requests,
             "error_rate": r(e.error_rate, 4),
             "latency_p50_ms": r(e.latency_ms.p50),
@@ -155,30 +185,45 @@ def compact_performance(perf: PerformanceReport | None) -> dict | None:
             "network_rtt_p50_ms": r(e.network_rtt_ms.p50),
         }
 
-    out: dict = {"source": perf.source, "target": ep(perf.target)}
-    if perf.baseline is not None:
-        out["baseline"] = ep(perf.baseline)
-        out["comparison"] = {
-            c.metric: {"delta": r(c.delta, 4), "ratio": r(c.ratio, 3)} for c in perf.comparison
-        }
+    def block(target: EndpointPerformance, baseline, comparison) -> dict:
+        out: dict = {"target": ep(target)}
+        if baseline is not None:
+            out["baseline"] = ep(baseline)
+            out["comparison"] = {
+                c.metric: {
+                    "delta": r(c.delta, 4),
+                    "ratio": r(c.ratio, 3),
+                    "target_better": c.target_better,
+                }
+                for c in comparison
+            }
+        return out
+
+    out: dict = {"source": perf.source, "mode": perf.mode}
+    out.update(block(perf.target, perf.baseline, perf.comparison))
+    for m in perf.modes:
+        out[m.mode] = block(m.target, m.baseline, m.comparison)
     return out
 
 
 # --------------------------------------------------------------------------- #
 # Markdown
 # --------------------------------------------------------------------------- #
-def markdown_section(perf: PerformanceReport | None) -> list[str]:
-    if perf is None:
-        return []
-    lines = ["## Performance", "", f"_{_source_line(perf)} Informational — not scored._", ""]
-    eps = _endpoints(perf)
+def _markdown_block(perf: PerformanceReport, block: Block) -> list[str]:
+    mode, _, _, comparison = block
+    lines: list[str] = []
+    title = _block_title(perf, mode)
+    if title:
+        lines += [f"### {title}", ""]
+    eps = _endpoints(block)
+    visible = _visible_rows(eps)
     for e in eps:
         if len(eps) > 1:
-            lines += [f"### {e.endpoint.capitalize()}", ""]
+            lines += [f"#### {e.endpoint.capitalize()}" if title else f"### {e.endpoint.capitalize()}", ""]
         lines.append(f"- Requests: {_reliability_line(e)}")
         lines += [f"- {x}" for x in _extras(e)]
         lines.append("")
-        rows = [r for r in _visible_rows(perf) if r[2](e).count]
+        rows = [r for r in visible if r[2](e).count]
         if rows:
             lines.append("| Metric | " + " | ".join(STAT_COLUMNS) + " |")
             lines.append("| --- | " + " | ".join("---:" for _ in STAT_COLUMNS) + " |")
@@ -195,18 +240,30 @@ def markdown_section(perf: PerformanceReport | None) -> list[str]:
                     f"| {b.label} | {b.count} | {fmt_num(b.ttft_p50_ms)} | {fmt_num(b.latency_p50_ms)} |"
                 )
             lines.append("")
-    if perf.comparison:
-        lines += ["### Target vs baseline", ""]
+    if comparison:
+        lines += ["#### Target vs baseline" if title else "### Target vs baseline", ""]
         lines.append("| Metric | Target | Baseline | Δ | Ratio |")
         lines.append("| --- | ---: | ---: | ---: | ---: |")
-        for c in perf.comparison:
+        for c in comparison:
+            mark = {"better": "🟢 ✓ ", "worse": "🔴 ✗ "}.get(_verdict_mark(c)[0], "")
             lines.append(
                 f"| {COMPARE_LABELS.get(c.metric, c.metric)} ({c.unit}) | "
                 f"{fmt_num(c.target, c.unit)} | {fmt_num(c.baseline, c.unit)} | "
-                f"{_signed(c.delta, c.unit)} | "
+                f"{mark}{_signed(c.delta, c.unit)} | "
                 f"{'—' if c.ratio is None else f'{c.ratio:.2f}x'} |"
             )
         lines.append("")
+        lines.append("_🟢 ✓ target better · 🔴 ✗ target worse than the baseline (within 2% is even)._")
+        lines.append("")
+    return lines
+
+
+def markdown_section(perf: PerformanceReport | None) -> list[str]:
+    if perf is None:
+        return []
+    lines = ["## Performance", "", f"_{_source_line(perf)} Informational — not scored._", ""]
+    for block in _blocks(perf):
+        lines += _markdown_block(perf, block)
     if perf.probe_cost is not None:
         pc = perf.probe_cost
         lines.append(
@@ -293,11 +350,15 @@ def timeline_svg(
         f'<text class="tick" x="{_ML}" y="{_H - 2}">seconds since audit start · {_esc(unit)}</text>'
     )
     for r, v in plotted:
-        cls = f"pt {r.endpoint}" + (" passive" if r.phase == "passive" else "") + (
-            " cached" if r.cached else ""
+        cls = (
+            f"pt {r.endpoint}"
+            + (" passive" if r.phase == "passive" else "")
+            + (" nonstream" if r.phase != "passive" and not r.stream else "")
+            + (" cached" if r.cached else "")
         )
         tip = (
             f"#{r.seq} {r.endpoint} · {r.detector or '—'} · {r.phase}"
+            f"{'' if r.stream else ' · non-streaming'}"
             f"{' · cached (excluded)' if r.cached else ''}\n{label}: {fmt_num(v)} {unit}"
         )
         out.append(
@@ -316,19 +377,21 @@ def timeline_svg(
     return "".join(out)
 
 
-def _legend(has_baseline: bool, has_passive: bool, has_failed: bool) -> str:
+def _legend(has_baseline: bool, has_passive: bool, has_nonstream: bool, has_failed: bool) -> str:
     items = ['<span><i class="key target"></i>target</span>']
     if has_baseline:
         items.append('<span><i class="key baseline"></i>baseline</span>')
     if has_passive:
         items.append('<span><i class="key target passive"></i>audit request (lighter)</span>')
+    if has_nonstream:
+        items.append('<span><i class="key target hollow"></i>non-streaming request (hollow)</span>')
     if has_failed:
         items.append('<span><i class="key fail">×</i>failed request</span>')
     return f'<div class="perf-legend">{"".join(items)}</div>'
 
 
-def _stat_table(perf: PerformanceReport, e: EndpointPerformance) -> str:
-    rows = [r for r in _visible_rows(perf) if r[2](e).count]
+def _stat_table(visible, e: EndpointPerformance) -> str:
+    rows = [r for r in visible if r[2](e).count]
     if not rows:
         return '<p class="muted">No successful requests to summarize.</p>'
     out = ['<div class="scroll"><table class="perf"><thead><tr><th>Metric</th>']
@@ -341,6 +404,62 @@ def _stat_table(perf: PerformanceReport, e: EndpointPerformance) -> str:
         out += [f'<td class="num">{fmt_num(getattr(s, c))}</td>' for c in STAT_COLUMNS[1:]]
         out.append("</tr>")
     out.append("</tbody></table></div>")
+    return "".join(out)
+
+
+def _html_block(perf: PerformanceReport, block: Block) -> str:
+    mode, _, _, comparison = block
+    out: list[str] = []
+    title = _block_title(perf, mode)
+    if title:
+        out.append(f'<h3 class="perf-mode">{_esc(title)}</h3>')
+    eps = _endpoints(block)
+    visible = _visible_rows(eps)
+    for e in eps:
+        if len(eps) > 1:
+            out.append(f"<h4>{_esc(e.endpoint.capitalize())}</h4>")
+        out.append(f'<p class="meta">{_esc(_reliability_line(e))}</p>')
+        extras = _extras(e)
+        if extras:
+            out.append("<ul>" + "".join(f"<li>{_esc(x)}</li>" for x in extras) + "</ul>")
+        out.append(_stat_table(visible, e))
+        if e.ttft_by_input:
+            out.append(
+                '<table class="perf small"><thead><tr><th>Prompt size</th>'
+                '<th class="num">Requests</th><th class="num">TTFT p50 ms</th>'
+                '<th class="num">Latency p50 ms</th></tr></thead><tbody>'
+            )
+            for b in e.ttft_by_input:
+                out.append(
+                    f"<tr><td>{_esc(b.label)}</td><td class=\"num\">{b.count}</td>"
+                    f'<td class="num">{fmt_num(b.ttft_p50_ms)}</td>'
+                    f'<td class="num">{fmt_num(b.latency_p50_ms)}</td></tr>'
+                )
+            out.append("</tbody></table>")
+
+    if comparison:
+        out.append(
+            '<h4>Target vs baseline</h4><table class="perf"><thead><tr><th>Metric</th>'
+            '<th class="num">Target</th><th class="num">Baseline</th>'
+            '<th class="num">Δ</th><th class="num">Ratio</th></tr></thead><tbody>'
+        )
+        for c in comparison:
+            ratio = "—" if c.ratio is None else f"{c.ratio:.2f}x"
+            cls, mark = _verdict_mark(c)
+            out.append(
+                f"<tr><td>{_esc(COMPARE_LABELS.get(c.metric, c.metric))} "
+                f'<span class="muted">{_esc(c.unit)}</span></td>'
+                f'<td class="num">{fmt_num(c.target, c.unit)}</td>'
+                f'<td class="num">{fmt_num(c.baseline, c.unit)}</td>'
+                f'<td class="num delta {cls}">{mark}{_signed(c.delta, c.unit)}</td>'
+                f'<td class="num">{ratio}</td></tr>'
+            )
+        out.append("</tbody></table>")
+        out.append(
+            '<p class="meta"><span class="delta better">✓ target better</span> · '
+            '<span class="delta worse">✗ target worse</span> than the baseline '
+            "(within 2% counts as even).</p>"
+        )
     return "".join(out)
 
 
@@ -370,50 +489,13 @@ def html_section(perf: PerformanceReport | None) -> str:
             _legend(
                 perf.baseline is not None,
                 any(r.phase == "passive" for r in calls) and perf.source == "probe",
+                any(r.phase != "passive" and not r.stream for r in calls),
                 any(not r.ok for r in calls),
             )
         )
 
-    eps = _endpoints(perf)
-    for e in eps:
-        if len(eps) > 1:
-            out.append(f"<h3>{_esc(e.endpoint.capitalize())}</h3>")
-        out.append(f'<p class="meta">{_esc(_reliability_line(e))}</p>')
-        extras = _extras(e)
-        if extras:
-            out.append("<ul>" + "".join(f"<li>{_esc(x)}</li>" for x in extras) + "</ul>")
-        out.append(_stat_table(perf, e))
-        if e.ttft_by_input:
-            out.append(
-                '<table class="perf small"><thead><tr><th>Prompt size</th>'
-                '<th class="num">Requests</th><th class="num">TTFT p50 ms</th>'
-                '<th class="num">Latency p50 ms</th></tr></thead><tbody>'
-            )
-            for b in e.ttft_by_input:
-                out.append(
-                    f"<tr><td>{_esc(b.label)}</td><td class=\"num\">{b.count}</td>"
-                    f'<td class="num">{fmt_num(b.ttft_p50_ms)}</td>'
-                    f'<td class="num">{fmt_num(b.latency_p50_ms)}</td></tr>'
-                )
-            out.append("</tbody></table>")
-
-    if perf.comparison:
-        out.append(
-            '<h3>Target vs baseline</h3><table class="perf"><thead><tr><th>Metric</th>'
-            '<th class="num">Target</th><th class="num">Baseline</th>'
-            '<th class="num">Δ</th><th class="num">Ratio</th></tr></thead><tbody>'
-        )
-        for c in perf.comparison:
-            ratio = "—" if c.ratio is None else f"{c.ratio:.2f}x"
-            out.append(
-                f"<tr><td>{_esc(COMPARE_LABELS.get(c.metric, c.metric))} "
-                f'<span class="muted">{_esc(c.unit)}</span></td>'
-                f'<td class="num">{fmt_num(c.target, c.unit)}</td>'
-                f'<td class="num">{fmt_num(c.baseline, c.unit)}</td>'
-                f'<td class="num">{_signed(c.delta, c.unit)}</td>'
-                f'<td class="num">{ratio}</td></tr>'
-            )
-        out.append("</tbody></table>")
+    for block in _blocks(perf):
+        out.append(_html_block(perf, block))
 
     if perf.probe_cost is not None:
         pc = perf.probe_cost
@@ -448,6 +530,15 @@ PERF_CSS = """
 .perf-chart .pt.baseline { fill: var(--series-baseline); }
 .perf-chart .pt.passive { fill-opacity: .45; }
 .perf-chart .pt.cached { fill: #8c959f; fill-opacity: .6; }
+.perf-chart .pt.nonstream { fill: var(--chart-surface); stroke-width: 2; }
+.perf-chart .pt.nonstream.target { stroke: var(--series-target); }
+.perf-chart .pt.nonstream.baseline { stroke: var(--series-baseline); }
+.perf-legend .key.target.hollow { background: transparent; border: 2px solid var(--series-target);
+  width: 10px; height: 10px; box-sizing: border-box; }
+.perf-card { --good: #1a7f37; --bad: #cf222e; }
+.delta.better { color: var(--good); font-weight: 600; }
+.delta.worse { color: var(--bad); font-weight: 600; }
+h3.perf-mode { margin-top: 1.5rem; border-top: 1px solid #eaeef2; padding-top: 1rem; }
 .perf-chart .fail-mark { stroke: var(--status-critical); stroke-width: 2; stroke-linecap: round; }
 .perf-legend { display: flex; flex-wrap: wrap; gap: 1rem; font-size: .8rem; color: #57606a;
   margin: .25rem 0 .75rem; }
@@ -465,7 +556,8 @@ table.perf.small { width: auto; }
 .perf-notes { font-size: .85rem; color: #57606a; }
 @media (prefers-color-scheme: dark) {
   .perf-card { --series-target: #3987e5; --series-baseline: #d95926; --chart-surface: #161b22;
-    --grid: #21262d; }
+    --grid: #21262d; --good: #3fb950; --bad: #f85149; }
+  h3.perf-mode { border-color: #30363d; }
   .perf-chart .tick, .perf-legend, .perf-notes { fill: #8b949e; color: #8b949e; }
   .perf-tabs label { border-color: #30363d; color: #8b949e; }
   .perf-tabs input:checked + label { background: #e6edf3; border-color: #e6edf3; color: #0d1117; }

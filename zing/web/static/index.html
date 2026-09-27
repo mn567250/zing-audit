@@ -57,6 +57,8 @@
   .seg{display:flex;gap:7px;flex-wrap:wrap}
   .seg button{flex:1;min-width:64px;font-family:var(--sans);font-weight:600;font-size:13px;color:var(--ink2);background:#fbfdfa;border:1.5px solid var(--line);border-radius:11px;padding:10px 6px;cursor:pointer;transition:.15s}
   .seg button.on{color:#fff;background:var(--ink);border-color:var(--ink)}
+  .hint{font-size:12px;color:var(--faint);margin-top:6px;line-height:1.45}
+  .seg button:disabled{opacity:.45;cursor:not-allowed}
   .row-help{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
   .row-help button{font-size:12px;color:var(--teal);background:none;border:0;cursor:pointer;font-weight:700;font-family:var(--sans)}
   .cta{width:100%;margin-top:6px;border:0;border-radius:15px;padding:16px;cursor:pointer;font-family:var(--disp);font-weight:600;font-size:17px;color:#fff;background:var(--ink);transition:.16s;display:flex;align-items:center;justify-content:center;gap:8px}
@@ -188,7 +190,12 @@
           <div class="grp"><div class="lab" data-en="Protocol">协议</div>
             <div class="seg" id="api"><button type="button" class="on" data-v="auto" data-en="Auto">自动</button><button type="button" data-v="openai">OpenAI</button><button type="button" data-v="anthropic">Anthropic</button></div></div>
           <div class="grp"><div class="lab" data-en="Test suite">检测套件</div>
-            <div class="seg" id="suite"><button type="button" data-v="smoke">smoke</button><button type="button" class="on" data-v="standard">standard</button><button type="button" data-v="deep">deep</button></div></div>
+            <div class="seg" id="suite"><button type="button" data-v="smoke">smoke</button><button type="button" class="on" data-v="standard">standard</button><button type="button" data-v="deep">deep</button><button type="button" data-v="full">full</button></div></div>
+        </div>
+        <div class="grp" id="pmode-grp">
+          <div class="lab" data-en="Performance probe requests">性能探测请求</div>
+          <div class="seg" id="pmode"><button type="button" class="on" data-v="stream" data-en="Streaming">流式</button><button type="button" data-v="non_stream" data-en="Non-streaming">非流式</button></div>
+          <div class="hint" id="pmode-hint"></div>
         </div>
         <div class="cmp" id="cmp">
           <button type="button" class="cmp-toggle" id="cmp-t"><span><span class="pico" id="ic-plus"></span> <span data-en="Compare against a trusted baseline (compare · stronger verdict)">对照可信基线（compare · 更强结论）</span></span><span class="cv" id="ic-cv"></span></button>
@@ -273,7 +280,16 @@ let nowText=()=>T("连接端点…","Connecting to endpoint…"), feedItems=[], 
 function setNow(fn){nowText=fn;$("#now").textContent=fn();}
 function setFormErr(fn){formErr=fn;$("#formerr").innerHTML=fn?'<div class="errbox">'+fn()+'</div>':"";}
 function go(n){$$(".view").forEach(v=>v.classList.remove("show"));$("#v"+n).classList.add("show");window.scrollTo({top:0,behavior:"smooth"});}
-$$("#api button,#suite button,#b-api button").forEach(b=>b.onclick=()=>{[...b.parentElement.children].forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+$$("#api button,#suite button,#b-api button,#pmode button").forEach(b=>b.onclick=()=>{if(b.disabled)return;[...b.parentElement.children].forEach(x=>x.classList.remove("on"));b.classList.add("on");syncProbeMode();});
+// Probe request mode: chosen on standard/deep; full measures both; smoke has no probe.
+function syncProbeMode(){
+  const suite=$("#suite .on").dataset.v, full=suite==="full", smoke=suite==="smoke";
+  $$("#pmode button").forEach(b=>{b.disabled=full||smoke;});
+  $("#pmode-hint").textContent=smoke?T("smoke 套件不做性能探测。","The smoke suite runs no performance probe.")
+    :full?T("full 套件会同时测量流式与非流式。","The full suite measures both streaming and non-streaming.")
+    :suite==="standard"?T("standard 套件只在对照基线时发送探测请求；否则使用检测自身的请求。","On standard the probe runs only with a baseline; otherwise the audit's own requests are used.")
+    :T("非流式用于测量不支持流式的中转站。","Non-streaming measures relays that cannot stream.");
+}
 $("#adv-t").onclick=()=>$("#i-claimed").focus();
 $("#cmp-t").onclick=()=>{const c=$("#cmp"),body=$("#cmp-body"),open=c.classList.toggle("on");
   body.style.maxHeight=open?body.scrollHeight+30+"px":"0";};
@@ -291,6 +307,7 @@ async function startAudit(){
     base_url:$("#i-url").value.trim(), api_key:$("#i-key").value.trim(),
     model:$("#i-model").value.trim(), claimed_model:$("#i-claimed").value.trim(),
     api:$("#api .on").dataset.v, suite:$("#suite .on").dataset.v,
+    performance_streaming:$("#pmode .on").dataset.v==="stream",
   };
   if(!payload.base_url||!payload.model){setFormErr(()=>T("请填写中转站地址和声称的模型。","Please enter the relay address and the claimed model."));return;}
   const bUrl=$("#b-url").value.trim(), bModel=$("#b-model").value.trim();
@@ -442,6 +459,7 @@ window.addEventListener("zing:lang",()=>{
   $$("#dets .det").forEach(d=>{const s=d.querySelector(".dt");if(s&&d.__ev)s.textContent=zhDet(d.__ev);});
   feedItems.forEach(({el,ev,f})=>{el.innerHTML=feedHTML(ev,f);});
   if(formErr)setFormErr(formErr);
+  syncProbeMode();
   if(live)live.render();
   if(lastReport){
     // keep expanded evidence panels open across the re-render
@@ -464,6 +482,7 @@ window.addEventListener("zing:lang",()=>{
   set("ic-cv","chevronDown");
   set("ic-go-arrow","arrowRight");
   $("#now").textContent=nowText();
+  syncProbeMode();
   // "声称的模型" (#i-model) is the canonical claimed-model value the picker writes into.
   // This form has no provider text input (protocol is a segmented control), so providerInput is omitted.
   // The "Custom (from relay)" provider lists #i-url's own /models (API key optional).

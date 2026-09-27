@@ -16,6 +16,7 @@ from zing.models import (
     EndpointPerformance,
     InputSizeBucket,
     PerformanceComparison,
+    PerformanceModeReport,
     PerformanceReport,
     PerfStats,
     ProbeCost,
@@ -160,11 +161,22 @@ def _input_buckets(records: Sequence[RequestRecord]) -> list[InputSizeBucket]:
 
 
 def summarize_endpoint(
-    records: Sequence[RequestRecord], endpoint: str = "target", *, concurrency: int = 0
+    records: Sequence[RequestRecord],
+    endpoint: str = "target",
+    *,
+    concurrency: int = 0,
+    stream: bool | None = None,
 ) -> EndpointPerformance:
-    """Headline performance of one endpoint from its recorded requests."""
+    """Headline performance of one endpoint from its recorded requests.
+
+    ``stream`` limits the probe requests (and the burst and warm-up) to one
+    request mode; None takes them all.
+    """
     mine = [r for r in records if r.endpoint == endpoint]
-    completes = _completes(records, endpoint)
+    completes = [
+        r for r in _completes(records, endpoint)
+        if stream is None or r.phase == "passive" or r.stream == stream
+    ]
     probe = [r for r in completes if r.phase == "probe"]
     source = "probe" if probe else "passive"
     pool = probe or [r for r in completes if r.phase == "passive"]
@@ -213,19 +225,19 @@ def summarize_endpoint(
     )
 
 
-# (metric id, unit, getter) for the target-vs-baseline table.
-_COMPARE: tuple[tuple[str, str, Callable[[EndpointPerformance], float | None]], ...] = (
-    ("latency_p50", "ms", lambda e: e.latency_ms.p50),
-    ("latency_p90", "ms", lambda e: e.latency_ms.p90),
-    ("ttft_p50", "ms", lambda e: e.ttft_ms.p50),
-    ("ttft_p90", "ms", lambda e: e.ttft_ms.p90),
-    ("decode_tps_reported_p50", "tok/s", lambda e: e.decode_tps_reported.p50),
-    ("decode_tps_local_p50", "tok/s", lambda e: e.decode_tps_local.p50),
-    ("e2e_tps_local_p50", "tok/s", lambda e: e.e2e_tps_local.p50),
-    ("itl_p50", "ms", lambda e: e.itl_ms.p50),
-    ("server_p50", "ms", lambda e: e.server_ms.p50),
-    ("network_rtt_p50", "ms", lambda e: e.network_rtt_ms.p50),
-    ("error_rate", "ratio", lambda e: e.error_rate),
+# (metric id, unit, higher is better, getter) for the target-vs-baseline table.
+_COMPARE: tuple[tuple[str, str, bool, Callable[[EndpointPerformance], float | None]], ...] = (
+    ("latency_p50", "ms", False, lambda e: e.latency_ms.p50),
+    ("latency_p90", "ms", False, lambda e: e.latency_ms.p90),
+    ("ttft_p50", "ms", False, lambda e: e.ttft_ms.p50),
+    ("ttft_p90", "ms", False, lambda e: e.ttft_ms.p90),
+    ("decode_tps_reported_p50", "tok/s", True, lambda e: e.decode_tps_reported.p50),
+    ("decode_tps_local_p50", "tok/s", True, lambda e: e.decode_tps_local.p50),
+    ("e2e_tps_local_p50", "tok/s", True, lambda e: e.e2e_tps_local.p50),
+    ("itl_p50", "ms", False, lambda e: e.itl_ms.p50),
+    ("server_p50", "ms", False, lambda e: e.server_ms.p50),
+    ("network_rtt_p50", "ms", False, lambda e: e.network_rtt_ms.p50),
+    ("error_rate", "ratio", False, lambda e: e.error_rate),
 )
 
 
@@ -233,7 +245,7 @@ def compare_endpoints(
     target: EndpointPerformance, baseline: EndpointPerformance
 ) -> list[PerformanceComparison]:
     rows: list[PerformanceComparison] = []
-    for metric, unit, get in _COMPARE:
+    for metric, unit, higher, get in _COMPARE:
         t, b = get(target), get(baseline)
         if t is None and b is None:
             continue
@@ -245,6 +257,7 @@ def compare_endpoints(
                 baseline=b,
                 delta=(t - b) if t is not None and b is not None else None,
                 ratio=(t / b) if t is not None and b else None,
+                higher_is_better=higher,
             )
         )
     return rows
@@ -263,6 +276,10 @@ def _probe_cost(records: Sequence[RequestRecord]) -> ProbeCost | None:
     )
 
 
+def _mode_name(stream: bool | None) -> str:
+    return "mixed" if stream is None else "stream" if stream else "non_stream"
+
+
 def build_performance(
     records: Sequence[RequestRecord],
     *,
@@ -272,14 +289,39 @@ def build_performance(
     probe_max_tokens: int | None = None,
     concurrency: int = 0,
 ) -> PerformanceReport | None:
-    """The report's performance section, or None when nothing was recorded."""
+    """The report's performance section, or None when nothing was recorded.
+
+    With both request modes probed (full suite), streaming is the headline and
+    non-streaming goes to ``modes``.
+    """
     if not any(r.op == "complete" for r in records):
         return None
-    target = summarize_endpoint(records, "target", concurrency=concurrency)
-    baseline = (
-        summarize_endpoint(records, "baseline", concurrency=concurrency) if has_baseline else None
+    probed = {r.stream for r in records if r.phase == "probe" and r.op == "complete"}
+    ordered: list[bool | None] = [m for m in (True, False) if m in probed]  # stream first
+    modes = ordered or [None]
+
+    def side(endpoint: str, stream: bool | None) -> EndpointPerformance:
+        return summarize_endpoint(records, endpoint, concurrency=concurrency, stream=stream)
+
+    target = side("target", modes[0])
+    baseline = side("baseline", modes[0]) if has_baseline else None
+    extra: list[PerformanceModeReport] = []
+    for stream in modes[1:]:
+        t = side("target", stream)
+        b = side("baseline", stream) if has_baseline else None
+        extra.append(
+            PerformanceModeReport(
+                mode=_mode_name(stream),
+                target=t,
+                baseline=b,
+                comparison=compare_endpoints(t, b) if b is not None else [],
+            )
+        )
+    probe_n = sum(
+        1 for r in records
+        if r.endpoint == "target" and r.phase == "probe" and r.op == "complete"
+        and r.stream == modes[0]
     )
-    probe_n = sum(1 for r in records if r.endpoint == "target" and r.phase == "probe")
 
     notes: list[str] = []
     if target.source == "passive":
@@ -299,6 +341,7 @@ def build_performance(
 
     return PerformanceReport(
         source=target.source,
+        mode=_mode_name(modes[0]),
         probe_requests=probe_n,
         probe_max_tokens=probe_max_tokens if probe_n else None,
         tokenizer=tokenizer,
@@ -306,6 +349,7 @@ def build_performance(
         target=target,
         baseline=baseline,
         comparison=compare_endpoints(target, baseline) if baseline is not None else [],
+        modes=extra,
         probe_cost=_probe_cost(records),
         requests=list(records),
         notes=notes,

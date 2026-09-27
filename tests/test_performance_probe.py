@@ -19,7 +19,7 @@ from zing.detectors.performance import (
     planned_probe_requests,
 )
 from zing.models import DetectorResult, Dimension, RequestRecord, Status, TargetConfig
-from zing.perf import RequestRecorder, summarize_endpoint
+from zing.perf import RequestRecorder, build_performance, summarize_endpoint
 from zing.runner import run_audit
 
 _NONCE = re.compile(r"^Request ([0-9a-f]{16})\. ")
@@ -66,7 +66,8 @@ def test_planned_requests_and_burst():
     assert estimated_calls(deep, has_baseline=True) == 2 * (3 + 1 + 100 + 12)
 
 
-async def _run_probe(server: MockServer, *, suite="deep", n=6, baseline=False, knowledge_base=None):
+async def _run_probe(server: MockServer, *, suite="deep", n=6, baseline=False, knowledge_base=None,
+                     streaming=True):
     rec = RequestRecorder()
     tcfg = TargetConfig(name="t", kind="target", base_url=BASE_URL, model=DEFAULT_MODEL)
     client = OpenAICompatibleClient(tcfg, transport=server.transport)
@@ -79,7 +80,7 @@ async def _run_probe(server: MockServer, *, suite="deep", n=6, baseline=False, k
     ctx = AuditContext(
         target=tcfg,
         client=client,
-        options=AuditOptions(suite=suite, performance_requests=n),
+        options=AuditOptions(suite=suite, performance_requests=n, performance_streaming=streaming),
         kb=knowledge_base,
         baseline=bclient.config if bclient else None,
         baseline_client=bclient,
@@ -221,3 +222,51 @@ async def test_compare_audit_on_standard_has_probe_and_comparison(patched_make_c
     # informational only: the probe never scores
     det = next(d for d in report.detectors if d.id == "performance")
     assert det.score is None
+
+
+async def test_non_streaming_probe(knowledge_base):
+    server = UniqueReplyServer()
+    result, rec = await _run_probe(server, n=4, streaming=False, knowledge_base=knowledge_base)
+    assert all(b["stream"] is False for b in server.requests)
+    probe = [r for r in rec.records if r.phase == "probe"]
+    assert len(probe) == 4 and all(r.ttft_ms is None for r in probe)
+    summary = next(f for f in result.findings if f.id == "performance.summary")
+    assert summary.evidence["mode"] == "non_stream"
+    assert "non-streaming" in summary.summary
+    report = build_performance(rec.records)
+    assert report is not None and report.mode == "non_stream" and report.modes == []
+    assert report.target.e2e_tps_local.count == 4 and report.target.ttft_ms.count == 0
+
+
+async def test_full_suite_measures_both_modes_interleaved(knowledge_base):
+    server = UniqueReplyServer()
+    result, rec = await _run_probe(server, n=3, suite="full", baseline=True,
+                                   knowledge_base=knowledge_base)
+    probe = [(r.stream, r.endpoint) for r in rec.records if r.phase == "probe"]
+    assert probe[:4] == [(True, "target"), (True, "baseline"), (False, "target"), (False, "baseline")]
+    assert sum(1 for s, _ in probe if s) == sum(1 for s, _ in probe if not s) == 6
+    burst = [r.stream for r in rec.records if r.phase == "probe_concurrent"]
+    assert burst.count(True) == burst.count(False) == 6  # min(n=3, ...) per side and mode
+    assert result.evidence["performance_probe"]["modes"] == ["stream", "non_stream"]
+
+    report = build_performance(rec.records, has_baseline=True)
+    assert report is not None and report.mode == "stream" and report.probe_requests == 3
+    assert [m.mode for m in report.modes] == ["non_stream"]
+    ns = report.modes[0]
+    assert ns.target.requests == 3 and ns.target.ttft_ms.count == 0
+    assert ns.baseline is not None and ns.comparison
+    assert report.target.ttft_ms.count == 3
+    assert planned_probe_requests(AuditOptions(suite="full"), has_baseline=False) == 100
+    assert estimated_calls(AuditOptions(suite="full"), has_baseline=False) == 3 + 1 + (100 + 12) * 2
+
+
+def test_comparison_direction():
+    from zing.models import PerformanceComparison
+
+    lat = PerformanceComparison(metric="latency_p50", unit="ms", target=900, baseline=1000, delta=-100)
+    assert lat.target_better is True
+    tps = PerformanceComparison(metric="decode", unit="tok/s", target=40, baseline=80, delta=-40,
+                                higher_is_better=True)
+    assert tps.target_better is False
+    even = PerformanceComparison(metric="latency_p50", unit="ms", target=1005, baseline=1000, delta=5)
+    assert even.target_better is None

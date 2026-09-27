@@ -51,3 +51,31 @@ def test_perf_js_renders_section_and_chart():
     assert "Target vs baseline" in section and "Decode speed p50 (local)" in section
     assert "<img" not in section and "&lt;img" in section  # detector ids are escaped
     assert "zp-pt" in out["tps"]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to evaluate the UI's JS")
+def test_perf_js_colors_deltas_and_shows_both_modes():
+    recs = []
+    for _ in range(4):
+        for stream in (True, False):
+            for ep, lat in (("target", 800.0), ("baseline", 1200.0)):
+                recs.append(RequestRecord(
+                    seq=len(recs), endpoint=ep, phase="probe", ok=True, stream=stream,
+                    start_ms=len(recs) * 100.0, duration_ms=lat,
+                    ttft_ms=200.0 if stream else None,
+                    decode_tps_local=(40.0 if ep == "target" else 80.0) if stream else None,
+                    e2e_tps_local=100.0,
+                ))
+    perf = build_performance(recs, has_baseline=True)
+    assert perf is not None and [m.mode for m in perf.modes] == ["non_stream"]
+    static = Path(__file__).resolve().parent.parent / "zing" / "web" / "static"
+    section = json.loads(subprocess.run(
+        ["node", "-e", _JS, str(static), perf.model_dump_json()],
+        capture_output=True, text=True, check=True,
+    ).stdout)["section"]
+    # lower latency: better (green ✓); lower decode speed: worse (red ✗)
+    assert 'class="r zp-better">✓ -400' in section
+    assert 'class="r zp-worse">✗ -40.0' in section
+    assert "Streaming" in section and "Non-streaming" in section
+    assert 'zp-pt t hollow' in section and "non-streaming request (hollow)" in section
+    assert "End-to-end speed p50" in section  # non-stream tiles

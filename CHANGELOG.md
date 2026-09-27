@@ -19,9 +19,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   mode): uncacheable streaming requests (default 100 × 128 tokens, a random
   request id opens each prompt, no cache or reasoning parameters), `GET /models`
   pings, a warm-up reported as cold start, and a concurrency burst. Compare mode
-  alternates target and baseline requests and adds a target-vs-baseline table.
-  New flags `--performance-requests` / `--performance-max-tokens`; `--dry-run`
-  counts the probe's calls.
+  alternates target and baseline requests and adds a target-vs-baseline table,
+  with each difference marked green ✓ (target better) or red ✗ (target worse).
+  The probe streams by default; `--performance-non-streaming` (a switch in the web
+  UI) measures relays that cannot stream, and the full suite measures both modes.
+  New flags `--performance-requests` / `--performance-max-tokens` /
+  `--performance-streaming`; `--dry-run` counts the probe's calls. The web UI's
+  suite picker gains `full`.
 - **Charts.** The HTML report draws the chosen metric per request over the audit's
   timeline (inline SVG, no scripts). The web UI shows the same chart live while an
   audit runs, the full section in the report and in `/history`, and a latency

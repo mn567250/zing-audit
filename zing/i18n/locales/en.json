@@ -447,7 +447,19 @@
   "Relay processing times come from the relay's own response headers and are unverified.": "Relay processing times come from the relay's own response headers and are unverified.",
   "Some requests were served fully or partly from a cache and are left out of the statistics.": "Some requests were served fully or partly from a cache and are left out of the statistics.",
   "A relay that caches unique prompts may be serving stored answers; compare with a trusted baseline.": "A relay that caches unique prompts may be serving stored answers; compare with a trusted baseline.",
-  "Weigh this together with the model-identity findings; speed alone is not proof of substitution.": "Weigh this together with the model-identity findings; speed alone is not proof of substitution."
+  "Weigh this together with the model-identity findings; speed alone is not proof of substitution.": "Weigh this together with the model-identity findings; speed alone is not proof of substitution.",
+  "Performance probe requests": "Performance probe requests",
+  "Non-streaming": "Non-streaming",
+  "non-streaming": "non-streaming",
+  "The smoke suite runs no performance probe.": "The smoke suite runs no performance probe.",
+  "The full suite measures both streaming and non-streaming.": "The full suite measures both streaming and non-streaming.",
+  "On standard the probe runs only with a baseline; otherwise the audit's own requests are used.": "On standard the probe runs only with a baseline; otherwise the audit's own requests are used.",
+  "Non-streaming measures relays that cannot stream.": "Non-streaming measures relays that cannot stream.",
+  "non-streaming request (hollow)": "non-streaming request (hollow)",
+  "End-to-end speed p50": "End-to-end speed p50",
+  "target better": "target better",
+  "target worse": "target worse",
+  "(within 2% counts as even)": "(within 2% counts as even)"
  },
  "findings": {}
 }

@@ -29,7 +29,7 @@ def _report(*, baseline: bool = True, perf: bool = True) -> AuditReport:
     recs = [_rec(i, "target") for i in range(6)]
     recs.append(_rec(6, "target", ok=False, status_code=502, ttft_ms=None, detector="<script>"))
     if baseline:
-        recs += [_rec(10 + i, "baseline", decode_tps_local=60.0) for i in range(6)]
+        recs += [_rec(10 + i, "baseline", decode_tps_local=60.0, duration_ms=1000.0 + i) for i in range(6)]
     return AuditReport(
         tool_version="0.0.0",
         mode="compare" if baseline else "check",
@@ -53,7 +53,9 @@ def test_markdown_has_stats_and_comparison():
     assert "dedicated probe — 7 uncacheable streaming requests per endpoint" in md
     assert "| Latency (ms) | 6 |" in md
     assert "### Target vs baseline" in md
-    assert re.search(r"\| Decode speed p50 \(local\) \(tok/s\) \| 110 \| 60\.0 \| \+50\.0 \| 1\.83x \|", md)
+    # higher tokens/s is better for the target, higher latency worse
+    assert re.search(r"\| Decode speed p50 \(local\) \(tok/s\) \| 110 \| 60\.0 \| 🟢 ✓ \+50\.0 \| 1\.83x \|", md)
+    assert "| Latency p50 (ms) | 1,202 | 1,002 | 🔴 ✗ +200 |" in md
 
 
 def test_html_draws_inline_svg_without_scripts():
@@ -64,6 +66,8 @@ def test_html_draws_inline_svg_without_scripts():
     assert "<script" not in page  # self-contained, no JS
     assert "&lt;script&gt;" in section  # tooltips are escaped
     assert 'id="perf-latency"' in section and 'id="panel-ttft"' in section
+    assert '<td class="num delta better">✓ +50.0</td>' in section
+    assert 'class="num delta worse">✗ +200</td>' in section
 
 
 def test_old_reports_without_performance_still_render():
@@ -89,7 +93,7 @@ def test_cli_summary_prints_performance(monkeypatch):
     monkeypatch.setattr(cli, "console", Console(file=buf, width=200))
     cli._print_summary(_report(), [])
     text = buf.getvalue()
-    assert "Performance (target)" in text and "Performance (baseline)" in text
+    assert "Performance (target, stream)" in text and "Performance (baseline, stream)" in text
     assert "decode 110 tok/s" in text
 
 

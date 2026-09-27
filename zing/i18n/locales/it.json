@@ -447,7 +447,19 @@
   "Relay processing times come from the relay's own response headers and are unverified.": "I tempi di elaborazione del relay provengono dai suoi header di risposta e non sono verificati.",
   "Some requests were served fully or partly from a cache and are left out of the statistics.": "Alcune richieste sono state servite in tutto o in parte da una cache e sono escluse dalle statistiche.",
   "A relay that caches unique prompts may be serving stored answers; compare with a trusted baseline.": "Un relay che memorizza in cache prompt unici potrebbe servire risposte salvate; confrontalo con un riferimento affidabile.",
-  "Weigh this together with the model-identity findings; speed alone is not proof of substitution.": "Valutalo insieme ai risultati sull'identità del modello; la velocità da sola non prova una sostituzione."
+  "Weigh this together with the model-identity findings; speed alone is not proof of substitution.": "Valutalo insieme ai risultati sull'identità del modello; la velocità da sola non prova una sostituzione.",
+  "Performance probe requests": "Richieste della sonda delle prestazioni",
+  "Non-streaming": "Senza streaming",
+  "non-streaming": "senza streaming",
+  "The smoke suite runs no performance probe.": "La suite smoke non esegue la sonda delle prestazioni.",
+  "The full suite measures both streaming and non-streaming.": "La suite full misura sia con sia senza streaming.",
+  "On standard the probe runs only with a baseline; otherwise the audit's own requests are used.": "Con standard la sonda viene eseguita solo con un riferimento; altrimenti si usano le richieste dell'audit stesso.",
+  "Non-streaming measures relays that cannot stream.": "Senza streaming si misurano i relay che non supportano lo streaming.",
+  "non-streaming request (hollow)": "richiesta senza streaming (vuota)",
+  "End-to-end speed p50": "Velocità end-to-end p50",
+  "target better": "obiettivo migliore",
+  "target worse": "obiettivo peggiore",
+  "(within 2% counts as even)": "(entro il 2% conta come pari)"
  },
  "findings": {
   "connectivity.models": [

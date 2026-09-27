@@ -13,8 +13,11 @@ network drift during the run hits both equally):
 
 1. three ``GET /models`` pings (``Cache-Control: no-cache``) — network round trip
 2. one warm-up request — reported as cold start, excluded from the stats
-3. N probe requests
+3. N probe requests per request mode
 4. (deep/full) a burst at the reliability concurrency — throughput under load
+
+Requests stream by default; ``performance_streaming=False`` measures relays that
+cannot stream. The full suite measures both modes, interleaved.
 
 No reasoning-effort parameter is sent: the modes a relay accepts are unknown, so
 a reasoning model thinks at its default effort (the report says so).
@@ -87,6 +90,13 @@ def planned_probe_requests(options: AuditOptions, *, has_baseline: bool) -> int:
     return 0
 
 
+def probe_modes(options: AuditOptions) -> list[bool]:
+    """Request modes to probe (True = streaming), headline mode first."""
+    if options.suite == "full":
+        return [True, False]
+    return [options.performance_streaming]
+
+
 def burst_size(options: AuditOptions, probe_requests: int) -> int:
     """Requests in the concurrency burst (deep/full only)."""
     if not _deep(options.suite) or probe_requests <= 0:
@@ -100,7 +110,7 @@ def estimated_calls(options: AuditOptions, *, has_baseline: bool) -> int:
     n = planned_probe_requests(options, has_baseline=has_baseline)
     if n == 0:
         return 0
-    per_endpoint = PINGS + 1 + n + burst_size(options, n)
+    per_endpoint = PINGS + 1 + (n + burst_size(options, n)) * len(probe_modes(options))
     return per_endpoint * (2 if has_baseline else 1)
 
 
@@ -139,7 +149,7 @@ class PerformanceDetector(Detector):
         self._counter = 0
 
     # -- request building --------------------------------------------------- #
-    def _spec(self, max_tokens: int, *, use_completion_tokens: bool) -> RequestSpec:
+    def _spec(self, max_tokens: int, *, stream: bool, use_completion_tokens: bool) -> RequestSpec:
         topics: list[str] = prompts.get("performance.topics")
         topic = topics[self._counter % len(topics)]
         self._counter += 1
@@ -150,14 +160,16 @@ class PerformanceDetector(Detector):
                 messages=messages,
                 temperature=None,
                 max_tokens=None,
-                stream=True,
+                stream=stream,
                 extra_body={"max_completion_tokens": max_tokens},
             )
-        return RequestSpec(messages=messages, temperature=None, max_tokens=max_tokens, stream=True)
+        return RequestSpec(
+            messages=messages, temperature=None, max_tokens=max_tokens, stream=stream
+        )
 
-    async def _call(self, ep: _Endpoint, max_tokens: int) -> RequestRecord | None:
+    async def _call(self, ep: _Endpoint, max_tokens: int, stream: bool) -> RequestRecord | None:
         outcome = await ep.client.complete(
-            self._spec(max_tokens, use_completion_tokens=ep.use_completion_tokens)
+            self._spec(max_tokens, stream=stream, use_completion_tokens=ep.use_completion_tokens)
         )
         if not ep.use_completion_tokens and _is_param_rejection(outcome):
             # Likely a reasoning model that wants max_completion_tokens: keep the
@@ -167,7 +179,7 @@ class PerformanceDetector(Detector):
                 rejected.phase = "param_retry"
             ep.use_completion_tokens = True
             outcome = await ep.client.complete(
-                self._spec(max_tokens, use_completion_tokens=True)
+                self._spec(max_tokens, stream=stream, use_completion_tokens=True)
             )
         record = last_record()
         if record is None:
@@ -181,12 +193,14 @@ class PerformanceDetector(Detector):
             ep.seen.add(digest)
         return record
 
-    async def _burst(self, ep: _Endpoint, size: int, conc: int, max_tokens: int) -> None:
+    async def _burst(
+        self, ep: _Endpoint, size: int, conc: int, max_tokens: int, stream: bool
+    ) -> None:
         sem = asyncio.Semaphore(conc)
 
         async def one() -> None:
             async with sem:
-                await self._call(ep, max_tokens)
+                await self._call(ep, max_tokens, stream)
 
         await asyncio.gather(*(one() for _ in range(size)))
 
@@ -226,6 +240,7 @@ class PerformanceDetector(Detector):
         max_tokens = max(1, opts.performance_max_tokens)
         conc = max(1, opts.reliability_concurrency)
         burst = burst_size(opts, n)
+        modes = probe_modes(opts)
 
         try:
             with phase_scope("ping"):
@@ -234,32 +249,37 @@ class PerformanceDetector(Detector):
                         await ep.client.list_models(no_cache=True)
             with phase_scope("warmup"):
                 for ep in endpoints:
-                    await self._call(ep, max_tokens)
+                    await self._call(ep, max_tokens, modes[0])
             with phase_scope("probe"):
                 for i in range(n):
-                    # Alternate who goes first so neither side always follows the other.
-                    for ep in endpoints if i % 2 == 0 else endpoints[::-1]:
-                        await self._call(ep, max_tokens)
+                    for stream in modes:
+                        # Alternate who goes first so neither side always follows the other.
+                        for ep in endpoints if i % 2 == 0 else endpoints[::-1]:
+                            await self._call(ep, max_tokens, stream)
             if burst:
                 with phase_scope("probe_concurrent"):
-                    for ep in endpoints:
-                        await self._burst(ep, burst, conc, max_tokens)
+                    for stream in modes:
+                        for ep in endpoints:
+                            await self._burst(ep, burst, conc, max_tokens, stream)
         finally:
             for client in attached:
                 client.recorder = None
 
         records = recorder.records[first:]
+        # Findings describe the headline mode (streaming when it was probed).
         summaries = {
-            ep.label: summarize_endpoint(records, ep.label, concurrency=conc) for ep in endpoints
+            ep.label: summarize_endpoint(records, ep.label, concurrency=conc, stream=modes[0])
+            for ep in endpoints
         }
         result.evidence["performance_probe"] = {
             "requests_per_endpoint": n,
             "max_tokens": max_tokens,
             "burst": burst,
+            "modes": ["stream" if m else "non_stream" for m in modes],
             "concurrency": conc,
             "max_completion_tokens": {ep.label: ep.use_completion_tokens for ep in endpoints},
         }
-        self._findings(result, records, summaries, n)
+        self._findings(result, records, summaries, n, stream=modes[0])
 
         target = summaries["target"]
         result.status = Status.INFO if target.successes else Status.INCONCLUSIVE
@@ -267,7 +287,7 @@ class PerformanceDetector(Detector):
 
     # -- findings ----------------------------------------------------------- #
     @staticmethod
-    def _headline(ep: EndpointPerformance) -> dict[str, float | int | None]:
+    def _headline(ep: EndpointPerformance) -> dict[str, float | int | str | None]:
         return {
             "requests": ep.requests,
             "successes": ep.successes,
@@ -284,16 +304,25 @@ class PerformanceDetector(Detector):
         records: Sequence[RequestRecord],
         summaries: dict[str, EndpointPerformance],
         n: int,
+        *,
+        stream: bool = True,
     ) -> None:
         target = summaries["target"]
         baseline = summaries.get("baseline")
         head = self._headline(target)
-        if target.successes:
+        head["mode"] = "stream" if stream else "non_stream"
+        if target.successes and stream:
             summary = (
                 f"{target.successes} of {target.requests} probe requests succeeded; "
                 f"p50 latency {_fmt(target.latency_ms.p50, 'ms')}, "
                 f"p50 TTFT {_fmt(target.ttft_ms.p50, 'ms')}, "
                 f"p50 decode {_fmt(target.decode_tps_local.p50, 'tok/s')}."
+            )
+        elif target.successes:
+            summary = (
+                f"{target.successes} of {target.requests} non-streaming probe requests "
+                f"succeeded; p50 latency {_fmt(target.latency_ms.p50, 'ms')}, "
+                f"p50 end-to-end {_fmt(target.e2e_tps_local.p50, 'tok/s')}."
             )
         else:
             summary = f"None of the {target.requests} probe requests succeeded."
@@ -395,7 +424,11 @@ class PerformanceDetector(Detector):
                 )
             )
 
-        tps_t, tps_b = target.decode_tps_local, baseline.decode_tps_local
+        # Non-streamed calls have no first token: compare end-to-end speed.
+        if stream:
+            tps_t, tps_b = target.decode_tps_local, baseline.decode_tps_local
+        else:
+            tps_t, tps_b = target.e2e_tps_local, baseline.e2e_tps_local
         if (
             tps_t.count >= _MIN_COMPARE_SAMPLES
             and tps_b.count >= _MIN_COMPARE_SAMPLES
@@ -418,6 +451,7 @@ class PerformanceDetector(Detector):
                         "target_decode_tps_p50": _r(tps_t.p50),
                         "baseline_decode_tps_p50": _r(tps_b.p50),
                         "ratio": round(ratio, 2),
+                        "metric": "decode" if stream else "end_to_end",
                         "samples": min(tps_t.count, tps_b.count),
                     },
                     recommendation="Weigh this together with the model-identity findings; "

@@ -132,7 +132,7 @@
     }
     pts.forEach(function (r) {
       var cls = "zp-pt " + (r.endpoint === "baseline" ? "b" : "t") +
-        (r.phase === "passive" ? " passive" : "") + (r.cached ? " cached" : "");
+        (r.phase === "passive" ? " passive" : r.stream ? "" : " hollow") + (r.cached ? " cached" : "");
       o.push('<circle class="' + cls + '" cx="' + x(r.start_ms / 1000).toFixed(1) + '" cy="' +
         y(m.get(r)).toFixed(1) + '" r="4" data-tip="' + esc(tip(r, m)) + '"/>');
     });
@@ -147,7 +147,7 @@
   }
   function tip(r, m) {
     var head = "#" + r.seq + " · " + (r.endpoint === "baseline" ? T("基线", "baseline") : T("目标", "target")) +
-      " · " + (r.detector || "—") + " · " + r.phase;
+      " · " + (r.detector || "—") + " · " + r.phase + (r.stream ? "" : " · " + T("非流式", "non-streaming"));
     if (!m) return head + "\n" + T("失败", "failed") + " (" + (r.status_code || r.error_type || "?") + ")";
     var lines = [head, T(m.zh, m.en) + ": " + num(m.get(r)) + " " + m.unit];
     if (m.id !== "latency" && r.duration_ms != null) lines.push(T("延迟", "Latency") + ": " + num(r.duration_ms) + " ms");
@@ -163,6 +163,8 @@
     if (hasBaseline) items.push('<span><i class="zp-key b"></i>' + esc(T("基线", "baseline")) + "</span>");
     if (probe && calls.some(function (r) { return r.phase === "passive"; }))
       items.push('<span><i class="zp-key t passive"></i>' + esc(T("常规检测请求（浅色）", "audit request (lighter)")) + "</span>");
+    if (calls.some(function (r) { return r.phase !== "passive" && !r.stream; }))
+      items.push('<span><i class="zp-key t hollow"></i>' + esc(T("非流式请求（空心）", "non-streaming request (hollow)")) + "</span>");
     if (calls.some(function (r) { return !r.ok; }))
       items.push('<span><i class="zp-key x">×</i>' + esc(T("失败请求", "failed request")) + "</span>");
     return '<div class="zp-legend">' + items.join("") + "</div>";
@@ -222,15 +224,22 @@
           "</tr>";
       }).join("") + "</tbody></table></div>";
   }
+  function p50of(stats) {
+    return stats && stats.p50 != null ? stats.p50 : null;
+  }
   function tiles(ep) {
-    var tps = ep.decode_tps_local && ep.decode_tps_local.p50 != null ? ep.decode_tps_local.p50 :
-      ep.decode_tps_reported && ep.decode_tps_reported.p50;
-    var t = [
-      [T("延迟 p50", "Latency p50"), num(ep.latency_ms && ep.latency_ms.p50), "ms"],
-      ["TTFT p50", num(ep.ttft_ms && ep.ttft_ms.p50), "ms"],
-      [T("解码速度 p50", "Decode speed p50"), num(tps), "tok/s"],
-      [T("错误率", "Error rate"), num(ep.error_rate, "ratio"), ""],
-    ];
+    var streamed = ep.ttft_ms && ep.ttft_ms.count;
+    var tps = p50of(ep.decode_tps_local);
+    if (tps == null) tps = p50of(ep.decode_tps_reported);
+    var t = [[T("延迟 p50", "Latency p50"), num(p50of(ep.latency_ms)), "ms"]];
+    if (streamed) {
+      t.push(["TTFT p50", num(p50of(ep.ttft_ms)), "ms"]);
+      t.push([T("解码速度 p50", "Decode speed p50"), num(tps), "tok/s"]);
+    } else {
+      // Non-streamed calls have no first token: end-to-end speed instead.
+      t.push([T("端到端速度 p50", "End-to-end speed p50"), num(p50of(ep.e2e_tps_local)), "tok/s"]);
+    }
+    t.push([T("错误率", "Error rate"), num(ep.error_rate, "ratio"), ""]);
     return '<div class="zp-tiles">' + t.map(function (x) {
       return '<div class="zp-tile"><div class="zp-tl">' + esc(x[0]) + '</div><div class="zp-tv">' + esc(x[1]) +
         (x[2] ? ' <small>' + x[2] + "</small>" : "") + "</div></div>";
@@ -266,12 +275,52 @@
     return o.join("");
   }
 
+  // Same rule as PerformanceComparison.target_better in zing/models.py: true /
+  // false when the target is better / worse, null within 2% or with a side missing.
+  function targetBetter(c) {
+    if (c.delta == null || c.target == null || c.baseline == null) return null;
+    var scale = Math.max(Math.abs(c.target), Math.abs(c.baseline));
+    if (!scale || Math.abs(c.delta) / scale < 0.02) return null;
+    return c.delta > 0 === !!c.higher_is_better;
+  }
+  function compareTable(rows) {
+    return '<table class="zp-table"><thead><tr><th>' + esc(T("指标", "Metric")) + '</th><th class="r">' +
+      esc(T("目标", "Target")) + '</th><th class="r">' + esc(T("基线", "Baseline")) + '</th><th class="r">Δ</th><th class="r">' +
+      esc(T("比值", "Ratio")) + "</th></tr></thead><tbody>" + rows.map(function (c) {
+        var lab = COMPARE[c.metric] ? T(COMPARE[c.metric][0], COMPARE[c.metric][1]) : c.metric;
+        var d = c.delta == null ? "—" : c.unit === "ratio" ? (c.delta > 0 ? "+" : "") + (c.delta * 100).toFixed(1) + " pp" : (c.delta > 0 ? "+" : "") + num(c.delta);
+        var b = targetBetter(c), cls = b === true ? " zp-better" : b === false ? " zp-worse" : "";
+        var mark = b === true ? "✓ " : b === false ? "✗ " : "";
+        return "<tr><td>" + esc(lab) + ' <span class="zp-unit">' + esc(c.unit) + '</span></td><td class="r">' +
+          num(c.target, c.unit) + '</td><td class="r">' + num(c.baseline, c.unit) + '</td><td class="r' + cls + '">' + mark + d +
+          '</td><td class="r">' + (c.ratio == null ? "—" : c.ratio.toFixed(2) + "x") + "</td></tr>";
+      }).join("") + "</tbody></table>" +
+      '<p class="zp-muted"><span class="zp-better">✓ ' + esc(T("目标更好", "target better")) + '</span> · <span class="zp-worse">✗ ' +
+      esc(T("目标更差", "target worse")) + "</span> " + esc(T("（相差 2% 以内视为持平）", "(within 2% counts as even)")) + "</p>";
+  }
+  var MODE_TITLE = { stream: ["流式", "Streaming"], non_stream: ["非流式", "Non-streaming"] };
+  function modeBlock(mode, target, baseline, comparison, titled) {
+    var o = [];
+    if (titled && MODE_TITLE[mode]) o.push('<h4 class="zp-h zp-mode">' + esc(T(MODE_TITLE[mode][0], MODE_TITLE[mode][1])) + "</h4>");
+    o.push(endpointBlock(target, baseline ? T("目标", "Target") : ""));
+    if (baseline) o.push(endpointBlock(baseline, T("基线", "Baseline")));
+    if ((comparison || []).length) {
+      o.push('<h4 class="zp-h">' + esc(T("目标 vs 基线", "Target vs baseline")) + "</h4>");
+      o.push(compareTable(comparison));
+    }
+    return o.join("");
+  }
+
   var sectionState = { metric: "latency" };
   function section(perf) {
     if (!perf || !perf.target) return "";
+    var modes = perf.modes || [];
+    var kind = [perf.mode].concat(modes.map(function (m) { return m.mode; }))
+      .filter(function (m) { return MODE_TITLE[m]; })
+      .map(function (m) { return T(MODE_TITLE[m][0], MODE_TITLE[m][1]); }).join(" + ");
     var src = perf.source === "probe"
       ? T("来源：专用性能探测", "Source: dedicated probe") + " — " + perf.probe_requests + " × " +
-        (perf.probe_max_tokens || "?") + " tokens"
+        (perf.probe_max_tokens || "?") + " tokens" + (kind ? " · " + kind : "")
       : T("来源：本次检测自身的请求", "Source: the audit's own requests");
     var hasB = !!perf.baseline;
     var o = ['<div class="zp-section">'];
@@ -279,20 +328,10 @@
     o.push(tabs(sectionState.metric));
     o.push('<div class="zp-plot">' + chart(perf.requests, sectionState.metric) + "</div>");
     o.push(legend(perf.requests, hasB));
-    o.push(endpointBlock(perf.target, hasB ? T("目标", "Target") : ""));
-    if (hasB) o.push(endpointBlock(perf.baseline, T("基线", "Baseline")));
-    if ((perf.comparison || []).length) {
-      o.push('<h4 class="zp-h">' + esc(T("目标 vs 基线", "Target vs baseline")) + "</h4>");
-      o.push('<table class="zp-table"><thead><tr><th>' + esc(T("指标", "Metric")) + '</th><th class="r">' +
-        esc(T("目标", "Target")) + '</th><th class="r">' + esc(T("基线", "Baseline")) + '</th><th class="r">Δ</th><th class="r">' +
-        esc(T("比值", "Ratio")) + "</th></tr></thead><tbody>" + perf.comparison.map(function (c) {
-          var lab = COMPARE[c.metric] ? T(COMPARE[c.metric][0], COMPARE[c.metric][1]) : c.metric;
-          var d = c.delta == null ? "—" : c.unit === "ratio" ? (c.delta * 100).toFixed(1) + " pp" : (c.delta > 0 ? "+" : "") + num(c.delta);
-          return "<tr><td>" + esc(lab) + ' <span class="zp-unit">' + esc(c.unit) + '</span></td><td class="r">' +
-            num(c.target, c.unit) + '</td><td class="r">' + num(c.baseline, c.unit) + '</td><td class="r">' + d +
-            '</td><td class="r">' + (c.ratio == null ? "—" : c.ratio.toFixed(2) + "x") + "</td></tr>";
-        }).join("") + "</tbody></table>");
-    }
+    o.push(modeBlock(perf.mode, perf.target, perf.baseline, perf.comparison, modes.length > 0));
+    modes.forEach(function (m) {
+      o.push(modeBlock(m.mode, m.target, m.baseline, m.comparison, true));
+    });
     if (perf.probe_cost) {
       var pc = perf.probe_cost;
       o.push('<p class="zp-muted">' + esc(T("探测成本", "Probe cost")) + ": " + esc(T("请求数", "Requests")) + " " +
@@ -394,6 +433,10 @@
     ".zp-tick{fill:var(--zp-ink2);font-size:11px;font-variant-numeric:tabular-nums}" +
     ".zp-pt{stroke:var(--zp-surface);stroke-width:2}.zp-pt.t{fill:var(--zp-t)}.zp-pt.b{fill:var(--zp-b)}" +
     ".zp-pt.passive{fill-opacity:.45}.zp-pt.cached{fill:#8c959f;fill-opacity:.6}.zp-pt:hover{stroke:var(--zp-ink)}" +
+    ".zp-pt.hollow{fill:var(--zp-surface)}.zp-pt.hollow.t{stroke:var(--zp-t)}.zp-pt.hollow.b{stroke:var(--zp-b)}" +
+    ".zp-legend .zp-key.hollow{background:transparent;border:2px solid var(--zp-t);box-sizing:border-box}" +
+    ".zp-better{color:#1a7f37;font-weight:700}.zp-worse{color:#cb3b2e;font-weight:700}" +
+    ".zp-mode{border-top:1px solid var(--zp-grid);padding-top:14px;margin-top:20px;font-size:14.5px}" +
     ".zp-fail{stroke:var(--zp-x);stroke-width:2;stroke-linecap:round}" +
     ".zp-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--zp-ink2);margin:2px 0 8px}" +
     ".zp-key{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;font-style:normal}" +

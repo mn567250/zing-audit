@@ -193,13 +193,18 @@ round trip, server time) and cold start, each as count / min / mean / p50 / p75 
 p90 / p95 / p99 / max / stdev. It never affects the score or the verdict.
 
 - **standard** collects it from the audit's own requests.
-- **deep / full** add a dedicated probe: 100 uncacheable streaming requests of
-  128 output tokens (a random request id opens every prompt, no cache or
-  reasoning parameters are sent) plus a burst at `--concurrency`. Tune with
+- **deep / full** add a dedicated probe: 100 uncacheable requests of 128 output
+  tokens (a random request id opens every prompt, no cache or reasoning
+  parameters are sent) plus a burst at `--concurrency`. Tune with
   `--performance-requests` (0 disables) and `--performance-max-tokens`.
+- The probe streams by default; `--performance-non-streaming` (or the switch in
+  the web UI) measures relays that cannot stream. **full** measures both modes,
+  interleaved, and reports them side by side.
 - **compare** runs the probe on both endpoints, alternating requests, and adds a
-  target-vs-baseline table (5 requests per side on `standard`). A target that
-  decodes more than 2x faster than the baseline is flagged as a low-severity hint.
+  target-vs-baseline table (5 requests per side on `standard`) whose differences
+  are marked green ✓ where the target is better and red ✗ where it is worse. A
+  target that generates more than 2x faster than the baseline is flagged as a
+  low-severity hint.
 
 Tokens are counted twice: from the relay's `usage` and locally, so throughput is
 measurable even when `usage` is missing. A percentile is shown only with enough

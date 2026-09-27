@@ -375,6 +375,30 @@ class PerformanceComparison(BaseModel):
     baseline: float | None = None
     delta: float | None = None  # target - baseline
     ratio: float | None = None  # target / baseline
+    higher_is_better: bool = False  # e.g. tokens/s; latencies and error rates are lower-is-better
+
+    @property
+    def target_better(self) -> bool | None:
+        """True / False when the target is better / worse than the baseline;
+        None when they are within 2% of each other or a side is missing."""
+        if self.delta is None or self.target is None or self.baseline is None:
+            return None
+        scale = max(abs(self.target), abs(self.baseline))
+        if scale == 0 or abs(self.delta) / scale < 0.02:
+            return None
+        return (self.delta > 0) == self.higher_is_better
+
+
+class PerformanceModeReport(BaseModel):
+    """Probe results for a second request mode (the full suite measures both
+    streaming and non-streaming)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: str  # "stream" | "non_stream"
+    target: EndpointPerformance = Field(default_factory=EndpointPerformance)
+    baseline: EndpointPerformance | None = None
+    comparison: list[PerformanceComparison] = Field(default_factory=list)
 
 
 class ProbeCost(BaseModel):
@@ -396,13 +420,17 @@ class PerformanceReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     source: str = "passive"  # "probe" | "passive"
-    probe_requests: int = 0  # per endpoint; 0 when the probe did not run
+    # Request mode of the headline stats: "stream" / "non_stream" (probe) or
+    # "mixed" (passive). ``modes`` holds any further probed mode.
+    mode: str = "mixed"
+    probe_requests: int = 0  # per endpoint and mode; 0 when the probe did not run
     probe_max_tokens: int | None = None
     tokenizer: str | None = None
     tokens_exact: bool = False
     target: EndpointPerformance = Field(default_factory=EndpointPerformance)
     baseline: EndpointPerformance | None = None
     comparison: list[PerformanceComparison] = Field(default_factory=list)
+    modes: list[PerformanceModeReport] = Field(default_factory=list)
     probe_cost: ProbeCost | None = None
     requests: list[RequestRecord] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)

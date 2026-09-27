@@ -60,8 +60,8 @@
   /* colour families (text) */
   .f-good { color: var(--good); } .f-sky { color: var(--sky); } .f-warn { color: var(--warn); }
   .f-bad { color: var(--bad); } .f-grey { color: var(--grey); }
-  .trend .f-good { color: var(--good-fill); } .trend .f-sky { color: var(--sky-fill); } .trend .f-warn { color: var(--warn-fill); }
-  .trend .f-bad { color: var(--bad-fill); } .trend .f-grey { color: var(--grey-fill); }
+  .trend svg.f-good { color: var(--good-fill); } .trend svg.f-sky { color: var(--sky-fill); } .trend svg.f-warn { color: var(--warn-fill); }
+  .trend svg.f-bad { color: var(--bad-fill); } .trend svg.f-grey { color: var(--grey-fill); }
 
   /* rows */
   .rows { list-style: none; margin: 0; padding: 0 18px 10px; }
@@ -246,16 +246,22 @@
       .then(function () { host.setAttribute("aria-busy", "false"); });
   }
 
+  var trendGen = 0;
   function loadTrends() {
+    var gen = ++trendGen, fresh = {};
     var groups = groupsOf(state.rows || []);
     return Promise.all(groups.map(function (g) {
       var u = "/api/history/trend?base_url=" + encodeURIComponent(g.base_url || "") +
         "&claimed_model=" + encodeURIComponent(g.claimed_model || "");
       return fetch(u)
         .then(function (r) { return r.ok ? r.json() : []; })
-        .then(function (t) { state.trends[g.key] = Array.isArray(t) ? t : []; })
-        .catch(function () { state.trends[g.key] = []; });
-    })).then(render);
+        .then(function (t) { fresh[g.key] = Array.isArray(t) ? t : []; })
+        .catch(function () { fresh[g.key] = []; });
+    })).then(function () {
+      if (gen !== trendGen) return; // a newer load superseded this one
+      state.trends = fresh;
+      render();
+    });
   }
 
   /* ---------------- rendering ---------------- */
@@ -322,7 +328,7 @@
 
   function confirmHTML(id, what, msg, okLabel) {
     return '<div class="confirm" id="' + id + '" role="group" aria-label="' + esc(msg) + '"' + (state.confirm === what ? "" : " hidden") + ">" +
-      '<span class="msg">' + esc(msg) + "</span>" +
+      '<span class="msg" data-msg="' + esc(msg) + '">' + esc(msg) + "</span>" +
       '<span class="btns"><button type="button" class="btn sm danger-solid" data-yes="' + what + '">' + esc(okLabel) + "</button>" +
       '<button type="button" class="btn sm" data-no="' + what + '">' + esc(T("取消", "Cancel")) + "</button></span></div>";
   }
@@ -340,7 +346,7 @@
 
   function trendHTML(trend, newest) {
     var pts = (trend || []).filter(function (p) { return p && typeof p.score === "number"; });
-    var latest = pts.length ? pts[pts.length - 1].score : newest && newest.score;
+    var latest = newest ? newest.score : null; // the newest row, even when it has no score
     var fam = scoreC(latest);
     var out = '<div class="trend">';
     if (pts.length >= 2) {
@@ -455,6 +461,9 @@
     Array.prototype.forEach.call(host.querySelectorAll(".confirm"), function (c) {
       var mine = c.querySelector("[data-yes]").getAttribute("data-yes") === what;
       c.hidden = !mine;
+      var m = c.querySelector(".msg"), y = c.querySelector("[data-yes]");
+      m.textContent = m.getAttribute("data-msg"); // drop a previous error
+      y.disabled = false;
     });
     Array.prototype.forEach.call(host.querySelectorAll("[aria-controls]"), function (b) {
       if (b.classList.contains("rdel") || b.id === "clr")

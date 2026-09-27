@@ -64,3 +64,32 @@ def summarize(values: Sequence[float]) -> dict[str, float | None]:
         "max": float(max(values)),
         "stdev": stdev(values),
     }
+
+
+# A percentile below this many samples is noise, so ``describe`` leaves it out.
+PERCENTILE_MIN_SAMPLES: dict[str, int] = {
+    "p50": 1,
+    "p75": 4,
+    "p90": 10,
+    "p95": 20,
+    "p99": 100,
+}
+
+
+def describe(values: Sequence[float]) -> dict[str, float | int | None]:
+    """Full distribution for the performance report.
+
+    count, min, mean, p50, p75, p90, p95, p99, max, stdev — each percentile is
+    None until there are enough samples for it (``PERCENTILE_MIN_SAMPLES``).
+    """
+    n = len(values)
+    out: dict[str, float | int | None] = {
+        "count": n,
+        "min": float(min(values)) if values else None,
+        "mean": mean(values),
+    }
+    for key, floor in PERCENTILE_MIN_SAMPLES.items():
+        out[key] = percentile(values, float(key[1:])) if n >= floor else None
+    out["max"] = float(max(values)) if values else None
+    out["stdev"] = stdev(values)
+    return out

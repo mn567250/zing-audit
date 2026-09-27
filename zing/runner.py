@@ -20,6 +20,7 @@ from zing.clients import make_client
 from zing.config import AuditOptions
 from zing.context import AuditContext
 from zing.detectors.base import run_detector, select_detectors
+from zing.detectors.performance import planned_probe_requests, probe_modes
 from zing.judge import Judge
 from zing.knowledge import load_knowledge_base
 from zing.models import (
@@ -30,6 +31,7 @@ from zing.models import (
     ReliabilitySummary,
     TargetConfig,
 )
+from zing.perf import RequestRecorder, build_performance, detector_scope
 from zing.scoring import build_dimensions, build_verdict
 from zing.utils.redact import fingerprint_secret
 
@@ -107,12 +109,27 @@ async def run_audit(
     # endpoint serving model X can be audited against the profile it's sold as.
     profile = kb.resolve(target.claimed, target.declared_provider)
 
+    def _emit(event: dict[str, Any]) -> None:
+        if on_event is not None:
+            # a progress sink must never break the audit
+            with suppress(Exception):
+                on_event(event)
+
+    # Every target/baseline call is logged for the performance section and
+    # streamed as a live progress event.
+    recorder = RequestRecorder(
+        profile.model.tokenizer if profile and profile.model.tokenizer else None,
+        on_record=lambda rec: _emit({"type": "request_done", "record": rec.model_dump()}),
+    )
+
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(make_client(target))
+        client.recorder, client.endpoint = recorder, "target"
 
         baseline_client = None
         if baseline is not None:
             baseline_client = await stack.enter_async_context(make_client(baseline))
+            baseline_client.recorder, baseline_client.endpoint = recorder, "baseline"
 
         judge = None
         if options.judge:
@@ -130,6 +147,7 @@ async def run_audit(
             baseline=baseline,
             baseline_client=baseline_client,
             judge=judge,
+            recorder=recorder,
         )
 
         detectors = select_detectors(
@@ -138,21 +156,23 @@ async def run_audit(
             has_baseline=baseline_client is not None,
             enabled=options.enabled,
         )
-        def _emit(event: dict[str, Any]) -> None:
-            if on_event is not None:
-                # a progress sink must never break the audit
-                with suppress(Exception):
-                    on_event(event)
-
         total = len(detectors)
+        has_baseline = baseline_client is not None
+        # Target probe requests across all modes, for the live progress bar.
+        probe_planned = (
+            planned_probe_requests(options, has_baseline=has_baseline) * len(probe_modes(options))
+            if any(d.id == "performance" for d in detectors)
+            else 0
+        )
         _emit({"type": "start", "total": total, "suite": options.suite, "mode": mode,
                "target": target.name, "claimed_model": target.claimed,
-               "has_baseline": baseline_client is not None})
+               "has_baseline": has_baseline, "probe_requests": probe_planned})
         results: list[DetectorResult] = []
         for i, detector in enumerate(detectors):
             _emit({"type": "detector_start", "index": i, "total": total,
                    "id": detector.id, "name": detector.name, "dimension": detector.dimension.value})
-            res = await run_detector(detector, ctx)
+            with detector_scope(detector.id):
+                res = await run_detector(detector, ctx)
             results.append(res)
             _emit({"type": "detector_done", "index": i, "total": total,
                    "id": res.id, "name": res.name, "dimension": res.dimension.value,
@@ -160,6 +180,14 @@ async def run_audit(
                    "duration_ms": res.duration_ms, "findings": _event_findings(res)})
 
     reliability = _extract_reliability(results)
+    performance = build_performance(
+        recorder.records,
+        tokenizer=recorder.tokenizer,
+        tokens_exact=recorder.tokens_exact,
+        has_baseline=baseline is not None,
+        probe_max_tokens=options.performance_max_tokens,
+        concurrency=options.reliability_concurrency,
+    )
     dimensions = build_dimensions(results, reliability)
     verdict = build_verdict(
         results,
@@ -194,6 +222,7 @@ async def run_audit(
         dimensions=dimensions,
         detectors=results,
         reliability=reliability,
+        performance=performance,
         judge_used=judge is not None,
         judge_model=judge_endpoint.model if (options.judge and judge_endpoint is not None) else None,
         notes=notes,

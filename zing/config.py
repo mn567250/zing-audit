@@ -46,6 +46,14 @@ class AuditOptions(BaseModel):
     # Identity/determinism sampling.
     determinism_samples: int = 3
 
+    # Performance probe (deep/full, or compare mode on standard): uncacheable
+    # streaming requests per endpoint and their output length. 0 disables it.
+    performance_requests: int = 100
+    performance_max_tokens: int = 128
+    # Probe with streaming (True) or non-streaming requests, e.g. for a relay
+    # that cannot stream. The full suite always measures both.
+    performance_streaming: bool = True
+
     def enabled(self, detector_id: str) -> bool:
         if self.only:
             return detector_id in self.only
@@ -207,6 +215,9 @@ run:
   reliability_requests: 8
   concurrency: 3
   max_context_probe_tokens: 200000 # cap for the real-context-window probe
+  performance_requests: 100        # performance probe requests per endpoint (deep/full; 0 disables)
+  performance_max_tokens: 128      # output tokens per performance probe request
+  performance_streaming: true      # probe mode on standard/deep (full measures both)
 
 # Optional LLM judge backend (used when run.judge is true).
 # Defaults to the baseline endpoint if omitted.

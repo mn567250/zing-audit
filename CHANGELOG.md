@@ -8,6 +8,29 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Performance section in every report.** Latency, time to first token, decode
+  and end-to-end tokens/s (from the relay's `usage` and from a local token count),
+  inter-chunk latency and jitter, error/timeout/429 rates, a network breakdown
+  (TCP connect, TLS, `GET /models` round trip, server time) and cold start, as
+  count/min/mean/p50/p75/p90/p95/p99/max/stdev. Percentiles are shown only with
+  enough samples. Informational: it never changes the score or the verdict. The
+  JSON report adds `performance` with every request's timings (numbers only).
+- **Performance probe** (`performance` detector, deep/full, and standard in compare
+  mode): uncacheable streaming requests (default 100 × 128 tokens, a random
+  request id opens each prompt, no cache or reasoning parameters), `GET /models`
+  pings, a warm-up reported as cold start, and a concurrency burst. Compare mode
+  alternates target and baseline requests and adds a target-vs-baseline table,
+  with each difference marked green ✓ (target better) or red ✗ (target worse).
+  The probe streams by default; `--performance-non-streaming` (a switch in the web
+  UI) measures relays that cannot stream, and the full suite measures both modes.
+  New flags `--performance-requests` / `--performance-max-tokens` /
+  `--performance-streaming`; `--dry-run` counts the probe's calls. The web UI's
+  suite picker gains `full`.
+- **Charts.** The HTML report draws the chosen metric per request over the audit's
+  timeline (inline SVG, no scripts). The web UI shows the same chart live while an
+  audit runs, the full section in the report and in `/history`, and a latency
+  trend per target.
+
 - **Web UI: custom provider with live model fetch.** The model picker's provider
   list gains **Custom (from relay)**. With a base_url filled in, **Fetch models**
   calls the new `POST /api/models`, which lists the relay's own `/models`. You

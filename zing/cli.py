@@ -38,6 +38,7 @@ from zing.config import (
 )
 from zing.knowledge import load_knowledge_base
 from zing.models import AuditReport, RiskLevel, Status, TargetConfig
+from zing.report.performance import fmt_num
 
 # Risk ordering for the `watch` alert threshold (clean < low < medium < high).
 _WATCH_RISK_RANK = {
@@ -156,6 +157,34 @@ def _print_summary(report: AuditReport, written: list[Path]) -> None:
             + (f", p95 {p95:.0f} ms" if p95 else "")
         )
 
+    if report.performance:
+        perf = report.performance
+        blocks = [(perf.mode, perf.target, perf.baseline)]
+        blocks += [(m.mode, m.target, m.baseline) for m in perf.modes]
+        for mode, *sides in blocks:
+            for ep in sides:
+                if ep is None:
+                    continue
+                bits = [f"latency p50 {fmt_num(ep.latency_ms.p50)} ms"]
+                if ep.ttft_ms.count:
+                    tps = ep.decode_tps_local.p50
+                    if tps is None:
+                        tps = ep.decode_tps_reported.p50
+                    bits += [f"TTFT p50 {fmt_num(ep.ttft_ms.p50)} ms", f"decode {fmt_num(tps)} tok/s"]
+                else:
+                    bits.append(f"end-to-end {fmt_num(ep.e2e_tps_local.p50)} tok/s")
+                if ep.network_rtt_ms.p50 is not None:
+                    bits.append(f"RTT {fmt_num(ep.network_rtt_ms.p50)} ms")
+                tags = [t for t in (
+                    ep.endpoint if perf.baseline is not None else "",
+                    mode.replace("_", "-") if mode != "mixed" else "",
+                ) if t]
+                label = "Performance" + (f" ({', '.join(tags)})" if tags else "")
+                console.print(
+                    f"\n[bold]{label}[/bold] [dim]({perf.source}, n={ep.requests})[/dim]: "
+                    + ", ".join(bits)
+                )
+
     if report.warnings:
         console.print("\n[yellow]Warnings[/yellow]")
         for w in report.warnings:
@@ -240,6 +269,9 @@ def _build_options(cfg: dict, **overrides) -> AuditOptions:
         reliability_requests=int(pick("reliability_requests", "reliability_requests", 8)),
         reliability_concurrency=int(pick("concurrency", "concurrency", 3)),
         max_context_probe_tokens=int(pick("max_context_tokens", "max_context_probe_tokens", 200_000)),
+        performance_requests=int(pick("performance_requests", "performance_requests", 100)),
+        performance_max_tokens=int(pick("performance_max_tokens", "performance_max_tokens", 128)),
+        performance_streaming=bool(pick("performance_streaming", "performance_streaming", True)),
     )
     return opts
 
@@ -273,6 +305,7 @@ def _build_dry_run_plan(target, options, baseline, judge_target, mode: str) -> d
     estimate — without issuing a single request, so an agent can budget cost."""
     import zing.detectors  # noqa: F401  -- populate the registry
     from zing.detectors.base import select_detectors
+    from zing.detectors.performance import estimated_calls as estimated_probe_calls
 
     has_judge = bool(options.judge and (judge_target or baseline))
     has_baseline = baseline is not None
@@ -281,14 +314,22 @@ def _build_dry_run_plan(target, options, baseline, judge_target, mode: str) -> d
     )
     rows: list[dict] = []
     total = 0
+    probe_calls = 0
     for d in detectors:
-        calls = options.reliability_requests if d.id == "reliability" else d.cost_hint
+        if d.id == "performance":
+            # Already counts both endpoints; kept out of the compare-mode factor.
+            calls = probe_calls = estimated_probe_calls(options, has_baseline=has_baseline)
+        elif d.id == "reliability":
+            calls = options.reliability_requests
+        else:
+            calls = d.cost_hint
         rows.append(
             {"id": d.id, "dimension": d.dimension.value, "min_suite": d.min_suite, "est_calls": calls}
         )
         total += calls
     if has_baseline:
-        total = int(total * 1.4)  # compare-mode detectors also probe the baseline
+        # compare-mode detectors also probe the baseline
+        total = int((total - probe_calls) * 1.4) + probe_calls
     return {
         "tool": "zing",
         "version": __version__,
@@ -306,7 +347,8 @@ def _build_dry_run_plan(target, options, baseline, judge_target, mode: str) -> d
         "detectors": rows,
         "estimated_api_calls": total,
         "note": (
-            "Rough upper bound; reliability uses --reliability-requests. "
+            "Rough upper bound; reliability uses --reliability-requests, the "
+            "performance probe --performance-requests. "
             "No API calls were made."
         ),
     }
@@ -421,6 +463,9 @@ def check_command(
     reliability_requests: Annotated[int | None, typer.Option("--reliability-requests", help="Reliability probe request count (0 disables).")] = None,
     concurrency: Annotated[int | None, typer.Option("--concurrency", help="Reliability probe concurrency.")] = None,
     max_context_tokens: Annotated[int | None, typer.Option("--max-context-tokens", help="Cap for the real-context-window probe.")] = None,
+    performance_requests: Annotated[int | None, typer.Option("--performance-requests", help="Performance probe requests per endpoint (deep/full; 0 disables).")] = None,
+    performance_max_tokens: Annotated[int | None, typer.Option("--performance-max-tokens", help="Output tokens per performance probe request.")] = None,
+    performance_streaming: Annotated[bool | None, typer.Option("--performance-streaming/--performance-non-streaming", help="Probe with streaming or non-streaming requests (standard/deep; full measures both).")] = None,
     kb_dir: Annotated[list[Path] | None, typer.Option("--kb-dir", help="Extra knowledge-base directory (repeatable).")] = None,
     fail_under: Annotated[float | None, typer.Option("--fail-under", help="Exit 1 if overall score < this.")] = None,
     fail_on_risk: Annotated[str | None, typer.Option("--fail-on-risk", help="Exit 1 if risk >= this (low|medium|high).")] = None,
@@ -440,6 +485,9 @@ def check_command(
             cfg, suite=suite, judge=judge, only=only, skip=skip,
             reliability_requests=reliability_requests, concurrency=concurrency,
             max_context_tokens=max_context_tokens,
+            performance_requests=performance_requests,
+            performance_max_tokens=performance_max_tokens,
+            performance_streaming=performance_streaming,
         )
         fail_on_risk = validate_risk(fail_on_risk)
         baseline = None
@@ -484,6 +532,9 @@ def compare_command(
     fmt: Annotated[str | None, typer.Option("--format", help="json | md | html | all.")] = None,
     timeout: Annotated[float | None, typer.Option("--timeout", help="HTTP timeout (seconds).")] = None,
     max_context_tokens: Annotated[int | None, typer.Option("--max-context-tokens", help="Cap for the context-window probe.")] = None,
+    performance_requests: Annotated[int | None, typer.Option("--performance-requests", help="Performance probe requests per endpoint (0 disables; standard suite uses 5).")] = None,
+    performance_max_tokens: Annotated[int | None, typer.Option("--performance-max-tokens", help="Output tokens per performance probe request.")] = None,
+    performance_streaming: Annotated[bool | None, typer.Option("--performance-streaming/--performance-non-streaming", help="Probe with streaming or non-streaming requests (standard/deep; full measures both).")] = None,
     kb_dir: Annotated[list[Path] | None, typer.Option("--kb-dir", help="Extra knowledge-base directory (repeatable).")] = None,
     fail_under: Annotated[float | None, typer.Option("--fail-under", help="Exit 1 if overall score < this.")] = None,
     fail_on_risk: Annotated[str | None, typer.Option("--fail-on-risk", help="Exit 1 if risk >= this.")] = None,
@@ -504,7 +555,12 @@ def compare_command(
             api_key=baseline_api_key, model=baseline_model, declared_provider=None,
             timeout=timeout, headers=None, api=baseline_api,
         )
-        options = _build_options(cfg, suite=suite or "deep", judge=judge, max_context_tokens=max_context_tokens)
+        options = _build_options(
+            cfg, suite=suite or "deep", judge=judge, max_context_tokens=max_context_tokens,
+            performance_requests=performance_requests,
+            performance_max_tokens=performance_max_tokens,
+            performance_streaming=performance_streaming,
+        )
         fail_on_risk = validate_risk(fail_on_risk)
         judge_t = _judge_target(cfg, None, None, judge_model, baseline) if options.judge else None
         if dry_run:

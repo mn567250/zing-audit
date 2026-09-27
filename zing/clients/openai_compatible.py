@@ -87,12 +87,14 @@ class OpenAICompatibleClient(BaseHTTPClient):
         return body
 
     # -- endpoints ---------------------------------------------------------- #
-    async def list_models(self) -> tuple[CompletionOutcome, list[str]]:
+    async def _list_models(
+        self, headers: dict[str, str] | None = None
+    ) -> tuple[CompletionOutcome, list[str]]:
         """GET /models. Returns (outcome, list-of-model-ids)."""
         started = time.perf_counter()
         try:
             async with self._session() as client:
-                response = await client.get(self.models_url)
+                response = await client.get(self.models_url, headers=headers)
                 duration_ms = (time.perf_counter() - started) * 1000
                 headers = redact_headers(dict(response.headers), extra_secrets=self._extra_secrets())
                 if response.status_code >= 400:
@@ -312,7 +314,7 @@ class OpenAICompatibleClient(BaseHTTPClient):
         except Exception as exc:
             return self._exception_outcome(exc, started), b""
 
-    async def complete(self, spec: RequestSpec) -> CompletionOutcome:
+    async def _complete(self, spec: RequestSpec) -> CompletionOutcome:
         body = self._build_body(spec)
         if spec.stream:
             return await self._complete_stream(body)

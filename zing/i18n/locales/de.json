@@ -387,7 +387,79 @@
   "{1} ({2})": "{1} ({2})",
   "Alert language": "Sprache der Warnungen",
   "Add a monitor: zing re-runs the black-box audit on your machine at the interval you set. As soon as the risk crosses your threshold or gets worse than last time, it pushes an alert in the language you choose to the webhooks you configured (Slack / Feishu / DingTalk / generic JSON).": "Überwachung hinzufügen: zing führt die Black-Box-Prüfung im eingestellten Intervall auf Ihrem Rechner erneut aus. Sobald das Risiko Ihre Schwelle überschreitet oder sich gegenüber dem letzten Lauf verschlechtert, wird eine Warnung in der von Ihnen gewählten Sprache an die konfigurierten Webhooks gesendet (Slack / Feishu / DingTalk / generisches JSON).",
-  "Probe languages": "Sprachen der Sonden"
+  "Probe languages": "Sprachen der Sonden",
+  "No samples yet": "Noch keine Messwerte",
+  "baseline": "Referenz",
+  "target": "Ziel",
+  "failed": "fehlgeschlagen",
+  "Latency": "Latenz",
+  "cached (excluded)": "aus dem Cache (ausgeschlossen)",
+  "audit request (lighter)": "Prüfanfrage (heller)",
+  "failed request": "fehlgeschlagene Anfrage",
+  "No successful requests to summarize.": "Keine erfolgreichen Anfragen zum Auswerten.",
+  "Metric": "Kennzahl",
+  "Latency p50": "Latenz p50",
+  "Decode speed p50": "Dekodiertempo p50",
+  "Error rate": "Fehlerquote",
+  "succeeded": "erfolgreich",
+  "timeouts": "Zeitüberschreitungen",
+  "Cold start (first request)": "Kaltstart (erste Anfrage)",
+  "Under load": "Unter Last",
+  "aggregate": "gesamt",
+  "Prompt size": "Prompt-Größe",
+  "Source: dedicated probe": "Quelle: eigene Leistungsmessung",
+  "Source: the audit's own requests": "Quelle: die Anfragen der Prüfung selbst",
+  "Informational — not scored": "Nur zur Information — nicht bewertet",
+  "Target vs baseline": "Ziel vs. Referenz",
+  "Ratio": "Verhältnis",
+  "Probe cost": "Kosten der Messung",
+  "Requests": "Anfragen",
+  "Performance · live": "Leistung · live",
+  "Performance probe": "Leistungsmessung",
+  "TTFT": "TTFT",
+  "Decode speed": "Dekodiertempo",
+  "Inter-chunk latency": "Latenz zwischen Chunks",
+  "Time to first token": "Zeit bis zum ersten Token",
+  "Decode speed (usage)": "Dekodiertempo (usage)",
+  "Decode speed (local count)": "Dekodiertempo (lokale Zählung)",
+  "End-to-end speed (usage)": "Gesamttempo (usage)",
+  "End-to-end speed (local count)": "Gesamttempo (lokale Zählung)",
+  "Inter-chunk jitter": "Schwankung zwischen Chunks",
+  "Server time (sent → first output)": "Serverzeit (gesendet → erste Ausgabe)",
+  "Relay-reported processing": "Vom Relay gemeldete Verarbeitung",
+  "Network round trip (GET /models)": "Netzwerk-Umlaufzeit (GET /models)",
+  "TCP connect": "TCP-Verbindung",
+  "TLS handshake": "TLS-Handshake",
+  "Latency p90": "Latenz p90",
+  "TTFT p50": "TTFT p50",
+  "TTFT p90": "TTFT p90",
+  "Decode speed p50 (usage)": "Dekodiertempo p50 (usage)",
+  "Decode speed p50 (local)": "Dekodiertempo p50 (lokal)",
+  "End-to-end speed p50 (local)": "Gesamttempo p50 (lokal)",
+  "Inter-chunk latency p50": "Latenz zwischen Chunks p50",
+  "Server time p50": "Serverzeit p50",
+  "Network round trip p50": "Netzwerk-Umlaufzeit p50",
+  "Performance": "Leistung",
+  "Headline numbers come from the audit's own requests, which mix prompt and output sizes; the deep and full suites add a controlled, uncacheable probe.": "Die Kernzahlen stammen aus den Anfragen der Prüfung selbst, deren Prompt- und Ausgabelängen gemischt sind; die Suiten deep und full ergänzen eine kontrollierte, nicht cachebare Messung.",
+  "Reasoning tokens detected: TTFT is the time to the first visible token and includes hidden thinking, and usage-based throughput counts thinking tokens. zing does not set a reasoning effort (the modes a relay accepts are unknown), so the model thinks at its default effort.": "Reasoning-Token erkannt: TTFT ist die Zeit bis zum ersten sichtbaren Token und enthält verdecktes Nachdenken, und der usage-basierte Durchsatz zählt Denk-Token mit. zing setzt keinen Reasoning-Aufwand (welche Stufen ein Relay akzeptiert, ist unbekannt), daher denkt das Modell mit seinem Standardaufwand.",
+  "Local token counts are estimates (about ±15-20%): no exact tokenizer is available for this model family.": "Die lokalen Token-Zahlen sind Schätzungen (etwa ±15-20 %): Für diese Modellfamilie ist kein exakter Tokenizer verfügbar.",
+  "Percentiles need enough samples: p75 from 4, p90 from 10, p95 from 20, p99 from 100 requests.": "Perzentile brauchen genug Stichproben: p75 ab 4, p90 ab 10, p95 ab 20, p99 ab 100 Anfragen.",
+  "Relay processing times come from the relay's own response headers and are unverified.": "Die vom Relay gemeldeten Verarbeitungszeiten stammen aus seinen eigenen Antwort-Headern und sind ungeprüft.",
+  "Some requests were served fully or partly from a cache and are left out of the statistics.": "Einige Anfragen wurden ganz oder teilweise aus einem Cache bedient und sind aus der Statistik ausgeschlossen.",
+  "A relay that caches unique prompts may be serving stored answers; compare with a trusted baseline.": "Ein Relay, das einmalige Prompts cacht, liefert womöglich gespeicherte Antworten; vergleichen Sie mit einer vertrauenswürdigen Referenz.",
+  "Weigh this together with the model-identity findings; speed alone is not proof of substitution.": "Bewerten Sie dies zusammen mit den Befunden zur Modellidentität; Geschwindigkeit allein beweist keinen Austausch.",
+  "Performance probe requests": "Anfragen der Leistungsmessung",
+  "Non-streaming": "Ohne Streaming",
+  "non-streaming": "ohne Streaming",
+  "The smoke suite runs no performance probe.": "Die Suite smoke führt keine Leistungsmessung aus.",
+  "The full suite measures both streaming and non-streaming.": "Die Suite full misst Streaming und Nicht-Streaming.",
+  "On standard the probe runs only with a baseline; otherwise the audit's own requests are used.": "Bei standard läuft die Messung nur mit einer Referenz; sonst werden die Anfragen der Prüfung selbst verwendet.",
+  "Non-streaming measures relays that cannot stream.": "Ohne Streaming lassen sich Relays messen, die nicht streamen können.",
+  "non-streaming request (hollow)": "Anfrage ohne Streaming (hohl)",
+  "End-to-end speed p50": "Gesamttempo p50",
+  "target better": "Ziel besser",
+  "target worse": "Ziel schlechter",
+  "(within 2% counts as even)": "(bis 2 % Unterschied gilt als gleich)"
  },
  "findings": {
   "connectivity.models": [
@@ -685,6 +757,34 @@
   "rerank.known_answer": [
    "Wird die offensichtliche Antwort zuerst eingestuft?",
    "Zuerst eingestuft: Dokument {top_index}; erwartet: Dokument {expected} (Reihenfolge {ranking})."
+  ],
+  "performance.summary": [
+   "Ergebnisse der Leistungsmessung",
+   "{successes}/{requests} Messanfragen erfolgreich; Latenz p50 {latency_p50_ms} ms, TTFT p50 {ttft_p50_ms} ms, Dekodiertempo p50 {decode_tps_p50} tok/s."
+  ],
+  "performance.errors": [
+   "Messanfragen fehlgeschlagen",
+   "{errors} Fehler und {timeouts} Zeitüberschreitungen bei {requests} Messanfragen an {endpoint} ({rate_limited} gedrosselt)."
+  ],
+  "performance.cache_hit": [
+   "Einmalige Mess-Prompts kamen aus einem Cache",
+   "{cached} Messanfrage(n) an {endpoint} kamen aus dem Cache, obwohl jeder Prompt einmalig war; sie sind aus der Statistik ausgeschlossen."
+  ],
+  "performance.reasoning": [
+   "Reasoning-Token in der Messung",
+   "Das Modell verbraucht verdeckte Reasoning-Token ({reasoning_tokens} gemeldet): TTFT enthält das Nachdenken. zing setzt keinen Reasoning-Aufwand, das Modell denkt mit Standardaufwand."
+  ],
+  "performance.relay_overhead": [
+   "Latenz im Vergleich zur Referenz",
+   "Ziel-Latenz p50 {target_latency_p50_ms} ms vs. Referenz {baseline_latency_p50_ms} ms (Differenz {latency_p50_delta_ms} ms)."
+  ],
+  "performance.throughput_mismatch": [
+   "Das Ziel generiert viel schneller als die Referenz",
+   "Ziel dekodiert mit {target_decode_tps_p50} tok/s, Referenz mit {baseline_decode_tps_p50} tok/s ({ratio}x) — passt zu einem kleineren Modell."
+  ],
+  "performance.skipped": [
+   "Leistungsmessung deaktiviert",
+   "performance_requests = {performance_requests}; es wurden keine Messanfragen gesendet."
   ]
  }
 }

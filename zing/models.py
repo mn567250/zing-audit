@@ -216,6 +216,226 @@ class ReliabilitySummary(BaseModel):
     errors: dict[str, int] = Field(default_factory=dict)
 
 
+# --------------------------------------------------------------------------- #
+# Performance
+# --------------------------------------------------------------------------- #
+class RequestRecord(BaseModel):
+    """Timing and token evidence for one API call made during an audit.
+
+    Numbers only — never prompt or response text. ``phase`` says why the call was
+    made: ``passive`` (an ordinary detector request), ``probe`` / ``probe_concurrent``
+    (the dedicated performance probe), ``warmup`` (the probe's cold-start request,
+    kept out of the stats) or ``ping`` (a ``GET /models`` round-trip measurement).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    seq: int
+    endpoint: str = "target"  # "target" | "baseline"
+    detector: str | None = None
+    phase: str = "passive"
+    op: str = "complete"  # "complete" | "list_models"
+    stream: bool = False
+    start_ms: float = 0.0  # offset from the start of the audit
+
+    ok: bool = False
+    status_code: int | None = None
+    error_type: str | None = None
+    timeout: bool = False
+    rate_limited: bool = False
+
+    duration_ms: float | None = None
+    ttft_ms: float | None = None
+    chunk_count: int = 0
+    # Gaps between streamed content chunks (a chunk may carry several tokens).
+    itl_mean_ms: float | None = None
+    itl_p50_ms: float | None = None
+    itl_p95_ms: float | None = None
+    itl_jitter_ms: float | None = None  # stdev of the gaps
+
+    input_tokens_reported: int | None = None
+    output_tokens_reported: int | None = None
+    input_tokens_local: int | None = None
+    output_tokens_local: int | None = None
+    tokens_exact: bool = False  # local count used an exact tokenizer
+    reasoning_tokens: int | None = None
+    cached_input_tokens: int | None = None
+
+    # Output tokens per second: decode = after the first token, e2e = whole call.
+    decode_tps_reported: float | None = None
+    decode_tps_local: float | None = None
+    e2e_tps_reported: float | None = None
+    e2e_tps_local: float | None = None
+
+    # Transport breakdown from httpx trace hooks (None on a reused connection).
+    connect_ms: float | None = None  # TCP connect, including DNS
+    tls_ms: float | None = None
+    headers_ms: float | None = None  # request start -> response headers
+    # Request fully sent -> response headers (a stream: -> first token).
+    server_ms: float | None = None
+    # Upstream processing time a relay reports in its own headers (untrusted).
+    relay_processing_ms: float | None = None
+
+    # A cache served (part of) this request; it is excluded from the stats.
+    cached: bool = False
+
+
+class PerfStats(BaseModel):
+    """Distribution of one metric. A percentile is None below its sample floor."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    count: int = 0
+    min: float | None = None
+    mean: float | None = None
+    p50: float | None = None
+    p75: float | None = None
+    p90: float | None = None
+    p95: float | None = None
+    p99: float | None = None
+    max: float | None = None
+    stdev: float | None = None
+
+
+class ConcurrencyPerformance(BaseModel):
+    """The probe's burst at the configured concurrency."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    concurrency: int = 0
+    requests: int = 0
+    successes: int = 0
+    wall_ms: float | None = None
+    # Summed output tokens of all successful requests / wall-clock time.
+    aggregate_tps_reported: float | None = None
+    aggregate_tps_local: float | None = None
+    latency_ms: PerfStats = Field(default_factory=PerfStats)
+    ttft_ms: PerfStats = Field(default_factory=PerfStats)
+
+
+class InputSizeBucket(BaseModel):
+    """TTFT / latency for requests of a given prompt size (local token count)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    min_tokens: int
+    max_tokens: int | None = None
+    count: int = 0
+    ttft_p50_ms: float | None = None
+    latency_p50_ms: float | None = None
+
+
+class EndpointPerformance(BaseModel):
+    """Headline performance of one endpoint (target or baseline)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    endpoint: str = "target"
+    source: str = "passive"  # "probe" | "passive" — where the headline stats come from
+    requests: int = 0
+    successes: int = 0
+    errors: int = 0
+    timeouts: int = 0
+    rate_limited: int = 0
+    cached_excluded: int = 0
+    error_rate: float | None = None
+    timeout_rate: float | None = None
+    rate_limited_rate: float | None = None
+
+    latency_ms: PerfStats = Field(default_factory=PerfStats)
+    ttft_ms: PerfStats = Field(default_factory=PerfStats)
+    decode_tps_reported: PerfStats = Field(default_factory=PerfStats)
+    decode_tps_local: PerfStats = Field(default_factory=PerfStats)
+    e2e_tps_reported: PerfStats = Field(default_factory=PerfStats)
+    e2e_tps_local: PerfStats = Field(default_factory=PerfStats)
+    itl_ms: PerfStats = Field(default_factory=PerfStats)
+    itl_jitter_ms: PerfStats = Field(default_factory=PerfStats)
+    connect_ms: PerfStats = Field(default_factory=PerfStats)
+    tls_ms: PerfStats = Field(default_factory=PerfStats)
+    server_ms: PerfStats = Field(default_factory=PerfStats)
+    relay_processing_ms: PerfStats = Field(default_factory=PerfStats)
+    network_rtt_ms: PerfStats = Field(default_factory=PerfStats)  # GET /models pings
+
+    cold_start_ms: float | None = None
+    cold_start_ttft_ms: float | None = None
+    concurrency: ConcurrencyPerformance | None = None
+    ttft_by_input: list[InputSizeBucket] = Field(default_factory=list)
+    reasoning_tokens_seen: bool = False
+
+
+class PerformanceComparison(BaseModel):
+    """One target-vs-baseline metric (compare mode)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    metric: str
+    unit: str
+    target: float | None = None
+    baseline: float | None = None
+    delta: float | None = None  # target - baseline
+    ratio: float | None = None  # target / baseline
+    higher_is_better: bool = False  # e.g. tokens/s; latencies and error rates are lower-is-better
+
+    @property
+    def target_better(self) -> bool | None:
+        """True / False when the target is better / worse than the baseline;
+        None when they are within 2% of each other or a side is missing."""
+        if self.delta is None or self.target is None or self.baseline is None:
+            return None
+        scale = max(abs(self.target), abs(self.baseline))
+        if scale == 0 or abs(self.delta) / scale < 0.02:
+            return None
+        return (self.delta > 0) == self.higher_is_better
+
+
+class PerformanceModeReport(BaseModel):
+    """Probe results for a second request mode (the full suite measures both
+    streaming and non-streaming)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: str  # "stream" | "non_stream"
+    target: EndpointPerformance = Field(default_factory=EndpointPerformance)
+    baseline: EndpointPerformance | None = None
+    comparison: list[PerformanceComparison] = Field(default_factory=list)
+
+
+class ProbeCost(BaseModel):
+    """What the dedicated performance probe cost (tokens summed over endpoints)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    requests: int = 0
+    input_tokens_reported: int = 0
+    output_tokens_reported: int = 0
+    input_tokens_local: int = 0
+    output_tokens_local: int = 0
+
+
+class PerformanceReport(BaseModel):
+    """Latency / TTFT / throughput of the audited endpoint(s). Informational — it
+    never feeds the score or the verdict."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str = "passive"  # "probe" | "passive"
+    # Request mode of the headline stats: "stream" / "non_stream" (probe) or
+    # "mixed" (passive). ``modes`` holds any further probed mode.
+    mode: str = "mixed"
+    probe_requests: int = 0  # per endpoint and mode; 0 when the probe did not run
+    probe_max_tokens: int | None = None
+    tokenizer: str | None = None
+    tokens_exact: bool = False
+    target: EndpointPerformance = Field(default_factory=EndpointPerformance)
+    baseline: EndpointPerformance | None = None
+    comparison: list[PerformanceComparison] = Field(default_factory=list)
+    modes: list[PerformanceModeReport] = Field(default_factory=list)
+    probe_cost: ProbeCost | None = None
+    requests: list[RequestRecord] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
 class Verdict(BaseModel):
     """The headline judgement a user reads first."""
 
@@ -264,6 +484,7 @@ class AuditReport(BaseModel):
     detectors: list[DetectorResult] = Field(default_factory=list)
     baseline_detectors: list[DetectorResult] = Field(default_factory=list)
     reliability: ReliabilitySummary | None = None
+    performance: PerformanceReport | None = None
 
     judge_used: bool = False
     judge_model: str | None = None

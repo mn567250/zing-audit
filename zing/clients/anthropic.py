@@ -132,14 +132,20 @@ class AnthropicClient(BaseHTTPClient):
             usage["prompt_tokens"] = inp
             usage["completion_tokens"] = out
             usage["total_tokens"] = inp + out
+        # Prompt-cache accounting (read by the billing and performance checks).
+        for key in ("cache_read_input_tokens", "cache_creation_input_tokens"):
+            if isinstance(raw.get(key), int):
+                usage[key] = raw[key]
         return usage
 
     # -- endpoints ---------------------------------------------------------- #
-    async def list_models(self) -> tuple[CompletionOutcome, list[str]]:
+    async def _list_models(
+        self, headers: dict[str, str] | None = None
+    ) -> tuple[CompletionOutcome, list[str]]:
         started = time.perf_counter()
         try:
             async with self._session() as client:
-                response = await client.get(self.models_url)
+                response = await client.get(self.models_url, headers=headers)
                 duration_ms = (time.perf_counter() - started) * 1000
                 headers = redact_headers(dict(response.headers), extra_secrets=self._extra_secrets())
                 if response.status_code >= 400:
@@ -170,7 +176,7 @@ class AnthropicClient(BaseHTTPClient):
         except Exception as exc:
             return self._exception_outcome(exc, started), []
 
-    async def complete(self, spec: RequestSpec) -> CompletionOutcome:
+    async def _complete(self, spec: RequestSpec) -> CompletionOutcome:
         body = self._build_body(spec)
         if spec.stream:
             return await self._complete_stream(body)
@@ -222,7 +228,7 @@ class AnthropicClient(BaseHTTPClient):
         content_parts: list[str] = []
         chunk_timings: list[float] = []
         tool_blocks: dict[int, dict[str, Any]] = {}
-        input_tokens: int | None = None
+        start_usage: dict[str, Any] = {}
         output_tokens: int | None = None
         model_returned: str | None = None
         finish_reason: str | None = None
@@ -258,8 +264,8 @@ class AnthropicClient(BaseHTTPClient):
                         msg = event.get("message") or {}
                         model_returned = msg.get("model") or model_returned
                         usage = msg.get("usage") or {}
-                        if isinstance(usage.get("input_tokens"), int):
-                            input_tokens = usage["input_tokens"]
+                        if isinstance(usage, dict):
+                            start_usage = usage
                     elif etype == "content_block_start":
                         block = event.get("content_block") or {}
                         if block.get("type") == "tool_use":
@@ -308,7 +314,15 @@ class AnthropicClient(BaseHTTPClient):
                 content=redact_text("".join(content_parts), extra_secrets=self._extra_secrets()),
                 tool_calls=tool_calls,
                 finish_reason=finish_reason,
-                usage=self._usage({"input_tokens": input_tokens, "output_tokens": output_tokens}),
+                usage=self._usage(
+                    {
+                        **start_usage,
+                        "input_tokens": start_usage.get("input_tokens")
+                        if isinstance(start_usage.get("input_tokens"), int)
+                        else None,
+                        "output_tokens": output_tokens,
+                    }
+                ),
                 duration_ms=duration_ms,
                 ttft_ms=ttft_ms,
                 chunk_timings_ms=chunk_timings,

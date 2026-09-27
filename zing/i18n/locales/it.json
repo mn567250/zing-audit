@@ -387,7 +387,79 @@
   "{1} ({2})": "{1} ({2})",
   "Alert language": "Lingua degli avvisi",
   "Add a monitor: zing re-runs the black-box audit on your machine at the interval you set. As soon as the risk crosses your threshold or gets worse than last time, it pushes an alert in the language you choose to the webhooks you configured (Slack / Feishu / DingTalk / generic JSON).": "Aggiungi un monitor: zing riesegue la verifica black-box sulla tua macchina all'intervallo impostato. Appena il rischio supera la tua soglia o peggiora rispetto all'ultima volta, invia un avviso, nella lingua che scegli, ai webhook configurati (Slack / Feishu / DingTalk / JSON generico).",
-  "Probe languages": "Lingue delle sonde"
+  "Probe languages": "Lingue delle sonde",
+  "No samples yet": "Ancora nessun campione",
+  "baseline": "riferimento",
+  "target": "obiettivo",
+  "failed": "fallita",
+  "Latency": "Latenza",
+  "cached (excluded)": "da cache (esclusa)",
+  "audit request (lighter)": "richiesta dell'audit (più chiara)",
+  "failed request": "richiesta fallita",
+  "No successful requests to summarize.": "Nessuna richiesta riuscita da riepilogare.",
+  "Metric": "Metrica",
+  "Latency p50": "Latenza p50",
+  "Decode speed p50": "Velocità di decodifica p50",
+  "Error rate": "Tasso di errore",
+  "succeeded": "riuscite",
+  "timeouts": "timeout",
+  "Cold start (first request)": "Avvio a freddo (prima richiesta)",
+  "Under load": "Sotto carico",
+  "aggregate": "totale",
+  "Prompt size": "Dimensione del prompt",
+  "Source: dedicated probe": "Fonte: sonda dedicata",
+  "Source: the audit's own requests": "Fonte: le richieste dell'audit stesso",
+  "Informational — not scored": "Informativo — non valutato",
+  "Target vs baseline": "Obiettivo vs riferimento",
+  "Ratio": "Rapporto",
+  "Probe cost": "Costo della sonda",
+  "Requests": "Richieste",
+  "Performance · live": "Prestazioni · in tempo reale",
+  "Performance probe": "Sonda delle prestazioni",
+  "TTFT": "TTFT",
+  "Decode speed": "Velocità di decodifica",
+  "Inter-chunk latency": "Latenza tra frammenti",
+  "Time to first token": "Tempo al primo token",
+  "Decode speed (usage)": "Velocità di decodifica (usage)",
+  "Decode speed (local count)": "Velocità di decodifica (conteggio locale)",
+  "End-to-end speed (usage)": "Velocità end-to-end (usage)",
+  "End-to-end speed (local count)": "Velocità end-to-end (conteggio locale)",
+  "Inter-chunk jitter": "Jitter tra frammenti",
+  "Server time (sent → first output)": "Tempo del server (invio → primo output)",
+  "Relay-reported processing": "Elaborazione dichiarata dal relay",
+  "Network round trip (GET /models)": "Andata e ritorno di rete (GET /models)",
+  "TCP connect": "Connessione TCP",
+  "TLS handshake": "Handshake TLS",
+  "Latency p90": "Latenza p90",
+  "TTFT p50": "TTFT p50",
+  "TTFT p90": "TTFT p90",
+  "Decode speed p50 (usage)": "Velocità di decodifica p50 (usage)",
+  "Decode speed p50 (local)": "Velocità di decodifica p50 (locale)",
+  "End-to-end speed p50 (local)": "Velocità end-to-end p50 (locale)",
+  "Inter-chunk latency p50": "Latenza tra frammenti p50",
+  "Server time p50": "Tempo del server p50",
+  "Network round trip p50": "Andata e ritorno di rete p50",
+  "Performance": "Prestazioni",
+  "Headline numbers come from the audit's own requests, which mix prompt and output sizes; the deep and full suites add a controlled, uncacheable probe.": "I numeri principali provengono dalle richieste dell'audit stesso, con lunghezze di prompt e di output diverse; le suite deep e full aggiungono una sonda controllata e non memorizzabile in cache.",
+  "Reasoning tokens detected: TTFT is the time to the first visible token and includes hidden thinking, and usage-based throughput counts thinking tokens. zing does not set a reasoning effort (the modes a relay accepts are unknown), so the model thinks at its default effort.": "Rilevati token di ragionamento: il TTFT è il tempo al primo token visibile e include il ragionamento nascosto, e la velocità basata su usage conta i token di ragionamento. zing non imposta uno sforzo di ragionamento (le modalità accettate dal relay sono sconosciute), quindi il modello ragiona con lo sforzo predefinito.",
+  "Local token counts are estimates (about ±15-20%): no exact tokenizer is available for this model family.": "I conteggi locali dei token sono stime (circa ±15-20%): non è disponibile un tokenizer esatto per questa famiglia di modelli.",
+  "Percentiles need enough samples: p75 from 4, p90 from 10, p95 from 20, p99 from 100 requests.": "I percentili richiedono abbastanza campioni: p75 da 4, p90 da 10, p95 da 20, p99 da 100 richieste.",
+  "Relay processing times come from the relay's own response headers and are unverified.": "I tempi di elaborazione del relay provengono dai suoi header di risposta e non sono verificati.",
+  "Some requests were served fully or partly from a cache and are left out of the statistics.": "Alcune richieste sono state servite in tutto o in parte da una cache e sono escluse dalle statistiche.",
+  "A relay that caches unique prompts may be serving stored answers; compare with a trusted baseline.": "Un relay che memorizza in cache prompt unici potrebbe servire risposte salvate; confrontalo con un riferimento affidabile.",
+  "Weigh this together with the model-identity findings; speed alone is not proof of substitution.": "Valutalo insieme ai risultati sull'identità del modello; la velocità da sola non prova una sostituzione.",
+  "Performance probe requests": "Richieste della sonda delle prestazioni",
+  "Non-streaming": "Senza streaming",
+  "non-streaming": "senza streaming",
+  "The smoke suite runs no performance probe.": "La suite smoke non esegue la sonda delle prestazioni.",
+  "The full suite measures both streaming and non-streaming.": "La suite full misura sia con sia senza streaming.",
+  "On standard the probe runs only with a baseline; otherwise the audit's own requests are used.": "Con standard la sonda viene eseguita solo con un riferimento; altrimenti si usano le richieste dell'audit stesso.",
+  "Non-streaming measures relays that cannot stream.": "Senza streaming si misurano i relay che non supportano lo streaming.",
+  "non-streaming request (hollow)": "richiesta senza streaming (vuota)",
+  "End-to-end speed p50": "Velocità end-to-end p50",
+  "target better": "obiettivo migliore",
+  "target worse": "obiettivo peggiore",
+  "(within 2% counts as even)": "(entro il 2% conta come pari)"
  },
  "findings": {
   "connectivity.models": [
@@ -685,6 +757,34 @@
   "rerank.known_answer": [
    "La risposta ovvia è al primo posto?",
    "Al primo posto il documento {top_index}; atteso il documento {expected} (ordine {ranking})."
+  ],
+  "performance.summary": [
+   "Risultati della sonda delle prestazioni",
+   "{successes}/{requests} richieste della sonda riuscite; latenza p50 {latency_p50_ms} ms, TTFT p50 {ttft_p50_ms} ms, decodifica p50 {decode_tps_p50} tok/s."
+  ],
+  "performance.errors": [
+   "Alcune richieste della sonda sono fallite",
+   "{errors} errori e {timeouts} timeout su {requests} richieste della sonda a {endpoint} ({rate_limited} limitate)."
+  ],
+  "performance.cache_hit": [
+   "Prompt unici della sonda serviti da una cache",
+   "{cached} richiesta/e della sonda a {endpoint} sono tornate dalla cache anche se ogni prompt era unico; sono escluse dalle statistiche."
+  ],
+  "performance.reasoning": [
+   "Token di ragionamento nella sonda",
+   "Il modello usa token di ragionamento nascosti ({reasoning_tokens} dichiarati): il TTFT include il ragionamento. zing non imposta uno sforzo di ragionamento; il modello ragiona con lo sforzo predefinito."
+  ],
+  "performance.relay_overhead": [
+   "Latenza rispetto al riferimento",
+   "Latenza p50 dell'obiettivo {target_latency_p50_ms} ms contro {baseline_latency_p50_ms} ms del riferimento (differenza {latency_p50_delta_ms} ms)."
+  ],
+  "performance.throughput_mismatch": [
+   "L'obiettivo genera molto più velocemente del riferimento",
+   "L'obiettivo decodifica a {target_decode_tps_p50} tok/s contro {baseline_decode_tps_p50} tok/s del riferimento ({ratio}x): compatibile con un modello più piccolo."
+  ],
+  "performance.skipped": [
+   "Sonda delle prestazioni disattivata",
+   "performance_requests = {performance_requests}; nessuna richiesta della sonda inviata."
   ]
  }
 }

@@ -184,6 +184,34 @@ zing scores nine dimensions. The three that most directly reveal 货不对板
 See [docs/METHODOLOGY.md](docs/METHODOLOGY.md) for the technique behind each check,
 which relay trick it maps to, and its false-positive caveats.
 
+### Performance (informational)
+
+Every report also carries a **performance** section: latency, time to first token
+(TTFT), decode and end-to-end tokens/s, inter-chunk latency and jitter,
+error/timeout/429 rates, a network breakdown (TCP connect, TLS, a `GET /models`
+round trip, server time) and cold start, each as count / min / mean / p50 / p75 /
+p90 / p95 / p99 / max / stdev. It never affects the score or the verdict.
+
+- **standard** collects it from the audit's own requests.
+- **deep / full** add a dedicated probe: 100 uncacheable requests of 128 output
+  tokens (a random request id opens every prompt, no cache or reasoning
+  parameters are sent) plus a burst at `--concurrency`. Tune with
+  `--performance-requests` (0 disables) and `--performance-max-tokens`.
+- The probe streams by default; `--performance-non-streaming` (or the switch in
+  the web UI) measures relays that cannot stream. **full** measures both modes,
+  interleaved, and reports them side by side.
+- **compare** runs the probe on both endpoints, alternating requests, and adds a
+  target-vs-baseline table (5 requests per side on `standard`) whose differences
+  are marked green ✓ where the target is better and red ✗ where it is worse. A
+  target that generates more than 2x faster than the baseline is flagged as a
+  low-severity hint.
+
+Tokens are counted twice: from the relay's `usage` and locally, so throughput is
+measurable even when `usage` is missing. A percentile is shown only with enough
+samples (p90 from 10, p95 from 20, p99 from 100). The JSON report keeps every
+request's timings (numbers only, no text); the HTML report and the web UI chart
+them over the audit's timeline.
+
 ## Two detection modes
 
 - **Pure code (default):** every deterministic probe — fingerprints, context
@@ -312,7 +340,7 @@ and a deploy-gating example.
 |---|---|---|
 | `smoke` | connectivity, security | very low |
 | `standard` | + protocol, model_identity, capability, streaming, billing, reliability | low–medium |
-| `deep` | + context_window, determinism, injected_prompt, integrity, prompt_cache, quality_judge (if `--judge`) | higher (long-context & timing probes cost tokens) |
+| `deep` | + context_window, determinism, injected_prompt, integrity, performance, prompt_cache, quality_judge (if `--judge`) | higher (long-context & timing probes cost tokens) |
 | `full` | everything | highest |
 
 The context-window probe is bounded by `--max-context-tokens` (default 200K) so

@@ -14,6 +14,7 @@ from zing.detectors import (  # noqa: F401  -- imported for registration side ef
     injected_prompt,
     integrity,
     model_identity,
+    performance,
     prompt_cache,
     protocol,
     quality_judge,  # noqa: F401

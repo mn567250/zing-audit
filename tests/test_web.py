@@ -226,3 +226,28 @@ def test_history_trend_carries_performance_headline(tmp_path, monkeypatch):
     assert old["latency_p50_ms"] is None and old["score"] == 90.0
     assert new["latency_p50_ms"] == 812.5 and new["ttft_p50_ms"] == 240.0
     assert new["decode_tps_p50"] == 55.0
+
+
+def test_api_key_fields_are_masked_and_paired_with_their_url(client):
+    import re
+
+    js = client.get("/secretfield.js")
+    assert js.status_code == 200
+    assert "application/javascript" in js.headers["content-type"]
+    assert "ZingSecret" in js.text
+    for path in ("/", "/console", "/tools", "/watches"):
+        html = client.get(path).text
+        assert '<script src="/icons.js"></script>\n<script src="/secretfield.js"></script>' in html
+        keys = re.findall(r'<input[^>]*\bid="\w+-key"[^>]*>', html)
+        assert keys, path
+        for tag in keys:
+            # masked in the markup itself, so it holds even before any JS runs
+            assert 'type="password"' in tag and "data-secret=" in tag, tag
+            url_id = re.search(r'data-secret="([\w-]+)"', tag).group(1)
+            assert re.search(rf'<input[^>]*\bid="{url_id}"', html), (path, url_id)
+        # One current-password per form: a second would read as a
+        # change-password form to the browser's password manager.
+        for form in re.findall(r"<form\b.*?</form>", html, re.S):
+            n = form.count('autocomplete="current-password"')
+            assert n <= 1, path
+            assert form.count('autocomplete="username"') == n, path

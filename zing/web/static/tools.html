@@ -123,10 +123,10 @@
 
     <!-- EMBED -->
     <form id="embed-form" class="pane show" onsubmit="return false">
-      <div class="grp"><div class="lab" data-en="Relay address base_url">中转站地址 base_url</div><input class="in" id="e-url" placeholder="https://relay.example.com/v1"></div>
+      <div class="grp"><div class="lab" data-en="Relay address base_url">中转站地址 base_url</div><input class="in" id="e-url" autocomplete="username" spellcheck="false" placeholder="https://relay.example.com/v1"></div>
       <div class="grp">
         <div class="row-help"><div class="lab" style="margin:0">API Key</div><span style="font-size:11.5px;color:var(--faint)" data-en="Supports env:VAR / file:/path">支持 env:VAR / file:/path</span></div>
-        <input class="in" id="e-key" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY">
+        <input class="in" id="e-key" type="password" data-secret="e-url" autocomplete="current-password" spellcheck="false" autocapitalize="off" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY">
       </div>
       <div class="two">
         <div class="grp"><div class="lab" data-en="Requested model id">实际请求模型 id</div><input class="in" id="e-model" placeholder="text-embedding-3-large"></div>
@@ -145,10 +145,10 @@
 
     <!-- RERANK -->
     <form id="rerank-form" class="pane" onsubmit="return false">
-      <div class="grp"><div class="lab" data-en="Relay address base_url">中转站地址 base_url</div><input class="in" id="r-url" placeholder="https://relay.example.com/v1"></div>
+      <div class="grp"><div class="lab" data-en="Relay address base_url">中转站地址 base_url</div><input class="in" id="r-url" autocomplete="username" spellcheck="false" placeholder="https://relay.example.com/v1"></div>
       <div class="grp">
         <div class="row-help"><div class="lab" style="margin:0">API Key</div><span style="font-size:11.5px;color:var(--faint)" data-en="Supports env:VAR / file:/path">支持 env:VAR / file:/path</span></div>
-        <input class="in" id="r-key" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY">
+        <input class="in" id="r-key" type="password" data-secret="r-url" autocomplete="current-password" spellcheck="false" autocapitalize="off" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY">
       </div>
       <div class="grp"><div class="lab" data-en="Rerank model id">重排模型 id</div><input class="in" id="r-model" placeholder="bge-reranker-v2-m3"></div>
 
@@ -173,6 +173,7 @@
 
 <script src="/i18n.js"></script>
 <script src="/icons.js"></script>
+<script src="/secretfield.js"></script>
 <script src="/modelpicker.js"></script>
 <script>
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
@@ -251,6 +252,7 @@ $("#e-go").onclick=()=>{
   };
   const dims=$("#e-dims").value.trim(); if(dims)payload.claimed_dimensions=parseInt(dims,10);
   if(!payload.base_url||!payload.model){showErr("#e-out",()=>T("请填写中转站地址和模型 id。","Please enter the relay address and the model id."));return;}
+  if(window.ZingSecret)ZingSecret.remember($("#embed-form"));
   postAudit("/api/embed",payload,$("#e-go"),"#e-out");
 };
 
@@ -263,6 +265,7 @@ $("#r-go").onclick=()=>{
     const top=$("#r-top").value.trim(); if(top)payload.expected_top_index=parseInt(top,10);
   }
   if(!payload.base_url||!payload.model){showErr("#r-out",()=>T("请填写中转站地址和模型 id。","Please enter the relay address and the model id."));return;}
+  if(window.ZingSecret)ZingSecret.remember($("#rerank-form"));
   postAudit("/api/rerank",payload,$("#r-go"),"#r-out");
 };
 

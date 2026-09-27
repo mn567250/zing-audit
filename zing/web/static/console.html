@@ -183,6 +183,7 @@
 </style>
 <script src="/i18n.js"></script>
 <script src="/icons.js"></script>
+<script src="/secretfield.js"></script>
 <script src="/modelpicker.js"></script>
 </head>
 <body>
@@ -207,8 +208,8 @@
       <div class="hd"><span class="dot"></span> <span data-en="target endpoint">目标端点 / target</span></div>
       <div class="bd">
         <div id="formerr"></div>
-        <div class="fld"><label>base_url</label><input id="i-url" placeholder="https://relay.example.com/v1" value="https://api.deepseek.com/v1"></div>
-        <div class="fld"><label>api_key <span class="hint">env:VAR / file:/path</span></label><input id="i-key" value="env:ZING_API_KEY" type="text"></div>
+        <div class="fld"><label>base_url</label><input id="i-url" autocomplete="username" spellcheck="false" placeholder="https://relay.example.com/v1" value="https://api.deepseek.com/v1"></div>
+        <div class="fld"><label>api_key <span class="hint">env:VAR / file:/path</span></label><input id="i-key" value="env:ZING_API_KEY" type="password" data-secret="i-url" autocomplete="current-password" spellcheck="false" autocapitalize="off"></div>
         <div class="two">
           <div class="fld"><label data-en="claimed model (model)">声称模型 (model)</label><input id="i-model" value="deepseek-v4-flash"></div>
           <div class="fld"><label>claimed_model <span class="hint">opt</span></label><input id="i-claimed" placeholder="留空=同上" data-en-placeholder="empty = same as above"></div>
@@ -232,7 +233,7 @@
           <div class="cmp-body" id="cmp-body"><div class="cmp-inner">
             <p class="cmp-hint" data-en="Enter an endpoint for the same model that you trust (e.g. the official API). The quality judge and tamper detection only reach their highest level with a baseline.">填一个你信任的同款模型端点（如官方 API）。质量评审与篡改检测在有基线时才升到最高级别。</p>
             <div class="fld"><label>baseline base_url</label><input id="b-url" placeholder="https://api.deepseek.com/v1"></div>
-            <div class="fld"><label>baseline api_key</label><input id="b-key" placeholder="sk-... / env:VAR"></div>
+            <div class="fld"><label>baseline api_key</label><input id="b-key" type="password" data-secret="b-url" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="sk-... / env:VAR"></div>
             <div class="two">
               <div class="fld"><label>baseline model</label><input id="b-model" placeholder="官方模型 id" data-en-placeholder="official model id"></div>
               <div class="fld"><label>baseline api</label>
@@ -379,6 +380,7 @@ async function startAudit(){
     payload.baseline={base_url:bUrl,api_key:$("#b-key").value.trim(),model:bModel,api:$("#b-api .on").dataset.v};
   }
 
+  if(window.ZingSecret)ZingSecret.remember($("#form"));
   running=true;
   $("#run").disabled=true; setRunLabel(()=>T("审计中…","auditing…"));
   resetView();

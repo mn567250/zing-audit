@@ -26,6 +26,7 @@ from zing.utils.tokenize import estimate_messages_tokens, estimate_tokens, is_ex
 _DETECTOR: ContextVar[str | None] = ContextVar("zing_perf_detector", default=None)
 _PHASE: ContextVar[str] = ContextVar("zing_perf_phase", default="passive")
 _NET: ContextVar[NetTrace | None] = ContextVar("zing_perf_net", default=None)
+_LAST: ContextVar[RequestRecord | None] = ContextVar("zing_perf_last", default=None)
 
 # Headers in which relays / upstreams report their own processing time (ms).
 _PROCESSING_HEADERS = ("openai-processing-ms", "x-envoy-upstream-service-time")
@@ -49,6 +50,11 @@ def phase_scope(phase: str) -> Iterator[None]:
         yield
     finally:
         _PHASE.reset(token)
+
+
+def last_record() -> RequestRecord | None:
+    """The record of the most recent call made by the current task."""
+    return _LAST.get()
 
 
 def current_net_trace() -> NetTrace | None:
@@ -226,6 +232,7 @@ class RequestRecorder:
             for key, value in net.breakdown(started).items():
                 setattr(record, key, value)
         self.records.append(record)
+        _LAST.set(record)
         if self.on_record is not None:
             with suppress(Exception):  # a progress sink must never break the audit
                 self.on_record(record)

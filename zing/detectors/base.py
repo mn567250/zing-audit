@@ -42,6 +42,11 @@ class Detector(ABC):
     # an agent can budget token/cost before committing. A rough upper bound is fine.
     cost_hint: ClassVar[int] = 2
 
+    @classmethod
+    def applies(cls, suite: str, *, has_baseline: bool) -> bool:
+        """Extra suite gating beyond ``min_suite`` (e.g. only with a baseline)."""
+        return True
+
     @abstractmethod
     async def run(self, ctx: AuditContext) -> DetectorResult:
         """Execute the check and return a populated result."""
@@ -83,6 +88,8 @@ def select_detectors(
         if cls.requires_judge and not has_judge:
             continue
         if cls.requires_baseline and not has_baseline:
+            continue
+        if not cls.applies(suite, has_baseline=has_baseline):
             continue
         chosen.append(cls())
     return chosen

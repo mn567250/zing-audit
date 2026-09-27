@@ -20,6 +20,7 @@ from zing.clients import make_client
 from zing.config import AuditOptions
 from zing.context import AuditContext
 from zing.detectors.base import run_detector, select_detectors
+from zing.detectors.performance import planned_probe_requests
 from zing.judge import Judge
 from zing.knowledge import load_knowledge_base
 from zing.models import (
@@ -157,7 +158,11 @@ async def run_audit(
         )
         total = len(detectors)
         has_baseline = baseline_client is not None
-        probe_planned = 0
+        probe_planned = (
+            planned_probe_requests(options, has_baseline=has_baseline)
+            if any(d.id == "performance" for d in detectors)
+            else 0
+        )
         _emit({"type": "start", "total": total, "suite": options.suite, "mode": mode,
                "target": target.name, "claimed_model": target.claimed,
                "has_baseline": has_baseline, "probe_requests": probe_planned})

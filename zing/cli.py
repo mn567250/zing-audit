@@ -275,6 +275,7 @@ def _build_dry_run_plan(target, options, baseline, judge_target, mode: str) -> d
     estimate — without issuing a single request, so an agent can budget cost."""
     import zing.detectors  # noqa: F401  -- populate the registry
     from zing.detectors.base import select_detectors
+    from zing.detectors.performance import estimated_calls as estimated_probe_calls
 
     has_judge = bool(options.judge and (judge_target or baseline))
     has_baseline = baseline is not None
@@ -283,14 +284,22 @@ def _build_dry_run_plan(target, options, baseline, judge_target, mode: str) -> d
     )
     rows: list[dict] = []
     total = 0
+    probe_calls = 0
     for d in detectors:
-        calls = options.reliability_requests if d.id == "reliability" else d.cost_hint
+        if d.id == "performance":
+            # Already counts both endpoints; kept out of the compare-mode factor.
+            calls = probe_calls = estimated_probe_calls(options, has_baseline=has_baseline)
+        elif d.id == "reliability":
+            calls = options.reliability_requests
+        else:
+            calls = d.cost_hint
         rows.append(
             {"id": d.id, "dimension": d.dimension.value, "min_suite": d.min_suite, "est_calls": calls}
         )
         total += calls
     if has_baseline:
-        total = int(total * 1.4)  # compare-mode detectors also probe the baseline
+        # compare-mode detectors also probe the baseline
+        total = int((total - probe_calls) * 1.4) + probe_calls
     return {
         "tool": "zing",
         "version": __version__,
@@ -308,7 +317,8 @@ def _build_dry_run_plan(target, options, baseline, judge_target, mode: str) -> d
         "detectors": rows,
         "estimated_api_calls": total,
         "note": (
-            "Rough upper bound; reliability uses --reliability-requests. "
+            "Rough upper bound; reliability uses --reliability-requests, the "
+            "performance probe --performance-requests. "
             "No API calls were made."
         ),
     }

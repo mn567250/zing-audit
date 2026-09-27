@@ -54,6 +54,21 @@
   "connectivity.echo": "Reply with exactly this text and nothing else: {{marker}}",
   "security.echo": "Reply with exactly this text and nothing else: {{marker}}",
   "reliability.ping": "Reply with the single word: ok",
+  "performance.probe": "Request {{nonce}}. Write a detailed, flowing explanation of {{topic}}. Use plain prose without lists or headings, and keep writing until you are stopped.",
+  "performance.topics": [
+   "how a lighthouse keeps ships safe at night",
+   "how bread rises while it bakes",
+   "how a glacier slowly reshapes a valley",
+   "how a bicycle stays upright while moving",
+   "how bees organize the work inside a hive",
+   "how a river delta forms over centuries",
+   "how a pipe organ produces its sound",
+   "how tides are driven by the moon",
+   "how a city water system delivers clean water",
+   "how a sailing boat can travel against the wind",
+   "how coral reefs grow and support marine life",
+   "how a mechanical clock keeps time"
+  ],
   "context_window.filler_sentences": [
    "The quarterly logistics report noted unusual variance in regional throughput.",
    "Migratory patterns of arctic terns span nearly the entire globe each year.",

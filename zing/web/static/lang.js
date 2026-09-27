@@ -1,20 +1,25 @@
-/* zing web UI — language switch (CN ⇄ EN).
+/* zing web UI — language switch (EN · CN · FR · ES · PT · IT).
  *
- * Plain browser global, no modules. Load it in <head> (before any page
- * script) so the current language is known while the page renders.
- * Exposes window.ZING_LANG with:
- *   - get()            -> "zh" | "en"
+ * Plain browser global, no modules. Load it in <head> after /locales.js and
+ * before any page script, so the current language is known while the page
+ * renders. Exposes window.ZING_LANG with:
+ *   - get()            -> "en" | "zh" | "fr" | "es" | "pt" | "it"
+ *   - isZh()           true when the original Chinese UI is shown
  *   - set(lang)        persist + re-translate static markup + fire "zing:lang"
- *   - t(zh, en)        pick the string for the current language
- *   - server(text)     EN-mode clean-up for free text coming from the backend
+ *   - t(zh, en)        CN -> zh; otherwise the English text translated via tr()
+ *   - tr(en)           English string -> current language (from ZING_LOCALES)
+ *   - locale()         BCP 47 locale for dates/numbers ("fr-FR", …)
+ *   - code(v)          uppercase enum code ("HIGH", "FAIL") in the UI language
+ *   - server(text)     clean-up / translation of free text from the backend
  *   - stripCJK(text)   drop CJK runs (e.g. "Moonshot AI (月之暗面 / Kimi)")
  *   - apply(root)      (re)translate static markup under root
  * and a global shorthand T(zh, en).
  *
- * The Chinese text in the HTML is the original and stays the source of truth:
- * elements carry their English text in data attributes and the Chinese is
- * remembered on first switch, so CN always shows exactly what shipped.
- *   data-en="…"              innerHTML in EN (only text/inline markup inside!)
+ * The Chinese text in the HTML is the original and stays untouched: elements
+ * carry their English text in data attributes (the English doubles as the
+ * lookup key for FR/ES/PT/IT) and the Chinese is remembered on first switch,
+ * so CN always shows exactly what shipped.
+ *   data-en="…"              innerHTML outside CN (only text/inline markup inside!)
  *   data-en-placeholder="…"  / data-en-title / data-en-aria-label  attributes
  * A <select class="lang-sel"> anywhere on the page becomes the switcher.
  */
@@ -22,6 +27,15 @@
   "use strict";
 
   var KEY = "zing.lang";
+  var DEFAULT = "en";
+  var LANGS = {
+    en: { html: "en", locale: "en-US" },
+    zh: { html: "zh-CN", locale: "zh-CN" },
+    fr: { html: "fr", locale: "fr-FR" },
+    es: { html: "es", locale: "es-ES" },
+    pt: { html: "pt", locale: "pt-PT" },
+    it: { html: "it", locale: "it-IT" },
+  };
   var ATTRS = ["placeholder", "title", "aria-label"];
   var CJK = /[⺀-⿿　-〿぀-ヿ㄀-ㇿ㐀-䶿一-鿿豈-﫿＀-￯]/;
   var CJK_RUN = /[⺀-⿿　-〿぀-ヿ㄀-ㇿ㐀-䶿一-鿿豈-﫿＀-￯]+/g;
@@ -35,15 +49,32 @@
   function read() {
     try {
       var v = localStorage.getItem(KEY);
-      if (v === "en" || v === "zh") return v;
+      if (v && LANGS[v]) return v;
     } catch (e) {}
-    return "zh"; // the UI's original language
+    return DEFAULT;
   }
 
   var lang = read();
 
+  function locales() {
+    return window.ZING_LOCALES || {};
+  }
+
+  function tr(en) {
+    if (en == null || lang === "en" || lang === "zh") return en;
+    var d = (locales().strings || {})[lang] || {};
+    return Object.prototype.hasOwnProperty.call(d, en) ? d[en] : en;
+  }
+
+  // Uppercase enum codes shown as-is in CN/EN (e.g. "HIGH", "FAIL");
+  // other languages look up the uppercase code itself.
+  function code(v) {
+    var c = String(v == null ? "" : v).toUpperCase();
+    return lang === "en" || lang === "zh" ? c : tr(c);
+  }
+
   function t(zh, en) {
-    return lang === "en" ? en : zh;
+    return lang === "zh" ? zh : tr(en);
   }
 
   function stripCJK(s) {
@@ -60,11 +91,27 @@
       .trim();
   }
 
+  // Backend text is English. CN shows it verbatim (as it always did); every
+  // other language drops the embedded Chinese terms, then translates exact
+  // known strings (detector names, …) and known sentence patterns (the
+  // verdict summary) from ZING_LOCALES; anything unknown stays English.
   function server(text) {
-    if (text == null || lang !== "en") return text;
+    if (text == null || lang === "zh") return text;
     var s = String(text);
     GLOSSARY.forEach(function (g) {
       s = s.split(g[0]).join(g[1]);
+    });
+    if (lang === "en") return s;
+    var exact = tr(s);
+    if (exact !== s) return exact;
+    (locales().patterns || []).forEach(function (p) {
+      s = s.replace(new RegExp(p[0], "g"), function () {
+        var groups = arguments;
+        return tr(p[1]).replace(/\{(\d)\}/g, function (_m, i) {
+          var g = groups[+i];
+          return g == null ? "" : p[2] && p[2][i] ? p[2][i](g, tr) : g;
+        });
+      });
     });
     return s;
   }
@@ -72,7 +119,7 @@
   function applyEl(el) {
     if (el.hasAttribute("data-en")) {
       if (el.__zingZh == null) el.__zingZh = el.innerHTML;
-      var html = lang === "en" ? el.getAttribute("data-en") : el.__zingZh;
+      var html = lang === "zh" ? el.__zingZh : tr(el.getAttribute("data-en"));
       if (el.tagName === "TITLE") el.textContent = html;
       else if (el.innerHTML !== html) el.innerHTML = html;
     }
@@ -81,7 +128,7 @@
       if (!el.hasAttribute(enA)) return;
       el.__zingZhAttr = el.__zingZhAttr || {};
       if (!(a in el.__zingZhAttr)) el.__zingZhAttr[a] = el.getAttribute(a);
-      var v = lang === "en" ? el.getAttribute(enA) : el.__zingZhAttr[a];
+      var v = lang === "zh" ? el.__zingZhAttr[a] : tr(el.getAttribute(enA));
       if (v == null) el.removeAttribute(a);
       else el.setAttribute(a, v);
     });
@@ -93,13 +140,13 @@
     if (root.nodeType === 1 && root.matches && root.matches(sel)) applyEl(root);
     var els = root.querySelectorAll(sel);
     for (var i = 0; i < els.length; i++) applyEl(els[i]);
-    document.documentElement.lang = lang === "en" ? "en" : "zh-CN";
+    document.documentElement.lang = LANGS[lang].html;
     var sw = document.querySelectorAll("select.lang-sel");
     for (var j = 0; j < sw.length; j++) sw[j].value = lang;
   }
 
   function set(next) {
-    next = next === "en" ? "en" : "zh";
+    next = LANGS[next] ? next : DEFAULT;
     if (next === lang) return;
     lang = next;
     try {
@@ -124,9 +171,9 @@
   }
 
   // Keep the page hidden until the static markup is in the chosen language,
-  // so an EN user never sees a flash of the Chinese original.
-  if (lang === "en") document.documentElement.style.visibility = "hidden";
-  document.documentElement.lang = lang === "en" ? "en" : "zh-CN";
+  // so a non-CN user never sees a flash of the Chinese original.
+  if (lang !== "zh") document.documentElement.style.visibility = "hidden";
+  document.documentElement.lang = LANGS[lang].html;
 
   function boot() {
     apply(document);
@@ -140,8 +187,16 @@
     get: function () {
       return lang;
     },
+    isZh: function () {
+      return lang === "zh";
+    },
+    locale: function () {
+      return LANGS[lang].locale;
+    },
     set: set,
     t: t,
+    tr: tr,
+    code: code,
     server: server,
     stripCJK: stripCJK,
     apply: apply,

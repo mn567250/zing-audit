@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>zing.console — relay reality check</title>
+<script src="/locales.js"></script>
 <script src="/lang.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -180,6 +181,7 @@
   .foot{color:var(--faint);font-family:var(--mono);font-size:11px;text-align:center;padding:8px 0 40px}
   .foot a{color:var(--dim)}
 </style>
+<script src="/i18n.js"></script>
 <script src="/icons.js"></script>
 <script src="/modelpicker.js"></script>
 </head>
@@ -190,7 +192,7 @@
     <a class="on" href="#" data-en="Scan">扫描</a><a href="/" data-en="Report view /">报告视图 /</a><a href="/history" data-en="History /history">历史 /history</a>
   </nav>
   <span class="tag" id="tag"><i>●</i> developer console · live SSE</span>
-  <select class="lang-sel" aria-label="语言" title="语言" data-en-aria-label="Language" data-en-title="Language"><option value="en">🇬🇧 EN</option><option value="zh">🇨🇳 CN</option></select>
+  <select class="lang-sel" aria-label="语言" title="语言" data-en-aria-label="Language" data-en-title="Language"><option value="en">🇬🇧 EN</option><option value="zh">🇨🇳 CN</option><option value="fr">🇫🇷 FR</option><option value="es">🇪🇸 ES</option><option value="pt">🇵🇹 PT</option><option value="it">🇮🇹 IT</option></select>
 </div></header>
 
 <main class="wrap">
@@ -286,6 +288,8 @@ const DIM_EN = {model_identity:"Model identity",context_window:"Context window",
   protocol:"Protocol",connectivity:"Connectivity",reliability:"Reliability",streaming:"Streaming",security:"Security"};
 const dimLabel=(k,nm)=>T(nm.split(" ")[0],DIM_EN[k]||k);
 const srv=s=>ZING_LANG.server(s);
+/* finding text: CN keeps the backend original; other languages use the i18n catalog */
+const fLoc=f=>(!ZING_LANG.isZh()&&window.ZING_I18N)?ZING_I18N.localizeFinding(f.id,f.summary,f.evidence,f.title):{title:srv(f.title),summary:srv(f.summary)};
 /* UI state kept as text generators so a language switch can re-render it */
 let lastReport=null, verdictIdle=()=>T("运行审计后在此显示结论 ▌","The verdict appears here after an audit ▌"), verdictIdleHtml=false, errFn=null;
 let runLabel=()=>T("运行审计 / run audit","run audit");
@@ -338,13 +342,19 @@ function renderDims(){
       <div class="meter"><i id="m-${k}"></i></div>
     </div>`).join("");
 }
+/* short status shown in a dimension tile that has no score */
+function dimStatus(status){
+  const s=status?({pass:"pass",info:"info",inconclusive:"n/a",not_run:"—",warn:"warn",fail:"fail",error:"err"}[status]||"—"):"—";
+  if(s==="—"||ZING_LANG.get()==="en"||ZING_LANG.isZh()) return s;
+  return s==="n/a"?ZING_LANG.tr("n/a"):ZING_LANG.code(status).toLowerCase();
+}
 function fillDim(k,v,status){
   const sc=$("#sc-"+k), m=$("#m-"+k); if(!sc)return;
   if(v==null){
-    sc.textContent = status ? ({pass:"pass",info:"info",inconclusive:"n/a",not_run:"—",warn:"warn",fail:"fail",error:"err"}[status]||"—") : "—";
+    sc.dataset.st = status||""; sc.textContent = dimStatus(status);
     sc.className="sc c-grey"; m.style.background="var(--faint)"; m.style.width="18%"; m.style.opacity=".4"; return;
   }
-  sc.textContent=v; const col=scoreCol(v); sc.className="sc c-"+col;
+  delete sc.dataset.st; sc.textContent=v; const col=scoreCol(v); sc.className="sc c-"+col;
   m.style.opacity="1"; m.style.background=`var(--${col})`; m.style.width=Math.max(2,v)+"%";
 }
 
@@ -466,7 +476,7 @@ function doneRow(ev){
   const hasBody = findings.length>0;
   ln.innerHTML=`<span class="t">${stamp()}</span><span class="ic">${ICON[ev.status]||"·"}</span>`+
     `<span class="dn${hasBody?' has':''}">${esc(ev.id)} · ${tx(()=>srv(ev.name||""))} <span class="c-dim">[${esc(ev.dimension||"")}]</span></span>`+
-    `<span class="res"><span class="${cls}">${esc((ev.status||"").toUpperCase())}</span> ${scoreTxt}${ms}</span>`;
+    `<span class="res"><span class="${cls}">${tx(()=>ZING_LANG.code(ev.status||""))}</span> ${scoreTxt}${ms}</span>`;
   if(hasBody){
     rows[ev.id]={row:ln, ev, findings};
     ln.querySelector(".dn").onclick=()=>toggleFindings(ln, ev, findings);
@@ -485,9 +495,9 @@ function toggleFindings(row, ev, findings){
 
 function findingHtml(ev,f){
   const sevc="c-"+(SEVC[f.severity]||STATC[f.status]||"dim");
-  let h=`<span class="fhd">${ICON[f.status]||"·"} ${tx(()=>srv(f.title||f.id||"finding"))}</span> `+
-        `<span class="sev ${sevc}">[${esc((f.severity||f.status||"").toUpperCase())}]</span>`;
-  if(f.summary) h+=`<span class="sum">${tx(()=>srv(f.summary))}</span>`;
+  let h=`<span class="fhd">${ICON[f.status]||"·"} ${tx(()=>fLoc(f).title||f.id||"finding")}</span> `+
+        `<span class="sev ${sevc}">[${tx(()=>ZING_LANG.code(f.severity||f.status||""))}]</span>`;
+  if(f.summary) h+=`<span class="sum">${tx(()=>fLoc(f).summary)}</span>`;
   if(f.recommendation) h+=`<span class="rec">${ic("arrowRight",{size:13})} ${tx(()=>srv(f.recommendation))}</span>`;
   const e=f.evidence;
   if(e&&typeof e==="object"){
@@ -504,8 +514,8 @@ function notableLine(ev,f){
   const sevc="c-"+(SEVC[f.severity]||STATC[f.status]||"dim");
   const ln=document.createElement("div"); ln.className="ln";
   ln.innerHTML=`<span class="t">${stamp()}</span><span class="ic">${ICON[f.status]||"!"}</span>`+
-    `<span class="dn has">${ic("cornerDownRight",{size:14})} <span class="${sevc}">${tx(()=>srv(f.title||f.id||"finding"))}</span> <span class="c-dim">(${esc(ev.id)})</span></span>`+
-    `<span class="res"><span class="${sevc}">${esc((f.severity||f.status||"").toUpperCase())}</span></span>`;
+    `<span class="dn has">${ic("cornerDownRight",{size:14})} <span class="${sevc}">${tx(()=>fLoc(f).title||f.id||"finding")}</span> <span class="c-dim">(${esc(ev.id)})</span></span>`+
+    `<span class="res"><span class="${sevc}">${tx(()=>ZING_LANG.code(f.severity||f.status||""))}</span></span>`;
   ln.querySelector(".dn").onclick=()=>{
     const nx=ln.nextElementSibling;
     if(nx&&nx.classList.contains("ev")&&nx.dataset.for==="nl"){nx.remove();return;}
@@ -535,6 +545,8 @@ function showVerdict(r){
   const circ=2*Math.PI*52, off=circ*(1-ringScore/100);
   const t=r.target||{};
   const kf=(v.key_findings||[]).slice(0,4);
+  /* key findings are backend titles: map them back to their finding to localize */
+  const byTitle={};(r.detectors||[]).forEach(d=>(d.findings||[]).forEach(f=>{if(f.title&&!byTitle[f.title])byTitle[f.title]=f;}));
 
   const ve=$("#verdict"); ve.className="verdict";
   ve.innerHTML=`
@@ -545,11 +557,11 @@ function showVerdict(r){
       <div class="score"><b class="c-${sc==null?'grey':scoreCol(sc)}">${sc==null?"—":sc}</b><span>/100 · ${esc(v.rating||"–")}</span></div>
     </div>
     <div class="meta">
-      <span class="pill bg-${col}">${risk.txt} RISK</span>
+      <span class="pill bg-${col}">${esc(ZING_LANG.code(risk.txt+" RISK"))}</span>
       <h2>${esc(zhHead(v))}</h2>
       <p>${esc(srv(v.summary||v.headline||""))} <span class="c-dim">${T("置信度/confidence","confidence")} ${esc(v.confidence||"—")}.</span></p>
       ${kf.length?`<ul class="kf">${kf.map(k=>{
-        const kfTxt = srv(typeof k==="string"?k:(k.title||k.summary||JSON.stringify(k)));
+        const kfTxt = typeof k==="string"?(byTitle[k]?fLoc(byTitle[k]).title:srv(k)):srv(k.title||k.summary||JSON.stringify(k));
         const kfc = typeof k==="object"&&k.severity?("c-"+(SEVC[k.severity]||"dim")):"c-amb";
         return `<li><span class="b ${kfc}">${ic("play")}</span><span>${esc(kfTxt)}</span></li>`;
       }).join("")}</ul>`:""}
@@ -559,14 +571,15 @@ function showVerdict(r){
 }
 
 function zhHead(v){
-  const m=ZING_LANG.get()==="en"
+  const m=!ZING_LANG.isZh()
     ?{clean:"Behavior is consistent with the claimed model",low:"Mostly consistent, with a few minor issues",
       medium:"Some behavior does not match the claimed model — verify",high:"It is not serving the model it claims",
       inconclusive:"Insufficient signal to decide (connectivity or coverage too low)"}
     :{clean:"行为与所声称的模型一致",low:"基本一致，存在少量小问题",
     medium:"部分行为与所声称的模型不符 — 建议核实",high:"它给的并不是你所声称的模型",
     inconclusive:"信号不足，无法判定（连通或覆盖不够）"};
-  return m[v.risk_level]||srv(v.headline)||"";
+  const h=m[v.risk_level];
+  return h?T(h,h):srv(v.headline)||"";
 }
 
 /* language switch: re-label script-generated UI in place (scores/log are kept) */
@@ -574,7 +587,8 @@ window.addEventListener("zing:lang",()=>{
   $("#run-label").textContent=runLabel();
   if(errFn)setErr(errFn);
   DIMS.forEach(([k,nm,wt])=>{const el=$(`.dim[data-k="${k}"]`);if(!el)return;
-    el.querySelector(".nm").textContent=dimLabel(k,nm);el.querySelector(".wt").textContent=`${T("权重","weight")} ${wt} · ${k}`;});
+    el.querySelector(".nm").textContent=dimLabel(k,nm);
+    const sc=el.querySelector(".sc"); if(sc&&sc.dataset.st!=null) sc.textContent=dimStatus(sc.dataset.st);el.querySelector(".wt").textContent=`${T("权重","weight")} ${wt} · ${k}`;});
   $$("#log .tx").forEach(s=>{const fn=TX[+s.dataset.tx];if(fn)s.textContent=fn();});
   if(lastReport)showVerdict(lastReport);
   else if($("#verdict").classList.contains("idle"))setIdle(verdictIdle,verdictIdleHtml);

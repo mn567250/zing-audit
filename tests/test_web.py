@@ -70,10 +70,17 @@ def test_serves_lang_js_and_pages_load_it(client):
     assert js.status_code == 200
     assert "application/javascript" in js.headers["content-type"]
     assert "ZING_LANG" in js.text
+    loc = client.get("/locales.js")
+    assert loc.status_code == 200
+    assert "application/javascript" in loc.headers["content-type"]
+    assert "ZING_LOCALES" in loc.text
     for path in ("/", "/console", "/history", "/tools", "/watches"):
         html = client.get(path).text
-        assert '<script src="/lang.js"></script>' in html
-        assert 'class="lang-sel"' in html and 'value="en"' in html and 'value="zh"' in html
+        # locales must load before lang.js, which reads them at switch time
+        assert '<script src="/locales.js"></script>\n<script src="/lang.js"></script>' in html
+        assert 'class="lang-sel"' in html
+        for code in ("en", "zh", "fr", "es", "pt", "it"):
+            assert f'<option value="{code}">' in html
 
 
 def test_serves_icons_and_modelpicker_js(client):

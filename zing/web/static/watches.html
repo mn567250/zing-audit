@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title data-en="zing — monitors">zing — 监控</title>
+<script src="/locales.js"></script>
 <script src="/lang.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -112,7 +113,7 @@
     <div class="logo"><span class="b" id="logo-icon"></span><span>zing<b>.</b></span></div>
     <a class="pill right" href="/"><span id="back-icon" class="pill-ico"></span> <span data-en="Back to audit">返回检测</span></a>
     <a class="pill" href="/history"><span id="hist-icon" class="pill-ico"></span> <span data-en="History">检测历史</span></a>
-    <select class="lang-sel" aria-label="语言" title="语言" data-en-aria-label="Language" data-en-title="Language"><option value="en">🇬🇧 EN</option><option value="zh">🇨🇳 CN</option></select>
+    <select class="lang-sel" aria-label="语言" title="语言" data-en-aria-label="Language" data-en-title="Language"><option value="en">🇬🇧 EN</option><option value="zh">🇨🇳 CN</option><option value="fr">🇫🇷 FR</option><option value="es">🇪🇸 ES</option><option value="pt">🇵🇹 PT</option><option value="it">🇮🇹 IT</option></select>
   </header>
 
   <div class="hero">
@@ -192,7 +193,7 @@
   var RISK_EN = (window.ZING_I18N && window.ZING_I18N.EN && window.ZING_I18N.EN.RISK_LEVEL) || {
     clean:"Consistent", low:"Mostly trustworthy", medium:"Deviations found", high:"Bait-and-switch", inconclusive:"Insufficient signal"
   };
-  function isEn(){ return window.ZING_LANG && window.ZING_LANG.get() === "en"; }
+
   var $ = function(id){ return document.getElementById(id); };
 
   function icon(name, opts){
@@ -207,7 +208,7 @@
 
   function riskBadge(risk){
     var key = risk || "none";
-    var label = risk ? ((isEn() ? RISK_EN : RISK_ZH)[risk] || risk) : T("尚未运行", "Not run yet");
+    var label = risk ? (RISK_ZH[risk] ? T(RISK_ZH[risk], RISK_EN[risk]) : risk) : T("尚未运行", "Not run yet");
     return '<span class="bdg '+esc(key)+'">'+esc(label)+'</span>';
   }
 
@@ -215,7 +216,7 @@
     if(!ts) return T("从未运行", "Never run");
     try{
       var d = new Date(ts * 1000);
-      return d.toLocaleString(T("zh-CN", "en-US"), {hour12:false});
+      return d.toLocaleString(window.ZING_LANG.locale(), {hour12:false});
     }catch(e){ return "—"; }
   }
 
@@ -228,7 +229,7 @@
 
   function render(watches){
     var list = $("list");
-    $("count").textContent = watches.length ? T("共 " + watches.length + " 项", watches.length + (watches.length === 1 ? " item" : " items")) : "";
+    $("count").textContent = watches.length ? T("共 " + watches.length + " 项", watches.length + window.ZING_LANG.tr(watches.length === 1 ? " item" : " items")) : "";
     if(!watches.length){
       list.innerHTML = '<div class="empty">' + T("还没有任何监控。用上面的表单添加第一个吧。", "No monitors yet. Use the form above to add your first one.") + '</div>';
       return;

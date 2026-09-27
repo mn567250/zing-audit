@@ -137,8 +137,10 @@ breakdown, plain-language findings, downloadable JSON). It runs entirely on your
 machine — a key typed in the browser reaches only your local server and the target
 relay, never a third party. Bind stays on `127.0.0.1` by default.
 
-The UI ships in Simplified Chinese; a **🇬🇧 EN / 🇨🇳 CN** dropdown in the header of
-every page switches it to English and back (the choice is remembered per browser).
+A language dropdown in the header of every page switches the UI between
+**🇬🇧 English** (default), **🇨🇳 Chinese** (the original UI), **🇫🇷 French**, **🇪🇸 Spanish**,
+**🇵🇹 Portuguese** and **🇮🇹 Italian**; the choice is remembered per browser. Webhook alerts
+from `/watches` are still sent in Chinese.
 
 ## What it checks
 

@@ -9,8 +9,8 @@
  *   - label(kind, key) -> label in the current UI language (see lang.js);
  *                 kind is one of RISK_LEVEL / STATUS / SEVERITY / CONFIDENCE
  *
- * When the UI language is English (window.ZING_LANG.get() === "en"),
- * localizeFinding returns the backend's own English title/summary.
+ * Outside CN, localizeFinding uses the FINDINGS_L10N catalog of the current
+ * language (see /locales.js) and otherwise the backend's own English text.
  *
  * Template rule: `tpl` may contain {placeholders} naming keys from THAT finding's
  * evidence dict. Placeholders are only used for keys confirmed to exist in the
@@ -105,13 +105,14 @@
     DIMENSIONS: DIMENSIONS,
   };
 
-  function isEn() {
-    return !!(window.ZING_LANG && window.ZING_LANG.get() === "en");
+  function isZh() {
+    return !window.ZING_LANG || window.ZING_LANG.isZh();
   }
 
   function label(kind, key) {
-    var map = (isEn() ? EN : ZH)[kind] || {};
-    return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : key;
+    var map = (isZh() ? ZH : EN)[kind] || {};
+    if (!Object.prototype.hasOwnProperty.call(map, key)) return key;
+    return isZh() ? map[key] : window.ZING_LANG.tr(map[key]);
   }
 
   // ---- Finding catalog -------------------------------------------------- //
@@ -475,7 +476,7 @@
   // ---- Template filling ------------------------------------------------- //
   // Replace {key} from evidence. If ANY referenced key is missing/undefined,
   // signal failure so the caller keeps the English fallback summary.
-  function fillTemplate(tpl, evidence) {
+  function fillTemplate(tpl, evidence, yesNo) {
     if (!tpl) return null;
     var ev = evidence || {};
     var ok = true;
@@ -489,7 +490,7 @@
         ok = false;
         return "";
       }
-      if (typeof v === "boolean") return v ? "是" : "否";
+      if (typeof v === "boolean") return (yesNo || ["是", "否"])[v ? 0 : 1];
       if (typeof v === "number") {
         // Trim noisy floats; keep ints intact.
         return Number.isInteger(v) ? String(v) : String(Math.round(v * 1000) / 1000);
@@ -505,6 +506,15 @@
       return String(v);
     });
     return ok ? out : null;
+  }
+
+  // Resolve an id in a per-language catalog (FR/ES/PT/IT); the dynamic
+  // model_identity.fp.<probe> family is stored under "model_identity.fp.*".
+  function lookupIn(cat, id) {
+    if (!id) return null;
+    if (Object.prototype.hasOwnProperty.call(cat, id)) return cat[id];
+    if (id.indexOf("model_identity.fp.") === 0) return cat["model_identity.fp.*"] || null;
+    return null;
   }
 
   // Resolve a catalog entry, including dynamic id families.
@@ -530,11 +540,14 @@
    *             is returned instead of a broken string.
    */
   function localizeFinding(id, fallbackSummary, evidence, fallbackTitle) {
-    if (isEn()) {
-      var srv = window.ZING_LANG.server;
+    if (!isZh()) {
+      var L = window.ZING_LANG;
+      var cat = ((window.ZING_LOCALES || {}).findings || {})[L.get()];
+      var le = cat && lookupIn(cat, id);
+      var ls = le && le.tpl ? fillTemplate(le.tpl, evidence, [L.tr("yes"), L.tr("no")]) : null;
       return {
-        title: srv(fallbackTitle || id || "Check"),
-        summary: srv(fallbackSummary || ""),
+        title: le && le.title ? le.title : L.server(fallbackTitle || id || "Check"),
+        summary: ls != null ? ls : L.server(fallbackSummary || ""),
       };
     }
     var entry = lookup(id);

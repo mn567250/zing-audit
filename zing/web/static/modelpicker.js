@@ -28,16 +28,17 @@
 
   var _kbPromise = null; // shared across every enhance() call on the page
 
-  // UI language (lang.js): CN keeps the original strings, EN is English-only.
+  // UI language (lang.js): CN keeps the original strings, others translate.
   function isEn() {
-    return !!(window.ZING_LANG && window.ZING_LANG.get() === "en");
+    return !!(window.ZING_LANG && !window.ZING_LANG.isZh());
   }
   function tr(zh, en) {
-    return isEn() ? en : zh;
+    return window.ZING_LANG ? window.ZING_LANG.t(zh, en) : zh;
   }
-  // KB display names / aliases may contain Chinese brand names; drop them in EN.
+  // KB display names / aliases may contain Chinese brand names; drop them
+  // in every language but CN.
   function enText(s) {
-    return isEn() && window.ZING_LANG ? window.ZING_LANG.stripCJK(s) : s;
+    return isEn() ? window.ZING_LANG.stripCJK(s) : s;
   }
 
   function loadKb() {

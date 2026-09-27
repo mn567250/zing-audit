@@ -9,11 +9,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - **Web UI: language switch.** Every page (`/`, `/console`, `/history`, `/tools`,
-  `/watches`) gets a **🇬🇧 EN / 🇨🇳 CN** dropdown in its header. EN renders every
-  user-facing string in English (labels, placeholders, tooltips, dialogs, verdicts,
-  finding titles/summaries, the model picker); CN keeps the original Chinese UI
+  `/watches`) gets a **🇬🇧 EN · 🇨🇳 CN · 🇫🇷 FR · 🇪🇸 ES · 🇵🇹 PT · 🇮🇹 IT** dropdown in
+  its header; English is the default. Every user-facing string is translated (labels,
+  placeholders, tooltips, dialogs, verdicts, finding titles/summaries, detector names,
+  recommendations, status codes, the model picker); CN keeps the original Chinese UI
   unchanged. Switching is live (no reload) and remembered in `localStorage`. Backed
-  by a new shared `/lang.js`.
+  by new shared `/lang.js` and `/locales.js`.
 
 ## [0.11.0] — web UI: claimed-model picker + all-SVG icons
 

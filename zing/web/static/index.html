@@ -391,6 +391,7 @@ function renderReport(r){
       ${r.baseline?`<span>${T("对照基线","Baseline")} <code>${esc(r.baseline.model||"")}</code> @ <code>${esc(r.baseline.base_url||"")}</code></span>`:""}
       <span>${T("模式","Mode")} <code>${esc(r.mode||"check")}</code></span>
       <span>${T("套件","Suite")} <code>${esc(r.suite)}</code></span>
+      ${(r.prompt_languages||[]).length?`<span>${T("探测语言","Probe languages")} <code>${esc(r.prompt_languages.map(c=>c.toUpperCase()).join(" · "))}</code></span>`:""}
       <span>zing v${esc(r.tool_version||"")}</span>
     </div>
 

@@ -11,22 +11,13 @@ import json
 import re
 from typing import Any
 
+from zing import prompts
 from zing.utils.tokenize import estimate_tokens
 
-# A pool of natural-ish sentences for filler. Varied so it is not trivially
-# compressible by a relay's summarizer shim (which would defeat truncation tests).
-_FILLER_SENTENCES = [
-    "The quarterly logistics report noted unusual variance in regional throughput.",
-    "Migratory patterns of arctic terns span nearly the entire globe each year.",
-    "A well-tempered clavier requires careful attention to equal temperament tuning.",
-    "The committee deferred the zoning amendment pending an environmental survey.",
-    "Photosynthesis converts light energy into chemical energy stored in glucose.",
-    "Renaissance cartographers often embellished unknown regions with sea monsters.",
-    "The compiler emitted a warning about an unused variable in the hot loop.",
-    "Tidal forces gradually slow the Earth's rotation over geological timescales.",
-    "Her thesis examined supply-chain resilience under correlated demand shocks.",
-    "The orchestra rehearsed the adagio movement until the phrasing felt natural.",
-]
+# The filler's pool of natural-ish sentences (zing/prompts/en.json). Varied so it
+# is not trivially compressible by a relay's summarizer shim (which would defeat
+# truncation tests).
+_FILLER_SENTENCES: list[str] = prompts.get("context_window.filler_sentences")
 
 
 def stable_marker(seed: str, prefix: str = "ZING") -> str:
@@ -75,17 +66,11 @@ def build_haystack(
     depth = max(0.0, min(1.0, depth))
     filler = build_filler(total_tokens, tokenizer)
     lines = filler.split("\n")
-    needle_line = (
-        f"IMPORTANT FACT: The secret pass phrase is {needle}. "
-        f"Remember it exactly."
-    )
+    needle_line = prompts.text("context_window.needle", needle=needle)
     insert_at = int(len(lines) * depth)
     lines.insert(insert_at, needle_line)
     body = "\n".join(lines)
-    tail = instruction or (
-        "\n\nNow answer this question using only the text above: "
-        "What is the secret pass phrase? Reply with only the pass phrase."
-    )
+    tail = instruction or prompts.text("context_window.question")
     return body + tail
 
 

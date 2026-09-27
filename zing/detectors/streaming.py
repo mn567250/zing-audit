@@ -8,6 +8,7 @@ inter-chunk gaps; a buffered fake collapses all of that into a single dump.
 
 from __future__ import annotations
 
+from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
@@ -34,7 +35,7 @@ class StreamingDetector(Detector):
             messages=[
                 {
                     "role": "user",
-                    "content": "Write five separate sentences about the ocean, each on its own line.",
+                    "content": prompts.text("streaming.sentences"),
                 }
             ],
             temperature=0.0,

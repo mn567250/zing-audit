@@ -378,6 +378,8 @@ fingerprints:
 - id: tokenizer-cjk-echo
   signal: tokenizer artifact (CJK / vocab)
   prompt: 'Repeat this exact string back verbatim, then on a new line state how many tokens it was for you: 月之暗面Kimi开放平台🌙'
+  prompt_lang: zh
+  language_bound: 'Tests how the tokenizer handles CJK text and emoji; the CJK string is the probe.'
   native_expected: Moonshot's ~160K-vocab BPE handles mixed CJK + emoji efficiently; verbatim echo is exact. Token counts reported are consistent with Moonshot's tokenizer (and the /tokenizers/estimate-token-count or usage.prompt_tokens endpoint can corroborate).
   downgrade_signal: Corrupted/garbled CJK or emoji in the echo (mojibake), or self-reported token counts grossly inconsistent with Moonshot's tokenizer, suggests a different tokenizer/model. Best cross-checked against usage.prompt_tokens from the same request.
   pure_code_checkable: true
@@ -402,6 +404,8 @@ fingerprints:
 - id: chinese-competence
   signal: refusal/format style (Chinese language competence)
   prompt: 用中文回答:请简要介绍你自己,并说明你的训练截止时间。
+  prompt_lang: zh
+  language_bound: 'Measures the Chinese-language competence of a China-native model; expected answers include 月之暗面.'
   native_expected: Fluent native Chinese response (Moonshot is a China-origin lab; Chinese is first-class), self-identifies as Kimi / 月之暗面 Moonshot AI, comfortable bilingual handling.
   downgrade_signal: Awkward/translated-feeling Chinese, refusal to use Chinese, or self-identifying as a Western model (ChatGPT/Claude) in the Chinese reply — signals a substituted non-Kimi backend.
   pure_code_checkable: false

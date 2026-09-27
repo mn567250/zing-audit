@@ -12,40 +12,11 @@ Budget: up to 4 chat completions.
 
 from __future__ import annotations
 
+from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import first_json_object
 from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
-
-_WEATHER_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "get_weather",
-        "description": "Get weather for a city.",
-        "parameters": {
-            "type": "object",
-            "properties": {"city": {"type": "string"}},
-            "required": ["city"],
-        },
-    },
-}
-
-_PERSON_SCHEMA = {
-    "type": "json_schema",
-    "json_schema": {
-        "name": "person",
-        "strict": True,
-        "schema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "age": {"type": "integer"},
-            },
-            "required": ["name", "age"],
-            "additionalProperties": False,
-        },
-    },
-}
 
 
 @register
@@ -78,10 +49,10 @@ class CapabilityDetector(Detector):
             messages=[
                 {
                     "role": "user",
-                    "content": "Use the tool to get the weather in Paris. Do not answer directly.",
+                    "content": prompts.text("capability.tools"),
                 }
             ],
-            tools=[_WEATHER_TOOL],
+            tools=[prompts.get("capability.tools.weather_tool")],
             tool_choice="auto",
             temperature=0.0,
             max_tokens=128,
@@ -179,7 +150,7 @@ class CapabilityDetector(Detector):
             messages=[
                 {
                     "role": "user",
-                    "content": 'Return a JSON object {"status":"ok","value":7429}. Only JSON.',
+                    "content": prompts.text("capability.json_mode"),
                 }
             ],
             response_format={"type": "json_object"},
@@ -267,10 +238,10 @@ class CapabilityDetector(Detector):
             messages=[
                 {
                     "role": "user",
-                    "content": 'Return a person object for "Ada Lovelace", age 36. Only JSON.',
+                    "content": prompts.text("capability.json_schema"),
                 }
             ],
-            response_format=_PERSON_SCHEMA,
+            response_format=prompts.get("capability.json_schema.person_schema"),
             temperature=0.0,
             max_tokens=80,
         )
@@ -365,10 +336,7 @@ class CapabilityDetector(Detector):
             messages=[
                 {
                     "role": "user",
-                    "content": (
-                        "Output the integers from 1 upward, one per line (1, 2, 3, ...). "
-                        "Continue as long as you can."
-                    ),
+                    "content": prompts.text("capability.max_output"),
                 }
             ],
             temperature=0.0,

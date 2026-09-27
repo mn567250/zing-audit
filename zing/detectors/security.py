@@ -10,6 +10,7 @@ them indirectly.
 
 from __future__ import annotations
 
+from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import contains_ci, stable_marker
@@ -86,7 +87,7 @@ class SecurityDetector(Detector):
         marker = stable_marker("security")
         spec = RequestSpec(
             messages=[
-                {"role": "user", "content": f"Reply with exactly this text and nothing else: {marker}"}
+                {"role": "user", "content": prompts.text("security.echo", marker=marker)}
             ],
             temperature=0.0,
             max_tokens=32,

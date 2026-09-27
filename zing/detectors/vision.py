@@ -27,6 +27,7 @@ import base64
 import struct
 import zlib
 
+from zing import prompts
 from zing.clients import detect_api
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
@@ -36,14 +37,12 @@ from zing.utils.redact import redact_text
 
 # The known-answer color. Orange (255,140,0) is intentionally non-primary: a
 # text-only model guessing blind is far likelier to say red/green/blue/black/white
-# than to land on "orange". Accept English + Chinese synonyms so an honest
-# vision model answering in either language passes.
+# than to land on "orange". The question is English (zing/prompts/en.json), but
+# a China-native model may still answer in Chinese, so both are accepted.
 _COLOR_RGB = (255, 140, 0)
 _EXPECTED_COLORS = ("orange", "橙", "橘")  # 橙色 / 橘色 / 橘黄 all contain these
 
-_QUESTION = (
-    "仅用一个词回答：图片是什么颜色？/ In one word, what color is this image?"
-)
+_QUESTION = prompts.text("vision.question")
 
 # Hints that the model is admitting it cannot actually process the image. If the
 # answer carries one of these and no expected color, the claimed vision is a

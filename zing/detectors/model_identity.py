@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 
+from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import (
@@ -51,10 +52,7 @@ _RIVAL_BRANDS = (
     "阶跃", "step",
 )
 
-_SELF_ID_PROMPT = (
-    "What model are you and which company built you? "
-    "Answer in one short sentence."
-)
+_SELF_ID_PROMPT = prompts.text("model_identity.self_id")
 
 
 @register
@@ -232,6 +230,9 @@ class ModelIdentityDetector(Detector):
             result.status = Status.PASS
 
         result.evidence["fingerprints_run"] = len(probes)
+        # Languages of the fingerprint prompts actually sent (see prompt_lang in
+        # the knowledge base); the runner records them on the report.
+        result.evidence["fingerprint_prompt_langs"] = sorted({fp.prompt_lang for fp in probes})
         result.evidence["fingerprints_violated"] = violated
         result.evidence["match_confidence"] = ctx.profile.match_confidence
         return result
@@ -355,7 +356,7 @@ class ModelIdentityDetector(Detector):
         it clearly names a different/cheaper model."""
         outcome = await ctx.client.complete(
             RequestSpec(
-                messages=[{"role": "user", "content": "Say OK."}],
+                messages=[{"role": "user", "content": prompts.text("model_identity.ping")}],
                 temperature=0.0,
                 max_tokens=8,
             )

@@ -9,7 +9,7 @@ audit against it.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class FingerprintProbe(BaseModel):
@@ -32,6 +32,21 @@ class FingerprintProbe(BaseModel):
     max_tokens: int = 256
     temperature: float = 0.0
     weight: float = 1.0
+    # Language of the prompt. Probes are English (like zing/prompts/en.json)
+    # unless the language IS the measurement (e.g. Chinese fluency of a
+    # China-native model); then ``language_bound`` says why, and the probe is
+    # sent as written regardless of any UI or alert language.
+    prompt_lang: str = "en"
+    language_bound: str | None = None
+
+    @model_validator(mode="after")
+    def _non_english_probes_say_why(self) -> FingerprintProbe:
+        if self.prompt_lang != "en" and not self.language_bound:
+            raise ValueError(
+                f"fingerprint {self.id!r}: prompt_lang={self.prompt_lang!r} needs a "
+                "language_bound reason (why this probe must not be in English)"
+            )
+        return self
 
 
 class ModelProfile(BaseModel):

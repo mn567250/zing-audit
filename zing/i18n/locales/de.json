@@ -379,7 +379,8 @@
   "Undetermined": "Nicht bestimmbar",
   "{1} ({2})": "{1} ({2})",
   "Alert language": "Sprache der Warnungen",
-  "Add a monitor: zing re-runs the black-box audit on your machine at the interval you set. As soon as the risk crosses your threshold or gets worse than last time, it pushes an alert in the language you choose to the webhooks you configured (Slack / Feishu / DingTalk / generic JSON).": "Überwachung hinzufügen: zing führt die Black-Box-Prüfung im eingestellten Intervall auf Ihrem Rechner erneut aus. Sobald das Risiko Ihre Schwelle überschreitet oder sich gegenüber dem letzten Lauf verschlechtert, wird eine Warnung in der von Ihnen gewählten Sprache an die konfigurierten Webhooks gesendet (Slack / Feishu / DingTalk / generisches JSON)."
+  "Add a monitor: zing re-runs the black-box audit on your machine at the interval you set. As soon as the risk crosses your threshold or gets worse than last time, it pushes an alert in the language you choose to the webhooks you configured (Slack / Feishu / DingTalk / generic JSON).": "Überwachung hinzufügen: zing führt die Black-Box-Prüfung im eingestellten Intervall auf Ihrem Rechner erneut aus. Sobald das Risiko Ihre Schwelle überschreitet oder sich gegenüber dem letzten Lauf verschlechtert, wird eine Warnung in der von Ihnen gewählten Sprache an die konfigurierten Webhooks gesendet (Slack / Feishu / DingTalk / generisches JSON).",
+  "Probe languages": "Sprachen der Sonden"
  },
  "findings": {
   "connectivity.models": [

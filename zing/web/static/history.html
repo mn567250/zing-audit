@@ -291,6 +291,7 @@ function reportHTML(r,id){
           <div>${T("置信度","Confidence")} <b>${esc(zhConf(v.confidence))}</b></div>
           <div>${T("风险","Risk")} <b style="color:${gradeC}">${esc(ZING_LANG.code(v.risk_level||""))}</b></div>
           <div>${T("时间","Time")} <b style="font-family:var(--mono);font-size:12px">${esc(fmtTime(r.generated_at))}</b></div>
+          ${(r.prompt_languages||[]).length?`<div>${T("探测语言","Probe languages")} <b style="font-family:var(--mono);font-size:12px">${esc(r.prompt_languages.map(c=>c.toUpperCase()).join(" · "))}</b></div>`:""}
         </div>
       </div>
     </div>

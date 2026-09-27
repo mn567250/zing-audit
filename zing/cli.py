@@ -21,7 +21,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from zing import __version__
+from zing import __version__, prompts
 from zing import i18n as _i18n
 from zing.clients import make_client
 from zing.config import (
@@ -914,13 +914,8 @@ def rerank_command(
         raise typer.Exit(code=2) from exc
 
     # Built-in known-answer probe: document 2 is the clear answer to the query.
-    query = "What is the capital of France?"
-    documents = [
-        "Bananas are a good source of potassium and dietary fiber.",
-        "The Great Wall of China is visible from low Earth orbit on a clear day.",
-        "Paris is the capital and most populous city of France.",
-        "Photosynthesis converts sunlight into chemical energy in plants.",
-    ]
+    query = prompts.text("rerank.cli.query")
+    documents = prompts.get("rerank.cli.documents")
     expected_top_index = 2
 
     from zing.embed_audit import audit_rerank

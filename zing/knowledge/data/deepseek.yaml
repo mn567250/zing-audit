@@ -218,6 +218,8 @@ fingerprints:
 - id: chinese-competence
   signal: Chinese-language tokenizer/compression competence
   prompt: 用中文回答：请解释“一带一路”倡议的主要目标，并用三句话总结。
+  prompt_lang: zh
+  language_bound: 'Measures the Chinese-language competence of a China-native model; the language is the signal.'
   native_expected: DeepSeek is heavily Chinese-trained (large Chinese corpus, tokenizer optimized for Chinese); produces fluent, idiomatic, well-structured Simplified-Chinese output with strong domain knowledge of China-specific topics.
   downgrade_signal: A Western-centric substitute (some Llama/GPT minis) yields stilted Chinese, mixed scripts, hedging/refusal on China-policy topics, or markedly worse Chinese fluency relative to its English — a tell it is not DeepSeek.
   pure_code_checkable: false

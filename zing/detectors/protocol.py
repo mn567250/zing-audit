@@ -8,6 +8,7 @@ contract and contributes a 0-100 sub-score; the detector score is their average.
 
 from __future__ import annotations
 
+from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import contains_ci, usage_field
@@ -38,12 +39,7 @@ class ProtocolDetector(Detector):
     # 1) Does the relay carry prior turns through to the model? ------------- #
     async def _check_multi_turn(self, ctx: AuditContext, result: DetectorResult) -> float:
         spec = RequestSpec(
-            messages=[
-                {"role": "system", "content": "Answer in one word."},
-                {"role": "user", "content": "Remember the color: blue."},
-                {"role": "assistant", "content": "OK, blue."},
-                {"role": "user", "content": "What color did I ask you to remember?"},
-            ],
+            messages=prompts.get("protocol.multi_turn"),
             temperature=0.0,
             max_tokens=16,
         )
@@ -88,7 +84,7 @@ class ProtocolDetector(Detector):
     # 2) Is the ``stop`` sequence actually applied? ------------------------- #
     async def _check_stop_sequence(self, ctx: AuditContext, result: DetectorResult) -> float:
         spec = RequestSpec(
-            messages=[{"role": "user", "content": "Print exactly: alpha STOP beta"}],
+            messages=[{"role": "user", "content": prompts.text("protocol.stop")}],
             stop="STOP",
             temperature=0.0,
             max_tokens=32,
@@ -138,7 +134,7 @@ class ProtocolDetector(Detector):
     # 3) Does a normal call carry finish_reason + a typed usage object? ----- #
     async def _check_response_shape(self, ctx: AuditContext, result: DetectorResult) -> float:
         spec = RequestSpec(
-            messages=[{"role": "user", "content": "Reply with the single word: ok"}],
+            messages=[{"role": "user", "content": prompts.text("protocol.shape")}],
             temperature=0.0,
             max_tokens=16,
         )

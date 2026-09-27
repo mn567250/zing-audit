@@ -148,6 +148,16 @@ recommendations, detector names, notes) are translated, and the file name carrie
 language (`zing-report.de.json`). The CLI's own `--format json|md|html` reports stay
 English.
 
+**Prompts sent to the audited endpoint do not follow the UI language.** Every text zing
+sends to an LLM API — chat probes, the LLM judge's prompt, tool schemas, embedding /
+rerank / image / audio inputs — lives in one prompt library, `zing/prompts/en.json`, and
+is English, so the same relay gets the same verdict whoever reads the report (answer
+checks and token estimates are calibrated to these exact texts). The only exceptions are
+knowledge-base fingerprints whose language *is* the measurement — e.g. the Chinese
+fluency, tokenizer and self-identification probes of China-native models — which declare
+`prompt_lang` and a `language_bound` reason in `zing/knowledge/data/*.yaml`. Each report
+records the probe languages it actually used (`prompt_languages`, e.g. `["en", "zh"]`).
+
 The translations are data, shared by the web UI and the webhook alerts:
 `zing/i18n/locales/<code>.json`, one file per language. To add a language, add one file
 (copy `de.json`); the dropdown, the pages and the alerts pick it up.

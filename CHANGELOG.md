@@ -35,6 +35,22 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `zing/i18n/locales/<code>.json`, used by the web UI (served as `/locales.js`) and by
   Python (`zing.i18n`, for alerts). Adding a language is adding one file.
 
+- **Prompt library.** Every text sent to an LLM API (chat probes, the judge prompt,
+  tool schemas, embedding / rerank / image / audio inputs — 53 entries) moved out of the
+  code into `zing/prompts/en.json`, loaded via `zing.prompts`. Probes are English and
+  independent of the UI/alert language, so verdicts don't depend on who reads them; a
+  capture of every request of a full audit is byte-identical before and after the move
+  except the vision probe (below). Knowledge-base fingerprints gained `prompt_lang` and
+  `language_bound`: the 7 Chinese probes of China-native models (fluency, tokenizer
+  echo, native self-id, cultural recall) stay Chinese because the language is the
+  measurement, and must say so. Reports gain `prompt_languages`, shown in the web UI.
+
+### Changed
+
+- **Vision probe asks in English only.** It was bilingual
+  ("仅用一个词回答：图片是什么颜色？/ In one word, what color is this image?"); Chinese
+  answers are still accepted.
+
 ### Fixed
 
 - **Web UI: finding summaries that fell back to English.** Findings emitted by several

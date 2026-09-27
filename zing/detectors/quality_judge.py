@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.models import (
@@ -26,28 +27,8 @@ from zing.models import (
 
 # Discriminating prompts: each separates capable models from cheaper ones along a
 # different axis. Kept short and deterministic so answers are comparable.
-_PROBES: tuple[tuple[str, str], ...] = (
-    (
-        "reasoning",
-        "A train leaves city A at 9:00 AM traveling 60 km/h toward city B, 210 km "
-        "away. A second train leaves city B at 9:30 AM traveling 90 km/h toward "
-        "city A on the same track. At what clock time do they meet, and how far "
-        "from city A? Show each step of your reasoning, then give the final answer.",
-    ),
-    (
-        "coding",
-        "Write a Python function `merge_intervals(intervals)` that merges all "
-        "overlapping closed integer intervals given as a list of [start, end] "
-        "pairs and returns them sorted by start. Handle empty input and "
-        "touching-but-not-overlapping intervals correctly. Include a one-line "
-        "complexity note. Return only the code and the note.",
-    ),
-    (
-        "instruction",
-        "In exactly three sentences, explain why floating-point addition is not "
-        "associative, and include the phrase 'rounding error' exactly once. Do not "
-        "use any bullet points or numbered lists.",
-    ),
+_PROBES: tuple[tuple[str, str], ...] = tuple(
+    (label, prompt) for label, prompt in prompts.get("quality_judge.probes")
 )
 
 _ANSWER_CLIP = 2000  # cap each answer fed to the judge, keeping the prompt bounded
@@ -103,12 +84,7 @@ class QualityJudgeDetector(Detector):
             return result
 
         # 2) Build the judge prompt from model answers only (no keys / no base_url).
-        system = (
-            f"You are an expert LLM evaluator assessing whether an API endpoint that "
-            f"CLAIMS to be '{claimed}' actually behaves like it, or like a "
-            f"cheaper/quantized/substituted model. Judge quality, depth, reasoning, "
-            f"and style. Be calibrated and cautious."
-        )
+        system = prompts.text("quality_judge.system", claimed=claimed)
         user = self._build_user_prompt(claimed, target_answers, baseline_answers, ctx)
 
         assert ctx.judge is not None  # requires_judge=True guarantees a judge here
@@ -239,43 +215,34 @@ class QualityJudgeDetector(Detector):
         lines: list[str] = []
         family = ctx.profile.model.family if ctx.profile else None
         cutoff = ctx.profile.model.knowledge_cutoff if ctx.profile else None
-        ctx_bits = [f"claimed model id: {claimed}"]
+        ctx_bits = [prompts.text("quality_judge.user.claimed", claimed=claimed)]
         if family:
-            ctx_bits.append(f"expected family: {family}")
+            ctx_bits.append(prompts.text("quality_judge.user.family", family=family))
         if cutoff:
-            ctx_bits.append(f"declared knowledge cutoff: {cutoff}")
-        lines.append("CONTEXT — " + "; ".join(ctx_bits) + ".")
+            ctx_bits.append(prompts.text("quality_judge.user.cutoff", cutoff=cutoff))
+        lines.append(prompts.text("quality_judge.user.context", bits="; ".join(ctx_bits)))
         lines.append("")
         lines.append(
-            "Below are answers from the endpoint UNDER AUDIT (the 'TARGET') to a "
-            "battery of discriminating prompts"
-            + (", alongside a TRUSTED BASELINE for side-by-side comparison" if baseline_answers else "")
-            + ". Assess whether the TARGET answers reflect the capability, depth, "
-            "and style expected of the claimed model."
+            prompts.text(
+                "quality_judge.user.intro",
+                with_baseline=prompts.text("quality_judge.user.with_baseline") if baseline_answers else "",
+            )
         )
 
         baseline_by_label = {b["label"]: b["answer"] for b in baseline_answers}
         for i, item in enumerate(target_answers, start=1):
             lines.append("")
-            lines.append(f"### Prompt {i} [{item['label']}]")
+            no_answer = prompts.text("quality_judge.user.no_answer")
+            lines.append(prompts.text("quality_judge.user.prompt_heading", n=i, label=item["label"]))
             lines.append(item["prompt"])
             lines.append("")
-            lines.append("--- TARGET answer ---")
-            lines.append(item["answer"] or "(no answer returned)")
+            lines.append(prompts.text("quality_judge.user.target_heading"))
+            lines.append(item["answer"] or no_answer)
             if item["label"] in baseline_by_label:
                 lines.append("")
-                lines.append("--- TRUSTED BASELINE answer ---")
-                lines.append(baseline_by_label[item["label"]] or "(no answer returned)")
+                lines.append(prompts.text("quality_judge.user.baseline_heading"))
+                lines.append(baseline_by_label[item["label"]] or no_answer)
 
         lines.append("")
-        lines.append(
-            "Return ONLY a JSON object with these exact keys: "
-            '{"verdict":"consistent|suspicious|inconclusive",'
-            '"confidence":"low|medium|high",'
-            '"likely_actual_tier":"<your best guess at the real model/tier, or unknown>",'
-            '"reasoning":"<concise justification grounded in the answers>"}. '
-            "Use 'suspicious' only when the answers are materially weaker, shallower, "
-            "or stylistically off versus what the claimed model should produce. When "
-            "unsure, prefer 'inconclusive'."
-        )
+        lines.append(prompts.text("quality_judge.user.instructions"))
         return "\n".join(lines)

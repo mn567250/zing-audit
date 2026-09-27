@@ -12,6 +12,7 @@ finding states that limitation explicitly rather than overclaiming.
 
 from __future__ import annotations
 
+from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import build_filler, stable_marker
@@ -110,7 +111,7 @@ class PromptCacheDetector(Detector):
 
     async def _timed(self, ctx: AuditContext, prefix: str) -> float | None:
         spec = RequestSpec(
-            messages=[{"role": "user", "content": f"{prefix}\n\nReply with the single word: OK"}],
+            messages=[{"role": "user", "content": prompts.text("prompt_cache.request", prefix=prefix)}],
             temperature=0.0,
             max_tokens=8,
             stream=True,

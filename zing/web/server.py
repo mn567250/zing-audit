@@ -28,7 +28,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from zing import __version__
+from zing import __version__, prompts
 from zing.config import (
     AuditOptions,
     ConfigError,
@@ -47,13 +47,8 @@ _SCHEDULER_TICK_SEC = 30.0
 
 # Built-in known-answer rerank probe: one document (index 2) is unmistakably the
 # most relevant answer to the query. A genuine reranker must rank it first.
-_RERANK_PROBE_QUERY = "What is the capital of France?"
-_RERANK_PROBE_DOCS = [
-    "Bananas are a good source of potassium.",
-    "The Great Wall of China is very long.",
-    "Paris is the capital of France.",
-    "Photosynthesis happens in plants.",
-]
+_RERANK_PROBE_QUERY = prompts.text("rerank.web.query")
+_RERANK_PROBE_DOCS: list[str] = prompts.get("rerank.web.documents")
 _RERANK_PROBE_TOP = 2
 
 

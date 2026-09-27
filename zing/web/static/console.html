@@ -289,7 +289,7 @@ const DIM_EN = {model_identity:"Model identity",context_window:"Context window",
 const dimLabel=(k,nm)=>T(nm.split(" ")[0],DIM_EN[k]||k);
 const srv=s=>ZING_LANG.server(s);
 /* finding text: CN keeps the backend original; other languages use the i18n catalog */
-const fLoc=f=>(!ZING_LANG.isZh()&&window.ZING_I18N)?ZING_I18N.localizeFinding(f.id,f.summary,f.evidence,f.title):{title:srv(f.title),summary:srv(f.summary)};
+const fLoc=f=>(!ZING_LANG.isZh()&&window.ZING_I18N)?ZING_I18N.localizeFinding(f.id,f.summary,f.evidence,f.title,f.status):{title:srv(f.title),summary:srv(f.summary)};
 /* UI state kept as text generators so a language switch can re-render it */
 let lastReport=null, verdictIdle=()=>T("运行审计后在此显示结论 ▌","The verdict appears here after an audit ▌"), verdictIdleHtml=false, errFn=null;
 let runLabel=()=>T("运行审计 / run audit","run audit");

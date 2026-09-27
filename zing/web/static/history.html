@@ -161,7 +161,7 @@ const DIMNAME_EN={model_identity:["Model identity","Is it the model it claims to
 const dimName=k=>ZING_LANG.isZh()?DIMNAME[k]:(DIMNAME_EN[k]&&DIMNAME_EN[k].map(ZING_LANG.tr));
 const srv=s=>ZING_LANG.server(s);
 /* finding text: CN keeps the backend original; other languages use the i18n catalog */
-const fLoc=f=>(!ZING_LANG.isZh()&&window.ZING_I18N)?ZING_I18N.localizeFinding(f.id,f.summary,f.evidence,f.title):{title:srv(f.title),summary:srv(f.summary)};
+const fLoc=f=>(!ZING_LANG.isZh()&&window.ZING_I18N)?ZING_I18N.localizeFinding(f.id,f.summary,f.evidence,f.title,f.status):{title:srv(f.title),summary:srv(f.summary)};
 // status -> canonical icon name (no question-mark/dash glyphs in the set; use the
 // closest neutral "info" for inconclusive/not_run). Rendered ~13px, inherits currentColor.
 const ICON_NAME={pass:"check",warn:"warning",fail:"x",info:"info",inconclusive:"info",not_run:"info",error:"x"};
@@ -261,9 +261,11 @@ function wireDrawer(dr,id){
     fetch("/api/history/"+id,{method:"DELETE"}).then(()=>load());};
   const dl=dr.querySelector(".dl-json");
   if(dl)dl.onclick=ev=>{ev.stopPropagation();
-    fetch("/api/history/"+id).then(r=>r.json()).then(rep=>{
+    fetch("/api/history/"+id).then(r=>r.json()).then(raw=>{
+      // same JSON keys/schema, human-readable values in the UI language
+      const rep=window.ZING_I18N?ZING_I18N.exportReport(raw):raw;
       const blob=new Blob([JSON.stringify(rep,null,2)],{type:"application/json"});
-      const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="zing-report-"+id+".json";a.click();});};
+      const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="zing-report-"+id+"."+ZING_LANG.get()+".json";a.click();});};
 }
 
 function reportHTML(r,id){

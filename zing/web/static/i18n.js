@@ -8,6 +8,10 @@
  *   - EN:         the same enum/dimension maps in English
  *   - label(kind, key) -> label in the current UI language (see lang.js);
  *                 kind is one of RISK_LEVEL / STATUS / SEVERITY / CONFIDENCE
+ *   - exportReport(report) -> a copy of an audit report for download, with
+ *                 every human-readable text value in the current UI language
+ *                 (CN included) and the JSON keys, enum values, ids, evidence
+ *                 and raw error messages untouched
  *
  * Outside CN, localizeFinding uses the FINDINGS_L10N catalog of the current
  * language (see /locales.js) and otherwise the backend's own English text.
@@ -480,7 +484,8 @@
     if (!tpl) return null;
     var ev = evidence || {};
     var ok = true;
-    var out = tpl.replace(/\{([a-zA-Z0-9_]+)\}/g, function (_m, key) {
+    // {key} or {key|list}: the latter renders an array / object keys as "a, b".
+    var out = tpl.replace(/\{([a-zA-Z0-9_]+)(\|list)?\}/g, function (_m, key, asList) {
       if (!Object.prototype.hasOwnProperty.call(ev, key)) {
         ok = false;
         return "";
@@ -495,6 +500,9 @@
         // Trim noisy floats; keep ints intact.
         return Number.isInteger(v) ? String(v) : String(Math.round(v * 1000) / 1000);
       }
+      if (asList && typeof v === "object") {
+        return (Array.isArray(v) ? v : Object.keys(v)).join(", ");
+      }
       if (typeof v === "object") {
         try {
           return JSON.stringify(v);
@@ -506,6 +514,78 @@
       return String(v);
     });
     return ok ? out : null;
+  }
+
+  // ---- Branch-specific and generic summary templates ------------------- //
+  // One finding id can come from several detector branches (pass / warn /
+  // fail / inconclusive) whose evidence differs, so one template can't fit
+  // them all. ALT lists [status or null, English template] tried first for
+  // that id; GENERIC covers the request-failure branches that only carry
+  // status_code / error_type. The English template is the lookup key into
+  // ZING_LOCALES (strings.<lang>, including "zh"), like every other UI string.
+  var ALT = {
+    "billing.partial-usage": [
+      [null, "usage only gives total={reported_total} (prompt={reported_prompt}, completion={reported_completion}); the breakdown per-token billing relies on is missing and cannot be verified."],
+    ],
+    "capability.json_mode": [["pass", "JSON mode honored; parsed keys: {parsed_keys|list}."]],
+    "capability.tools": [["pass", "Tool call delivered ({tool_name}); arguments returned as {arguments_type}."]],
+    "connectivity.models": [["warn", "/v1/models is not available (HTTP {status_code})."]],
+    "reliability.success_rate": [
+      ["inconclusive", "At concurrency {concurrency}, all {requests} requests were rate-limited ({rate_limited} × HTTP 429)."],
+    ],
+    "security.headers": [
+      ["info", "Revealing response headers: {revealing_headers|list}. Informational — can corroborate the upstream identity, not a failure."],
+      ["pass", "Inspected {header_count} response headers; none expose upstream identity."],
+    ],
+    "model_identity.self_id": [
+      ["fail", "Self-identifies as a rival brand ({forbidden_hits|list}) without naming the genuine brand."],
+      ["warn", "Self-id names the genuine brand but also a rival ({forbidden_hits|list}); usually a benign contrast rather than a swap — corroborate before treating it as substitution."],
+      ["warn", "Self-id names neither the genuine brand nor a rival; treat as weak/evasive evidence."],
+      ["pass", "Self-id names the genuine brand."],
+    ],
+    "embed.dimension": [
+      ["info", "Returned {returned}-d vectors; no known dimension for the claimed model to compare against."],
+    ],
+    "embed.connectivity": [
+      ["error", "POST /embeddings failed (HTTP {status_code})."],
+      ["error", "Expected 4 non-empty vectors, got {returned_vectors}."],
+    ],
+    "rerank.connectivity": [["error", "POST /rerank failed (HTTP {status_code})."]],
+  };
+  var GENERIC = [
+    "Request failed (HTTP {status_code}, type {error_type}).",
+    "Request failed (HTTP {status_code}).",
+    "Request failed (type {error_type}).",
+  ];
+
+  // Fill the first English template in `list` that resolves, translated into
+  // the current language; null when none does.
+  function fillFirst(list, evidence, yesNo) {
+    var L = window.ZING_LANG;
+    var lang = L ? L.get() : "zh";
+    for (var i = 0; i < list.length; i++) {
+      var tpl = L ? L.trFor(lang, list[i]) : list[i];
+      var s = fillTemplate(tpl, evidence, yesNo);
+      if (s != null) return s;
+    }
+    return null;
+  }
+  function altTemplates(id, status) {
+    return (ALT[id] || [])
+      .filter(function (a) {
+        return !a[0] || a[0] === status;
+      })
+      .map(function (a) {
+        return a[1];
+      });
+  }
+  // Summary for any non-EN language: branch template, then the id's own
+  // template, then a generic request-failure template; null if none fits.
+  function summaryFor(id, status, evidence, ownTpl, yesNo) {
+    var s = fillFirst(altTemplates(id, status), evidence, yesNo);
+    if (s == null && ownTpl) s = fillTemplate(ownTpl, evidence, yesNo);
+    if (s == null) s = fillFirst(GENERIC, evidence, yesNo);
+    return s;
   }
 
   // Resolve an id in a per-language catalog (FR/ES/PT/IT); the dynamic
@@ -539,26 +619,87 @@
    *             placeholder is missing, the original English fallbackSummary
    *             is returned instead of a broken string.
    */
-  function localizeFinding(id, fallbackSummary, evidence, fallbackTitle) {
+  function localizeFinding(id, fallbackSummary, evidence, fallbackTitle, status) {
     if (!isZh()) {
       var L = window.ZING_LANG;
+      if (L.get() === "en") {
+        // The backend's own English text is authoritative for EN.
+        return { title: L.server(fallbackTitle || id || "Check"), summary: L.server(fallbackSummary || "") };
+      }
       var cat = ((window.ZING_LOCALES || {}).findings || {})[L.get()];
       var le = cat && lookupIn(cat, id);
-      var ls = le && le.tpl ? fillTemplate(le.tpl, evidence, [L.tr("yes"), L.tr("no")]) : null;
+      var ls = summaryFor(id, status, evidence, le && le.tpl, [L.tr("yes"), L.tr("no")]);
       return {
         title: le && le.title ? le.title : L.server(fallbackTitle || id || "Check"),
         summary: ls != null ? ls : L.server(fallbackSummary || ""),
       };
     }
     var entry = lookup(id);
-    if (!entry) {
-      return { title: GENERIC_TITLE, summary: fallbackSummary || "" };
-    }
-    var summary = fillTemplate(entry.tpl, evidence);
+    var summary = summaryFor(id, status, evidence, entry && entry.tpl);
     return {
-      title: entry.title || GENERIC_TITLE,
+      title: (entry && entry.title) || GENERIC_TITLE,
       summary: summary != null ? summary : fallbackSummary || "",
     };
+  }
+
+  // ---- Downloadable report ---------------------------------------------- //
+  // Same keys and schema as the server's report (it stays valid against
+  // zing's AuditReport model); only human-readable values are translated.
+  function exportFinding(f) {
+    var L = window.ZING_LANG;
+    var out = Object.assign({}, f);
+    if (isZh()) {
+      var entry = lookup(f.id);
+      var s = summaryFor(f.id, f.status, f.evidence, entry && entry.tpl);
+      out.title = entry && entry.title ? entry.title : L.exportText(f.title);
+      out.summary = s != null ? s : L.exportText(f.summary || "");
+    } else {
+      var loc = localizeFinding(f.id, f.summary, f.evidence, f.title, f.status);
+      out.title = loc.title;
+      out.summary = loc.summary;
+    }
+    if (f.recommendation != null) out.recommendation = L.exportText(f.recommendation);
+    return out;
+  }
+
+  function exportReport(report) {
+    var L = window.ZING_LANG;
+    if (!report || !L) return report;
+    var r = JSON.parse(JSON.stringify(report));
+    var titles = {}; // English finding title -> exported title
+    ["detectors", "baseline_detectors"].forEach(function (k) {
+      (r[k] || []).forEach(function (det) {
+        if (det.name != null) det.name = L.exportText(det.name);
+        det.findings = (det.findings || []).map(function (f) {
+          var e = exportFinding(f);
+          if (f.title && !(f.title in titles)) titles[f.title] = e.title;
+          return e;
+        });
+      });
+    });
+    var title = function (t) {
+      return Object.prototype.hasOwnProperty.call(titles, t) ? titles[t] : L.exportText(t);
+    };
+    var v = r.verdict;
+    if (v) {
+      if (v.headline != null) v.headline = L.exportText(v.headline);
+      if (v.summary != null) v.summary = L.exportText(v.summary);
+      v.key_findings = (v.key_findings || []).map(title);
+    }
+    // A reason is a fixed sentence or the "; "-joined titles of the
+    // dimension's failing findings (see zing/scoring.py).
+    (r.dimensions || []).forEach(function (d) {
+      if (!d.reason) return;
+      var fixed = L.exportText(d.reason);
+      d.reason =
+        fixed !== d.reason || L.get() === "en"
+          ? fixed
+          : d.reason.split("; ").map(title).join(isZh() ? "；" : "; ");
+    });
+    r.notes = (r.notes || []).map(function (n) {
+      return L.exportText(n);
+    });
+    return r;
   }
 
   window.ZING_I18N = {
@@ -571,5 +712,14 @@
     DIMENSIONS: DIMENSIONS,
     EN: EN,
     label: label,
+    exportReport: exportReport,
+    // English templates that every language (CN included) must translate.
+    TEMPLATES: Object.keys(ALT)
+      .reduce(function (all, id) {
+        return all.concat(ALT[id].map(function (a) {
+          return a[1];
+        }));
+      }, [])
+      .concat(GENERIC),
   };
 })();

@@ -9,9 +9,11 @@
  *   - set(lang)        persist + re-translate static markup + fire "zing:lang"
  *   - t(zh, en)        CN -> zh; otherwise the English text translated via tr()
  *   - tr(en)           English string -> current language (from ZING_LOCALES)
+ *   - trFor(lang, en)  English string -> the given language
  *   - locale()         BCP 47 locale for dates/numbers ("fr-FR", …)
  *   - code(v)          uppercase enum code ("HIGH", "FAIL") in the UI language
  *   - server(text)     clean-up / translation of free text from the backend
+ *   - exportText(text) same, for downloaded files (also translates in CN)
  *   - stripCJK(text)   drop CJK runs (e.g. "Moonshot AI (月之暗面 / Kimi)")
  *   - apply(root)      (re)translate static markup under root
  * and a global shorthand T(zh, en).
@@ -106,29 +108,54 @@
       .trim();
   }
 
-  // Backend text is English. CN shows it verbatim (as it always did); every
-  // other language drops the embedded Chinese terms, then translates exact
-  // known strings (detector names, …) and known sentence patterns (the
-  // verdict summary) from ZING_LOCALES; anything unknown stays English.
-  function server(text) {
-    if (text == null || lang === "zh") return text;
+  // English string -> language `l` (no current-language shortcut; "zh"
+  // only knows the backend strings registered for exports).
+  function trIn(l, en) {
+    if (en == null || l === "en") return en;
+    var d = (locales().strings || {})[l] || {};
+    return Object.prototype.hasOwnProperty.call(d, en) ? d[en] : en;
+  }
+
+  // Backend text (always English) -> language `l`: drop the embedded Chinese
+  // terms (not for zh), then translate exact known strings (detector names,
+  // recommendations, …) and known sentence patterns (verdict summary and
+  // headline) from ZING_LOCALES; anything unknown stays English.
+  function backendIn(l, text) {
+    if (text == null) return text;
     var s = String(text);
-    GLOSSARY.forEach(function (g) {
-      s = s.split(g[0]).join(g[1]);
-    });
-    if (lang === "en") return s;
-    var exact = tr(s);
+    if (l !== "zh")
+      GLOSSARY.forEach(function (g) {
+        s = s.split(g[0]).join(g[1]);
+      });
+    if (l === "en") return s;
+    var exact = trIn(l, s);
     if (exact !== s) return exact;
+    var t = function (en) {
+      return trIn(l, en);
+    };
     (locales().patterns || []).forEach(function (p) {
       s = s.replace(new RegExp(p[0], "g"), function () {
         var groups = arguments;
-        return tr(p[1]).replace(/\{(\d)\}/g, function (_m, i) {
+        return t(p[1]).replace(/\{(\d)\}/g, function (_m, i) {
           var g = groups[+i];
-          return g == null ? "" : p[2] && p[2][i] ? p[2][i](g, tr) : g;
+          return g == null ? "" : p[2] && p[2][i] ? p[2][i](g, t) : g;
         });
       });
     });
+    // Chinese sentences are not separated by spaces.
+    if (l === "zh") s = s.replace(/([。）])\s+(?=\S)/g, "$1");
     return s;
+  }
+
+  // Backend text in the UI: CN shows it verbatim (as it always did).
+  function server(text) {
+    return lang === "zh" ? text : backendIn(lang, text);
+  }
+
+  // Backend text in a downloaded artefact: translated in every language,
+  // CN included, so the file is in the chosen language throughout.
+  function exportText(text) {
+    return backendIn(lang, text);
   }
 
   function applyEl(el) {
@@ -221,8 +248,10 @@
     set: set,
     t: t,
     tr: tr,
+    trFor: trIn,
     code: code,
     server: server,
+    exportText: exportText,
     stripCJK: stripCJK,
     apply: apply,
   };

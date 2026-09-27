@@ -984,6 +984,185 @@
       "Verifica che il motore servito rispetti response_format=json_object.",
     ],
 
+    // ---- report-only backend text (verdict headline, notes, reasons) -----
+    "Behavior is consistent with the claimed model.": [
+      "Le comportement correspond au modèle annoncé.",
+      "El comportamiento coincide con el modelo declarado.",
+      "O comportamento corresponde ao modelo declarado.",
+      "Il comportamento è coerente con il modello dichiarato.",
+    ],
+    "Mostly consistent with the claimed model; minor concerns.": [
+      "Globalement conforme au modèle annoncé ; réserves mineures.",
+      "Mayormente coherente con el modelo declarado; dudas menores.",
+      "Globalmente coerente com o modelo declarado; pequenas reservas.",
+      "Per lo più coerente con il modello dichiarato; dubbi minori.",
+    ],
+    "Some behavior diverges from the claimed model — investigate.": [
+      "Certains comportements s'écartent du modèle annoncé — à examiner.",
+      "Parte del comportamiento se desvía del modelo declarado — investíguelo.",
+      "Parte do comportamento desvia-se do modelo declarado — investigue.",
+      "Parte del comportamento si discosta dal modello dichiarato — da indagare.",
+    ],
+    "Strong evidence the relay does not deliver the claimed model as advertised.": [
+      "Preuves solides que le relais ne fournit pas le modèle annoncé.",
+      "Evidencias sólidas de que el intermediario no ofrece el modelo declarado.",
+      "Evidências sólidas de que o intermediário não fornece o modelo declarado.",
+      "Prove solide che l'intermediario non fornisce il modello dichiarato.",
+    ],
+    "Not enough signal to judge — connectivity or coverage was insufficient.": [
+      "Signal insuffisant pour juger — connectivité ou couverture insuffisante.",
+      "Señal insuficiente para juzgar — conectividad o cobertura insuficientes.",
+      "Sinal insuficiente para avaliar — conectividade ou cobertura insuficientes.",
+      "Segnale insufficiente per giudicare — connettività o copertura insufficienti.",
+    ],
+    "(confidence: {1})": ["(confiance : {1})", "(confianza: {1})", "(confiança: {1})", "(affidabilità: {1})"],
+    "zing performs black-box auditing: it gathers reproducible evidence of behavioral divergence, not cryptographic proof of model identity.": [
+      "zing effectue un audit boîte noire : il recueille des preuves reproductibles d'écart de comportement, pas une preuve cryptographique de l'identité du modèle.",
+      "zing realiza auditorías de caja negra: reúne evidencias reproducibles de desviación de comportamiento, no una prueba criptográfica de la identidad del modelo.",
+      "O zing faz auditorias de caixa preta: recolhe evidências reprodutíveis de desvio de comportamento, não uma prova criptográfica da identidade do modelo.",
+      "zing esegue verifiche black-box: raccoglie prove riproducibili di scostamento del comportamento, non una prova crittografica dell'identità del modello.",
+    ],
+    "Use `zing compare` against a trusted baseline of the same declared model for the strongest downgrade evidence.": [
+      "Utilisez `zing compare` face à une référence de confiance du même modèle déclaré pour obtenir les preuves de déclassement les plus solides.",
+      "Use `zing compare` contra una referencia de confianza del mismo modelo declarado para obtener la evidencia de degradación más sólida.",
+      "Use `zing compare` contra uma referência de confiança do mesmo modelo declarado para obter a evidência de degradação mais sólida.",
+      "Usa `zing compare` rispetto a un riferimento affidabile dello stesso modello dichiarato per le prove di declassamento più solide.",
+    ],
+    "Do not publish a report that names a vendor without reviewing sample size, cost, and local law/policy.": [
+      "Ne publiez pas un rapport qui nomme un fournisseur sans examiner la taille de l'échantillon, le coût et le droit/les règles locales.",
+      "No publique un informe que nombre a un proveedor sin revisar el tamaño de la muestra, el coste y la legislación/normativa local.",
+      "Não publique um relatório que identifique um fornecedor sem rever o tamanho da amostra, o custo e a lei/política local.",
+      "Non pubblicare un rapporto che nomina un fornitore senza valutare dimensione del campione, costi e leggi/norme locali.",
+    ],
+    "Not run in this suite.": [
+      "Non exécuté dans cette suite.",
+      "No se ejecuta en esta suite.",
+      "Não executado nesta suite.",
+      "Non eseguito in questa suite.",
+    ],
+    "Ran but produced no numeric score (see findings).": [
+      "Exécuté sans score numérique (voir les constats).",
+      "Se ejecutó pero no produjo una puntuación numérica (ver hallazgos).",
+      "Executado, mas sem pontuação numérica (ver constatações).",
+      "Eseguito ma senza punteggio numerico (vedi rilevazioni).",
+    ],
+    "All checks passed.": [
+      "Tous les contrôles sont réussis.",
+      "Todas las comprobaciones son correctas.",
+      "Todas as verificações foram aprovadas.",
+      "Tutti i controlli superati.",
+    ],
+
+    // ---- finding summary templates for branch/generic cases (i18n.js ALT/GENERIC) ----
+    "usage only gives total={reported_total} (prompt={reported_prompt}, completion={reported_completion}); the breakdown per-token billing relies on is missing and cannot be verified.": [
+      "usage ne donne que total={reported_total} (prompt={reported_prompt}, completion={reported_completion}) ; le détail dont dépend la facturation par token manque et ne peut être vérifié.",
+      "usage solo da total={reported_total} (prompt={reported_prompt}, completion={reported_completion}); falta el desglose del que depende la facturación por token y no se puede verificar.",
+      "usage só indica total={reported_total} (prompt={reported_prompt}, completion={reported_completion}); falta a discriminação de que depende a faturação por token e não é possível verificá-la.",
+      "usage fornisce solo total={reported_total} (prompt={reported_prompt}, completion={reported_completion}); manca il dettaglio su cui si basa la fatturazione per token e non è verificabile.",
+    ],
+    "JSON mode honored; parsed keys: {parsed_keys|list}.": [
+      "Mode JSON respecté ; clés analysées : {parsed_keys|list}.",
+      "Modo JSON respetado; claves analizadas: {parsed_keys|list}.",
+      "Modo JSON respeitado; chaves analisadas: {parsed_keys|list}.",
+      "Modalità JSON rispettata; chiavi analizzate: {parsed_keys|list}.",
+    ],
+    "Tool call delivered ({tool_name}); arguments returned as {arguments_type}.": [
+      "Appel d'outil effectué ({tool_name}) ; arguments renvoyés en {arguments_type}.",
+      "Llamada a herramienta realizada ({tool_name}); argumentos devueltos como {arguments_type}.",
+      "Chamada de ferramenta efetuada ({tool_name}); argumentos devolvidos como {arguments_type}.",
+      "Chiamata di strumento eseguita ({tool_name}); argomenti restituiti come {arguments_type}.",
+    ],
+    "/v1/models is not available (HTTP {status_code}).": [
+      "/v1/models n'est pas disponible (HTTP {status_code}).",
+      "/v1/models no está disponible (HTTP {status_code}).",
+      "/v1/models não está disponível (HTTP {status_code}).",
+      "/v1/models non è disponibile (HTTP {status_code}).",
+    ],
+    "At concurrency {concurrency}, all {requests} requests were rate-limited ({rate_limited} × HTTP 429).": [
+      "Avec une concurrence de {concurrency}, les {requests} requêtes ont toutes été limitées en débit ({rate_limited} × HTTP 429).",
+      "Con concurrencia {concurrency}, las {requests} peticiones fueron limitadas por tasa ({rate_limited} × HTTP 429).",
+      "Com concorrência {concurrency}, todos os {requests} pedidos foram limitados por taxa ({rate_limited} × HTTP 429).",
+      "Con concorrenza {concurrency}, tutte le {requests} richieste sono state limitate ({rate_limited} × HTTP 429).",
+    ],
+    "Revealing response headers: {revealing_headers|list}. Informational — can corroborate the upstream identity, not a failure.": [
+      "En-têtes de réponse révélateurs : {revealing_headers|list}. Informatif — peut corroborer l'identité amont, ce n'est pas un échec.",
+      "Cabeceras de respuesta reveladoras: {revealing_headers|list}. Informativo — puede corroborar la identidad del upstream, no es un fallo.",
+      "Cabeçalhos de resposta reveladores: {revealing_headers|list}. Informativo — pode corroborar a identidade do upstream, não é uma falha.",
+      "Intestazioni di risposta rivelatrici: {revealing_headers|list}. Informativo — può confermare l'identità upstream, non è un errore.",
+    ],
+    "Inspected {header_count} response headers; none expose upstream identity.": [
+      "{header_count} en-têtes de réponse examinés ; aucun ne révèle l'identité amont.",
+      "Se revisaron {header_count} cabeceras de respuesta; ninguna revela la identidad del upstream.",
+      "Foram inspecionados {header_count} cabeçalhos de resposta; nenhum revela a identidade do upstream.",
+      "Esaminate {header_count} intestazioni di risposta; nessuna rivela l'identità upstream.",
+    ],
+    "Self-identifies as a rival brand ({forbidden_hits|list}) without naming the genuine brand.": [
+      "Se présente comme une marque concurrente ({forbidden_hits|list}) sans citer la vraie marque.",
+      "Se identifica como una marca rival ({forbidden_hits|list}) sin nombrar la marca auténtica.",
+      "Identifica-se como uma marca rival ({forbidden_hits|list}) sem mencionar a marca verdadeira.",
+      "Si identifica come un marchio concorrente ({forbidden_hits|list}) senza nominare il marchio autentico.",
+    ],
+    "Self-id names the genuine brand but also a rival ({forbidden_hits|list}); usually a benign contrast rather than a swap — corroborate before treating it as substitution.": [
+      "L'auto-identification cite la vraie marque mais aussi une concurrente ({forbidden_hits|list}) ; souvent un simple contraste plutôt qu'une substitution — à corroborer avant de conclure.",
+      "La autoidentificación nombra la marca auténtica pero también una rival ({forbidden_hits|list}); suele ser un contraste inocuo más que una sustitución — corrobórelo antes de concluir.",
+      "A autoidentificação menciona a marca verdadeira mas também uma rival ({forbidden_hits|list}); normalmente é um contraste inofensivo e não uma troca — corrobore antes de concluir.",
+      "L'autoidentificazione nomina il marchio autentico ma anche un concorrente ({forbidden_hits|list}); di solito è un contrasto innocuo più che una sostituzione — conferma prima di concludere.",
+    ],
+    "Self-id names neither the genuine brand nor a rival; treat as weak/evasive evidence.": [
+      "L'auto-identification ne cite ni la vraie marque ni une concurrente ; indice faible/évasif.",
+      "La autoidentificación no nombra ni la marca auténtica ni una rival; considérelo evidencia débil/evasiva.",
+      "A autoidentificação não menciona nem a marca verdadeira nem uma rival; trate como evidência fraca/evasiva.",
+      "L'autoidentificazione non nomina né il marchio autentico né un concorrente; consideralo un indizio debole/evasivo.",
+    ],
+    "Self-id names the genuine brand.": [
+      "L'auto-identification cite la vraie marque.",
+      "La autoidentificación nombra la marca auténtica.",
+      "A autoidentificação menciona a marca verdadeira.",
+      "L'autoidentificazione nomina il marchio autentico.",
+    ],
+    "Returned {returned}-d vectors; no known dimension for the claimed model to compare against.": [
+      "Vecteurs de dimension {returned} renvoyés ; aucune dimension connue pour le modèle annoncé à laquelle comparer.",
+      "Se devolvieron vectores de dimensión {returned}; no hay una dimensión conocida del modelo declarado con la que comparar.",
+      "Foram devolvidos vetores de dimensão {returned}; não há uma dimensão conhecida do modelo declarado para comparar.",
+      "Restituiti vettori di dimensione {returned}; nessuna dimensione nota del modello dichiarato con cui confrontare.",
+    ],
+    "POST /embeddings failed (HTTP {status_code}).": [
+      "Échec de POST /embeddings (HTTP {status_code}).",
+      "POST /embeddings falló (HTTP {status_code}).",
+      "POST /embeddings falhou (HTTP {status_code}).",
+      "POST /embeddings non riuscito (HTTP {status_code}).",
+    ],
+    "Expected 4 non-empty vectors, got {returned_vectors}.": [
+      "4 vecteurs non vides attendus, {returned_vectors} reçus.",
+      "Se esperaban 4 vectores no vacíos y se recibieron {returned_vectors}.",
+      "Esperavam-se 4 vetores não vazios e foram recebidos {returned_vectors}.",
+      "Attesi 4 vettori non vuoti, ricevuti {returned_vectors}.",
+    ],
+    "POST /rerank failed (HTTP {status_code}).": [
+      "Échec de POST /rerank (HTTP {status_code}).",
+      "POST /rerank falló (HTTP {status_code}).",
+      "POST /rerank falhou (HTTP {status_code}).",
+      "POST /rerank non riuscito (HTTP {status_code}).",
+    ],
+    "Request failed (HTTP {status_code}, type {error_type}).": [
+      "Échec de la requête (HTTP {status_code}, type {error_type}).",
+      "La petición falló (HTTP {status_code}, tipo {error_type}).",
+      "O pedido falhou (HTTP {status_code}, tipo {error_type}).",
+      "Richiesta non riuscita (HTTP {status_code}, tipo {error_type}).",
+    ],
+    "Request failed (HTTP {status_code}).": [
+      "Échec de la requête (HTTP {status_code}).",
+      "La petición falló (HTTP {status_code}).",
+      "O pedido falhou (HTTP {status_code}).",
+      "Richiesta non riuscita (HTTP {status_code}).",
+    ],
+    "Request failed (type {error_type}).": [
+      "Échec de la requête (type {error_type}).",
+      "La petición falló (tipo {error_type}).",
+      "O pedido falhou (tipo {error_type}).",
+      "Richiesta non riuscita (tipo {error_type}).",
+    ],
+
     // ---- backend verdict summary sentences (zing/scoring.py) -------------
     "Overall health score {1}/100.": [
       "Score de santé global {1}/100.",
@@ -1480,14 +1659,34 @@
       "Findings: {1}.",
       {
         1: function (g, tr) {
-          return g.replace(/\b(critical|high|medium)\b/g, function (w) {
-            return tr(w);
-          });
+          // "4 high, 5 medium": translate the words and the list separator
+          return g
+            .split(", ")
+            .map(function (part) {
+              return part.replace(/\b(critical|high|medium)\b/g, function (w) {
+                return tr(w);
+              });
+            })
+            .join(tr(", "));
         },
       },
     ],
   ];
+  P.push([
+    "\\(confidence: (low|medium|high)\\)",
+    "(confidence: {1})",
+    {
+      1: function (g, tr) {
+        return tr(g.charAt(0).toUpperCase() + g.slice(1)).toLowerCase();
+      },
+    },
+  ]);
   [
+    "Behavior is consistent with the claimed model.",
+    "Mostly consistent with the claimed model; minor concerns.",
+    "Some behavior diverges from the claimed model — investigate.",
+    "Strong evidence the relay does not deliver the claimed model as advertised.",
+    "Not enough signal to judge — connectivity or coverage was insufficient.",
     "No significant divergence findings.",
     "The claimed model was not found in the knowledge base, so identity/capability checks are limited — pass --declared-provider or add a KB profile.",
     "Run `zing compare` against a trusted baseline to strengthen the verdict.",
@@ -1851,6 +2050,38 @@
     "The claimed model was not found in the knowledge base, so identity/capability checks are limited — pass --declared-provider or add a KB profile.": "Das angegebene Modell wurde in der Wissensbasis nicht gefunden, daher sind Identitäts-/Fähigkeitsprüfungen eingeschränkt — übergeben Sie --declared-provider oder ergänzen Sie ein KB-Profil.",
     "Run `zing compare` against a trusted baseline to strengthen the verdict.": "Führen Sie `zing compare` gegen eine vertrauenswürdige Referenz aus, um das Urteil zu stärken.",
     "zing reports black-box evidence of divergence and risk, not proof of fraud.": "zing meldet Black-Box-Belege für Abweichungen und Risiken, keinen Betrugsnachweis.",
+    // report-only backend text (verdict headline, notes, reasons)
+    "Behavior is consistent with the claimed model.": "Das Verhalten entspricht dem angegebenen Modell.",
+    "Mostly consistent with the claimed model; minor concerns.": "Weitgehend konsistent mit dem angegebenen Modell; kleinere Bedenken.",
+    "Some behavior diverges from the claimed model — investigate.": "Einiges Verhalten weicht vom angegebenen Modell ab — bitte untersuchen.",
+    "Strong evidence the relay does not deliver the claimed model as advertised.": "Starke Belege, dass das Relay das angegebene Modell nicht wie beworben liefert.",
+    "Not enough signal to judge — connectivity or coverage was insufficient.": "Zu wenig Signal für ein Urteil — Konnektivität oder Abdeckung reichten nicht aus.",
+    "(confidence: {1})": "(Konfidenz: {1})",
+    "zing performs black-box auditing: it gathers reproducible evidence of behavioral divergence, not cryptographic proof of model identity.": "zing prüft als Black-Box: Es sammelt reproduzierbare Belege für Verhaltensabweichungen, keinen kryptografischen Nachweis der Modellidentität.",
+    "Use `zing compare` against a trusted baseline of the same declared model for the strongest downgrade evidence.": "Nutzen Sie `zing compare` gegen eine vertrauenswürdige Referenz desselben angegebenen Modells für die stärksten Belege einer Herabstufung.",
+    "Do not publish a report that names a vendor without reviewing sample size, cost, and local law/policy.": "Veröffentlichen Sie keinen Bericht, der einen Anbieter nennt, ohne Stichprobengröße, Kosten und lokales Recht/Richtlinien zu prüfen.",
+    "Not run in this suite.": "In dieser Suite nicht ausgeführt.",
+    "Ran but produced no numeric score (see findings).": "Ausgeführt, aber ohne numerischen Score (siehe Befunde).",
+    "All checks passed.": "Alle Prüfungen bestanden.",
+    // finding summary templates for branch/generic cases (i18n.js ALT/GENERIC)
+    "usage only gives total={reported_total} (prompt={reported_prompt}, completion={reported_completion}); the breakdown per-token billing relies on is missing and cannot be verified.": "usage nennt nur total={reported_total} (prompt={reported_prompt}, completion={reported_completion}); die Aufschlüsselung, auf der die Abrechnung pro Token beruht, fehlt und ist nicht prüfbar.",
+    "JSON mode honored; parsed keys: {parsed_keys|list}.": "JSON-Modus eingehalten; geparste Schlüssel: {parsed_keys|list}.",
+    "Tool call delivered ({tool_name}); arguments returned as {arguments_type}.": "Tool-Aufruf geliefert ({tool_name}); Argumente als {arguments_type} zurückgegeben.",
+    "/v1/models is not available (HTTP {status_code}).": "/v1/models ist nicht verfügbar (HTTP {status_code}).",
+    "At concurrency {concurrency}, all {requests} requests were rate-limited ({rate_limited} × HTTP 429).": "Bei Parallelität {concurrency} wurden alle {requests} Anfragen gedrosselt ({rate_limited} × HTTP 429).",
+    "Revealing response headers: {revealing_headers|list}. Informational — can corroborate the upstream identity, not a failure.": "Aufschlussreiche Antwortheader: {revealing_headers|list}. Zur Information — kann die Upstream-Identität bestätigen, kein Fehler.",
+    "Inspected {header_count} response headers; none expose upstream identity.": "{header_count} Antwortheader geprüft; keiner verrät die Upstream-Identität.",
+    "Self-identifies as a rival brand ({forbidden_hits|list}) without naming the genuine brand.": "Gibt sich als Konkurrenzmarke aus ({forbidden_hits|list}), ohne die echte Marke zu nennen.",
+    "Self-id names the genuine brand but also a rival ({forbidden_hits|list}); usually a benign contrast rather than a swap — corroborate before treating it as substitution.": "Die Selbstidentifikation nennt die echte Marke, aber auch eine Konkurrenzmarke ({forbidden_hits|list}); meist ein harmloser Vergleich statt eines Austauschs — vor einer Schlussfolgerung bestätigen.",
+    "Self-id names neither the genuine brand nor a rival; treat as weak/evasive evidence.": "Die Selbstidentifikation nennt weder die echte Marke noch eine Konkurrenzmarke; als schwachen/ausweichenden Beleg werten.",
+    "Self-id names the genuine brand.": "Die Selbstidentifikation nennt die echte Marke.",
+    "Returned {returned}-d vectors; no known dimension for the claimed model to compare against.": "Vektoren mit Dimension {returned} zurückgegeben; für das angegebene Modell ist keine Dimension zum Vergleich bekannt.",
+    "POST /embeddings failed (HTTP {status_code}).": "POST /embeddings fehlgeschlagen (HTTP {status_code}).",
+    "Expected 4 non-empty vectors, got {returned_vectors}.": "4 nicht-leere Vektoren erwartet, {returned_vectors} erhalten.",
+    "POST /rerank failed (HTTP {status_code}).": "POST /rerank fehlgeschlagen (HTTP {status_code}).",
+    "Request failed (HTTP {status_code}, type {error_type}).": "Anfrage fehlgeschlagen (HTTP {status_code}, Typ {error_type}).",
+    "Request failed (HTTP {status_code}).": "Anfrage fehlgeschlagen (HTTP {status_code}).",
+    "Request failed (type {error_type}).": "Anfrage fehlgeschlagen (Typ {error_type}).",
   };
   var DE_FINDINGS = {
     "connectivity.models": ["/v1/models-Liste", "{model_count} Modelle gelistet; angegebenes Modell in der Liste: {claimed_listed}."],
@@ -1929,6 +2160,105 @@
     "rerank.known_answer": ["Wird die offensichtliche Antwort zuerst eingestuft?", "Zuerst eingestuft: Dokument {top_index}; erwartet: Dokument {expected} (Reihenfolge {ranking})."],
   };
   add("de", DE, DE_FINDINGS);
+
+  // ---- Chinese (CN) for backend text, used ONLY in downloaded reports ----
+  // The CN views show the backend's English verbatim (as the original UI
+  // did); ZING_LANG.exportText() uses these so a CN download is Chinese.
+  var ZH_BACKEND = {
+    // detector names
+    "Token/usage billing audit": "Token 计费用量审计",
+    "Capability-claim verification": "能力声明核验",
+    "Connectivity & basic completion": "连通性与基础补全",
+    "Real context window & truncation": "真实上下文窗口与截断",
+    "Determinism & cache-correctness": "确定性与缓存正确性",
+    "Injected system-prompt detection": "注入系统提示词检测",
+    "Response integrity / tampering": "响应完整性 / 篡改",
+    "Model identity & downgrade fingerprinting": "模型身份与降级指纹",
+    "Prompt prefix-cache (timing)": "提示前缀缓存（时序）",
+    "OpenAI-compatibility conformance": "OpenAI 兼容性规范",
+    "LLM-judged quality / downgrade assessment": "LLM 评委质量 / 降级评估",
+    "Concurrent reliability & latency": "并发可靠性与延迟",
+    "Transport & secret-handling signals": "传输与密钥处理信号",
+    "Streaming authenticity": "流式真实性",
+    "Multimodal (vision) capability verification": "多模态（视觉）能力核验",
+    // verdict headline (+ confidence) and summary sentences
+    "Behavior is consistent with the claimed model.": "行为与所声称的模型一致。",
+    "Mostly consistent with the claimed model; minor concerns.": "基本与所声称的模型一致；存在少量疑点。",
+    "Some behavior diverges from the claimed model — investigate.": "部分行为与所声称的模型不符 —— 建议核实。",
+    "Strong evidence the relay does not deliver the claimed model as advertised.": "有强证据表明该中转站并未按宣传提供所声称的模型。",
+    "Not enough signal to judge — connectivity or coverage was insufficient.": "信号不足，无法判定 —— 连通性或覆盖不够。",
+    "(confidence: {1})": "（置信度：{1}）",
+    "Low": "低",
+    "Medium": "中",
+    "High": "高",
+    "Overall health score {1}/100.": "综合健康分 {1}/100。",
+    "Findings: {1}.": "关注点：{1}。",
+    ", ": "，",
+    "critical": "严重",
+    "high": "高",
+    "medium": "中",
+    "No significant divergence findings.": "未发现明显偏离。",
+    "The claimed model was not found in the knowledge base, so identity/capability checks are limited — pass --declared-provider or add a KB profile.": "知识库中未找到所声称的模型，身份/能力检测受限 —— 请传入 --declared-provider 或补充 KB 档案。",
+    "Run `zing compare` against a trusted baseline to strengthen the verdict.": "用 `zing compare` 对照可信基线复检，以加强结论。",
+    "zing reports black-box evidence of divergence and risk, not proof of fraud.": "zing 报告的是偏离与风险的黑盒证据，不是欺诈的证明。",
+    // notes and dimension reasons
+    "zing performs black-box auditing: it gathers reproducible evidence of behavioral divergence, not cryptographic proof of model identity.": "zing 执行黑盒审计：收集行为偏离的可复现证据，而非模型身份的密码学证明。",
+    "Use `zing compare` against a trusted baseline of the same declared model for the strongest downgrade evidence.": "用 `zing compare` 对照同款声明模型的可信基线，可获得最强的降级证据。",
+    "Do not publish a report that names a vendor without reviewing sample size, cost, and local law/policy.": "在核实样本量、成本与当地法律/政策之前，请勿发布点名厂商的报告。",
+    "Not run in this suite.": "本套件未运行此项。",
+    "Ran but produced no numeric score (see findings).": "已运行但未产生数值评分（见关注点）。",
+    "All checks passed.": "所有检查均通过。",
+    // recommendations
+    "Compare prompt_tokens against a trusted baseline for the same input.": "针对相同输入，将 prompt_tokens 与可信基线对比。",
+    "Verify the relay forwards the full messages array to the model.": "确认中转站把完整的 messages 数组转发给了模型。",
+    "A conformant relay should reject invalid input with a 4xx and an {'error': {...}} body.": "合规的中转站应以 4xx 和 {'error': {...}} 响应体拒绝非法输入。",
+    "A proxy rewriting URLs/package names is a supply-chain risk — stop using it.": "改写 URL/包名的代理属于供应链风险 —— 请停止使用。",
+    "Treat the advertised context window as unverified.": "请将宣传的上下文窗口视为未经核实。",
+    "Compare against a trusted baseline to confirm.": "请对照可信基线加以确认。",
+    "The relay likely truncates or summarizes long prompts.": "该中转站很可能截断或摘要长提示词。",
+    "Re-run once the endpoint reliably returns completions.": "待端点能稳定返回补全后再重跑。",
+    "Treat as a divergence signal, not proof; corroborate with fingerprint and identity detectors before acting.": "请视为偏离信号而非证据；行动前先用指纹与身份检测佐证。",
+    "Verify the relay supports stream=true for this model.": "确认该中转站对此模型支持 stream=true。",
+    "Run `zing compare` against a trusted baseline to corroborate.": "用 `zing compare` 对照可信基线加以佐证。",
+    "A response naming a different vendor strongly suggests model substitution.": "回复中提到其他厂商，强烈暗示模型被替换。",
+    "Run `zing compare` against a trusted baseline to disambiguate.": "用 `zing compare` 对照可信基线以消除歧义。",
+    "A smaller-tier or different-family model id in the response suggests routing to a substitute.": "响应中出现更低档位或不同系列的模型 id，暗示请求被路由到替身。",
+    "Lower --concurrency or --reliability-requests and re-run.": "调低 --concurrency 或 --reliability-requests 后重跑。",
+    "Check the relay's connection pool and upstream stability under parallel load (HTTP 429 throttling is excluded from this rate).": "检查中转站在并发压力下的连接池与上游稳定性（HTTP 429 限流不计入此成功率）。",
+    "Confirm with the provider how usage is metered if billing is per-token.": "若按 token 计费，请向服务商确认用量如何计量。",
+    "Cross-check billing against a known-size prompt; possible per-token overbilling.": "用已知长度的提示词核对计费；可能存在按 token 多计费。",
+    "Confirm with the provider how prompt/completion tokens are metered.": "请向服务商确认 prompt/completion token 如何计量。",
+    "Cross-check billing against output length; possible per-token overbilling.": "对照输出长度核对计费；可能存在按 token 多计费。",
+    "Compare token accounting against a trusted baseline of the same model.": "将 token 计量与同款模型的可信基线对比。",
+    "Verify base_url, api_key, and that the model id is served.": "检查 base_url、api_key，并确认该模型 id 确实可用。",
+    "Use an https:// base_url so the bearer token is not exposed on the wire.": "请使用 https:// 的 base_url，以免 bearer token 在传输中暴露。",
+    "Rotate the key and avoid this relay echoing credentials.": "请轮换密钥，并避免使用这个会回显凭据的中转站。",
+    "Confirm the served engine accepts and reasons over image input; a text-only model behind a vision-claimed id is a 货不对板 mismatch.": "确认所提供的引擎能接收并理解图片输入；以视觉模型 id 提供纯文本模型属于货不对板。",
+    "Confirm with varied prompts; a cache that ignores sampling parameters can mask the served model's true behavior.": "请用多样化的提示词确认；忽略采样参数的缓存可能掩盖实际模型的真实行为。",
+    "Long-form generation may under-deliver relative to the claimed ceiling; confirm with a longer probe.": "长文本生成可能达不到声称的上限；请用更长的探针确认。",
+    "Confirm the served engine actually supports function calling.": "确认所提供的引擎确实支持函数调用。",
+    "Verify the served engine honors response_format=json_object.": "确认所提供的引擎遵守 response_format=json_object。",
+    // finding summary templates for branch/generic cases (i18n.js ALT/GENERIC)
+    "usage only gives total={reported_total} (prompt={reported_prompt}, completion={reported_completion}); the breakdown per-token billing relies on is missing and cannot be verified.": "usage 仅给出 total={reported_total}（prompt={reported_prompt}，completion={reported_completion}）；按 token 计费所依赖的分项缺失、无法核验。",
+    "JSON mode honored; parsed keys: {parsed_keys|list}.": "JSON 模式生效；解析出的键：{parsed_keys|list}。",
+    "Tool call delivered ({tool_name}); arguments returned as {arguments_type}.": "已返回工具调用（{tool_name}）；参数类型为 {arguments_type}。",
+    "/v1/models is not available (HTTP {status_code}).": "/v1/models 不可用（HTTP {status_code}）。",
+    "At concurrency {concurrency}, all {requests} requests were rate-limited ({rate_limited} × HTTP 429).": "并发 {concurrency} 下，全部 {requests} 个请求均被限流（{rate_limited} 次 HTTP 429）。",
+    "Revealing response headers: {revealing_headers|list}. Informational — can corroborate the upstream identity, not a failure.": "暴露信息的响应头：{revealing_headers|list}。仅供参考 —— 可佐证上游身份，并非失败。",
+    "Inspected {header_count} response headers; none expose upstream identity.": "已检查 {header_count} 个响应头；均未暴露上游身份。",
+    "Self-identifies as a rival brand ({forbidden_hits|list}) without naming the genuine brand.": "自称是竞品品牌（{forbidden_hits|list}），且未提及真实品牌。",
+    "Self-id names the genuine brand but also a rival ({forbidden_hits|list}); usually a benign contrast rather than a swap — corroborate before treating it as substitution.": "自我识别既提到了真实品牌，也提到了竞品（{forbidden_hits|list}）；通常只是无害的对比而非替换 —— 请先佐证再下结论。",
+    "Self-id names neither the genuine brand nor a rival; treat as weak/evasive evidence.": "自我识别既未提到真实品牌，也未提到竞品；视为弱/回避性证据。",
+    "Self-id names the genuine brand.": "自我识别提到了真实品牌。",
+    "Returned {returned}-d vectors; no known dimension for the claimed model to compare against.": "返回 {returned} 维向量；知识库中没有所声称模型的维度可供对比。",
+    "POST /embeddings failed (HTTP {status_code}).": "POST /embeddings 失败（HTTP {status_code}）。",
+    "Expected 4 non-empty vectors, got {returned_vectors}.": "预期 4 个非空向量，实际收到 {returned_vectors} 个。",
+    "POST /rerank failed (HTTP {status_code}).": "POST /rerank 失败（HTTP {status_code}）。",
+    "Request failed (HTTP {status_code}, type {error_type}).": "请求失败（HTTP {status_code}，类型 {error_type}）。",
+    "Request failed (HTTP {status_code}).": "请求失败（HTTP {status_code}）。",
+    "Request failed (type {error_type}).": "请求失败（类型 {error_type}）。",
+  };
+  add("zh", ZH_BACKEND, {});
 
   window.ZING_LOCALES = {
     strings: strings,

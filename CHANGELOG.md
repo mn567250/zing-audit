@@ -17,6 +17,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   by new shared `/lang.js` and `/locales.js`. The dropdown is generated from a single
   language registry, a new language is one registry entry plus one translation block,
   and `tests/test_web_locales.py` enforces that every language is complete.
+- **Web UI: downloaded reports follow the UI language.** "Download report (JSON)" (on
+  `/` and in `/history`) translates every human-readable value — verdict headline and
+  summary, key findings, finding titles/summaries/recommendations, detector names,
+  dimension reasons, notes — into the selected language (CN included), keeping the
+  JSON keys, enums, ids and evidence unchanged so the file still validates as a zing
+  `AuditReport`; the file name carries the language (`zing-report.<lang>.json`).
+
+### Fixed
+
+- **Web UI: finding summaries that fell back to English.** Findings emitted by several
+  detector branches (pass / warn / inconclusive, request failures) had no matching
+  translation template, so their summary appeared in English even in the Chinese UI;
+  `embed.dimension` without a known claimed dimension read "should produce 0-d".
+  Branch-specific and generic "request failed" templates now cover them.
 
 ## [0.11.0] — web UI: claimed-model picker + all-SVG icons
 

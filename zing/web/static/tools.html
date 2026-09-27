@@ -187,7 +187,7 @@ const RISKBG={clean:"goodbg",low:"skybg",medium:"warnbg",high:"badbg",inconclusi
 const RISKC={clean:"good",low:"sky",medium:"warn",high:"bad",inconclusive:"grey"};
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function riskLabel(r){return (r&&window.ZING_I18N&&ZING_I18N.label)?ZING_I18N.label("RISK_LEVEL",r):(r||"—");}
-function loc(f){return (window.ZING_I18N&&ZING_I18N.localizeFinding)?ZING_I18N.localizeFinding(f.id,f.summary,f.evidence,f.title):{title:f.title||f.id,summary:f.summary||""};}
+function loc(f){return (window.ZING_I18N&&ZING_I18N.localizeFinding)?ZING_I18N.localizeFinding(f.id,f.summary,f.evidence,f.title,f.status):{title:f.title||f.id,summary:f.summary||""};}
 // last output per pane, kept so a language switch can re-render it
 const OUT={};
 function showErr(outSel,fn){OUT[outSel]={err:fn};$(outSel).innerHTML='<div class="errbox">'+fn()+'</div>';}

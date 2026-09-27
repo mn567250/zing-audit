@@ -275,8 +275,10 @@ $("#adv-t").onclick=()=>$("#i-claimed").focus();
 $("#cmp-t").onclick=()=>{const c=$("#cmp"),body=$("#cmp-body"),open=c.classList.toggle("on");
   body.style.maxHeight=open?body.scrollHeight+30+"px":"0";};
 $("#again").onclick=()=>go(1);
-$("#dl").onclick=()=>{if(!lastReport)return;const blob=new Blob([JSON.stringify(lastReport,null,2)],{type:"application/json"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="zing-report.json";a.click();};
+// download: same JSON keys/schema, human-readable values in the UI language
+$("#dl").onclick=()=>{if(!lastReport)return;const rep=window.ZING_I18N?ZING_I18N.exportReport(lastReport):lastReport;
+  const blob=new Blob([JSON.stringify(rep,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="zing-report."+ZING_LANG.get()+".json";a.click();};
 
 $("#go").onclick=startAudit;
 
@@ -336,7 +338,7 @@ function handle(ev,seen){
   }
 }
 function zhDet(ev){const m=dimName(ev.dimension);return (m?m[0]:ev.dimension)+" · "+srv(ev.name||ev.id);}
-function loc(f){return (window.ZING_I18N&&ZING_I18N.localizeFinding)?ZING_I18N.localizeFinding(f.id,f.summary,f.evidence,f.title):{title:srv(f.title),summary:srv(f.summary||"")};}
+function loc(f){return (window.ZING_I18N&&ZING_I18N.localizeFinding)?ZING_I18N.localizeFinding(f.id,f.summary,f.evidence,f.title,f.status):{title:srv(f.title),summary:srv(f.summary||"")};}
 function feedHTML(ev,f){
   const c=VAR(SEVC[f.severity]||STATC[f.status]||"grey"), hi=evHi(f), L=loc(f);
   return `<div class="fdot" style="background:${c}">${ICON[f.status]||"!"}</div>

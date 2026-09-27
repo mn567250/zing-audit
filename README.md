@@ -140,7 +140,13 @@ relay, never a third party. Bind stays on `127.0.0.1` by default.
 A language dropdown in the header of every page switches the UI between
 **🇬🇧 English** (default), **🇨🇳 Chinese** (the original UI), **🇫🇷 French**, **🇪🇸 Spanish**,
 **🇵🇹 Portuguese**, **🇮🇹 Italian** and **🇩🇪 German**; the choice is remembered per browser.
-Webhook alerts from `/watches` are still sent in Chinese.
+Reports downloaded from the UI (**Download report (JSON)**) follow the selected language
+too: the JSON keys, enum values (`risk_level`, `status`, `severity`, …), ids and evidence
+stay exactly as in the CLI's report (it is still a valid zing report), while the
+human-readable values (verdict headline/summary, finding titles/summaries,
+recommendations, detector names, notes) are translated, and the file name carries the
+language (`zing-report.de.json`). Webhook alerts from `/watches` are still sent in
+Chinese, and the CLI's own `--format json|md|html` reports stay English.
 
 To add a language: add one entry to `LANG_LIST` in `zing/web/static/lang.js` and one
 keyed block registered with `add("<code>", strings, findings)` in

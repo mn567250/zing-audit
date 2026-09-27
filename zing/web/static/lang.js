@@ -40,9 +40,10 @@
  * zing/i18n merges into that language's strings before serving /locales.js.
  *
  * Outside CN the page is hidden (html visibility) until the static markup is
- * translated. So a failure never leaves it blank, it is shown anyway after
- * ~1.5 s or on the first window "error" (e.g. a later script throws, or boot
- * never runs). Pages may also add
+ * translated. So a failure never leaves it blank, it is shown anyway ~1.5 s
+ * after DOMContentLoaded (8 s at most after this script ran) or on a window
+ * "error" once the HTML is parsed (e.g. a later script throws, or boot never
+ * runs). Pages may also add
  *   <noscript><style>html{visibility:visible!important}</style></noscript>
  * for browsers with JavaScript disabled.
  */
@@ -234,21 +235,34 @@
   // Keep the page hidden until the static markup is in the chosen language,
   // so a non-CN user never sees a flash of the Chinese original.
   // Never leave it blank, though: if boot doesn't run or a script fails,
-  // show the page anyway after a short delay or on the first error.
-  var revealTimer = null;
+  // show the page anyway. The 1.5 s grace starts once the HTML is parsed (a
+  // slow download must not flash the Chinese original); a script error after
+  // that reveals at once, and a cap covers a DOMContentLoaded that never comes.
+  var timers = [];
   function reveal() {
-    if (revealTimer != null) clearTimeout(revealTimer);
-    revealTimer = null;
+    timers.forEach(function (id) {
+      clearTimeout(id);
+    });
+    timers = [];
     try {
-      window.removeEventListener("error", reveal);
+      window.removeEventListener("error", onError);
     } catch (e) {}
     document.documentElement.style.visibility = "";
+  }
+  function onError() {
+    // Before DOMContentLoaded boot is still to come and will reveal the page.
+    if (document.readyState !== "loading") reveal();
+  }
+  function arm() {
+    timers.push(setTimeout(reveal, 1500));
   }
   if (lang !== "zh") {
     document.documentElement.style.visibility = "hidden";
     try {
-      revealTimer = setTimeout(reveal, 1500);
-      window.addEventListener("error", reveal);
+      window.addEventListener("error", onError);
+      timers.push(setTimeout(reveal, 8000));
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", arm);
+      else arm();
     } catch (e) {
       reveal();
     }

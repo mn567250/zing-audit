@@ -72,7 +72,6 @@
   "Use an https:// base_url so the bearer token is not exposed on the wire.": "请使用 https:// 的 base_url，以免 bearer token 在传输中暴露。",
   "Rotate the key and avoid this relay echoing credentials.": "请轮换密钥，并避免使用这个会回显凭据的中转站。",
   "Confirm the served engine accepts and reasons over image input; a text-only model behind a vision-claimed id is a 货不对板 mismatch.": "确认所提供的引擎能接收并理解图片输入；以视觉模型 id 提供纯文本模型属于货不对板。",
-  "Confirm the served engine accepts and reasons over image input; a text-only model behind a vision-claimed id is a bait-and-switch mismatch.": "确认所提供的引擎能接收并理解图片输入；以视觉模型 id 提供纯文本模型属于货不对板。",
   "Confirm with varied prompts; a cache that ignores sampling parameters can mask the served model's true behavior.": "请用多样化的提示词确认；忽略采样参数的缓存可能掩盖实际模型的真实行为。",
   "Long-form generation may under-deliver relative to the claimed ceiling; confirm with a longer probe.": "长文本生成可能达不到声称的上限；请用更长的探针确认。",
   "Confirm the served engine actually supports function calling.": "确认所提供的引擎确实支持函数调用。",

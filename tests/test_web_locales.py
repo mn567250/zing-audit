@@ -238,10 +238,7 @@ def test_server_text_is_chinese_in_zh(tmp_path):
     # from the backend in English; in CN the UI must show them in Chinese.
     here = Path(__file__).resolve().parent
     fixture = here / "fixtures" / "web_report.json"
-    extra = _backend_sentences() + [
-        "Confirm the served engine accepts and reasons over image input; a text-only model behind a "
-        "vision-claimed id is a bait-and-switch mismatch.",
-    ]
+    extra = _backend_sentences()
     out = subprocess.run(
         ["node", "-e", _SERVER_ZH_JS, str(_ui_js(tmp_path)), str(fixture), json.dumps(extra)],
         capture_output=True, text=True, check=True,
@@ -271,7 +268,7 @@ const path = require("path");
 const dir = process.argv[1];
 const run = (lang, fire) => {
   delete require.cache[require.resolve(path.join(dir, "lang.js"))];
-  const timers = [], handlers = {};
+  const timers = [], handlers = {}, dcl = [];
   global.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
   global.clearTimeout = id => { if (timers[id - 1]) timers[id - 1].fn = null; };
   global.window = {
@@ -281,17 +278,26 @@ const run = (lang, fire) => {
     addEventListener(t, fn) { handlers[t] = fn; },
     removeEventListener(t, fn) { if (handlers[t] === fn) delete handlers[t]; },
   };
-  // Boot never runs: the document stays "loading", DOMContentLoaded never fires.
+  // The document is still "loading"; lang.js's own boot (the last
+  // DOMContentLoaded listener) is never called, as if it had failed.
   global.document = { documentElement: { style: {}, lang: "" }, readyState: "loading",
-                      querySelectorAll: () => [], addEventListener() {} };
+                      querySelectorAll: () => [], addEventListener(t, fn) { if (t === "DOMContentLoaded") dcl.push(fn); } };
   global.localStorage = { getItem: () => lang, setItem() {} };
   require(path.join(dir, "lang.js"));
   const st = document.documentElement.style, before = st.visibility || "";
-  if (fire === "timer") timers.forEach(t => t.fn && t.fn());
-  if (fire === "error" && handlers.error) handlers.error({});
-  return { before, after: st.visibility || "", delays: timers.map(t => t.ms) };
+  const fireTimers = () => timers.slice().forEach(t => t.fn && t.fn());
+  if (fire === "cap") fireTimers();
+  if (fire === "parsed") { document.readyState = "interactive"; dcl.slice(0, -1).forEach(f => f()); }
+  const mid = st.visibility || "";
+  if (fire === "parsed") fireTimers();
+  if (fire === "error-loading") handlers.error({});
+  if (fire === "error-parsed") { document.readyState = "interactive"; handlers.error({}); }
+  return { before, mid, after: st.visibility || "", delays: timers.map(t => t.ms) };
 };
-console.log(JSON.stringify({ timer: run("fr", "timer"), error: run("fr", "error"), zh: run("zh", "none") }));
+const r = {};
+for (const f of ["cap", "parsed", "error-loading", "error-parsed"]) r[f] = run("fr", f);
+r.zh = run("zh", "none");
+console.log(JSON.stringify(r));
 """
 
 
@@ -305,7 +311,15 @@ def test_hidden_page_is_revealed_if_boot_never_runs(tmp_path):
         ["node", "-e", _VISIBILITY_JS, str(tmp_path)], capture_output=True, text=True, check=True,
     ).stdout
     r = json.loads(out)
-    assert r["timer"]["before"] == "hidden" and r["timer"]["after"] == ""
-    assert r["timer"]["delays"] and max(r["timer"]["delays"]) <= 2000
-    assert r["error"]["before"] == "hidden" and r["error"]["after"] == ""
+    for case in ("cap", "parsed", "error-loading", "error-parsed"):
+        assert r[case]["before"] == "hidden", case
+    # A cap reveals the page even if DOMContentLoaded never fires …
+    assert r["cap"]["after"] == "" and max(r["cap"]["delays"]) <= 10000
+    # … and ~1.5 s after the HTML is parsed if boot didn't reveal it.
+    assert r["parsed"]["mid"] == "hidden" and r["parsed"]["after"] == ""
+    assert 1000 <= min(r["parsed"]["delays"]) <= 2000
+    # A script error reveals it at once, but not while the HTML is still
+    # loading (boot is still to come; revealing would flash the Chinese).
+    assert r["error-loading"]["after"] == "hidden"
+    assert r["error-parsed"]["after"] == ""
     assert r["zh"]["before"] == "" and r["zh"]["delays"] == []  # CN is the markup itself

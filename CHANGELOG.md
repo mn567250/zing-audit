@@ -11,7 +11,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **README translations** in French (`README.fr.md`), Spanish (`README.es.md`),
   Portuguese (`README.pt.md`), Italian (`README.it.md`) and German
   (`README.de.md`), linked from a language switcher at the top of every README.
-  The English `README.md` no longer contains Chinese text.
+  The English `README.md` no longer contains Chinese text, and `README.zh-CN.md`
+  is brought up to date with it.
 - **Performance section in every report.** Latency, time to first token, decode
   and end-to-end tokens/s (from the relay's `usage` and from a local token count),
   inter-chunk latency and jitter, error/timeout/429 rates, a network breakdown

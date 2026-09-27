@@ -520,7 +520,7 @@
       lastParts.push("<span>" + esc(T("评分", "Score")) + " <b>" + esc(fmtScore(w.last_score)) + "</b>/100</span>");
     }
     if (w.last_report_id != null) {
-      lastParts.push('<a href="/v2/history#report-' + esc(w.last_report_id) + '">' + esc(T("在检测历史中查看", "Open in history")) + " →</a>");
+      lastParts.push('<a href="/v2/history#r-' + esc(w.last_report_id) + '">' + esc(T("在检测历史中查看", "Open in history")) + " →</a>");
     }
     var actions;
     if (s.confirm) {
@@ -650,6 +650,9 @@
           if (rep && score != null) {
             s.msgKind = "ok";
             s.msg = function () { return Tf("运行完成，评分 {score}/100。", "Run finished — score {score}/100.", { score: fmtScore(score) }); };
+          } else if (rep) {
+            s.msgKind = "ok";
+            s.msg = function () { return T("运行完成。", "Run finished."); };
           } else {
             s.msgKind = "bad";
             s.msg = function () { return T("运行结束但没有生成报告，请检查中转站地址和密钥。", "The run produced no report — check the relay URL and key."); };
@@ -661,7 +664,14 @@
         })
         .then(function () {
           s.running = false;
-          return load();
+          return load().then(function () {
+            // the disabled button dropped focus to <body>: put it back
+            var a = document.activeElement;
+            if (!a || a === document.body) {
+              var b = $("list").querySelector('[data-act="run"][data-id="' + id + '"]');
+              if (b) b.focus();
+            }
+          });
         });
     } else if (act === "del") {
       s.confirm = true;

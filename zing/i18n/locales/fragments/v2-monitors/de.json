@@ -40,6 +40,7 @@
   "minutes": "Minuten",
   "one per line · optional": "eine pro Zeile · optional",
   "{n} monitors": "{n} Überwachungen",
-  "{n} webhooks": "{n} Webhooks"
+  "{n} webhooks": "{n} Webhooks",
+  "Run finished.": "Lauf abgeschlossen."
  }
 }

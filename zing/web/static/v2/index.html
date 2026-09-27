@@ -34,9 +34,15 @@
 
   /* form */
   .form-card { margin-top: 20px; }
-  .seg button { overflow-wrap: anywhere; }
+  /* four-option segments: one row, 2 × 2 on phones (no mid-word breaks) */
+  .seg.q { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .seg.q button { min-width: 0; }
+  @media (max-width: 440px) { .seg.q { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .cmp { margin: 4px 0 16px; }
-  .cmp .disclosure .t { display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap; min-width: 0; }
+  .cmp .disclosure { justify-content: flex-start; }
+  .cmp .disclosure > .pico { flex: none; }
+  .cmp .disclosure .t { flex: 1; display: inline-flex; align-items: center; gap: 4px 7px; flex-wrap: wrap; min-width: 0; }
+  .cmp .disclosure .cv { flex: none; }
   .cmp .disclosure .key { font-weight: 500; }
   .cmp .on-badge[hidden] { display: none; }
   .cmp-hint { font-size: 12.5px; color: var(--ink2); line-height: 1.55; margin: 0 0 14px; }
@@ -181,13 +187,13 @@
           </div>
           <div class="grp">
             <span class="lab" id="lab-api" data-en="Protocol">协议</span>
-            <div class="seg" id="api" role="group" aria-labelledby="lab-api">
+            <div class="seg q" id="api" role="group" aria-labelledby="lab-api">
               <button type="button" aria-pressed="true" data-v="auto" data-en="Auto">自动</button><button type="button" aria-pressed="false" data-v="openai">OpenAI</button><button type="button" aria-pressed="false" data-v="anthropic">Anthropic</button><button type="button" aria-pressed="false" data-v="responses" data-en="Responses">Responses</button>
             </div>
           </div>
           <div class="grp">
             <span class="lab" id="lab-suite" data-en="Test suite">检测套件</span>
-            <div class="seg" id="suite" role="group" aria-labelledby="lab-suite">
+            <div class="seg q" id="suite" role="group" aria-labelledby="lab-suite">
               <button type="button" aria-pressed="false" data-v="smoke">smoke</button><button type="button" aria-pressed="true" data-v="standard">standard</button><button type="button" aria-pressed="false" data-v="deep">deep</button><button type="button" aria-pressed="false" data-v="full">full</button>
             </div>
           </div>
@@ -201,7 +207,7 @@
 
           <div class="disclosure-box cmp" id="cmp">
             <button type="button" class="disclosure" id="cmp-t" aria-expanded="false" aria-controls="cmp-body">
-              <span class="t"><span class="pico" data-icon="plus"></span><span data-en="Compare against a trusted baseline">对照可信基线</span> <span class="key">compare</span> <span class="badge good on-badge" id="cmp-on" hidden data-en="On">已启用</span></span>
+              <span class="pico" data-icon="plus"></span><span class="t"><span data-en="Compare against a trusted baseline">对照可信基线</span> <span class="key">compare</span> <span class="badge good on-badge" id="cmp-on" hidden data-en="On">已启用</span></span>
               <span class="cv" data-icon="chevronDown"></span>
             </button>
             <div class="disclosure-body" id="cmp-body" hidden>
@@ -220,7 +226,7 @@
               </div>
               <div class="grp" style="margin-bottom:0">
                 <span class="lab" id="lab-bapi" data-en="Baseline protocol">基线协议</span>
-                <div class="seg" id="b-api" role="group" aria-labelledby="lab-bapi">
+                <div class="seg q" id="b-api" role="group" aria-labelledby="lab-bapi">
                   <button type="button" aria-pressed="true" data-v="auto" data-en="Auto">自动</button><button type="button" aria-pressed="false" data-v="openai">OpenAI</button><button type="button" aria-pressed="false" data-v="anthropic">Anthropic</button><button type="button" aria-pressed="false" data-v="responses" data-en="Responses">Responses</button>
                 </div>
               </div>

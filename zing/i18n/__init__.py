@@ -56,7 +56,7 @@ def normalize(lang: str | None) -> str:
     return lang if lang in _load() else DEFAULT
 
 
-def ui(lang: str, en: str) -> str:
+def ui(lang: str | None, en: str) -> str:
     """English string -> ``lang`` (falls back to the English string)."""
     lang = normalize(lang)
     if lang == DEFAULT:
@@ -64,7 +64,7 @@ def ui(lang: str, en: str) -> str:
     return _load()[lang].get("strings", {}).get(en, en)
 
 
-def finding_title(lang: str, finding_id: str | None, english_title: str) -> str:
+def finding_title(lang: str | None, finding_id: str | None, english_title: str) -> str:
     """A finding's title in ``lang``: its catalog title, else the English one."""
     lang = normalize(lang)
     if lang == DEFAULT:
@@ -78,7 +78,7 @@ def finding_title(lang: str, finding_id: str | None, english_title: str) -> str:
     return entry[0] if entry else backend(lang, english_title)
 
 
-def backend(lang: str, text: str | None) -> str:
+def backend(lang: str | None, text: str | None) -> str:
     """Translate a known backend sentence (exact match or verdict headline).
 
     Unknown text stays English, minus the Chinese terms it may embed (except

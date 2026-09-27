@@ -74,7 +74,7 @@ def _risk_rank(risk: str) -> int:
     return _RISK_ORDER.get(risk, _RISK_ORDER[RiskLevel.INCONCLUSIVE.value])
 
 
-def _t(lang: str, template: str, *args: Any) -> str:
+def _t(lang: str | None, template: str, *args: Any) -> str:
     """Translate an English alert template and fill its {1}, {2}, … slots."""
     out = i18n.ui(lang, template)
     for n, value in enumerate(args, start=1):
@@ -82,7 +82,7 @@ def _t(lang: str, template: str, *args: Any) -> str:
     return out
 
 
-def _risk_label(risk: str, lang: str = i18n.DEFAULT) -> str:
+def _risk_label(risk: str, lang: str | None = i18n.DEFAULT) -> str:
     """e.g. "🔴 High risk (HIGH)" / "🔴 高风险（HIGH）"."""
     if risk not in _RISK_LABEL:
         return risk
@@ -116,7 +116,7 @@ def regressed(current: dict[str, Any], previous: dict[str, Any] | None) -> bool:
 
 
 def _delta_line(
-    current: dict[str, Any], previous: dict[str, Any] | None, lang: str = i18n.DEFAULT
+    current: dict[str, Any], previous: dict[str, Any] | None, lang: str | None = i18n.DEFAULT
 ) -> str | None:
     """A "since last run" line describing the risk change, or ``None`` if no previous."""
     if previous is None:
@@ -133,7 +133,7 @@ def _delta_line(
 # Text digest
 # --------------------------------------------------------------------------- #
 def build_text(
-    report: dict[str, Any], previous: dict[str, Any] | None = None, lang: str = i18n.DEFAULT
+    report: dict[str, Any], previous: dict[str, Any] | None = None, lang: str | None = i18n.DEFAULT
 ) -> str:
     """A compact multi-line alert digest shared by every text platform.
 
@@ -185,7 +185,7 @@ def build_text(
 # Per-platform payload formatters
 # --------------------------------------------------------------------------- #
 def format_generic(
-    report: dict[str, Any], previous: dict[str, Any] | None = None, lang: str = i18n.DEFAULT
+    report: dict[str, Any], previous: dict[str, Any] | None = None, lang: str | None = i18n.DEFAULT
 ) -> dict[str, Any]:
     """A structured JSON payload for a generic / custom webhook consumer.
 
@@ -215,21 +215,21 @@ def format_generic(
 
 
 def format_slack(
-    report: dict[str, Any], previous: dict[str, Any] | None = None, lang: str = i18n.DEFAULT
+    report: dict[str, Any], previous: dict[str, Any] | None = None, lang: str | None = i18n.DEFAULT
 ) -> dict[str, Any]:
     """Slack incoming-webhook body — a single ``text`` field (mrkdwn)."""
     return {"text": build_text(report, previous, lang)}
 
 
 def format_feishu(
-    report: dict[str, Any], previous: dict[str, Any] | None = None, lang: str = i18n.DEFAULT
+    report: dict[str, Any], previous: dict[str, Any] | None = None, lang: str | None = i18n.DEFAULT
 ) -> dict[str, Any]:
     """Feishu/Lark custom-bot body — ``msg_type: "text"`` with a ``content.text``."""
     return {"msg_type": "text", "content": {"text": build_text(report, previous, lang)}}
 
 
 def format_dingtalk(
-    report: dict[str, Any], previous: dict[str, Any] | None = None, lang: str = i18n.DEFAULT
+    report: dict[str, Any], previous: dict[str, Any] | None = None, lang: str | None = i18n.DEFAULT
 ) -> dict[str, Any]:
     """DingTalk custom-robot body — ``msgtype: "text"`` with a ``text.content``."""
     return {"msgtype": "text", "text": {"content": build_text(report, previous, lang)}}
@@ -268,7 +268,7 @@ def build_payload(
     kind: str = "auto",
     previous: dict[str, Any] | None = None,
     webhook_url: str | None = None,
-    lang: str = i18n.DEFAULT,
+    lang: str | None = i18n.DEFAULT,
 ) -> dict[str, Any]:
     """Pick the formatter by ``kind`` (or auto-detect from ``webhook_url``)."""
     resolved = kind
@@ -285,7 +285,7 @@ async def send(
     kind: str = "auto",
     previous: dict[str, Any] | None = None,
     timeout: float = 10.0,
-    lang: str = i18n.DEFAULT,
+    lang: str | None = i18n.DEFAULT,
 ) -> bool:
     """POST an alert for ``report`` to ``webhook_url``; return whether it succeeded.
 

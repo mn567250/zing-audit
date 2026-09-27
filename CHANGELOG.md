@@ -8,6 +8,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Masked API key fields in the web UI.** Every key input is now a password
+  field with a show/hide eye toggle, so keys stay hidden on screen shares.
+  `env:`/`file:` references start revealed, and a literal key is re-masked when a
+  run starts. The relay `base_url` acts as the username, so the browser's password
+  manager can save and fill one key per relay.
 - **README translations** in French (`README.fr.md`), Spanish (`README.es.md`),
   Portuguese (`README.pt.md`), Italian (`README.it.md`) and German
   (`README.de.md`), linked from a language switcher at the top of every README.

@@ -126,9 +126,9 @@
   <div class="card">
     <form id="form" onsubmit="return false">
       <div class="grp"><div class="lab" data-en="Name">名称</div><input class="in" id="f-name" placeholder="例如：生产中转站 deepseek" data-en-placeholder="e.g. production relay deepseek"></div>
-      <div class="grp"><div class="lab" data-en="Relay address base_url">中转站地址 base_url</div><input class="in" id="f-url" placeholder="https://relay.example.com/v1"></div>
+      <div class="grp"><div class="lab" data-en="Relay address base_url">中转站地址 base_url</div><input class="in" id="f-url" autocomplete="username" spellcheck="false" placeholder="https://relay.example.com/v1"></div>
       <div class="two">
-        <div class="grp"><div class="lab">API Key</div><input class="in" id="f-key" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY"></div>
+        <div class="grp"><div class="lab">API Key</div><input class="in" id="f-key" type="password" data-secret="f-url" autocomplete="current-password" spellcheck="false" autocapitalize="off" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY"></div>
         <div class="grp"><div class="lab" data-en="Declared provider (optional)">声明厂商（可选）</div><input class="in" id="f-prov" placeholder="例如 openai / deepseek" data-en-placeholder="e.g. openai / deepseek"></div>
       </div>
       <div class="two">
@@ -185,6 +185,7 @@
 
 <script src="/i18n.js"></script>
 <script src="/icons.js"></script>
+<script src="/secretfield.js"></script>
 <script src="/modelpicker.js"></script>
 <script>
 (function(){
@@ -332,6 +333,7 @@
       btn.disabled = false;
       if(!res.ok){ showErr(function(){ return window.ZING_LANG.server(res.body.error) || T("创建失败", "Failed to create monitor"); }); return; }
       // reset the key + name so a fresh add is easy; keep target for convenience
+      if(window.ZingSecret) window.ZingSecret.remember($("form"));
       $("f-name").value = ""; $("f-key").value = "";
       load();
     }).catch(function(){ btn.disabled = false; showErr(function(){ return T("网络错误，创建失败", "Network error — failed to create monitor"); }); });

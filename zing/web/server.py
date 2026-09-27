@@ -263,6 +263,10 @@ def create_app() -> FastAPI:
     async def perf_js() -> Any:
         return FileResponse(_STATIC / "perf.js", media_type="application/javascript")
 
+    @app.get("/secretfield.js")
+    async def secretfield_js() -> Any:
+        return FileResponse(_STATIC / "secretfield.js", media_type="application/javascript")
+
     @app.get("/api/kb")
     async def kb() -> Any:
         # Public model metadata only — no keys, no secrets. Mirrors the grouping

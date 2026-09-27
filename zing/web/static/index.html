@@ -174,10 +174,10 @@
     </div>
     <div class="card" style="margin-top:20px">
       <form id="form" onsubmit="return false">
-        <div class="grp"><div class="lab" data-en="Relay address base_url">中转站地址 base_url</div><input class="in" id="i-url" placeholder="https://relay.example.com/v1" value="https://api.deepseek.com/v1"></div>
+        <div class="grp"><div class="lab" data-en="Relay address base_url">中转站地址 base_url</div><input class="in" id="i-url" autocomplete="username" spellcheck="false" placeholder="https://relay.example.com/v1" value="https://api.deepseek.com/v1"></div>
         <div class="grp">
           <div class="row-help"><div class="lab" style="margin:0">API Key</div><span style="font-size:11.5px;color:var(--faint)" data-en="Supports env:VAR / file:/path">支持 env:VAR / file:/path</span></div>
-          <input class="in" id="i-key" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY" value="env:ZING_API_KEY">
+          <input class="in" id="i-key" type="password" data-secret="i-url" autocomplete="current-password" spellcheck="false" autocapitalize="off" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY" value="env:ZING_API_KEY">
         </div>
         <div class="two">
           <div class="grp"><div class="lab" data-en="Claimed model">声称的模型</div><input class="in" id="i-model" value="deepseek-v4-flash"></div>
@@ -202,7 +202,7 @@
           <div class="cmp-body" id="cmp-body"><div class="cmp-inner">
             <p class="cmp-hint" data-en="Enter an endpoint for the same model that you <b>trust</b> (e.g. the official API). zing uses it to corroborate the target's behavior, making substitution/downgrade verdicts more reliable — the quality judge and tamper detection only reach their highest level with a baseline.">填一个你<b>信任的同款模型端点</b>（如官方 API）。zing 会用它佐证目标的表现，让替换/降级判定更可靠——质量评审与篡改检测在有基线时才会升到最高级别。</p>
             <div class="grp"><div class="lab" data-en="Baseline base_url">基线 base_url</div><input class="in" id="b-url" placeholder="https://api.deepseek.com/v1"></div>
-            <div class="grp"><div class="lab" data-en="Baseline API Key">基线 API Key</div><input class="in" id="b-key" placeholder="sk-... 或 env:OPENAI_API_KEY" data-en-placeholder="sk-... or env:OPENAI_API_KEY"></div>
+            <div class="grp"><div class="lab" data-en="Baseline API Key">基线 API Key</div><input class="in" id="b-key" type="password" data-secret="b-url" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="sk-... 或 env:OPENAI_API_KEY" data-en-placeholder="sk-... or env:OPENAI_API_KEY"></div>
             <div class="two">
               <div class="grp"><div class="lab" data-en="Baseline model">基线模型</div><input class="in" id="b-model" placeholder="同款官方模型 id" data-en-placeholder="Official id of the same model"></div>
               <div class="grp"><div class="lab" data-en="Baseline protocol">基线协议</div>
@@ -248,6 +248,7 @@
 <script src="/i18n.js"></script>
 <script src="/perf.js"></script>
 <script src="/icons.js"></script>
+<script src="/secretfield.js"></script>
 <script src="/modelpicker.js"></script>
 <script>
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
@@ -312,6 +313,7 @@ async function startAudit(){
   if(!payload.base_url||!payload.model){setFormErr(()=>T("请填写中转站地址和声称的模型。","Please enter the relay address and the claimed model."));return;}
   const bUrl=$("#b-url").value.trim(), bModel=$("#b-model").value.trim();
   if(bUrl&&bModel){payload.baseline={base_url:bUrl,api_key:$("#b-key").value.trim(),model:bModel,api:$("#b-api .on").dataset.v};}
+  if(window.ZingSecret)ZingSecret.remember($("#form"));
   $("#go").disabled=true;
   $("#dets").innerHTML=""; $("#feed").innerHTML=""; feedItems=[]; if(live)live.reset({}); $("#pbar").style.width="0"; setNow(()=>T("连接端点…","Connecting to endpoint…"));
   go(2);

@@ -17,6 +17,7 @@ from typing import Any
 import httpx
 
 from zing.models import CompletionOutcome, RequestSpec, TargetConfig
+from zing.perf.recorder import RequestRecorder, current_net_trace, net_trace_scope
 from zing.utils.redact import redact_json, redact_text
 
 
@@ -33,6 +34,10 @@ class BaseHTTPClient:
         self.transport = transport
         self.base_url = self._normalize_base_url(config.base_url)
         self._client: httpx.AsyncClient | None = None
+        # Set by the runner to log every call for the performance section;
+        # ``endpoint`` says which side ("target" / "baseline") this client is.
+        self.recorder: RequestRecorder | None = None
+        self.endpoint = config.kind
 
     # -- lifecycle ---------------------------------------------------------- #
     async def __aenter__(self):
@@ -41,6 +46,7 @@ class BaseHTTPClient:
             transport=self.transport,
             headers=self._headers(),
             follow_redirects=False,
+            event_hooks={"request": [self._attach_trace]},
         )
         return self
 
@@ -60,6 +66,7 @@ class BaseHTTPClient:
             transport=self.transport,
             headers=self._headers(),
             follow_redirects=False,
+            event_hooks={"request": [self._attach_trace]},
         )
         try:
             yield client
@@ -84,15 +91,48 @@ class BaseHTTPClient:
         """Secrets to scrub from any relay-controlled text before it is stored."""
         return [self.config.api_key]
 
+    @staticmethod
+    async def _attach_trace(request: httpx.Request) -> None:
+        """Hand the in-flight call's transport events to its performance trace."""
+        net = current_net_trace()
+        if net is not None:
+            request.extensions["trace"] = net.trace
+
     # Subclasses provide protocol-specific auth headers and request handling.
     def _headers(self) -> dict[str, str]:
         raise NotImplementedError
 
-    async def complete(self, spec: RequestSpec) -> CompletionOutcome:
+    async def _complete(self, spec: RequestSpec) -> CompletionOutcome:
         raise NotImplementedError
 
-    async def list_models(self) -> tuple[CompletionOutcome, list[str]]:
+    async def _list_models(
+        self, headers: dict[str, str] | None = None
+    ) -> tuple[CompletionOutcome, list[str]]:
         raise NotImplementedError
+
+    # -- public calls (recorded for the performance section) --------------- #
+    async def complete(self, spec: RequestSpec) -> CompletionOutcome:
+        if self.recorder is None:
+            return await self._complete(spec)
+        started = time.perf_counter()
+        with net_trace_scope() as net:
+            outcome = await self._complete(spec)
+        self.recorder.record_completion(self.endpoint, spec, outcome, started, net)
+        return outcome
+
+    async def list_models(
+        self, *, no_cache: bool = False
+    ) -> tuple[CompletionOutcome, list[str]]:
+        """GET /models. ``no_cache`` asks intermediaries for a fresh answer, for a
+        round-trip measurement."""
+        headers = {"Cache-Control": "no-cache"} if no_cache else None
+        if self.recorder is None:
+            return await self._list_models(headers)
+        started = time.perf_counter()
+        with net_trace_scope() as net:
+            outcome, ids = await self._list_models(headers)
+        self.recorder.record_models(self.endpoint, outcome, started, net)
+        return outcome, ids
 
     # -- error shaping (shared) -------------------------------------------- #
     def _error_from_response(

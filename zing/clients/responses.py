@@ -127,6 +127,10 @@ class ResponsesClient(BaseHTTPClient):
             usage["prompt_tokens"] = inp
             usage["completion_tokens"] = out
             usage["total_tokens"] = total if isinstance(total, int) else inp + out
+        # Cached-input / reasoning breakdowns (read by the performance checks).
+        for key in ("input_tokens_details", "output_tokens_details"):
+            if isinstance(raw.get(key), dict):
+                usage[key] = raw[key]
         return usage
 
     @staticmethod
@@ -171,12 +175,14 @@ class ResponsesClient(BaseHTTPClient):
         return _FINISH.get(status or "", status)
 
     # -- endpoints ---------------------------------------------------------- #
-    async def list_models(self) -> tuple[CompletionOutcome, list[str]]:
+    async def _list_models(
+        self, headers: dict[str, str] | None = None
+    ) -> tuple[CompletionOutcome, list[str]]:
         """GET /models. Returns (outcome, list-of-model-ids)."""
         started = time.perf_counter()
         try:
             async with self._session() as client:
-                response = await client.get(self.models_url)
+                response = await client.get(self.models_url, headers=headers)
                 duration_ms = (time.perf_counter() - started) * 1000
                 headers = redact_headers(dict(response.headers), extra_secrets=self._extra_secrets())
                 if response.status_code >= 400:
@@ -207,7 +213,7 @@ class ResponsesClient(BaseHTTPClient):
         except Exception as exc:
             return self._exception_outcome(exc, started), []
 
-    async def complete(self, spec: RequestSpec) -> CompletionOutcome:
+    async def _complete(self, spec: RequestSpec) -> CompletionOutcome:
         body = self._build_body(spec)
         if spec.stream:
             return await self._complete_stream(body)

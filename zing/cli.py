@@ -240,6 +240,8 @@ def _build_options(cfg: dict, **overrides) -> AuditOptions:
         reliability_requests=int(pick("reliability_requests", "reliability_requests", 8)),
         reliability_concurrency=int(pick("concurrency", "concurrency", 3)),
         max_context_probe_tokens=int(pick("max_context_tokens", "max_context_probe_tokens", 200_000)),
+        performance_requests=int(pick("performance_requests", "performance_requests", 100)),
+        performance_max_tokens=int(pick("performance_max_tokens", "performance_max_tokens", 128)),
     )
     return opts
 
@@ -421,6 +423,8 @@ def check_command(
     reliability_requests: Annotated[int | None, typer.Option("--reliability-requests", help="Reliability probe request count (0 disables).")] = None,
     concurrency: Annotated[int | None, typer.Option("--concurrency", help="Reliability probe concurrency.")] = None,
     max_context_tokens: Annotated[int | None, typer.Option("--max-context-tokens", help="Cap for the real-context-window probe.")] = None,
+    performance_requests: Annotated[int | None, typer.Option("--performance-requests", help="Performance probe requests per endpoint (deep/full; 0 disables).")] = None,
+    performance_max_tokens: Annotated[int | None, typer.Option("--performance-max-tokens", help="Output tokens per performance probe request.")] = None,
     kb_dir: Annotated[list[Path] | None, typer.Option("--kb-dir", help="Extra knowledge-base directory (repeatable).")] = None,
     fail_under: Annotated[float | None, typer.Option("--fail-under", help="Exit 1 if overall score < this.")] = None,
     fail_on_risk: Annotated[str | None, typer.Option("--fail-on-risk", help="Exit 1 if risk >= this (low|medium|high).")] = None,
@@ -440,6 +444,8 @@ def check_command(
             cfg, suite=suite, judge=judge, only=only, skip=skip,
             reliability_requests=reliability_requests, concurrency=concurrency,
             max_context_tokens=max_context_tokens,
+            performance_requests=performance_requests,
+            performance_max_tokens=performance_max_tokens,
         )
         fail_on_risk = validate_risk(fail_on_risk)
         baseline = None
@@ -484,6 +490,8 @@ def compare_command(
     fmt: Annotated[str | None, typer.Option("--format", help="json | md | html | all.")] = None,
     timeout: Annotated[float | None, typer.Option("--timeout", help="HTTP timeout (seconds).")] = None,
     max_context_tokens: Annotated[int | None, typer.Option("--max-context-tokens", help="Cap for the context-window probe.")] = None,
+    performance_requests: Annotated[int | None, typer.Option("--performance-requests", help="Performance probe requests per endpoint (0 disables; standard suite uses 5).")] = None,
+    performance_max_tokens: Annotated[int | None, typer.Option("--performance-max-tokens", help="Output tokens per performance probe request.")] = None,
     kb_dir: Annotated[list[Path] | None, typer.Option("--kb-dir", help="Extra knowledge-base directory (repeatable).")] = None,
     fail_under: Annotated[float | None, typer.Option("--fail-under", help="Exit 1 if overall score < this.")] = None,
     fail_on_risk: Annotated[str | None, typer.Option("--fail-on-risk", help="Exit 1 if risk >= this.")] = None,
@@ -504,7 +512,11 @@ def compare_command(
             api_key=baseline_api_key, model=baseline_model, declared_provider=None,
             timeout=timeout, headers=None, api=baseline_api,
         )
-        options = _build_options(cfg, suite=suite or "deep", judge=judge, max_context_tokens=max_context_tokens)
+        options = _build_options(
+            cfg, suite=suite or "deep", judge=judge, max_context_tokens=max_context_tokens,
+            performance_requests=performance_requests,
+            performance_max_tokens=performance_max_tokens,
+        )
         fail_on_risk = validate_risk(fail_on_risk)
         judge_t = _judge_target(cfg, None, None, judge_model, baseline) if options.judge else None
         if dry_run:

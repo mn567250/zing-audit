@@ -15,6 +15,7 @@ from zing.config import AuditOptions
 from zing.judge import Judge
 from zing.knowledge import KnowledgeBase, ResolvedProfile
 from zing.models import TargetConfig
+from zing.perf import RequestRecorder
 
 
 @dataclass
@@ -27,6 +28,8 @@ class AuditContext:
     baseline: TargetConfig | None = None
     baseline_client: Client | None = None
     judge: Judge | None = None
+    # Logs every target/baseline call for the performance section.
+    recorder: RequestRecorder | None = None
 
     @property
     def has_judge(self) -> bool:

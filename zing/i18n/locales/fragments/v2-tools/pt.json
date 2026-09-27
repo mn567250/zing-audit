@@ -1,0 +1,31 @@
+{
+ "strings": {
+  "<b>Vector dimension</b> vs. the claimed model: the #1 bait-and-switch signal.": "<b>Dimensão dos vetores</b> face ao modelo declarado: o sinal n.º 1 de gato por lebre.",
+  "A <b>known-answer probe</b>: the obvious answer must rank first.": "Uma <b>sonda de resposta conhecida</b>: a resposta óbvia tem de ficar em primeiro.",
+  "API key": "Chave de API",
+  "At least two lines, one document each": "Pelo menos duas linhas, um documento por linha",
+  "Claimed dimension": "Dimensão declarada",
+  "Declared provider": "Fornecedor declarado",
+  "Determinism and distinctness re-tests back it up.": "Os testes repetidos de determinismo e distinção confirmam-no.",
+  "Embedding and rerank endpoints only speak the OpenAI-compatible API.": "Os endpoints de embeddings e rerank só falam a API compatível com OpenAI.",
+  "Embedding and rerank endpoints return vectors or rankings, not chat, so they get dedicated probes instead of the chat audit.": "Os endpoints de embeddings e rerank devolvem vetores ou classificações, não chat, por isso têm sondas próprias em vez da auditoria de chat.",
+  "Empty = built-in probe": "Vazio = sonda integrada",
+  "Empty = first line (0)": "Vazio = primeira linha (0)",
+  "Empty = same as model to request": "Vazio = igual ao modelo pedido",
+  "Key signal": "Sinal-chave",
+  "Model to request": "Modelo pedido",
+  "OpenAI-compatible": "Compatível com OpenAI",
+  "Please enter the relay URL and the model to request.": "Indique o URL do intermediário e o modelo pedido.",
+  "Relay URL": "URL do intermediário",
+  "Rerank": "Rerank",
+  "Supporting": "Complementar",
+  "The custom probe needs a query and at least two documents.": "A sonda personalizada precisa de uma consulta e de pelo menos dois documentos.",
+  "The expected line must be between 0 and {n}.": "A linha esperada tem de estar entre 0 e {n}.",
+  "Verification result": "Resultado da verificação",
+  "Verification type": "Tipo de verificação",
+  "e.g. bge-reranker-v2-m3": "ex.: bge-reranker-v2-m3",
+  "e.g. https://relay.example.com/v1": "ex.: https://relay.example.com/v1",
+  "e.g. text-embedding-3-large": "ex.: text-embedding-3-large",
+  "optional": "opcional"
+ }
+}

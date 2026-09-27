@@ -145,12 +145,12 @@ too: the JSON keys, enum values (`risk_level`, `status`, `severity`, …), ids a
 stay exactly as in the CLI's report (it is still a valid zing report), while the
 human-readable values (verdict headline/summary, finding titles/summaries,
 recommendations, detector names, notes) are translated, and the file name carries the
-language (`zing-report.de.json`). Webhook alerts from `/watches` are still sent in
-Chinese, and the CLI's own `--format json|md|html` reports stay English.
+language (`zing-report.de.json`). The CLI's own `--format json|md|html` reports stay
+English.
 
-To add a language: add one entry to `LANG_LIST` in `zing/web/static/lang.js` and one
-keyed block registered with `add("<code>", strings, findings)` in
-`zing/web/static/locales.js` (the German block is a template).
+The translations are data, shared by the web UI and the webhook alerts:
+`zing/i18n/locales/<code>.json`, one file per language. To add a language, add one file
+(copy `de.json`); the dropdown, the pages and the alerts pick it up.
 `tests/test_web_locales.py` fails until every UI string and finding is translated with
 its placeholders and markup intact.
 
@@ -198,16 +198,22 @@ risk crosses a threshold or **regresses** versus the previous run.
 ```bash
 zing watch --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
   --model gpt-4o --suite standard --interval 3600 \
-  --alert-on medium --webhook "$FEISHU_WEBHOOK"      # or --once for cron
+  --alert-on medium --webhook "$FEISHU_WEBHOOK" \
+  --alert-lang en                                     # or --once for cron
 ```
 
 Alerts are formatted for **Slack / Feishu (飞书) / DingTalk (钉钉) / generic JSON**,
-auto-detected from the webhook URL.
+auto-detected from the webhook URL, and written in the alert language — English by
+default; `--alert-lang en|zh|fr|es|pt|it|de`. The generic JSON payload keeps its keys
+and machine values (`risk_level`, `score`, …) language-neutral, translates the
+human-readable ones (`text`, `headline`, `key_findings`) and reports the `language`.
 
 Prefer a UI? `zing serve` has a built-in monitor at **`/watches`** (🔔 监控): add a
 watch in the browser and an in-process background scheduler re-runs it on its interval,
 persists every run to history, and fires the same webhook alerts on a threshold cross or
-regression. Run-now / pause / delete from the page. Keys are stored only in `~/.zing` and
+regression. Each monitor has its own alert language (chosen in the form, defaulting to
+the UI language, and changeable on the monitor's card). Run-now / pause / delete from
+the page. Keys are stored only in `~/.zing` and
 never returned to the browser.
 
 ## Embedding & rerank audits

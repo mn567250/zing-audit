@@ -30,6 +30,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from zing import i18n
+
 # Full column set, in table order. ``api_key`` lives here for the scheduler, but
 # is filtered out of the public listing (see _LIST_COLS).
 _ALL_COLS = (
@@ -51,6 +53,7 @@ _ALL_COLS = (
     "last_risk",
     "last_score",
     "last_report_id",
+    "language",
 )
 
 # Columns safe to return to the browser — everything except the API key.
@@ -103,10 +106,16 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
             last_run_ts       REAL,
             last_risk         TEXT,
             last_score        REAL,
-            last_report_id    INTEGER
+            last_report_id    INTEGER,
+            language          TEXT
         )
         """
     )
+    # Databases created before alerts were translatable lack `language`; add
+    # it (NULL = English, see zing.i18n.normalize).
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(watches)")}
+    if "language" not in cols:
+        conn.execute("ALTER TABLE watches ADD COLUMN language TEXT")
 
 
 def init() -> None:
@@ -133,6 +142,7 @@ def _row_to_dict(row: sqlite3.Row, *, include_key: bool) -> dict[str, Any]:
     if not isinstance(d["webhooks"], list):
         d["webhooks"] = []
     d["enabled"] = bool(d.get("enabled"))
+    d["language"] = i18n.normalize(d.get("language"))
     return d
 
 
@@ -140,8 +150,9 @@ def create(cfg: dict[str, Any]) -> int:
     """Insert a new watch from a config dict; return its new id.
 
     Expected keys: name, base_url, api_key, model, claimed_model, api,
-    declared_provider, suite, interval_sec, alert_on, webhooks (list). Unknown
-    keys are ignored; missing keys fall back to sensible defaults.
+    declared_provider, suite, interval_sec, alert_on, webhooks (list), language
+    (alert language code; unknown/missing -> English). Unknown keys are ignored;
+    missing keys fall back to sensible defaults.
     """
     cfg = cfg or {}
     webhooks = cfg.get("webhooks") or []
@@ -166,14 +177,15 @@ def create(cfg: dict[str, Any]) -> int:
         json.dumps(webhooks, ensure_ascii=False),
         1 if cfg.get("enabled", True) else 0,
         time.time(),
+        i18n.normalize(cfg.get("language")),
     )
     with _connect() as conn:
         cur = conn.execute(
             """INSERT INTO watches
                (name, base_url, api_key, model, claimed_model, api,
                 declared_provider, suite, interval_sec, alert_on, webhooks,
-                enabled, created_ts)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                enabled, created_ts, language)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             row,
         )
         return int(cur.lastrowid or -1)
@@ -208,6 +220,15 @@ def set_enabled(wid: int, enabled: bool) -> None:
         conn.execute(
             "UPDATE watches SET enabled = ? WHERE id = ?",
             (1 if enabled else 0, int(wid)),
+        )
+
+
+def set_language(wid: int, language: str | None) -> None:
+    """Set a watch's alert language (unknown codes become English)."""
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE watches SET language = ? WHERE id = ?",
+            (i18n.normalize(language), int(wid)),
         )
 
 

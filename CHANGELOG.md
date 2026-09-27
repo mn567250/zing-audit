@@ -24,6 +24,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   JSON keys, enums, ids and evidence unchanged so the file still validates as a zing
   `AuditReport`; the file name carries the language (`zing-report.<lang>.json`).
 
+- **Webhook alerts in the monitor's language.** Alerts from `zing watch` and the
+  `/watches` monitors were always Chinese (with the verdict headline and key findings in
+  English). They are now written entirely in the alert language — English by default,
+  or any supported language: `zing watch --alert-lang <code>`, and a per-monitor
+  **Alert language** in the web UI (stored in `~/.zing`; existing monitors are migrated
+  and send English). The generic JSON payload gains a `language` field; its other keys
+  and machine values are unchanged.
+- **Translations are shared data.** All translations now live in
+  `zing/i18n/locales/<code>.json`, used by the web UI (served as `/locales.js`) and by
+  Python (`zing.i18n`, for alerts). Adding a language is adding one file.
+
 ### Fixed
 
 - **Web UI: finding summaries that fell back to English.** Findings emitted by several

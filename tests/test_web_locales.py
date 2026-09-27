@@ -2,7 +2,7 @@
 
 Evaluates the UI's plain-browser JS (zing/web/static) under node, so it is
 skipped when node isn't installed. Adding a language to LANG_LIST in lang.js
-without a full translation block in locales.js fails here, and so does a
+without a full zing/i18n/locales/<code>.json fails here, and so does a
 downloaded report that changes the JSON schema or leaves text untranslated.
 """
 
@@ -32,7 +32,7 @@ const problems = [];
 const codes = window.ZING_LANG.langs().map(l => l.code).filter(c => c !== "en" && c !== "zh");
 for (const c of codes) {
   const s = L.strings[c], f = L.findings[c];
-  if (!s || !f) { problems.push(c + ": not registered in locales.js"); continue; }
+  if (!s || !f) { problems.push(c + ": no zing/i18n/locales/" + c + ".json"); continue; }
   for (const k of L.keys.strings) {
     if (!(k in s)) problems.push(c + ": missing string " + JSON.stringify(k));
     else if (ph(k) !== ph(s[k]) || tags(k) !== tags(s[k]))
@@ -57,14 +57,25 @@ console.log(JSON.stringify({ codes, problems }));
 """
 
 
+def _ui_js(tmp_path: Path) -> Path:
+    """The UI's i18n scripts as the browser gets them (/locales.js carries the
+    JSON data from zing/i18n/locales/ in front of the lookup logic)."""
+    from zing.i18n import locales_script
+
+    static = Path(__file__).resolve().parent.parent / "zing" / "web" / "static"
+    (tmp_path / "locales.js").write_text(locales_script(), encoding="utf-8")
+    for name in ("lang.js", "i18n.js"):
+        shutil.copy(static / name, tmp_path / name)
+    return tmp_path
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="needs node to evaluate the UI's JS")
-def test_every_ui_language_is_complete():
+def test_every_ui_language_is_complete(tmp_path):
     # Every language in lang.js's LANG_LIST (besides EN, the key language, and
     # CN, the original markup) must translate every UI string and finding,
     # keeping placeholders and inline markup intact.
-    static = Path(__file__).resolve().parent.parent / "zing" / "web" / "static"
     out = subprocess.run(
-        ["node", "-e", _LOCALE_CHECK_JS, str(static)],
+        ["node", "-e", _LOCALE_CHECK_JS, str(_ui_js(tmp_path))],
         capture_output=True, text=True, check=True,
     ).stdout
     result = json.loads(out)
@@ -112,16 +123,15 @@ console.log(JSON.stringify(result));
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="needs node to evaluate the UI's JS")
-def test_downloaded_report_is_translated_with_english_keys():
+def test_downloaded_report_is_translated_with_english_keys(tmp_path):
     # The web UI's "Download report (JSON)" exports this: same keys, enums,
     # ids and evidence as the server's report; human-readable values in the
     # selected language; and still a valid zing AuditReport.
     from zing.models import AuditReport
 
     here = Path(__file__).resolve().parent
-    static = here.parent / "zing" / "web" / "static"
     out = subprocess.run(
-        ["node", "-e", _EXPORT_JS, str(static), str(here / "fixtures" / "web_report.json")],
+        ["node", "-e", _EXPORT_JS, str(_ui_js(tmp_path)), str(here / "fixtures" / "web_report.json")],
         capture_output=True, text=True, check=True,
     ).stdout
     result = json.loads(out)

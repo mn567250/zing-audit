@@ -149,3 +149,74 @@ def test_patch_and_run_missing_watch_404(tmp_path, monkeypatch, client):
     monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
     assert client.patch("/api/watches/999999", json={"enabled": True}).status_code == 404
     assert client.post("/api/watches/999999/run").status_code == 404
+
+
+def test_watch_alert_language_default_create_patch(tmp_path, monkeypatch, client):
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    base = {"base_url": "https://relay.test/v1", "model": "gpt-4o", "webhooks": []}
+
+    # No language given -> English; a supported one is stored; junk -> English.
+    a = client.post("/api/watches", json=base).json()["id"]
+    b = client.post("/api/watches", json={**base, "language": "de"}).json()["id"]
+    c = client.post("/api/watches", json={**base, "language": "klingon"}).json()["id"]
+    langs = {w["id"]: w["language"] for w in client.get("/api/watches").json()}
+    assert langs == {a: "en", b: "de", c: "en"}
+
+    assert client.patch(f"/api/watches/{a}", json={"language": "zh"}).status_code == 200
+    assert {w["id"]: w["language"] for w in client.get("/api/watches").json()}[a] == "zh"
+
+
+def test_watch_db_from_before_alert_languages_is_migrated(tmp_path, monkeypatch):
+    import sqlite3
+
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    from zing.web import watches
+
+    # A watches table as created by earlier versions (no `language` column).
+    path = watches._db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "CREATE TABLE watches (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, base_url TEXT,"
+            " api_key TEXT, model TEXT, claimed_model TEXT, api TEXT, declared_provider TEXT,"
+            " suite TEXT, interval_sec INTEGER, alert_on TEXT, webhooks TEXT, enabled INTEGER DEFAULT 1,"
+            " created_ts REAL, last_run_ts REAL, last_risk TEXT, last_score REAL, last_report_id INTEGER)"
+        )
+        conn.execute("INSERT INTO watches (name, base_url, model, webhooks) VALUES ('old', 'https://x/v1', 'm', '[]')")
+
+    [old] = watches.list_all()
+    assert old["name"] == "old" and old["language"] == "en"
+    watches.set_language(old["id"], "fr")
+    assert watches.get(old["id"])["language"] == "fr"
+
+
+async def test_scheduled_watch_alerts_in_its_language(tmp_path, monkeypatch):
+    import json
+    from pathlib import Path
+
+    from zing import notify
+    from zing.models import AuditReport
+    from zing.web import server, watches
+
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    report = AuditReport.model_validate(
+        json.loads((Path(__file__).parent / "fixtures" / "web_report.json").read_text("utf-8"))
+    )
+
+    async def fake_run_audit(*_a, **_k):
+        return report
+
+    sent: list[dict] = []
+
+    async def fake_send(url, report_dict, **kw):
+        sent.append({"url": url, **kw})
+        return True
+
+    monkeypatch.setattr(server, "run_audit", fake_run_audit)
+    monkeypatch.setattr(notify, "send", fake_send)
+    wid = watches.create({
+        "base_url": "https://relay.test/v1", "api_key": "sk-x", "model": "gpt-4o",
+        "alert_on": "medium", "webhooks": ["https://hooks.slack.com/services/x"], "language": "it",
+    })
+    await server._run_one_watch(watches.get(wid))
+    assert [s["lang"] for s in sent] == ["it"]

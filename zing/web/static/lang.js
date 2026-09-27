@@ -27,28 +27,25 @@
  * A <select class="lang-sel"> anywhere on the page becomes the switcher; its
  * options are generated from LANGS, the single list of supported languages.
  *
- * Adding a language:
- *   1. add one entry to LANGS below (flag + code label, <html lang>, locale);
- *   2. add its translations in /locales.js with ZING_LOCALES.add(code, …).
- * Nothing else changes: pages, T(zh, en) call sites and data-en markup stay as
- * they are, and any string missing from a translation falls back to English.
+ * Adding a language: add zing/i18n/locales/<code>.json (its "meta" gives the
+ * flag + code label, <html lang>, locale and menu order). Nothing else changes:
+ * pages, T(zh, en) call sites and data-en markup stay as they are, and any
+ * string missing from a translation falls back to English.
  */
 (function () {
   "use strict";
 
   var KEY = "zing.lang";
   var DEFAULT = "en";
-  // The supported languages, in dropdown order. "en" and "zh" need no
-  // translations (English is the key language, CN is the original markup).
-  var LANG_LIST = [
-    { code: "en", label: "🇬🇧 EN", html: "en", locale: "en-US" },
-    { code: "zh", label: "🇨🇳 CN", html: "zh-CN", locale: "zh-CN" },
-    { code: "fr", label: "🇫🇷 FR", html: "fr", locale: "fr-FR" },
-    { code: "es", label: "🇪🇸 ES", html: "es", locale: "es-ES" },
-    { code: "pt", label: "🇵🇹 PT", html: "pt", locale: "pt-PT" },
-    { code: "it", label: "🇮🇹 IT", html: "it", locale: "it-IT" },
-    { code: "de", label: "🇩🇪 DE", html: "de", locale: "de-DE" },
-  ];
+  // The supported languages in dropdown order, from zing/i18n/locales/*.json
+  // (via /locales.js). EN and CN are always available: English is the key
+  // language and CN the original markup.
+  var LANG_LIST = ((window.ZING_LOCALES || {}).languages || []).slice();
+  if (!LANG_LIST.length)
+    LANG_LIST = [
+      { code: "en", label: "🇬🇧 EN", html: "en", locale: "en-US" },
+      { code: "zh", label: "🇨🇳 CN", html: "zh-CN", locale: "zh-CN" },
+    ];
   var LANGS = {};
   LANG_LIST.forEach(function (l) {
     LANGS[l.code] = l;

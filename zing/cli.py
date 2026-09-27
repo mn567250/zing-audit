@@ -22,6 +22,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from zing import __version__
+from zing import i18n as _i18n
 from zing.clients import make_client
 from zing.config import (
     TEMPLATE,
@@ -46,6 +47,9 @@ _WATCH_RISK_RANK = {
     RiskLevel.MEDIUM: 3,
     RiskLevel.HIGH: 4,
 }
+
+# Webhook alert languages: one per zing/i18n/locales/<code>.json.
+_ALERT_LANGS = _i18n.codes()
 
 app = typer.Typer(
     name="zing",
@@ -674,6 +678,7 @@ def watch_command(
     webhook_kind: Annotated[str, typer.Option("--webhook-kind", help="auto | slack | feishu | dingtalk | generic.")] = "auto",
     alert_on: Annotated[str, typer.Option("--alert-on", help="Alert when risk >= this: low | medium | high.")] = "medium",
     alert_on_regression: Annotated[bool, typer.Option("--alert-on-regression/--no-alert-on-regression", help="Also alert when risk is worse than the previous saved run for this target+model.")] = True,
+    alert_lang: Annotated[str, typer.Option("--alert-lang", help="Language of the webhook alerts: " + " | ".join(_ALERT_LANGS) + ".")] = "en",
 ) -> None:
     """Continuously re-audit a relay on a schedule and alert webhooks on risk.
 
@@ -698,6 +703,13 @@ def watch_command(
         # then map it to a RiskLevel for threshold comparison.
         validate_risk(alert_on)
         threshold = RiskLevel(alert_on)
+        from zing import i18n
+
+        if alert_lang.strip().lower() not in i18n.codes():
+            raise ConfigError(
+                f"--alert-lang must be one of: {', '.join(i18n.codes())} (got {alert_lang!r})"
+            )
+        alert_lang = i18n.normalize(alert_lang)
     except ConfigError as exc:
         err_console.print(f"[red]Config error:[/red] {exc}")
         raise typer.Exit(code=2) from exc
@@ -766,7 +778,7 @@ def watch_command(
             return
         report_dict = json.loads(report.model_dump_json())
         for url in webhooks:
-            ok = await notify.send(url, report_dict, kind=webhook_kind, previous=previous)
+            ok = await notify.send(url, report_dict, kind=webhook_kind, previous=previous, lang=alert_lang)
             mark = "[green]✓[/]" if ok else "[red]✗[/]"
             host = url.split("/")[2] if "://" in url else url
             console.print(f"  {mark} alert → {host}")

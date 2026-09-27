@@ -80,8 +80,10 @@ def test_serves_lang_js_and_pages_load_it(client):
         assert '<script src="/locales.js"></script>\n<script src="/lang.js"></script>' in html
         # the dropdown is filled from LANG_LIST in lang.js, not per page
         assert 'class="lang-sel"' in html and "<option" not in html.split('class="lang-sel"')[1].split("</select>")[0]
+    # the language list and translations come from zing/i18n/locales/*.json
+    assert loc.text.startswith("window.ZING_I18N_DATA = {")
     for code in ("en", "zh", "fr", "es", "pt", "it", "de"):
-        assert f'code: "{code}"' in js.text
+        assert f'"code":"{code}"' in loc.text
 
 
 def test_serves_icons_and_modelpicker_js(client):

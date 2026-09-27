@@ -73,6 +73,7 @@
   .wname{font-family:var(--disp);font-weight:600;font-size:16px;letter-spacing:-.3px}
   .wtarget{font-family:var(--mono);font-size:12px;color:var(--ink2);word-break:break-all}
   .wmeta{display:flex;gap:8px 16px;flex-wrap:wrap;margin-top:9px;font-size:12.5px;color:var(--ink2)}
+  .wmeta select.wlang{font-family:var(--mono);font-size:11.5px;color:var(--ink);background:#f1f5f0;border:0;border-radius:5px;padding:1px 4px;cursor:pointer}
   .wmeta code{font-family:var(--mono);background:#f1f5f0;padding:1px 6px;border-radius:5px;font-size:11.5px}
   .bdg{font-family:var(--sans);font-weight:800;font-size:11px;padding:4px 10px;border-radius:999px;white-space:nowrap}
   .bdg.clean{color:var(--good);background:var(--goodbg)}
@@ -118,7 +119,7 @@
 
   <div class="hero">
     <h1 data-en="Put a <span class='u'>scheduled sentinel</span> on your relay">给中转站设个<span class="u">定时哨兵</span></h1>
-    <p data-en="Add a monitor: zing re-runs the black-box audit on your machine at the interval you set. As soon as the risk crosses your threshold or gets worse than last time, it pushes an alert (written in Chinese) to the webhooks you configured (Slack / Feishu / DingTalk / generic JSON).">添加一个监控：zing 会在你本地按设定的间隔自动重跑黑盒检测。一旦风险越线或较上次恶化，就向你配置的 Webhook（Slack / 飞书 / 钉钉 / 通用 JSON）推送中文告警。</p>
+    <p data-en="Add a monitor: zing re-runs the black-box audit on your machine at the interval you set. As soon as the risk crosses your threshold or gets worse than last time, it pushes an alert in the language you choose to the webhooks you configured (Slack / Feishu / DingTalk / generic JSON).">添加一个监控：zing 会在你本地按设定的间隔自动重跑黑盒检测。一旦风险越线或较上次恶化，就以你选择的语言向你配置的 Webhook（Slack / 飞书 / 钉钉 / 通用 JSON）推送告警。</p>
   </div>
 
   <!-- add-watch form -->
@@ -165,6 +166,7 @@
           <label class="tg" style="margin:0 0 13px"><input type="checkbox" id="f-enabled" checked><span class="track"></span><span data-en="Enable right after creating">创建后立即启用</span></label>
         </div>
       </div>
+      <div class="grp"><div class="lab" data-en="Alert language">告警语言</div><select class="in" id="f-lang" aria-label="告警语言" data-en-aria-label="Alert language"></select></div>
       <div class="grp"><div class="lab" data-en="Webhook URLs (one per line, optional)">Webhook 地址（每行一个，可留空）</div>
         <textarea class="in" id="f-hooks" placeholder="https://hooks.slack.com/services/...&#10;https://open.feishu.cn/open-apis/bot/v2/hook/..."></textarea>
       </div>
@@ -212,6 +214,22 @@
     return '<span class="bdg '+esc(key)+'">'+esc(label)+'</span>';
   }
 
+  // Alert-language options, from the same language registry as the switcher.
+  function langOptions(selected){
+    return window.ZING_LANG.langs().map(function(l){
+      return '<option value="' + esc(l.code) + '"' + (l.code === selected ? " selected" : "") + '>' + esc(l.label) + '</option>';
+    }).join("");
+  }
+  // The form's alert language follows the UI language until the user picks one.
+  var langTouched = false;
+  function fillFormLang(){
+    var sel = $("f-lang");
+    var keep = langTouched ? sel.value : window.ZING_LANG.get();
+    sel.innerHTML = langOptions(keep);
+  }
+  fillFormLang();
+  $("f-lang").addEventListener("change", function(){ langTouched = true; });
+
   function fmtTime(ts){
     if(!ts) return T("从未运行", "Never run");
     try{
@@ -254,6 +272,7 @@
           '<span>' + T("间隔 ", "Every ") + fmtInterval(w.interval_sec) + '</span>' +
           '<span>' + T("阈值", "Threshold") + ' <code>' + esc(w.alert_on || "medium") + '</code></span>' +
           '<span>' + esc(hooks) + '</span>' +
+          '<span>' + T("告警语言", "Alert language") + ' <select class="wlang" data-lang="' + w.id + '">' + langOptions(w.language) + '</select></span>' +
         '</div>' +
         '<div class="wmeta">' +
           '<span>' + T("上次：", "Last run: ") + fmtTime(w.last_run_ts) + scorePart + '</span>' +
@@ -298,7 +317,8 @@
       alert_on: $("f-alert").value,
       interval_sec: minutes * 60,
       enabled: $("f-enabled").checked,
-      webhooks: hooks
+      webhooks: hooks,
+      language: $("f-lang").value
     };
     var btn = $("add");
     btn.disabled = true;
@@ -339,6 +359,15 @@
   $("list").addEventListener("change", function(ev){
     var t = ev.target;
     var tgId = t.getAttribute && t.getAttribute("data-tg");
+    var langId = t.getAttribute && t.getAttribute("data-lang");
+    if(langId){
+      fetch("/api/watches/"+langId, {
+        method: "PATCH",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({language: t.value})
+      }).then(load);
+      return;
+    }
     if(tgId){
       fetch("/api/watches/"+tgId, {
         method: "PATCH",
@@ -374,6 +403,7 @@
 
   // language switch: re-render the list and any form error in place
   window.addEventListener("zing:lang", function(){
+    fillFormLang();
     if(errFn) showErr(errFn);
     load();
   });

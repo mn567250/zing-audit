@@ -25,7 +25,7 @@ from typing import Any
 # fastapi is the optional [web] extra. This module is only imported when serving
 # (CLI `serve`) or by the web tests, both of which handle a missing dependency.
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from zing import __version__
@@ -112,7 +112,7 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
         options = AuditOptions(suite=suite)
 
         # Previous saved run for this target+model — used for the regression check
-        # and the "较上次" delta in the alert. notify.send needs the full report,
+        # and the "since last run" delta in the alert. notify.send needs the full report,
         # so find the most recent prior history row for this target and re-fetch it.
         claimed = target.claimed_model or target.model
         previous: dict[str, Any] | None = None
@@ -149,7 +149,7 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
                 if not isinstance(url, str) or not url.strip():
                     continue
                 with contextlib.suppress(Exception):
-                    await send(url.strip(), report_dict, previous=previous)
+                    await send(url.strip(), report_dict, previous=previous, lang=row.get("language"))
     finally:
         # Record the run no matter what so cadence stays honest.
         with contextlib.suppress(Exception):
@@ -240,7 +240,10 @@ def create_app() -> FastAPI:
 
     @app.get("/locales.js")
     async def locales_js() -> Any:
-        return FileResponse(_STATIC / "locales.js", media_type="application/javascript")
+        # Translation data (zing/i18n/locales/*.json) + the lookup logic.
+        from zing.i18n import locales_script
+
+        return Response(locales_script(), media_type="application/javascript")
 
     @app.get("/lang.js")
     async def lang_js() -> Any:
@@ -452,6 +455,8 @@ def create_app() -> FastAPI:
         body = await request.json()
         if "enabled" in body:
             watches.set_enabled(wid, bool(body.get("enabled")))
+        if "language" in body:
+            watches.set_language(wid, body.get("language"))
         return JSONResponse({"ok": True})
 
     @app.post("/api/watches/{wid}/run")

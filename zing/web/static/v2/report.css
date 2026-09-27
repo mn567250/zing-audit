@@ -1,0 +1,57 @@
+/* zing web UI v2 — report view (rendered by /v2/static/report.js). Tokens only. */
+.zr { overflow: hidden; padding: 0; }
+.zr .ribbon { height: 5px; background: var(--grey-fill); }
+.zr.good .ribbon { background: var(--good-fill); }
+.zr.sky .ribbon { background: var(--sky-fill); }
+.zr.warn .ribbon { background: var(--warn-fill); }
+.zr.bad .ribbon { background: var(--bad-fill); }
+.zr .vhero { display: flex; gap: 22px; align-items: center; padding: 26px 26px 22px; }
+@media (max-width: 520px) { .zr .vhero { flex-direction: column; align-items: flex-start; gap: 14px; padding: 20px 18px; } }
+.zr .grade { font-family: var(--disp); font-weight: 700; font-size: 84px; line-height: 0.8; letter-spacing: -3px; color: var(--grey); }
+.zr.good .grade { color: var(--good); }
+.zr.sky .grade { color: var(--sky); }
+.zr.warn .grade { color: var(--warn); }
+.zr.bad .grade { color: var(--bad); }
+.zr .vmeta { flex: 1; min-width: 0; }
+.zr .vpill { font-family: var(--disp); font-size: 14px; font-weight: 600; padding: 6px 14px; }
+.zr .vmeta h2 { font-family: var(--disp); font-weight: 600; font-size: 21px; letter-spacing: -0.4px; margin: 11px 0 0; line-height: 1.18; }
+.zr .vmeta p { color: var(--ink2); font-size: 14.5px; line-height: 1.6; margin: 9px 0 0; }
+.zr .vscores { display: flex; gap: 20px; margin-top: 13px; font-size: 13px; color: var(--ink2); flex-wrap: wrap; }
+.zr .vscores b { font-family: var(--disp); font-size: 16px; color: var(--ink); }
+.zr .vscores b.good { color: var(--good); }
+.zr .vscores b.warn { color: var(--warn); }
+.zr .vscores b.bad { color: var(--bad); }
+.zr .meta-strip { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 13px 26px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink2); }
+.zr .meta-strip code { background: var(--surface-2); padding: 1px 6px; border-radius: 5px; font-size: 12px; overflow-wrap: anywhere; }
+.zr .sect { padding: 20px 26px; border-top: 1px solid var(--line); }
+@media (max-width: 520px) { .zr .sect, .zr .meta-strip { padding-left: 18px; padding-right: 18px; } }
+.zr .sect h3 { font-family: var(--disp); font-weight: 600; font-size: 15px; margin: 0 0 12px; }
+.zr .none { color: var(--ink2); font-size: 14px; margin: 0; }
+.zr-dim { display: grid; grid-template-columns: 170px 1fr auto; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px dotted var(--line); font-size: 13.5px; }
+@media (max-width: 520px) { .zr-dim { grid-template-columns: 1fr auto; } .zr-dim .bar { grid-column: 1 / -1; order: 3; } }
+.zr-dim .nm { font-weight: 600; }
+.zr-dim .nm small { display: block; font-weight: 400; color: var(--faint); font-size: 11.5px; }
+.zr-dim .bar { height: 7px; background: var(--track); border-radius: 5px; overflow: hidden; }
+.zr-dim .bar i { display: block; height: 100%; width: 0; border-radius: 5px; background: var(--grey-fill); transition: width 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.zr-dim .bar i.good { background: var(--good-fill); }
+.zr-dim .bar i.warn { background: var(--warn-fill); }
+.zr-dim .bar i.bad { background: var(--bad-fill); }
+.zr-find { display: flex; gap: 11px; padding: 12px 0; border-bottom: 1px dotted var(--line); }
+.zr-find .dot { flex: 0 0 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: var(--on-ink); background: var(--grey-fill); }
+.zr-find .dot .zicon { width: 13px; height: 13px; }
+.zr-find .dot.sky { background: var(--sky-fill); }
+.zr-find .dot.warn { background: var(--warn-fill); }
+.zr-find .dot.bad { background: var(--bad-fill); }
+.zr-find .body { flex: 1; min-width: 0; }
+.zr-find .ft { font-weight: 600; font-size: 14px; }
+.zr-find .fs { color: var(--ink2); font-size: 13.5px; line-height: 1.55; margin-top: 3px; overflow-wrap: anywhere; }
+.zr-find .rec { color: var(--faint); }
+.zr-find .more { margin-top: 5px; }
+.zr-find .ev {
+  margin: 7px 0 0; font-family: var(--mono); font-size: 11.5px; color: var(--ink2); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word;
+}
+.zr .disc { font-size: 12px; color: var(--faint); line-height: 1.6; padding: 16px 26px 22px; border-top: 1px solid var(--line); }
+.zr .actions { display: flex; gap: 10px; padding: 0 26px 24px; flex-wrap: wrap; }
+.zr .actions .btn { flex: 1; min-width: 150px; padding: 13px; }
+@media (max-width: 520px) { .zr .disc, .zr .actions { padding-left: 18px; padding-right: 18px; } }

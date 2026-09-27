@@ -38,11 +38,13 @@ zing turns "this feels off" into a reproducible report.
 
 ## Install
 
-Requires Python 3.10+.
+Requires Python 3.10+. Every option below provides the `zing` command.
+
+### With pip
 
 ```bash
 # from PyPI
-pip install zing-audit          # the `zing` command
+pip install zing-audit
 
 # or from source
 git clone https://github.com/cenbonew/zing
@@ -50,13 +52,38 @@ cd zing
 pip install -e .
 ```
 
-(Maintainers: see [docs/PUBLISHING.md](docs/PUBLISHING.md) for the release process.)
-
-Optional: install the `tokenizers` extra for accurate OpenAI-family token
-counting in the billing audit:
+### With [uv](https://docs.astral.sh/uv/)
 
 ```bash
-pip install -e '.[tokenizers]'
+# from PyPI, as a standalone tool on your PATH
+uv tool install zing-audit
+
+# or run it once without installing
+uvx --from zing-audit zing --help
+
+# or from source, into a project-local virtual environment
+git clone https://github.com/cenbonew/zing
+cd zing
+uv venv
+uv pip install -e .
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
+```
+
+You can also install straight from the Git repository without cloning:
+`uv tool install git+https://github.com/cenbonew/zing`.
+
+(Maintainers: see [docs/PUBLISHING.md](docs/PUBLISHING.md) for the release process.)
+
+### Optional extras
+
+- `tokenizers` — accurate OpenAI-family token counting in the billing audit.
+- `web` — the local web UI (`zing serve`).
+
+```bash
+pip install 'zing-audit[tokenizers,web]'          # pip, from PyPI
+pip install -e '.[tokenizers,web]'                # pip, from source
+uv tool install 'zing-audit[tokenizers,web]'      # uv, from PyPI
+uv pip install -e '.[tokenizers,web]'             # uv, from source
 ```
 
 ## Quick start
@@ -127,7 +154,7 @@ instead of a human message, so a pipeline can parse failures uniformly.
 Prefer point-and-click? A local web UI wraps the same engine — no CLI needed.
 
 ```bash
-pip install 'zing-audit[web]'
+pip install 'zing-audit[web]'     # or: uv tool install 'zing-audit[web]'
 zing serve            # opens http://localhost:8000
 ```
 

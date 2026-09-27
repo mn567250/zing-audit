@@ -5,6 +5,12 @@
  *   - localizeFinding(id, fallbackSummary, evidence) -> { title, summary }
  *   - RISK_LEVEL, STATUS, SEVERITY, CONFIDENCE: enum -> zh label
  *   - DIMENSIONS: dimension id -> [zhName, zhDesc]
+ *   - EN:         the same enum/dimension maps in English
+ *   - label(kind, key) -> label in the current UI language (see lang.js);
+ *                 kind is one of RISK_LEVEL / STATUS / SEVERITY / CONFIDENCE
+ *
+ * When the UI language is English (window.ZING_LANG.get() === "en"),
+ * localizeFinding returns the backend's own English title/summary.
  *
  * Template rule: `tpl` may contain {placeholders} naming keys from THAT finding's
  * evidence dict. Placeholders are only used for keys confirmed to exist in the
@@ -58,6 +64,55 @@
     reliability: ["并发可靠", "压力下的成功率与延迟"],
     security: ["传输安全", "传输加密与密钥处理"],
   };
+
+  // English counterparts, used when the UI language is EN.
+  var EN = {
+    RISK_LEVEL: {
+      clean: "Consistent (likely genuine)",
+      low: "Mostly trustworthy",
+      medium: "Deviations found",
+      high: "Bait-and-switch",
+      inconclusive: "Insufficient signal",
+    },
+    STATUS: {
+      pass: "Pass",
+      warn: "Warning",
+      fail: "Fail",
+      info: "Info",
+      inconclusive: "Inconclusive",
+      not_run: "Not run",
+      error: "Error",
+    },
+    SEVERITY: { info: "Info", low: "Low", medium: "Medium", high: "High", critical: "Critical" },
+    CONFIDENCE: { low: "Low", medium: "Medium", high: "High" },
+    DIMENSIONS: {
+      connectivity: ["Connectivity", "Is the endpoint reachable and does basic chat work?"],
+      protocol: ["Protocol compliance", "Does it follow the OpenAI API spec?"],
+      context_window: ["Context window", "Does it really remember long input, or truncate silently?"],
+      model_identity: ["Model identity", "Is it really the model it claims to be?"],
+      capability: ["Capability claims", "Are tool calling / JSON mode really supported?"],
+      streaming: ["Streaming authenticity", "Real streaming, or buffered and faked?"],
+      billing: ["Billing & usage", "Is token usage over-reported?"],
+      reliability: ["Concurrency reliability", "Success rate and latency under load"],
+      security: ["Transport security", "Transport encryption and key handling"],
+    },
+  };
+  var ZH = {
+    RISK_LEVEL: RISK_LEVEL,
+    STATUS: STATUS,
+    SEVERITY: SEVERITY,
+    CONFIDENCE: CONFIDENCE,
+    DIMENSIONS: DIMENSIONS,
+  };
+
+  function isEn() {
+    return !!(window.ZING_LANG && window.ZING_LANG.get() === "en");
+  }
+
+  function label(kind, key) {
+    var map = (isEn() ? EN : ZH)[kind] || {};
+    return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : key;
+  }
 
   // ---- Finding catalog -------------------------------------------------- //
   // For each id: zh title + zh summary template. Placeholders reference keys
@@ -467,13 +522,21 @@
   }
 
   /**
-   * localizeFinding(id, fallbackSummary, evidence) -> { title, summary }
+   * localizeFinding(id, fallbackSummary, evidence, fallbackTitle) -> { title, summary }
+   *  - EN UI:   the backend's English fallbackTitle / fallbackSummary.
    *  - title:   zh title from the catalog, or a generic zh title if unknown.
    *  - summary: filled zh template; if the id is unknown OR a template
    *             placeholder is missing, the original English fallbackSummary
    *             is returned instead of a broken string.
    */
-  function localizeFinding(id, fallbackSummary, evidence) {
+  function localizeFinding(id, fallbackSummary, evidence, fallbackTitle) {
+    if (isEn()) {
+      var srv = window.ZING_LANG.server;
+      return {
+        title: srv(fallbackTitle || id || "Check"),
+        summary: srv(fallbackSummary || ""),
+      };
+    }
     var entry = lookup(id);
     if (!entry) {
       return { title: GENERIC_TITLE, summary: fallbackSummary || "" };
@@ -493,5 +556,7 @@
     SEVERITY: SEVERITY,
     CONFIDENCE: CONFIDENCE,
     DIMENSIONS: DIMENSIONS,
+    EN: EN,
+    label: label,
   };
 })();

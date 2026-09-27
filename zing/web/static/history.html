@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>zing — 检测历史</title>
+<title data-en="zing — audit history">zing — 检测历史</title>
+<script src="/lang.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
@@ -29,6 +30,12 @@
   .logo b{color:var(--teal)}
   header .pill{margin-left:auto;font-size:12px;color:var(--ink2);background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 12px}
   header .pill b{color:var(--teal)}
+  /* language switch — pill-shaped native select */
+  .lang-sel{appearance:none;-webkit-appearance:none;font-family:var(--sans);font-size:12px;font-weight:600;color:var(--ink2);cursor:pointer;outline:none;
+    background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23566460' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center/10px;
+    border:1px solid var(--line);border-radius:999px;padding:6px 26px 6px 12px;transition:.15s}
+  .lang-sel:hover{border-color:#cfe0d6}
+  .lang-sel:focus-visible{border-color:var(--teal);box-shadow:0 0 0 3px rgba(15,111,95,.12)}
 
   .hero{padding:24px 0 6px}
   .hero h1{font-family:var(--disp);font-weight:700;font-size:clamp(26px,4.5vw,36px);line-height:1.06;letter-spacing:-1px;margin:0}
@@ -112,30 +119,31 @@
 <div class="wrap">
   <header>
     <div class="logo"><span class="b" id="logoIcon"></span><span>zing<b>.</b></span></div>
-    <span class="pill"><span id="lockIcon" style="vertical-align:-2px"></span> 本地历史 · 存于 <b>~/.zing</b></span>
+    <span class="pill"><span id="lockIcon" style="vertical-align:-2px"></span> <span data-en="Local history · stored in <b>~/.zing</b>">本地历史 · 存于 <b>~/.zing</b></span></span>
+    <select class="lang-sel" aria-label="语言" title="语言" data-en-aria-label="Language" data-en-title="Language"><option value="en">🇬🇧 EN</option><option value="zh">🇨🇳 CN</option></select>
   </header>
 
   <div class="hero">
-    <h1>检测<span class="u">历史</span>与趋势</h1>
-    <p>这里是你在本机跑过的每一次验真。按「中转站 + 声称模型」分组，附一条健康分趋势曲线；点任意一行可展开当时那份报告。</p>
+    <h1 data-en="Audit <span class='u'>history</span> &amp; trends">检测<span class="u">历史</span>与趋势</h1>
+    <p data-en="Every verification you have run on this machine. Grouped by &quot;relay + claimed model&quot;, with a health-score trend line; click any row to expand that report.">这里是你在本机跑过的每一次验真。按「中转站 + 声称模型」分组，附一条健康分趋势曲线；点任意一行可展开当时那份报告。</p>
   </div>
 
   <div class="topbar">
-    <a class="back" href="/"><span id="backIcon" style="vertical-align:-3px"></span> 返回检测</a>
-    <button class="clr" id="clr">清空历史</button>
+    <a class="back" href="/"><span id="backIcon" style="vertical-align:-3px"></span> <span data-en="Back to audit">返回检测</span></a>
+    <button class="clr" id="clr" data-en="Clear history">清空历史</button>
   </div>
 
   <div class="card" id="card">
-    <div class="loading">加载历史…</div>
+    <div class="loading" data-en="Loading history…">加载历史…</div>
   </div>
 
-  <div class="foot">历史只存在你本地的 SQLite 文件里，不会上传任何第三方。</div>
+  <div class="foot" data-en="History lives only in your local SQLite file and is never uploaded to any third party.">历史只存在你本地的 SQLite 文件里，不会上传任何第三方。</div>
 </div>
 
 <script>
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
-const RISK={clean:{c:"good",bg:"goodbg",t:"大概率是真货"},low:{c:"sky",bg:"skybg",t:"基本可信，小瑕疵"},
-  medium:{c:"warn",bg:"warnbg",t:"有偏离，建议核实"},high:{c:"bad",bg:"badbg",t:"货不对板"},inconclusive:{c:"grey",bg:"greybg",t:"信号不足"}};
+const RISK={clean:{c:"good",bg:"goodbg",t:["大概率是真货","Most likely genuine"]},low:{c:"sky",bg:"skybg",t:["基本可信，小瑕疵","Mostly trustworthy, minor issues"]},
+  medium:{c:"warn",bg:"warnbg",t:["有偏离，建议核实","Deviations, verify"]},high:{c:"bad",bg:"badbg",t:["货不对板","Bait-and-switch"]},inconclusive:{c:"grey",bg:"greybg",t:["信号不足","Insufficient signal"]}};
 const VAR=k=>`var(--${k})`;
 const scoreC=v=>v==null?"grey":v>=85?"good":v>=70?"warn":"bad";
 const STATC={pass:"good",warn:"warn",fail:"bad",info:"sky",inconclusive:"grey",not_run:"grey",error:"bad"};
@@ -144,6 +152,12 @@ const DIMNAME={model_identity:["模型身份","它是不是它自称的那个？
   capability:["能力声明","工具/JSON 是否真支持？"],billing:["计费用量","token 有没有虚报？"],
   protocol:["协议兼容","接口是否规范？"],connectivity:["连通性","稳定可达？"],reliability:["并发可靠","压力下稳不稳？"],
   streaming:["流式真实","真流式还是假装？"],security:["传输安全","密钥是否安全？"]};
+const DIMNAME_EN={model_identity:["Model identity","Is it the model it claims to be?"],context_window:["Context window","Does it really remember long input?"],
+  capability:["Capability claims","Are tools/JSON really supported?"],billing:["Billing & usage","Is token usage inflated?"],
+  protocol:["Protocol compliance","Is the API spec-compliant?"],connectivity:["Connectivity","Reliably reachable?"],reliability:["Concurrency reliability","Stable under load?"],
+  streaming:["Streaming authenticity","Real streaming or faked?"],security:["Transport security","Are keys handled safely?"]};
+const dimName=k=>(ZING_LANG.get()==="en"?DIMNAME_EN:DIMNAME)[k];
+const srv=s=>ZING_LANG.server(s);
 // status -> canonical icon name (no question-mark/dash glyphs in the set; use the
 // closest neutral "info" for inconclusive/not_run). Rendered ~13px, inherits currentColor.
 const ICON_NAME={pass:"check",warn:"warning",fail:"x",info:"info",inconclusive:"info",not_run:"info",error:"x"};
@@ -163,13 +177,13 @@ async function load(){
     const rows=await fetch("/api/history").then(r=>r.json());
     render(Array.isArray(rows)?rows:[]);
   }catch(e){
-    $("#card").innerHTML=`<div class="empty"><div class="big">${window.zingIcon("warning",{size:34})}</div>无法读取历史：${esc(String(e.message||e))}<br><br>请确认本地 zing 服务在运行。</div>`;
+    $("#card").innerHTML=`<div class="empty"><div class="big">${window.zingIcon("warning",{size:34})}</div>${T("无法读取历史：","Could not read history: ")}${esc(String(e.message||e))}<br><br>${T("请确认本地 zing 服务在运行。","Make sure the local zing service is running.")}</div>`;
   }
 }
 
 function render(rows){
   if(!rows.length){
-    $("#card").innerHTML=`<div class="empty"><div class="big">${window.zingIcon("folder",{size:34})}</div>还没有检测记录。<br><br><a href="/">去跑第一次检测 ${window.zingIcon("arrowRight",{size:15})}</a></div>`;
+    $("#card").innerHTML=`<div class="empty"><div class="big">${window.zingIcon("folder",{size:34})}</div>${T("还没有检测记录。","No audits recorded yet.")}<br><br><a href="/">${T("去跑第一次检测","Run your first audit")} ${window.zingIcon("arrowRight",{size:15})}</a></div>`;
     return;
   }
   // group by base_url + claimed_model, preserving newest-first encounter order
@@ -196,13 +210,13 @@ function groupHTML(g){
   return `<div class="group">
     <div class="ghead">
       <div class="gtitle">
-        <div class="gm">${esc(g.claimed_model||"(未声明模型)")}</div>
+        <div class="gm">${esc(g.claimed_model||T("(未声明模型)","(no model declared)"))}</div>
         <div class="gu">${esc(g.base_url||"")}</div>
       </div>
       <div class="spark" id="spark-${sid}"></div>
     </div>
     <table><thead><tr>
-      <th>时间</th><th>风险</th><th class="r">健康分</th><th class="r">评级</th><th class="r">模式 / 套件</th>
+      <th>${T("时间","Time")}</th><th>${T("风险","Risk")}</th><th class="r">${T("健康分","Score")}</th><th class="r">${T("评级","Grade")}</th><th class="r">${T("模式 / 套件","Mode / suite")}</th>
     </tr></thead><tbody>${body}</tbody></table>
   </div>`;
 }
@@ -225,21 +239,21 @@ function toggleRow(tr){
   // close any other open drawer
   $$("#card tr.drawerRow").forEach(d=>d.remove());
   const dr=document.createElement("tr");dr.className="drawerRow";
-  dr.innerHTML=`<td colspan="5" style="padding:0"><div class="drawer"><div class="loading">加载报告…</div></div></td>`;
+  dr.innerHTML=`<td colspan="5" style="padding:0"><div class="drawer"><div class="loading">${T("加载报告…","Loading report…")}</div></div></td>`;
   tr.after(dr);openRow=tr;
   const id=tr.dataset.id;
   fetch("/api/history/"+id).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
     .then(rep=>{dr.querySelector(".drawer").innerHTML=reportHTML(rep,id);wireDrawer(dr,id);})
-    .catch(e=>{dr.querySelector(".drawer").innerHTML=`<div class="loading">无法加载这份报告：${esc(String(e.message||e))}</div>`;});
+    .catch(e=>{dr.querySelector(".drawer").innerHTML=`<div class="loading">${T("无法加载这份报告：","Could not load this report: ")}${esc(String(e.message||e))}</div>`;});
 }
 
 function wireDrawer(dr,id){
   dr.querySelectorAll(".more").forEach(m=>m.onclick=ev=>{ev.stopPropagation();const e=m.previousElementSibling;
-    e.classList.toggle("show");m.textContent=e.classList.contains("show")?"收起证据":"查看证据";});
+    e.classList.toggle("show");m.textContent=e.classList.contains("show")?T("收起证据","Hide evidence"):T("查看证据","Show evidence");});
   requestAnimationFrame(()=>dr.querySelectorAll(".ba i").forEach(i=>{i.style.width=i.dataset.w+"%";i.style.background=i.dataset.c;}));
   const del=dr.querySelector(".del");
   if(del)del.onclick=ev=>{ev.stopPropagation();
-    if(!confirm("删除这条历史记录？"))return;
+    if(!confirm(T("删除这条历史记录？","Delete this history entry?")))return;
     fetch("/api/history/"+id,{method:"DELETE"}).then(()=>load());};
   const dl=dr.querySelector(".dl-json");
   if(dl)dl.onclick=ev=>{ev.stopPropagation();
@@ -263,45 +277,48 @@ function reportHTML(r,id){
     <div class="vhero">
       <div class="grade" style="color:${gradeC}">${esc(v.rating||"–")}</div>
       <div class="vmeta">
-        <span class="vpill" style="background:var(--${risk.bg});color:${gradeC}">${riskGlyph(v.risk_level)} ${esc(risk.t)}</span>
+        <span class="vpill" style="background:var(--${risk.bg});color:${gradeC}">${riskGlyph(v.risk_level)} ${esc(T(...risk.t))}</span>
         <h2>${esc(zhHead(v))}</h2>
-        <p>${esc(v.summary||"")}</p>
+        <p>${esc(srv(v.summary||""))}</p>
         <div class="vscores">
-          <div>综合健康分 <b style="color:${VAR(scoreC(sc))}">${sc==null?"—":Math.round(sc)}</b>/100</div>
-          <div>置信度 <b>${esc(zhConf(v.confidence))}</b></div>
-          <div>风险 <b style="color:${gradeC}">${esc((v.risk_level||"").toUpperCase())}</b></div>
-          <div>时间 <b style="font-family:var(--mono);font-size:12px">${esc(fmtTime(r.generated_at))}</b></div>
+          <div>${T("综合健康分","Overall health score")} <b style="color:${VAR(scoreC(sc))}">${sc==null?"—":Math.round(sc)}</b>/100</div>
+          <div>${T("置信度","Confidence")} <b>${esc(zhConf(v.confidence))}</b></div>
+          <div>${T("风险","Risk")} <b style="color:${gradeC}">${esc((v.risk_level||"").toUpperCase())}</b></div>
+          <div>${T("时间","Time")} <b style="font-family:var(--mono);font-size:12px">${esc(fmtTime(r.generated_at))}</b></div>
         </div>
       </div>
     </div>
-    <div class="sect"><h3>逐项体检 <span>${dims.length} dimensions</span></h3>${dims.map(dimRow).join("")||'<p style="color:var(--ink2);font-size:13px;margin:0">无维度数据。</p>'}</div>
+    <div class="sect"><h3>${T("逐项体检","Per-dimension checks")} <span>${dims.length} dimensions</span></h3>${dims.map(dimRow).join("")||'<p style="color:var(--ink2);font-size:13px;margin:0">'+T("无维度数据。","No dimension data.")+'</p>'}</div>
     ${findings.length
-      ?`<div class="sect"><h3>关注点 <span>${findings.length} findings</span></h3>${findings.map(findRow).join("")}</div>`
-      :`<div class="sect"><h3>关注点 <span>findings</span></h3><p style="color:var(--ink2);font-size:13px;margin:0">未发现警告或失败项。</p></div>`}
+      ?`<div class="sect"><h3>${T("关注点","Findings")} <span>${findings.length} findings</span></h3>${findings.map(findRow).join("")}</div>`
+      :`<div class="sect"><h3>${T("关注点","Findings")} <span>findings</span></h3><p style="color:var(--ink2);font-size:13px;margin:0">${T("未发现警告或失败项。","No warnings or failures.")}</p></div>`}
     <div class="drawer-foot">
-      <button class="dl-json">下载 JSON</button>
-      <button class="del">删除此记录</button>
+      <button class="dl-json">${T("下载 JSON","Download JSON")}</button>
+      <button class="del">${T("删除此记录","Delete entry")}</button>
     </div>
   </div>`;
 }
 
-function dimRow(d){const [nm,desc]=DIMNAME[d.dimension]||[d.dimension,""];const c=VAR(scoreC(d.score));const sc=d.score==null?"—":Math.round(d.score);
+function dimRow(d){const [nm,desc]=dimName(d.dimension)||[d.dimension,""];const c=VAR(scoreC(d.score));const sc=d.score==null?"—":Math.round(d.score);
   return `<div class="dl"><div class="nm">${esc(nm)}<small>${esc(desc)}</small></div>
     <div class="ba"><i data-w="${d.score==null?15:d.score}" data-c="${d.score==null?'var(--faint)':c}"></i></div>
     <div class="bdg2" style="background:var(--${STATC[d.status]}bg,#eee);color:${VAR(STATC[d.status]||'grey')}">${sc}</div></div>`;}
 function findRow(f){const c=VAR(SEVC[f.severity]||"grey");const ev=evText(f.evidence);
   return `<div class="f"><div class="dot" style="background:${c}">${statusIcon(f.status)}</div>
-    <div style="flex:1;min-width:0"><div class="ft">${esc(f.title)}</div>
-    <div class="fs">${esc(f.summary||"")}${f.recommendation?` <span style="color:var(--faint)">· 建议：${esc(f.recommendation)}</span>`:""}</div>
-    ${ev?`<div class="ev">${esc(ev)}</div><span class="more">查看证据</span>`:""}</div></div>`;}
+    <div style="flex:1;min-width:0"><div class="ft">${esc(srv(f.title))}</div>
+    <div class="fs">${esc(srv(f.summary||""))}${f.recommendation?` <span style="color:var(--faint)">· ${T("建议：","Recommendation: ")}${esc(srv(f.recommendation))}</span>`:""}</div>
+    ${ev?`<div class="ev">${esc(ev)}</div><span class="more">${T("查看证据","Show evidence")}</span>`:""}</div></div>`;}
 function evText(e){if(!e||typeof e!=="object")return "";const keys=Object.keys(e).slice(0,6);
   return keys.map(k=>`${k}: ${fmt(e[k])}`).join("\n");}
 function fmt(x){if(x==null)return "null";if(typeof x==="object")return JSON.stringify(x).slice(0,200);return String(x).slice(0,240);}
 function sevRank(s){return {critical:5,high:4,medium:3,low:2,info:1}[s]||0;}
 function riskGlyph(r){const n=r==="high"?"x":r==="clean"?"check":r==="inconclusive"?"info":"warning";
   return window.zingIcon(n,{size:14});}
-function zhHead(v){const m={clean:"行为与所声称的模型一致",low:"基本一致，存在少量小问题",medium:"部分行为与所声称的模型不符 —— 建议核实",high:"它给的并不是你所声称的模型",inconclusive:"信号不足，无法判定（连通或覆盖不够）"};return m[v.risk_level]||v.headline||"";}
-function zhConf(c){return {high:"高",medium:"中",low:"低"}[c]||c||"—";}
+function zhHead(v){const m=ZING_LANG.get()==="en"
+  ?{clean:"Behavior is consistent with the claimed model",low:"Mostly consistent, with a few minor issues",medium:"Some behavior does not match the claimed model — verify",high:"It is not serving the model it claims",inconclusive:"Insufficient signal to decide (connectivity or coverage too low)"}
+  :{clean:"行为与所声称的模型一致",low:"基本一致，存在少量小问题",medium:"部分行为与所声称的模型不符 —— 建议核实",high:"它给的并不是你所声称的模型",inconclusive:"信号不足，无法判定（连通或覆盖不够）"};
+  return m[v.risk_level]||srv(v.headline)||"";}
+function zhConf(c){return (ZING_LANG.get()==="en"?{high:"High",medium:"Medium",low:"Low"}:{high:"高",medium:"中",low:"低"})[c]||c||"—";}
 
 /* ---- sparkline ---- */
 function drawSpark(host,trend){
@@ -333,9 +350,16 @@ function drawSpark(host,trend){
 
 /* ---- clear all ---- */
 $("#clr").onclick=()=>{
-  if(!confirm("确定清空全部检测历史？此操作不可撤销。"))return;
+  if(!confirm(T("确定清空全部检测历史？此操作不可撤销。","Clear the entire audit history? This cannot be undone.")))return;
   fetch("/api/history",{method:"DELETE"}).then(()=>load());
 };
+
+/* ---- language switch: re-render, keeping the open report drawer ---- */
+window.addEventListener("zing:lang",async()=>{
+  const openId=openRow&&openRow.isConnected?openRow.dataset.id:null;
+  await load();
+  if(openId){const tr=$(`#card tr[data-id="${openId}"]`);if(tr)toggleRow(tr);}
+});
 
 /* ---- helpers ---- */
 function cssId(k){let h=0;for(let i=0;i<k.length;i++){h=(h*31+k.charCodeAt(i))|0;}return "k"+(h>>>0).toString(36);}

@@ -9,7 +9,7 @@
  * select mode), so any form-submit code that reads `input.value` keeps working.
  * Selecting a model writes its id into the input and fires input+change events.
  *
- * A "自定义输入" / "← 选择模型" text toggle flips to free-text mode, which simply
+ * A "自定义输入" / "← 选择模型" ("Custom input" / "← Pick a model" in EN) text toggle flips to free-text mode, which simply
  * re-shows the original input for manual typing, and back. On init: if the input
  * already holds a value that is NOT a known model id, it starts in custom mode
  * showing that value; otherwise it starts in select mode.
@@ -27,6 +27,18 @@
   "use strict";
 
   var _kbPromise = null; // shared across every enhance() call on the page
+
+  // UI language (lang.js): CN keeps the original strings, EN is English-only.
+  function isEn() {
+    return !!(window.ZING_LANG && window.ZING_LANG.get() === "en");
+  }
+  function tr(zh, en) {
+    return isEn() ? en : zh;
+  }
+  // KB display names / aliases may contain Chinese brand names; drop them in EN.
+  function enText(s) {
+    return isEn() && window.ZING_LANG ? window.ZING_LANG.stripCJK(s) : s;
+  }
 
   function loadKb() {
     if (_kbPromise == null) {
@@ -133,16 +145,26 @@
     styleSelect(provSel);
     styleSelect(modelSel);
 
-    if (label) {
-      provSel.setAttribute("aria-label", label + " 供应商");
-      modelSel.setAttribute("aria-label", label + " 模型");
+    function paintLabels() {
+      var lbl = typeof label === "function" ? label() : label;
+      if (lbl) {
+        provSel.setAttribute("aria-label", lbl + tr(" 供应商", " provider"));
+        modelSel.setAttribute("aria-label", lbl + tr(" 模型", " model"));
+      }
     }
+    paintLabels();
 
-    provSel.appendChild(opt("", "选择供应商…"));
-    providers.forEach(function (p) {
-      provSel.appendChild(opt(p.provider, p.display_name || p.provider));
-    });
-    modelSel.appendChild(opt("", "选择模型…"));
+    function fillProviders() {
+      var keep = provSel.value;
+      provSel.innerHTML = "";
+      provSel.appendChild(opt("", tr("选择供应商…", "Select provider…")));
+      providers.forEach(function (p) {
+        provSel.appendChild(opt(p.provider, enText(p.display_name || p.provider) || p.provider));
+      });
+      provSel.value = keep;
+    }
+    fillProviders();
+    modelSel.appendChild(opt("", tr("选择模型…", "Select model…")));
     modelSel.disabled = true;
 
     selectRow.appendChild(provSel);
@@ -169,7 +191,7 @@
 
     function fillModels(providerId) {
       modelSel.innerHTML = "";
-      modelSel.appendChild(opt("", "选择模型…"));
+      modelSel.appendChild(opt("", tr("选择模型…", "Select model…")));
       var prov = null;
       for (var i = 0; i < providers.length; i++) {
         if (providers[i].provider === providerId) {
@@ -180,7 +202,10 @@
       var models = (prov && prov.models) || [];
       models.forEach(function (m) {
         if (!m || !m.id) return;
-        var alias = m.aliases && m.aliases.length ? m.aliases[0] : "";
+        var aliases = (m.aliases || []).filter(function (a) {
+          return !isEn() || (a && window.ZING_LANG.stripCJK(a) === a);
+        });
+        var alias = aliases.length ? aliases[0] : "";
         // Show id, with a short alias hint when it differs from the id.
         var text =
           alias && alias.toLowerCase() !== m.id.toLowerCase()
@@ -219,11 +244,11 @@
       if (custom) {
         selectRow.style.display = "none";
         claimedInput.style.display = "";
-        toggle.textContent = "← 选择模型";
+        toggle.textContent = tr("← 选择模型", "← Pick a model");
       } else {
         selectRow.style.display = "";
         claimedInput.style.display = "none";
-        toggle.textContent = "自定义输入";
+        toggle.textContent = tr("自定义输入", "Custom input");
       }
     }
 
@@ -255,6 +280,20 @@
       }
     }
     applyMode();
+
+    // Re-label everything in place when the UI language changes.
+    window.addEventListener("zing:lang", function () {
+      var keepModel = modelSel.value;
+      paintLabels();
+      fillProviders();
+      if (provSel.value) {
+        fillModels(provSel.value);
+        modelSel.value = keepModel;
+      } else {
+        modelSel.options[0].textContent = tr("选择模型…", "Select model…");
+      }
+      applyMode();
+    });
   }
 
   window.ZingModelPicker = { enhance: enhance };

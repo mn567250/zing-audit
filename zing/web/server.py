@@ -238,6 +238,10 @@ def create_app() -> FastAPI:
     async def i18n_js() -> Any:
         return FileResponse(_STATIC / "i18n.js", media_type="application/javascript")
 
+    @app.get("/lang.js")
+    async def lang_js() -> Any:
+        return FileResponse(_STATIC / "lang.js", media_type="application/javascript")
+
     @app.get("/icons.js")
     async def icons_js() -> Any:
         return FileResponse(_STATIC / "icons.js", media_type="application/javascript")

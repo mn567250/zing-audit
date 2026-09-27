@@ -65,6 +65,17 @@ def test_serves_console_and_history_and_i18n(client):
     assert j.status_code == 200 and "ZING_I18N" in j.text
 
 
+def test_serves_lang_js_and_pages_load_it(client):
+    js = client.get("/lang.js")
+    assert js.status_code == 200
+    assert "application/javascript" in js.headers["content-type"]
+    assert "ZING_LANG" in js.text
+    for path in ("/", "/console", "/history", "/tools", "/watches"):
+        html = client.get(path).text
+        assert '<script src="/lang.js"></script>' in html
+        assert 'class="lang-sel"' in html and 'value="en"' in html and 'value="zh"' in html
+
+
 def test_serves_icons_and_modelpicker_js(client):
     icons = client.get("/icons.js")
     assert icons.status_code == 200

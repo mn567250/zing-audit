@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>zing.console — relay reality check</title>
+<script src="/lang.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -80,6 +81,13 @@
     font-family:var(--mono);font-size:13px;padding:10px 11px;outline:none;transition:.15s}
   input::placeholder{color:var(--faint)}
   input:focus,select:focus{border-color:var(--grn);box-shadow:0 0 0 3px rgba(70,226,160,.13)}
+  /* language switch — pill-shaped native select, matches .tag */
+  .lang-sel{width:auto;appearance:none;-webkit-appearance:none;font-family:var(--mono);font-size:11px;color:var(--dim);cursor:pointer;outline:none;
+    background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237c8b97' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center/10px;
+    border:1px solid var(--line);border-radius:999px;padding:5px 26px 5px 11px;transition:.15s}
+  .lang-sel:hover{color:var(--ink);border-color:var(--line2)}
+  .lang-sel:focus{border-color:var(--grn);box-shadow:0 0 0 3px rgba(70,226,160,.13)}
+  .lang-sel option{background:#0a0e12;color:var(--ink)}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:9px}
   .seg{display:flex;gap:6px;flex-wrap:wrap}
   .seg button{flex:1;min-width:54px;font-family:var(--mono);font-size:11px;color:var(--dim);background:#0a0e12;border:1px solid var(--line2);
@@ -179,37 +187,38 @@
 <header><div class="wrap bar">
   <div class="logo"><span class="zap" id="logo-icon"></span> <span>zing<b>.</b>console</span><span class="v" id="ver">dev</span></div>
   <nav class="nav">
-    <a class="on" href="#">扫描</a><a href="/">报告视图 /</a><a href="/history">历史 /history</a>
+    <a class="on" href="#" data-en="Scan">扫描</a><a href="/" data-en="Report view /">报告视图 /</a><a href="/history" data-en="History /history">历史 /history</a>
   </nav>
   <span class="tag" id="tag"><i>●</i> developer console · live SSE</span>
+  <select class="lang-sel" aria-label="语言" title="语言" data-en-aria-label="Language" data-en-title="Language"><option value="en">🇬🇧 EN</option><option value="zh">🇨🇳 CN</option></select>
 </div></header>
 
 <main class="wrap">
   <section class="lede">
-    <h1>中转站<span class="hl">货不对板</span>检测台</h1>
-    <p>把它指向一个中转站的 <span class="kbd">base_url</span> 与声称的模型，zing 跑一整套黑盒探针，对照内置的原生模型画像，给出有证据支撑的结论——而不是凭感觉。Power-user console with a terminal-style live detector log.</p>
+    <h1 data-en="Relay <span class='hl'>bait-and-switch</span> test bench">中转站<span class="hl">货不对板</span>检测台</h1>
+    <p data-en="Point it at a relay's <span class='kbd'>base_url</span> and the model it claims. zing runs a full suite of black-box probes, compares the results with built-in native model profiles, and gives an evidence-backed verdict — not a gut feeling. Power-user console with a terminal-style live detector log.">把它指向一个中转站的 <span class="kbd">base_url</span> 与声称的模型，zing 跑一整套黑盒探针，对照内置的原生模型画像，给出有证据支撑的结论——而不是凭感觉。Power-user console with a terminal-style live detector log.</p>
   </section>
 
   <div class="grid">
     <!-- LEFT: form -->
     <form class="card" id="form" onsubmit="return false">
-      <div class="hd"><span class="dot"></span> 目标端点 / target</div>
+      <div class="hd"><span class="dot"></span> <span data-en="target endpoint">目标端点 / target</span></div>
       <div class="bd">
         <div id="formerr"></div>
         <div class="fld"><label>base_url</label><input id="i-url" placeholder="https://relay.example.com/v1" value="https://api.deepseek.com/v1"></div>
         <div class="fld"><label>api_key <span class="hint">env:VAR / file:/path</span></label><input id="i-key" value="env:ZING_API_KEY" type="text"></div>
         <div class="two">
-          <div class="fld"><label>声称模型 (model)</label><input id="i-model" value="deepseek-v4-flash"></div>
-          <div class="fld"><label>claimed_model <span class="hint">opt</span></label><input id="i-claimed" placeholder="留空=同上"></div>
+          <div class="fld"><label data-en="claimed model (model)">声称模型 (model)</label><input id="i-model" value="deepseek-v4-flash"></div>
+          <div class="fld"><label>claimed_model <span class="hint">opt</span></label><input id="i-claimed" placeholder="留空=同上" data-en-placeholder="empty = same as above"></div>
         </div>
-        <div class="fld"><label>声明厂商 declared_provider <span class="hint">opt</span></label><input id="i-prov" placeholder="e.g. deepseek / openai"></div>
+        <div class="fld"><label data-en="declared_provider <span class='hint'>opt</span>">声明厂商 declared_provider <span class="hint">opt</span></label><input id="i-prov" placeholder="e.g. deepseek / openai"></div>
         <div class="two">
-          <div class="fld"><label>协议 api</label>
+          <div class="fld"><label data-en="api">协议 api</label>
             <div class="seg" id="api">
               <button type="button" class="on" data-v="auto">auto</button><button type="button" data-v="openai">openai</button><button type="button" data-v="anthropic">anthropic</button>
             </div>
           </div>
-          <div class="fld"><label>套件 suite</label>
+          <div class="fld"><label data-en="suite">套件 suite</label>
             <div class="seg" id="suite">
               <button type="button" data-v="smoke">smoke</button><button type="button" class="on" data-v="standard">standard</button><button type="button" data-v="deep">deep</button>
             </div>
@@ -217,13 +226,13 @@
         </div>
 
         <div class="cmp" id="cmp">
-          <button type="button" class="cmp-toggle" id="cmp-t"><span>+ baseline / compare (对照可信基线 · 更强结论)</span><span class="cv" id="cmp-caret"></span></button>
+          <button type="button" class="cmp-toggle" id="cmp-t"><span data-en="+ baseline / compare (trusted baseline · stronger verdict)">+ baseline / compare (对照可信基线 · 更强结论)</span><span class="cv" id="cmp-caret"></span></button>
           <div class="cmp-body" id="cmp-body"><div class="cmp-inner">
-            <p class="cmp-hint">填一个你信任的同款模型端点（如官方 API）。质量评审与篡改检测在有基线时才升到最高级别。</p>
+            <p class="cmp-hint" data-en="Enter an endpoint for the same model that you trust (e.g. the official API). The quality judge and tamper detection only reach their highest level with a baseline.">填一个你信任的同款模型端点（如官方 API）。质量评审与篡改检测在有基线时才升到最高级别。</p>
             <div class="fld"><label>baseline base_url</label><input id="b-url" placeholder="https://api.deepseek.com/v1"></div>
             <div class="fld"><label>baseline api_key</label><input id="b-key" placeholder="sk-... / env:VAR"></div>
             <div class="two">
-              <div class="fld"><label>baseline model</label><input id="b-model" placeholder="官方模型 id"></div>
+              <div class="fld"><label>baseline model</label><input id="b-model" placeholder="官方模型 id" data-en-placeholder="official model id"></div>
               <div class="fld"><label>baseline api</label>
                 <div class="seg" id="b-api">
                   <button type="button" class="on" data-v="auto">auto</button><button type="button" data-v="openai">openai</button><button type="button" data-v="anthropic">anthropic</button>
@@ -240,22 +249,22 @@
     <!-- RIGHT -->
     <div class="stack">
       <div class="card">
-        <div class="hd"><span class="dot"></span> 结论 / verdict</div>
+        <div class="hd"><span class="dot"></span> <span data-en="verdict">结论 / verdict</span></div>
         <div class="verdict idle" id="verdict">运行审计后在此显示结论 ▌</div>
       </div>
 
       <div class="card">
-        <div class="hd"><span class="dot"></span> 维度评分 / 9 dimensions</div>
+        <div class="hd"><span class="dot"></span> <span data-en="9 dimension scores">维度评分 / 9 dimensions</span></div>
         <div class="bd"><div class="dims" id="dims"></div></div>
       </div>
 
       <div class="card">
-        <div class="hd"><span class="dot" id="logdot"></span> 实时探测日志 / detectors <span style="margin-left:auto" id="prog" class="c-dim"></span></div>
-        <div class="bd"><div class="log" id="log"><div class="empty">// 等待启动… 填好左侧表单并点击「运行审计」<br>// detector lines stream here — click a line with findings to expand evidence</div></div></div>
+        <div class="hd"><span class="dot" id="logdot"></span> <span data-en="live detector log">实时探测日志 / detectors</span> <span style="margin-left:auto" id="prog" class="c-dim"></span></div>
+        <div class="bd"><div class="log" id="log"><div class="empty" data-en="// waiting to start… fill in the form and click &quot;run audit&quot;<br>// detector lines stream here — click a line with findings to expand evidence">// 等待启动… 填好左侧表单并点击「运行审计」<br>// detector lines stream here — click a line with findings to expand evidence</div></div></div>
       </div>
     </div>
   </div>
-  <div class="foot">zing 报告的是行为偏离与风险的可复现证据，不是欺诈的密码学证明。· <a href="/">switch to report view /</a> · 有基线对照可得最强结论。</div>
+  <div class="foot" data-en="zing reports reproducible evidence of behavioral deviation and risk, not cryptographic proof of fraud. · <a href='/'>switch to report view /</a> · a baseline comparison gives the strongest verdict.">zing 报告的是行为偏离与风险的可复现证据，不是欺诈的密码学证明。· <a href="/">switch to report view /</a> · 有基线对照可得最强结论。</div>
 </main>
 
 <script>
@@ -273,6 +282,16 @@ function paintStaticIcons(){
 paintStaticIcons();
 
 /* 9 dimensions: id, zh name, weight (canonical weighting from prompt contract) */
+const DIM_EN = {model_identity:"Model identity",context_window:"Context window",capability:"Capabilities",billing:"Billing",
+  protocol:"Protocol",connectivity:"Connectivity",reliability:"Reliability",streaming:"Streaming",security:"Security"};
+const dimLabel=(k,nm)=>T(nm.split(" ")[0],DIM_EN[k]||k);
+const srv=s=>ZING_LANG.server(s);
+/* UI state kept as text generators so a language switch can re-render it */
+let lastReport=null, verdictIdle=()=>T("运行审计后在此显示结论 ▌","The verdict appears here after an audit ▌"), verdictIdleHtml=false, errFn=null;
+let runLabel=()=>T("运行审计 / run audit","run audit");
+function setRunLabel(fn){runLabel=fn;$("#run-label").textContent=fn();}
+function setIdle(fn,html){verdictIdle=fn;verdictIdleHtml=!!html;const ve=$("#verdict");if(html)ve.innerHTML=fn();else ve.textContent=fn();}
+function setErr(fn){errFn=fn;$("#formerr").innerHTML=fn?'<div class="errbox">'+fn()+'</div>':"";}
 const DIMS = [
   ["model_identity","模型身份 model_identity",22],["context_window","上下文窗口 context_window",20],
   ["capability","能力声明 capability",14],["billing","计费 billing",8],
@@ -306,16 +325,16 @@ $("#cmp-t").onclick=()=>{const c=$("#cmp"),body=$("#cmp-body"),open=c.classList.
   body.style.maxHeight=open?body.scrollHeight+40+"px":"0";};
 
 function resetView(){
-  $("#verdict").className="verdict idle"; $("#verdict").textContent="审计进行中… ▌";
-  $("#dims").innerHTML=""; $("#log").innerHTML=""; $("#prog").textContent=""; $("#formerr").innerHTML="";
+  $("#verdict").className="verdict idle"; lastReport=null; setIdle(()=>T("审计进行中… ▌","Audit in progress… ▌"));
+  $("#dims").innerHTML=""; $("#log").innerHTML=""; $("#prog").textContent=""; setErr(null);
   $("#logdot").classList.add("live"); dimSeen={};
   renderDims();
 }
 function renderDims(){
   $("#dims").innerHTML = DIMS.map(([k,nm,wt])=>`
     <div class="dim" data-k="${k}">
-      <div class="nm">${nm.split(" ")[0]}</div><div class="sc" id="sc-${k}">—</div>
-      <div class="wt">权重 ${wt} · ${k}</div><div></div>
+      <div class="nm">${dimLabel(k,nm)}</div><div class="sc" id="sc-${k}">—</div>
+      <div class="wt">${T("权重","weight")} ${wt} · ${k}</div><div></div>
       <div class="meter"><i id="m-${k}"></i></div>
     </div>`).join("");
 }
@@ -343,7 +362,7 @@ async function startAudit(){
     api:$("#api .on").dataset.v, suite:$("#suite .on").dataset.v,
   };
   if(!payload.base_url||!payload.model){
-    $("#formerr").innerHTML='<div class="errbox">! 请填写 base_url 与 model。</div>'; return;
+    setErr(()=>T("! 请填写 base_url 与 model。","! Please enter base_url and model.")); return;
   }
   const bUrl=$("#b-url").value.trim(), bModel=$("#b-model").value.trim();
   if(bUrl&&bModel){
@@ -351,7 +370,7 @@ async function startAudit(){
   }
 
   running=true;
-  $("#run").disabled=true; $("#run-label").textContent="审计中…";
+  $("#run").disabled=true; setRunLabel(()=>T("审计中…","auditing…"));
   resetView();
   t0=performance.now();
 
@@ -370,15 +389,20 @@ async function startAudit(){
       }
     }
   }catch(e){
-    sysLine('<span class="c-red">connection failed · '+esc(String(e.message||e))+'</span>');
-    $("#formerr").innerHTML='<div class="errbox">! 连接本地服务失败：'+esc(String(e.message||e))+'</div>';
-    if($("#verdict").classList.contains("idle")) $("#verdict").innerHTML=`连接失败 <span class="c-red">${ic("x",{size:18})}</span>`;
+    const msg=String(e.message||e);
+    sysLine('<span class="c-red">connection failed · '+esc(msg)+'</span>');
+    setErr(()=>T("! 连接本地服务失败：","! Could not reach the local service: ")+esc(msg));
+    if($("#verdict").classList.contains("idle")) setIdle(()=>`${T("连接失败","Connection failed")} <span class="c-red">${ic("x",{size:18})}</span>`,true);
   }finally{
     running=false;
     $("#logdot").classList.remove("live");
-    $("#run").disabled=false; $("#run-label").textContent="重新运行 / re-run";
+    $("#run").disabled=false; setRunLabel(()=>T("重新运行 / re-run","re-run"));
   }
 }
+
+/* translatable text inside log lines: a span whose text a language switch re-computes */
+const TX=[];
+function tx(fn){TX.push(fn);return `<span class="tx" data-tx="${TX.length-1}">${esc(fn())}</span>`;}
 
 /* per-detector row registry: id -> {row, ev} */
 const rows={};
@@ -409,11 +433,11 @@ function handle(ev){
     renderReport(ev.report);
   }else if(ev.type==="error"){
     sysLine(`<span class="c-red">error · ${esc(ev.message)}</span>`);
-    $("#formerr").innerHTML='<div class="errbox">! 检测失败：'+esc(ev.message)+'</div>';
-    if($("#verdict").classList.contains("idle")) $("#verdict").innerHTML=`审计中断 <span class="c-red">${ic("x",{size:18})}</span>`;
+    setErr(()=>T("! 检测失败：","! Audit failed: ")+esc(srv(ev.message)));
+    if($("#verdict").classList.contains("idle")) setIdle(()=>`${T("审计中断","Audit aborted")} <span class="c-red">${ic("x",{size:18})}</span>`,true);
   }else if(ev.type==="done"){
     sysLine('<span class="c-dim">— stream done —</span>');
-    if($("#verdict").classList.contains("idle")) $("#verdict").textContent="未收到报告（已结束）";
+    if($("#verdict").classList.contains("idle")) setIdle(()=>T("未收到报告（已结束）","No report received (stream ended)"));
   }
 }
 
@@ -427,7 +451,7 @@ function sysLine(html){
 function startRow(ev){
   const ln=document.createElement("div"); ln.className="ln";
   ln.innerHTML=`<span class="t">${stamp()}</span><span class="ic c-amb">${ic("play")}</span>`+
-    `<span class="dn cursor">${esc(ev.id)} · ${esc(ev.name||"")} <span class="c-dim">[${esc(ev.dimension||"")}]</span></span>`;
+    `<span class="dn cursor">${esc(ev.id)} · ${tx(()=>srv(ev.name||""))} <span class="c-dim">[${esc(ev.dimension||"")}]</span></span>`;
   $("#log").appendChild(ln); $("#log").scrollTop=1e9;
   rows[ev.id]={row:ln, ev};
 }
@@ -441,7 +465,7 @@ function doneRow(ev){
   const findings = (ev.findings||[]);
   const hasBody = findings.length>0;
   ln.innerHTML=`<span class="t">${stamp()}</span><span class="ic">${ICON[ev.status]||"·"}</span>`+
-    `<span class="dn${hasBody?' has':''}">${esc(ev.id)} · ${esc(ev.name||"")} <span class="c-dim">[${esc(ev.dimension||"")}]</span></span>`+
+    `<span class="dn${hasBody?' has':''}">${esc(ev.id)} · ${tx(()=>srv(ev.name||""))} <span class="c-dim">[${esc(ev.dimension||"")}]</span></span>`+
     `<span class="res"><span class="${cls}">${esc((ev.status||"").toUpperCase())}</span> ${scoreTxt}${ms}</span>`;
   if(hasBody){
     rows[ev.id]={row:ln, ev, findings};
@@ -461,10 +485,10 @@ function toggleFindings(row, ev, findings){
 
 function findingHtml(ev,f){
   const sevc="c-"+(SEVC[f.severity]||STATC[f.status]||"dim");
-  let h=`<span class="fhd">${ICON[f.status]||"·"} ${esc(f.title||f.id||"finding")}</span> `+
+  let h=`<span class="fhd">${ICON[f.status]||"·"} ${tx(()=>srv(f.title||f.id||"finding"))}</span> `+
         `<span class="sev ${sevc}">[${esc((f.severity||f.status||"").toUpperCase())}]</span>`;
-  if(f.summary) h+=`<span class="sum">${esc(f.summary)}</span>`;
-  if(f.recommendation) h+=`<span class="rec">${ic("arrowRight",{size:13})} ${esc(f.recommendation)}</span>`;
+  if(f.summary) h+=`<span class="sum">${tx(()=>srv(f.summary))}</span>`;
+  if(f.recommendation) h+=`<span class="rec">${ic("arrowRight",{size:13})} ${tx(()=>srv(f.recommendation))}</span>`;
   const e=f.evidence;
   if(e&&typeof e==="object"){
     const keys=Object.keys(e).slice(0,12);
@@ -480,7 +504,7 @@ function notableLine(ev,f){
   const sevc="c-"+(SEVC[f.severity]||STATC[f.status]||"dim");
   const ln=document.createElement("div"); ln.className="ln";
   ln.innerHTML=`<span class="t">${stamp()}</span><span class="ic">${ICON[f.status]||"!"}</span>`+
-    `<span class="dn has">${ic("cornerDownRight",{size:14})} <span class="${sevc}">${esc(f.title||f.id||"finding")}</span> <span class="c-dim">(${esc(ev.id)})</span></span>`+
+    `<span class="dn has">${ic("cornerDownRight",{size:14})} <span class="${sevc}">${tx(()=>srv(f.title||f.id||"finding"))}</span> <span class="c-dim">(${esc(ev.id)})</span></span>`+
     `<span class="res"><span class="${sevc}">${esc((f.severity||f.status||"").toUpperCase())}</span></span>`;
   ln.querySelector(".dn").onclick=()=>{
     const nx=ln.nextElementSibling;
@@ -499,6 +523,7 @@ function renderReport(r){
   (r.dimensions||[]).forEach(d=>{
     fillDim(d.dimension, d.score==null?null:d.score, d.status);
   });
+  lastReport=r;
   showVerdict(r);
   $("#tag").innerHTML=`<i>●</i> ${esc(r.target&&r.target.base_url||"")} · zing v${esc(r.tool_version||"")}`;
 }
@@ -522,9 +547,9 @@ function showVerdict(r){
     <div class="meta">
       <span class="pill bg-${col}">${risk.txt} RISK</span>
       <h2>${esc(zhHead(v))}</h2>
-      <p>${esc(v.summary||v.headline||"")} <span class="c-dim">置信度/confidence ${esc(v.confidence||"—")}.</span></p>
+      <p>${esc(srv(v.summary||v.headline||""))} <span class="c-dim">${T("置信度/confidence","confidence")} ${esc(v.confidence||"—")}.</span></p>
       ${kf.length?`<ul class="kf">${kf.map(k=>{
-        const kfTxt = typeof k==="string"?k:(k.title||k.summary||JSON.stringify(k));
+        const kfTxt = srv(typeof k==="string"?k:(k.title||k.summary||JSON.stringify(k)));
         const kfc = typeof k==="object"&&k.severity?("c-"+(SEVC[k.severity]||"dim")):"c-amb";
         return `<li><span class="b ${kfc}">${ic("play")}</span><span>${esc(kfTxt)}</span></li>`;
       }).join("")}</ul>`:""}
@@ -534,11 +559,28 @@ function showVerdict(r){
 }
 
 function zhHead(v){
-  const m={clean:"行为与所声称的模型一致",low:"基本一致，存在少量小问题",
+  const m=ZING_LANG.get()==="en"
+    ?{clean:"Behavior is consistent with the claimed model",low:"Mostly consistent, with a few minor issues",
+      medium:"Some behavior does not match the claimed model — verify",high:"It is not serving the model it claims",
+      inconclusive:"Insufficient signal to decide (connectivity or coverage too low)"}
+    :{clean:"行为与所声称的模型一致",low:"基本一致，存在少量小问题",
     medium:"部分行为与所声称的模型不符 — 建议核实",high:"它给的并不是你所声称的模型",
     inconclusive:"信号不足，无法判定（连通或覆盖不够）"};
-  return m[v.risk_level]||v.headline||"";
+  return m[v.risk_level]||srv(v.headline)||"";
 }
+
+/* language switch: re-label script-generated UI in place (scores/log are kept) */
+window.addEventListener("zing:lang",()=>{
+  $("#run-label").textContent=runLabel();
+  if(errFn)setErr(errFn);
+  DIMS.forEach(([k,nm,wt])=>{const el=$(`.dim[data-k="${k}"]`);if(!el)return;
+    el.querySelector(".nm").textContent=dimLabel(k,nm);el.querySelector(".wt").textContent=`${T("权重","weight")} ${wt} · ${k}`;});
+  $$("#log .tx").forEach(s=>{const fn=TX[+s.dataset.tx];if(fn)s.textContent=fn();});
+  if(lastReport)showVerdict(lastReport);
+  else if($("#verdict").classList.contains("idle"))setIdle(verdictIdle,verdictIdleHtml);
+});
+$("#run-label").textContent=runLabel();
+$("#verdict").textContent=verdictIdle();
 
 /* model picker: enhance the claimed-model input (stays the value source) */
 try{

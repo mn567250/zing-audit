@@ -3,7 +3,8 @@
  * Plain browser global, no modules. Load it in <head> after /locales.js and
  * before any page script, so the current language is known while the page
  * renders. Exposes window.ZING_LANG with:
- *   - get()            -> "en" | "zh" | "fr" | "es" | "pt" | "it"
+ *   - get()            -> a code from LANGS below ("en", "zh", "fr", …)
+ *   - langs()          the registry: [{ code, label, html, locale }] in menu order
  *   - isZh()           true when the original Chinese UI is shown
  *   - set(lang)        persist + re-translate static markup + fire "zing:lang"
  *   - t(zh, en)        CN -> zh; otherwise the English text translated via tr()
@@ -21,21 +22,35 @@
  * so CN always shows exactly what shipped.
  *   data-en="…"              innerHTML outside CN (only text/inline markup inside!)
  *   data-en-placeholder="…"  / data-en-title / data-en-aria-label  attributes
- * A <select class="lang-sel"> anywhere on the page becomes the switcher.
+ * A <select class="lang-sel"> anywhere on the page becomes the switcher; its
+ * options are generated from LANGS, the single list of supported languages.
+ *
+ * Adding a language:
+ *   1. add one entry to LANGS below (flag + code label, <html lang>, locale);
+ *   2. add its translations in /locales.js with ZING_LOCALES.add(code, …).
+ * Nothing else changes: pages, T(zh, en) call sites and data-en markup stay as
+ * they are, and any string missing from a translation falls back to English.
  */
 (function () {
   "use strict";
 
   var KEY = "zing.lang";
   var DEFAULT = "en";
-  var LANGS = {
-    en: { html: "en", locale: "en-US" },
-    zh: { html: "zh-CN", locale: "zh-CN" },
-    fr: { html: "fr", locale: "fr-FR" },
-    es: { html: "es", locale: "es-ES" },
-    pt: { html: "pt", locale: "pt-PT" },
-    it: { html: "it", locale: "it-IT" },
-  };
+  // The supported languages, in dropdown order. "en" and "zh" need no
+  // translations (English is the key language, CN is the original markup).
+  var LANG_LIST = [
+    { code: "en", label: "🇬🇧 EN", html: "en", locale: "en-US" },
+    { code: "zh", label: "🇨🇳 CN", html: "zh-CN", locale: "zh-CN" },
+    { code: "fr", label: "🇫🇷 FR", html: "fr", locale: "fr-FR" },
+    { code: "es", label: "🇪🇸 ES", html: "es", locale: "es-ES" },
+    { code: "pt", label: "🇵🇹 PT", html: "pt", locale: "pt-PT" },
+    { code: "it", label: "🇮🇹 IT", html: "it", locale: "it-IT" },
+    { code: "de", label: "🇩🇪 DE", html: "de", locale: "de-DE" },
+  ];
+  var LANGS = {};
+  LANG_LIST.forEach(function (l) {
+    LANGS[l.code] = l;
+  });
   var ATTRS = ["placeholder", "title", "aria-label"];
   var CJK = /[⺀-⿿　-〿぀-ヿ㄀-ㇿ㐀-䶿一-鿿豈-﫿＀-￯]/;
   var CJK_RUN = /[⺀-⿿　-〿぀-ヿ㄀-ㇿ㐀-䶿一-鿿豈-﫿＀-￯]+/g;
@@ -163,6 +178,13 @@
     for (var i = 0; i < sw.length; i++) {
       if (sw[i].__zingWired) continue;
       sw[i].__zingWired = true;
+      sw[i].innerHTML = "";
+      LANG_LIST.forEach(function (l) {
+        var o = document.createElement("option");
+        o.value = l.code;
+        o.textContent = l.label;
+        sw[i].appendChild(o);
+      });
       sw[i].value = lang;
       sw[i].addEventListener("change", function (ev) {
         set(ev.target.value);
@@ -186,6 +208,9 @@
   window.ZING_LANG = {
     get: function () {
       return lang;
+    },
+    langs: function () {
+      return LANG_LIST.slice();
     },
     isZh: function () {
       return lang === "zh";

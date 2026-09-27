@@ -139,8 +139,14 @@ relay, never a third party. Bind stays on `127.0.0.1` by default.
 
 A language dropdown in the header of every page switches the UI between
 **🇬🇧 English** (default), **🇨🇳 Chinese** (the original UI), **🇫🇷 French**, **🇪🇸 Spanish**,
-**🇵🇹 Portuguese** and **🇮🇹 Italian**; the choice is remembered per browser. Webhook alerts
-from `/watches` are still sent in Chinese.
+**🇵🇹 Portuguese**, **🇮🇹 Italian** and **🇩🇪 German**; the choice is remembered per browser.
+Webhook alerts from `/watches` are still sent in Chinese.
+
+To add a language: add one entry to `LANG_LIST` in `zing/web/static/lang.js` and one
+keyed block registered with `add("<code>", strings, findings)` in
+`zing/web/static/locales.js` (the German block is a template).
+`tests/test_web_locales.py` fails until every UI string and finding is translated with
+its placeholders and markup intact.
 
 ## What it checks
 

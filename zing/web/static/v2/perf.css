@@ -59,8 +59,13 @@
 }
 :root .zp-tabs button { font-family: var(--sans); transition: background 0.15s, color 0.15s, border-color 0.15s; }
 :root .zp-tabs button:not(.on):hover { color: var(--ink); border-color: var(--line-strong); }
-:root .zp-tl,
-:root .zp-table th { letter-spacing: 0.3px; }
+:root .zp-tl { letter-spacing: 0.3px; }
+/* the ten-column stat table fits the 760px card without scrolling */
+:root .zp-table th,
+:root .zp-table td { padding-left: 5px; padding-right: 5px; }
+:root .zp-table th:first-child,
+:root .zp-table td:first-child { padding-left: 0; }
+:root .zp-table th { letter-spacing: 0.2px; }
 :root .zp-h { font-family: var(--disp); font-weight: 600; }
 :root .zp-tip { font-family: var(--mono); box-shadow: var(--shadow-pop); }
 

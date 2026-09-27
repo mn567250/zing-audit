@@ -143,3 +143,29 @@ def test_downloaded_report_is_translated_with_english_keys(tmp_path):
     for lang, res in result.items():
         assert res["problems"] == [], lang
         AuditReport.model_validate(res["report"])
+
+
+def test_locale_fragments_extend_every_language(tmp_path, monkeypatch):
+    # zing/i18n/locales/fragments/<feature>/<code>.json adds strings to a
+    # language; an en fragment extends the canonical key list.
+    import zing.i18n as i18n
+
+    base = Path(i18n.__file__).resolve().parent / "locales"
+    for f in base.glob("*.json"):
+        shutil.copy(f, tmp_path / f.name)
+    frag = tmp_path / "fragments" / "demo"
+    frag.mkdir(parents=True)
+    (frag / "en.json").write_text(json.dumps({"strings": {"Hello v2": "Hello v2"}}), encoding="utf-8")
+    (frag / "de.json").write_text(json.dumps({"strings": {"Hello v2": "Hallo v2"}}), encoding="utf-8")
+    monkeypatch.setattr(i18n, "_DIR", tmp_path)
+    i18n._load.cache_clear()
+    try:
+        assert i18n.ui("de", "Hello v2") == "Hallo v2"
+        assert "Hello v2" in i18n.bundle()["locales"]["en"]["strings"]
+        assert i18n.ui("de", "History") == i18n._load()["de"]["strings"]["History"]  # base kept
+        (frag / "xx.json").write_text("{}", encoding="utf-8")
+        i18n._load.cache_clear()
+        with pytest.raises(ValueError):
+            i18n._load()
+    finally:
+        i18n._load.cache_clear()

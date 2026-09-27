@@ -688,7 +688,7 @@ def serve_command(
 
     Runs entirely on your machine: keys entered in the browser reach only this
     local server and the target relay, never a third party. Requires the web extra:
-    `pip install 'zing-audit[web]'`.
+    `pip install 'zing-audit\\[web]'`.
     """
     try:
         import uvicorn
@@ -697,7 +697,7 @@ def serve_command(
     except ImportError as exc:
         err_console.print(
             "[red]The web UI needs the optional 'web' extra.[/red]\n"
-            "Install it with:  [bold]pip install 'zing-audit[web]'[/bold]"
+            "Install it with:  [bold]pip install 'zing-audit\\[web]'[/bold]"
         )
         raise typer.Exit(code=2) from exc
 

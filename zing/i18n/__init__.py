@@ -12,6 +12,11 @@ The single source is ``zing/i18n/locales/<code>.json``, one file per language:
 The browser gets the same data through ``/locales.js`` (see :func:`locales_script`);
 this module gives Python code (``zing.notify``) the lookups it needs. Adding a
 language means adding one JSON file here — nothing else.
+
+Feature work may also ship its UI strings as fragments,
+``locales/fragments/<feature>/<code>.json`` holding just ``{"strings": {…}}``;
+they are merged into the language's ``strings`` (so an ``en`` fragment extends
+the canonical key list and the completeness tests cover it too).
 """
 
 from __future__ import annotations
@@ -38,6 +43,12 @@ def _load() -> dict[str, dict[str, Any]]:
     for path in sorted(_DIR.glob("*.json")):
         data = json.loads(path.read_text(encoding="utf-8"))
         out[data["meta"]["code"]] = data
+    for path in sorted(_DIR.glob("fragments/*/*.json")):
+        code = path.stem
+        if code not in out:
+            raise ValueError(f"locale fragment for unknown language: {path}")
+        frag = json.loads(path.read_text(encoding="utf-8"))
+        out[code].setdefault("strings", {}).update(frag.get("strings", {}))
     return out
 
 

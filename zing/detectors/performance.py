@@ -281,8 +281,9 @@ class PerformanceDetector(Detector):
         }
         self._findings(result, records, summaries, n, stream=modes[0])
 
-        target = summaries["target"]
-        result.status = Status.INFO if target.successes else Status.INCONCLUSIVE
+        # Always INFO: the probe shares the reliability dimension but must never
+        # change its status (the summary finding says when nothing succeeded).
+        result.status = Status.INFO
         return result
 
     # -- findings ----------------------------------------------------------- #

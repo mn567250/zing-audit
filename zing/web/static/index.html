@@ -456,8 +456,9 @@ window.addEventListener("zing:lang",()=>{
   $("#now").textContent=nowText();
   // "声称的模型" (#i-model) is the canonical claimed-model value the picker writes into.
   // This form has no provider text input (protocol is a segmented control), so providerInput is omitted.
+  // The "Custom (from relay)" provider lists #i-url's own /models (API key optional).
   if(window.ZingModelPicker){
-    try{ZingModelPicker.enhance({claimedInput:"#i-model"});}catch(e){}
+    try{ZingModelPicker.enhance({claimedInput:"#i-model",urlInput:"#i-url",keyInput:"#i-key",api:()=>$("#api .on").dataset.v});}catch(e){}
   }
 })();
 </script>

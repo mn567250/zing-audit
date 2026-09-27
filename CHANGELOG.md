@@ -8,6 +8,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Web UI: custom provider with live model fetch.** The model picker's provider
+  list gains **Custom (from relay)**. With a base_url filled in, **Fetch models**
+  calls the new `POST /api/models`, which lists the relay's own `/models`. You
+  see right away whether the connection works (model count, or the HTTP error)
+  and can pick an id the relay really accepts instead of typing it. The pick goes
+  into the requested `model` field. The API key is optional, so keyless
+  self-hosted endpoints such as Ollama or LM Studio work too.
 - **Web UI: language switch.** Every page (`/`, `/console`, `/history`, `/tools`,
   `/watches`) gets a **🇬🇧 EN · 🇨🇳 CN · 🇫🇷 FR · 🇪🇸 ES · 🇵🇹 PT · 🇮🇹 IT · 🇩🇪 DE**
   dropdown in its header; English is the default. Every user-facing string is translated (labels,

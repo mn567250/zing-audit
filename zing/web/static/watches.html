@@ -397,6 +397,10 @@
     window.ZingModelPicker.enhance({
       claimedInput: "#f-claimed",
       providerInput: "#f-prov",
+      urlInput: "#f-url",
+      keyInput: "#f-key",
+      modelInput: "#f-model",
+      api: function(){ return $("f-api").value; },
       label: function(){ return T("声称模型", "Claimed model"); }
     });
   }

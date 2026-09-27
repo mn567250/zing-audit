@@ -10,6 +10,138 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&amp;family=Hanken+Grotesk:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/v2/static/zing.css" />
+<link rel="stylesheet" href="/v2/static/report.css" />
+<style>
+  /* History page. Tokens only (zing.css); light + dark.
+   *
+   * Every group shares ONE column grid (--cols), so Risk / Score / Grade line
+   * up across relays. Below 600px each row stacks instead (no h-scroll).
+   *
+   * Grade letter colour (by grade, not by risk):
+   *   A, B -> good · C -> sky · D -> warn · E, F -> bad · none -> grey.
+   * Scores (row score, latest score, sparkline) use the same families through
+   * the grade thresholds of zing/scoring.py (>=80 good, >=70 sky, >=60 warn). */
+  .hist { --cols: minmax(0, 1.3fr) minmax(0, 1.55fr) 3.2em 2.6em minmax(0, 1.25fr) 18px; --del: 36px; }
+  .local-note { display: flex; align-items: center; gap: 7px; margin: 12px 0 0; font-size: 12.5px; color: var(--faint); line-height: 1.5; }
+  .local-note .zicon { width: 13px; height: 13px; flex: none; }
+  .local-note code { font-size: 11.5px; color: var(--ink2); background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+
+  .hist { margin-top: 22px; overflow: hidden; }
+  .hist:focus { outline: none; }
+  .hist .state { padding: 26px 22px; color: var(--ink2); font-size: 14px; }
+  .hist .state.loading { font-family: var(--mono); font-size: 13px; color: var(--faint); }
+  .hist .errbox { margin: 18px; }
+
+  /* shared column header */
+  .colhead { display: grid; grid-template-columns: 1fr var(--del); gap: 6px; padding: 12px 18px 8px; border-bottom: 1px solid var(--line); }
+  .colhead .cells { display: grid; grid-template-columns: var(--cols); gap: 12px; padding: 0 10px; }
+  .colhead span { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .colhead .n { text-align: right; }
+
+  /* group */
+  .grp-h { display: flex; align-items: center; gap: 14px; padding: 18px 18px 8px 28px; flex-wrap: wrap; }
+  .group + .group { border-top: 1px solid var(--line); }
+  .gtitle { flex: 1 1 220px; min-width: 0; }
+  .gtitle h2 { font-family: var(--disp); font-weight: 600; font-size: 17px; letter-spacing: -0.3px; margin: 0; overflow-wrap: anywhere; }
+  .gtitle .gu { display: flex; align-items: center; gap: 6px; margin-top: 4px; min-width: 0; }
+  .gtitle .gu span { font-family: var(--mono); font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .gtitle .key { flex: none; }
+  .trend { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; margin-left: auto; }
+  .trend svg { display: block; overflow: visible; }
+  .trend .area { fill: currentColor; opacity: 0.14; }
+  .trend .line { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .trend .base { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 2 3; }
+  .trend .dot { fill: currentColor; }
+  .latest { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
+  .latest b { font-family: var(--disp); font-weight: 700; font-size: 28px; letter-spacing: -0.8px; }
+  .latest small { font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--faint); margin-top: 4px; white-space: nowrap; }
+  .lat { font-family: var(--mono); font-size: 12px; color: var(--ink2); padding-left: 12px; border-left: 1px solid var(--line); white-space: nowrap; }
+
+  /* colour families (text) */
+  .f-good { color: var(--good); } .f-sky { color: var(--sky); } .f-warn { color: var(--warn); }
+  .f-bad { color: var(--bad); } .f-grey { color: var(--grey); }
+  .trend .f-good { color: var(--good-fill); } .trend .f-sky { color: var(--sky-fill); } .trend .f-warn { color: var(--warn-fill); }
+  .trend .f-bad { color: var(--bad-fill); } .trend .f-grey { color: var(--grey-fill); }
+
+  /* rows */
+  .rows { list-style: none; margin: 0; padding: 0 18px 10px; }
+  .row + .row { border-top: 1px dotted var(--line); }
+  .rline { display: grid; grid-template-columns: 1fr var(--del); gap: 6px; align-items: center; }
+  .rmain {
+    display: grid; grid-template-columns: var(--cols); gap: 12px; align-items: center; width: 100%; min-width: 0;
+    text-align: left; background: none; border: 0; border-radius: 12px; padding: 11px 10px; cursor: pointer;
+    font-size: 13px; color: var(--ink2); transition: background 0.12s;
+  }
+  .rmain:hover { background: var(--surface-2); }
+  .rmain[aria-expanded="true"] { background: var(--surface-2); color: var(--ink); }
+  .rmain > span { min-width: 0; }
+  .c-date { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 500; }
+  .c-risk .badge { white-space: normal; text-align: left; line-height: 1.25; max-width: 100%; }
+  .c-risk .badge .zicon { flex: none; }
+  .c-score { text-align: right; font-family: var(--disp); font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .c-grade { text-align: right; font-family: var(--disp); font-weight: 700; font-size: 16px; }
+  .c-mode { font-family: var(--mono); font-size: 11.5px; color: var(--ink2); overflow-wrap: anywhere; }
+  .c-mode b { font-weight: 600; color: var(--ink); }
+  .c-mode .perf { display: block; color: var(--faint); margin-top: 2px; }
+  .c-cv { display: inline-flex; justify-content: flex-end; color: var(--faint); }
+  .c-cv .zicon { width: 15px; height: 15px; transition: transform 0.2s; }
+  .rmain[aria-expanded="true"] .c-cv .zicon { transform: rotate(180deg); }
+  .rdel {
+    width: var(--del); height: var(--del); display: grid; place-items: center; border-radius: 10px; cursor: pointer;
+    background: none; border: 1px solid transparent; color: var(--faint); transition: color 0.12s, background 0.12s, border-color 0.12s;
+  }
+  .rdel .zicon { width: 15px; height: 15px; }
+  .rdel:hover { color: var(--bad); background: var(--badbg); border-color: var(--bad); }
+
+  /* inline confirmation (row delete + clear all) */
+  .confirm {
+    display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; margin: 2px 0 10px; padding: 10px 12px;
+    border: 1px solid var(--bad); background: var(--badbg); border-radius: 12px; font-size: 13px; color: var(--bad); font-weight: 600;
+  }
+  .confirm[hidden] { display: none; }
+  .confirm .msg { flex: 1 1 200px; min-width: 0; }
+  .confirm .btns { display: flex; gap: 8px; }
+  .btn.danger-solid { background: var(--bad-fill); border-color: var(--bad-fill); color: var(--on-ink); }
+  .btn.danger-solid:hover:not(:disabled) { background: var(--bad); border-color: var(--bad); }
+
+  /* expanded report */
+  .panel { padding: 6px 0 14px; }
+  .panel[hidden] { display: none; }
+  .panel .state { padding: 14px 10px; }
+  .panel .zr { box-shadow: none; }
+
+  /* list footer: quiet clear-history */
+  .lfoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 18px 14px 28px; border-top: 1px solid var(--line); background: var(--surface-2); }
+  .lfoot .aside { font-size: 12px; }
+  .lfoot .confirm { flex: 1 1 100%; margin: 0; }
+  .clr { color: var(--faint); font-weight: 600; font-size: 12.5px; }
+  .clr:hover { color: var(--bad); }
+  .clr .zicon { width: 13px; height: 13px; vertical-align: -2px; margin-right: 4px; }
+
+  .empty-box { text-align: center; padding: 44px 22px 40px; }
+  .empty-box .ic { color: var(--faint); margin-bottom: 10px; }
+  .empty-box .ic .zicon { width: 34px; height: 34px; }
+  .empty-box p { margin: 0 0 16px; color: var(--ink2); font-size: 15px; }
+
+  /* phones: stacked rows, no horizontal scroll */
+  @media (max-width: 600px) {
+    .colhead { display: none; }
+    .grp-h { padding: 16px 14px 6px 16px; }
+    .rows { padding: 0 8px 8px; }
+    .lfoot { padding: 12px 14px; }
+    .rmain {
+      grid-template-columns: minmax(0, 1fr) auto auto 18px; gap: 6px 10px; padding: 11px 8px;
+      grid-template-areas: "date score grade cv" "risk risk risk risk" "mode mode mode mode";
+    }
+    .c-date { grid-area: date; } .c-score { grid-area: score; } .c-grade { grid-area: grade; }
+    .c-risk { grid-area: risk; } .c-mode { grid-area: mode; } .c-cv { grid-area: cv; }
+    .c-mode .perf { display: inline; margin: 0; }
+    .c-mode .perf::before { content: " · "; }
+    .rline { align-items: start; }
+    .rdel { margin-top: 4px; }
+    .trend { margin-left: 0; }
+  }
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -17,14 +149,374 @@
   <main>
     <div class="hero">
       <h1 data-en="Audit <span class='u'>history</span> &amp; trends">检测<span class='u'>历史</span>与趋势</h1>
+      <p data-en="Every verification you have run on this machine. Grouped by &quot;relay + claimed model&quot;, with a health-score trend line; click any row to expand that report.">这里是你在本机跑过的每一次验真。按「中转站 + 声称模型」分组，附一条健康分趋势曲线；点任意一行可展开当时那份报告。</p>
+      <p class="local-note"><span class="pico" id="lockIcon"></span><span data-en="History lives only in a local SQLite file under &lt;code&gt;~/.zing&lt;/code&gt; — nothing is uploaded.">历史只保存在 <code>~/.zing</code> 下的本地 SQLite 文件里，不会上传。</span></p>
     </div>
-    <div class="card card-pad" style="margin-top:20px">
-      <p class="empty" data-en="This page of the new UI is still being built. Meanwhile, use the &lt;a href=&quot;?ui=v1&quot;&gt;classic page&lt;/a&gt;.">新界面的这一页还在建设中，请先使用<a href="?ui=v1">经典页面</a>。</p>
-    </div>
+
+    <section class="card hist" id="hist" tabindex="-1" aria-busy="true">
+      <div class="state loading" data-en="Loading history…">加载历史…</div>
+    </section>
   </main>
 </div>
 <script src="/i18n.js"></script>
+<script src="/perf.js"></script>
 <script src="/icons.js"></script>
 <script src="/v2/static/nav.js"></script>
+<script src="/v2/static/report.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var ico = function (n, o) { return window.zingIcon ? window.zingIcon(n, o || {}) : ""; };
+  var esc = function (s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  };
+  // T(zh, en) with {name} placeholders filled after translation
+  var Tf = function (zh, en, vars) {
+    return T(zh, en).replace(/\{(\w+)\}/g, function (m, k) { return vars && k in vars ? vars[k] : m; });
+  };
+
+  var RISKC = { clean: "good", low: "sky", medium: "warn", high: "bad", inconclusive: "grey" };
+  var RISKI = { clean: "check", low: "warning", medium: "warning", high: "x", inconclusive: "info" };
+  var GRADEC = { A: "good", B: "good", C: "sky", D: "warn", E: "bad", F: "bad" };
+  // score -> same family as the grade it maps to (scoring.py: A>=90 B>=80 C>=70 D>=60)
+  var scoreC = function (s) {
+    return typeof s !== "number" ? "grey" : s >= 80 ? "good" : s >= 70 ? "sky" : s >= 60 ? "warn" : "bad";
+  };
+  var gradeC = function (g) { return GRADEC[String(g || "").toUpperCase()] || "grey"; };
+  var num = function (s) { return typeof s === "number" ? String(Math.round(s)) : "—"; };
+
+  var host = $("#hist");
+  var state = { rows: null, error: null, trends: {}, reports: {}, open: null, confirm: null };
+
+  $("#lockIcon").innerHTML = ico("lock");
+
+  function fmtTime(ts) {
+    if (!ts) return "—";
+    var d = new Date(ts);
+    if (isNaN(d)) return String(ts);
+    try {
+      return d.toLocaleString(ZING_LANG.locale(), { dateStyle: "medium", timeStyle: "short" });
+    } catch (e) {
+      return d.toLocaleString();
+    }
+  }
+
+  function groupsOf(rows) {
+    var groups = [], idx = {};
+    rows.forEach(function (r) {
+      var key = (r.base_url || "") + "\n" + (r.claimed_model || "");
+      if (idx[key] == null) {
+        idx[key] = groups.length;
+        groups.push({ key: key, base_url: r.base_url, claimed_model: r.claimed_model, rows: [] });
+      }
+      groups[idx[key]].rows.push(r);
+    });
+    return groups;
+  }
+
+  /* ---------------- data ---------------- */
+  function load() {
+    host.setAttribute("aria-busy", "true");
+    return fetch("/api/history?limit=200")
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (rows) {
+        state.rows = Array.isArray(rows) ? rows : [];
+        state.error = null;
+        var ids = {};
+        state.rows.forEach(function (r) { ids[r.id] = 1; });
+        if (state.open != null && !ids[state.open]) state.open = null;
+        render();
+        return loadTrends();
+      })
+      .catch(function (e) {
+        state.error = String((e && e.message) || e);
+        render();
+      })
+      .then(function () { host.setAttribute("aria-busy", "false"); });
+  }
+
+  function loadTrends() {
+    var groups = groupsOf(state.rows || []);
+    return Promise.all(groups.map(function (g) {
+      var u = "/api/history/trend?base_url=" + encodeURIComponent(g.base_url || "") +
+        "&claimed_model=" + encodeURIComponent(g.claimed_model || "");
+      return fetch(u)
+        .then(function (r) { return r.ok ? r.json() : []; })
+        .then(function (t) { state.trends[g.key] = Array.isArray(t) ? t : []; })
+        .catch(function () { state.trends[g.key] = []; });
+    })).then(render);
+  }
+
+  /* ---------------- rendering ---------------- */
+  function render() {
+    // keep mounted report elements (with their open evidence) across re-renders
+    var keep = {};
+    Array.prototype.forEach.call(host.querySelectorAll(".panel[data-id]"), function (p) {
+      if (p.firstElementChild && p.firstElementChild.classList.contains("rep")) keep[p.getAttribute("data-id")] = p.firstElementChild;
+    });
+    var focusSel = focusKey(document.activeElement);
+
+    if (state.error != null) {
+      host.innerHTML = '<div class="errbox" role="alert">' + esc(T("无法读取历史：", "Could not read history: ")) + esc(state.error) +
+        "<br>" + esc(T("请确认本地 zing 服务在运行。", "Make sure the local zing service is running.")) + "</div>";
+      return;
+    }
+    if (!state.rows) return;
+    if (!state.rows.length) {
+      host.innerHTML = '<div class="empty-box"><div class="ic">' + ico("folder") + "</div><p>" +
+        esc(T("还没有检测记录。", "No audits recorded yet.")) + '</p><a class="btn pri" href="/v2/">' +
+        esc(T("去跑第一次检测", "Run your first audit")) + " " + ico("arrowRight") + "</a></div>";
+      return;
+    }
+
+    var groups = groupsOf(state.rows);
+    host.innerHTML =
+      '<div class="colhead" aria-hidden="true"><div class="cells">' +
+      "<span>" + esc(T("时间", "Time")) + "</span>" +
+      "<span>" + esc(T("风险", "Risk")) + "</span>" +
+      '<span class="n">' + esc(T("健康分", "Score")) + "</span>" +
+      '<span class="n">' + esc(T("评级", "Grade")) + "</span>" +
+      "<span>" + esc(T("模式 / 套件", "Mode / suite")) + "</span><span></span></div><span></span></div>" +
+      groups.map(groupHTML).join("") +
+      '<div class="lfoot">' +
+      '<span class="aside">' + esc(Tf("共 {n} 条记录", "Saved audits: {n}", { n: state.rows.length })) + "</span>" +
+      '<button type="button" class="linkbtn clr" id="clr" aria-expanded="' + (state.confirm === "all") + '" aria-controls="clrConfirm">' +
+      ico("trash") + esc(T("清空历史", "Clear history")) + "</button>" +
+      confirmHTML("clrConfirm", "all", T("确定清空全部检测历史？此操作不可撤销。", "Clear the entire audit history? This cannot be undone."), T("清空历史", "Clear history")) +
+      "</div>";
+
+    // re-mount the open report
+    if (state.open != null) {
+      var panel = host.querySelector('.panel[data-id="' + state.open + '"]');
+      if (panel) {
+        panel.hidden = false;
+        if (keep[state.open]) panel.appendChild(keep[state.open]);
+        else if (state.reports[state.open]) mount(panel, state.reports[state.open]);
+        else fetchReport(panel, state.open);
+      }
+    }
+    if (focusSel) {
+      var f = host.querySelector(focusSel);
+      if (f) f.focus();
+    }
+  }
+
+  function focusKey(el) {
+    if (!el || !host.contains(el)) return null;
+    if (el.id) return "#" + CSS.escape(el.id);
+    var row = el.closest(".row");
+    if (row && el.classList.contains("rdel")) return '.row[data-id="' + row.getAttribute("data-id") + '"] .rdel';
+    return null;
+  }
+
+  function confirmHTML(id, what, msg, okLabel) {
+    return '<div class="confirm" id="' + id + '" role="group" aria-label="' + esc(msg) + '"' + (state.confirm === what ? "" : " hidden") + ">" +
+      '<span class="msg">' + esc(msg) + "</span>" +
+      '<span class="btns"><button type="button" class="btn sm danger-solid" data-yes="' + what + '">' + esc(okLabel) + "</button>" +
+      '<button type="button" class="btn sm" data-no="' + what + '">' + esc(T("取消", "Cancel")) + "</button></span></div>";
+  }
+
+  function groupHTML(g, gi) {
+    var trend = state.trends[g.key];
+    var hid = "g" + gi;
+    return '<section class="group" aria-labelledby="' + hid + '"><div class="grp-h"><div class="gtitle">' +
+      '<h2 id="' + hid + '" title="' + esc(T("声称模型", "Claimed model")) + '">' +
+      esc(g.claimed_model || T("(未声明模型)", "(no model declared)")) + "</h2>" +
+      '<div class="gu"><code class="key">base_url</code><span title="' + esc(g.base_url || "") + '">' + esc(g.base_url || "—") + "</span></div></div>" +
+      trendHTML(trend, g.rows[0]) + "</div>" +
+      '<ul class="rows">' + g.rows.map(function (r) { return rowHTML(r, trend); }).join("") + "</ul></section>";
+  }
+
+  function trendHTML(trend, newest) {
+    var pts = (trend || []).filter(function (p) { return p && typeof p.score === "number"; });
+    var latest = pts.length ? pts[pts.length - 1].score : newest && newest.score;
+    var fam = scoreC(latest);
+    var out = '<div class="trend">';
+    if (pts.length >= 2) {
+      var W = 120, H = 36, P = 4;
+      var xs = pts.map(function (_, i) { return P + (i * (W - 2 * P)) / (pts.length - 1); });
+      var ys = pts.map(function (p) { return H - P - (Math.max(0, Math.min(100, p.score)) / 100) * (H - 2 * P); });
+      var d = xs.map(function (x, i) { return (i ? "L" : "M") + x.toFixed(1) + "," + ys[i].toFixed(1); }).join(" ");
+      var area = d + " L" + xs[xs.length - 1].toFixed(1) + "," + (H - P) + " L" + xs[0].toFixed(1) + "," + (H - P) + " Z";
+      var first = Math.round(pts[0].score), last = Math.round(pts[pts.length - 1].score);
+      var dir = last > first ? T("上升", "rising") : last < first ? T("下降", "falling") : T("持平", "unchanged");
+      var label = Tf("健康分趋势（{n} 次检测）：从 {first} 到 {last}，{dir}。",
+        "Health score trend across {n} audits: from {first} to {last}, {dir}.", { n: pts.length, first: first, last: last, dir: dir });
+      out += '<svg class="f-' + fam + '" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(label) + '">' +
+        "<title>" + esc(label) + "</title>" +
+        '<line class="base" x1="0" x2="' + W + '" y1="' + (H - P) + '" y2="' + (H - P) + '"/>' +
+        '<path class="area" d="' + area + '"/><path class="line" d="' + d + '"/>' +
+        '<circle class="dot" cx="' + xs[xs.length - 1].toFixed(1) + '" cy="' + ys[ys.length - 1].toFixed(1) + '" r="3"/></svg>';
+    }
+    var lat = (trend || []).filter(function (p) { return p && typeof p.latency_p50_ms === "number"; });
+    if (lat.length) {
+      var lp = lat[lat.length - 1];
+      out += '<span class="lat" title="' + esc(T("延迟 p50", "Latency p50")) + '">p50 ' + Math.round(lp.latency_p50_ms) + " ms" +
+        (typeof lp.decode_tps_p50 === "number" ? " · " + Math.round(lp.decode_tps_p50) + " tok/s" : "") + "</span>";
+    }
+    out += '<span class="latest"><b class="f-' + fam + '">' + num(latest) + "</b><small>" + esc(T("最新健康分", "Latest score")) + "</small></span></div>";
+    return out;
+  }
+
+  function rowHTML(r, trend) {
+    var id = String(r.id);
+    var lvl = r.risk_level || "inconclusive";
+    var perf = null;
+    (trend || []).forEach(function (p) {
+      if (p && p.ts === r.ts && typeof p.latency_p50_ms === "number") perf = p;
+    });
+    var open = String(state.open) === id;
+    return '<li class="row" data-id="' + esc(id) + '"><div class="rline">' +
+      '<button type="button" class="rmain" id="r-' + esc(id) + '" aria-expanded="' + open + '" aria-controls="p-' + esc(id) + '">' +
+      '<span class="c-date">' + esc(fmtTime(r.ts)) + "</span>" +
+      '<span class="c-risk"><span class="badge ' + (RISKC[lvl] || "grey") + '">' + ico(RISKI[lvl] || "info") + " " +
+      esc(ZING_I18N.label("RISK_LEVEL", lvl)) + "</span></span>" +
+      '<span class="c-score f-' + scoreC(r.score) + '"><span class="sr-only">' + esc(T("健康分", "Score")) + " </span>" + num(r.score) + "</span>" +
+      '<span class="c-grade f-' + gradeC(r.rating) + '"><span class="sr-only">' + esc(T("评级", "Grade")) + " </span>" + esc(r.rating || "–") + "</span>" +
+      '<span class="c-mode"><b>' + esc(r.mode || "check") + "</b>" + (r.suite ? " · " + esc(r.suite) : "") +
+      (perf ? '<span class="perf" title="' + esc(T("延迟 p50", "Latency p50")) + '">p50 ' + Math.round(perf.latency_p50_ms) + " ms</span>" : "") + "</span>" +
+      '<span class="c-cv" aria-hidden="true">' + ico("chevronDown") + "</span></button>" +
+      '<button type="button" class="rdel" aria-label="' + esc(T("删除此记录", "Delete entry")) + '" title="' + esc(T("删除此记录", "Delete entry")) +
+      '" aria-expanded="' + (state.confirm === id) + '" aria-controls="c-' + esc(id) + '">' + ico("trash") + "</button></div>" +
+      confirmHTML("c-" + esc(id), id, T("删除这条历史记录？", "Delete this history entry?"), T("删除", "Delete")) +
+      '<div class="panel" id="p-' + esc(id) + '" data-id="' + esc(id) + '" role="region" aria-labelledby="r-' + esc(id) + '" hidden></div></li>';
+  }
+
+  /* ---------------- report drawer ---------------- */
+  function mount(panel, report) {
+    var el = document.createElement("div");
+    el.className = "rep";
+    panel.innerHTML = "";
+    panel.appendChild(el);
+    ZingReport.render(el, report, {
+      actions: [{ zh: "下载 JSON", en: "Download JSON", onClick: function (rep) { download(rep, panel.getAttribute("data-id")); } }],
+    });
+  }
+
+  function fetchReport(panel, id) {
+    panel.innerHTML = '<div class="state loading">' + esc(T("加载报告…", "Loading report…")) + "</div>";
+    fetch("/api/history/" + encodeURIComponent(id))
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (rep) {
+        state.reports[id] = rep;
+        if (panel.isConnected) mount(panel, rep);
+      })
+      .catch(function (e) {
+        if (panel.isConnected)
+          panel.innerHTML = '<div class="errbox">' + esc(T("无法加载这份报告：", "Could not load this report: ")) + esc(String((e && e.message) || e)) + "</div>";
+      });
+  }
+
+  function download(raw, id) {
+    var rep = window.ZING_I18N && ZING_I18N.exportReport ? ZING_I18N.exportReport(raw) : raw;
+    var blob = new Blob([JSON.stringify(rep, null, 2)], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "zing-report-" + id + "." + ZING_LANG.get() + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  function toggle(id) {
+    var prev = state.open;
+    if (prev != null) {
+      var pb = document.getElementById("r-" + prev), pp = document.getElementById("p-" + prev);
+      if (pb) pb.setAttribute("aria-expanded", "false");
+      if (pp) { pp.hidden = true; pp.innerHTML = ""; }
+    }
+    state.open = String(prev) === id ? null : id;
+    if (state.open == null) return;
+    var b = document.getElementById("r-" + id), p = document.getElementById("p-" + id);
+    b.setAttribute("aria-expanded", "true");
+    p.hidden = false;
+    if (state.reports[id]) mount(p, state.reports[id]);
+    else fetchReport(p, id);
+  }
+
+  /* ---------------- delete / clear ---------------- */
+  function setConfirm(what) {
+    state.confirm = what;
+    Array.prototype.forEach.call(host.querySelectorAll(".confirm"), function (c) {
+      var mine = c.querySelector("[data-yes]").getAttribute("data-yes") === what;
+      c.hidden = !mine;
+    });
+    Array.prototype.forEach.call(host.querySelectorAll("[aria-controls]"), function (b) {
+      if (b.classList.contains("rdel") || b.id === "clr")
+        b.setAttribute("aria-expanded", String(b.getAttribute("aria-controls") === (what === "all" ? "clrConfirm" : "c-" + what)));
+    });
+    if (what != null) {
+      var c = document.getElementById(what === "all" ? "clrConfirm" : "c-" + what);
+      var no = c && c.querySelector("[data-no]");
+      if (no) no.focus();
+    }
+  }
+
+  function doDelete(what) {
+    var url = what === "all" ? "/api/history" : "/api/history/" + encodeURIComponent(what);
+    var btn = host.querySelector('[data-yes="' + what + '"]');
+    if (btn) btn.disabled = true;
+    fetch(url, { method: "DELETE" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        state.confirm = null;
+        if (what === "all") { state.reports = {}; state.trends = {}; state.open = null; }
+        else delete state.reports[what];
+        return load();
+      })
+      .then(function () {
+        var first = host.querySelector(".rmain") || host.querySelector(".empty-box a");
+        (first || host).focus();
+      })
+      .catch(function (e) {
+        if (btn) btn.disabled = false;
+        var c = btn && btn.closest(".confirm");
+        if (c) c.querySelector(".msg").textContent = T("删除失败：", "Could not delete: ") + String((e && e.message) || e);
+      });
+  }
+
+  host.addEventListener("click", function (ev) {
+    var t = ev.target.closest("button");
+    if (!t || !host.contains(t)) return;
+    if (t.classList.contains("rmain")) return toggle(t.id.slice(2));
+    if (t.classList.contains("rdel")) {
+      var id = t.closest(".row").getAttribute("data-id");
+      return setConfirm(state.confirm === id ? null : id);
+    }
+    if (t.id === "clr") return setConfirm(state.confirm === "all" ? null : "all");
+    if (t.hasAttribute("data-no")) {
+      var w = t.getAttribute("data-no");
+      setConfirm(null);
+      var back = w === "all" ? $("#clr") : host.querySelector('.row[data-id="' + w + '"] .rdel');
+      if (back) back.focus();
+      return;
+    }
+    if (t.hasAttribute("data-yes")) return doDelete(t.getAttribute("data-yes"));
+  });
+  host.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Escape" || state.confirm == null) return;
+    var w = state.confirm;
+    setConfirm(null);
+    var back = w === "all" ? $("#clr") : host.querySelector('.row[data-id="' + w + '"] .rdel');
+    if (back) back.focus();
+  });
+
+  // live language switch: re-render from cached data (no refetch); the open
+  // report is re-rendered by report.js and carried over by render().
+  window.addEventListener("zing:lang", function () { render(); });
+
+  load();
+})();
+</script>
 </body>
 </html>

@@ -201,7 +201,7 @@
       (hasScore
         ? '<div class="bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + v +
           '" aria-valuetext="' + esc(valText) + '" aria-labelledby="' + id + '"><i data-w="' + v + '" class="' + c + '"></i></div>'
-        : '<div class="bar none"><i data-w="100" class="grey"></i><span class="sr-only">' + esc(valText) + "</span></div>") +
+        : '<div class="bar none"><i data-w="0" class="grey"></i><span class="sr-only">' + esc(valText) + "</span></div>") +
       '<span class="badge ' + c + '" aria-hidden="true">' + (hasScore ? esc(num(v, 0)) : "—") + "</span></div>"
     );
   }

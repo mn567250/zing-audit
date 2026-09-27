@@ -49,7 +49,6 @@
 .zr-dim .nm small { display: block; font-weight: 400; color: var(--faint); font-size: 11.5px; }
 .zr-dim .bar { height: 7px; background: var(--track); border-radius: 5px; overflow: hidden; }
 .zr-dim .bar i { display: block; height: 100%; width: 0; border-radius: 5px; background: var(--grey-fill); transition: width 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.zr-dim .bar.none i { opacity: 0.35; }
 .zr-dim .bar i.good { background: var(--good-fill); }
 .zr-dim .bar i.sky { background: var(--sky-fill); }
 .zr-dim .bar i.warn { background: var(--warn-fill); }

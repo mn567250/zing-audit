@@ -1,0 +1,14 @@
+{
+ "strings": {
+  "Model to request": "Model to request",
+  "Version": "Version",
+  "Other": "Other",
+  "Not scored": "Not scored",
+  "Severity: {s}.": "Severity: {s}.",
+  "{n} finding": "{n} finding",
+  "{n} findings": "{n} findings",
+  "{n} dimension": "{n} dimension",
+  "{n} dimensions": "{n} dimensions",
+  "Rating {r}": "Rating {r}"
+ }
+}

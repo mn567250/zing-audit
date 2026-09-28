@@ -1,0 +1,13 @@
+{
+ "strings": {
+  "Cancel": "Cancel",
+  "Could not delete: ": "Could not delete: ",
+  "Health score trend across {n} audits: from {first} to {last}, {dir}.": "Health score trend across {n} audits: from {first} to {last}, {dir}.",
+  "History lives only in a local SQLite file under <code>~/.zing</code> — nothing is uploaded.": "History lives only in a local SQLite file under <code>~/.zing</code> — nothing is uploaded.",
+  "Latest score": "Latest score",
+  "Saved audits: {n}": "Saved audits: {n}",
+  "falling": "falling",
+  "rising": "rising",
+  "unchanged": "unchanged"
+ }
+}

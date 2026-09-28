@@ -148,15 +148,21 @@ async def test_dimension_rows_expand_into_scoring_details(tmp_path):
     assert "Detector score: mean of the counted checks' points." in panel
     # every check, positive and negative, with the outcome and its points
     assert "Multi-turn conversation memory 55 pts" in " ".join(panel.split())
-    assert "The color from an earlier turn was not recalled." in panel
     assert "Not counted" in panel and "Result: Pass." in panel
     assert "Output varies at temperature=1.0" in panel  # a detector without a scale
     dots = set(re.findall(r'<span class="dot (\w+)"', _panel(html)))
     assert {"good", "warn", "grey"} <= dots
-    # the published scale, collapsed, with this run's outcome marked
-    assert 'class="linkbtn scl" aria-expanded="false"' in html and "Show scoring scale" in html
+    # the published scale sits in one info tip per check (no appended block),
+    # every outcome the check could have had, this run's marked
+    assert "zr-scale" not in html and "Show scoring scale" not in html
+    tips = re.findall(r'<span class="zr-tip"><button type="button" class="tipb" aria-expanded="false" '
+                      r'aria-describedby="(zr-tip-\d+)" aria-label="Scoring scale">', html)
+    assert len(tips) == 4
+    assert f'<span class="bubble" role="tooltip" id="{tips[0]}">' in html
     assert "The invalid request was accepted (2xx)." in panel
-    assert re.search(r'<li class="hit"><span class="p">100 pts</span><span>Rejected with a 4xx and an OpenAI-style', html)
+    assert re.search(r'<span class="row hit"><span class="p">100 pts</span><span>Rejected with a 4xx and an OpenAI-style', html)
+    # the outcome is no longer repeated as its own line under the title
+    assert '<div class="oc">' not in html
     assert html.count("This run") == 4  # one hit per check, the not-counted one included
 
 
@@ -178,7 +184,7 @@ async def test_dimension_details_explain_a_status_override(tmp_path):
 async def test_dimension_details_are_translated(tmp_path, lang, points):
     html = _render(tmp_path, lang, await _scored_report())["html"]
     panel = _text(_panel(html))
-    for en in ("Score: mean of", "Not counted", "Show scoring scale", "This run",
+    for en in ("Score: mean of", "Not counted", "Scoring scale", "This run",
                "The invalid request was accepted", "Detector score", "Result:"):
         assert en not in panel, (lang, en)
     assert f'<span class="pts">{points}</span>' in html

@@ -1,13 +1,28 @@
 {
  "strings": {
+  "(no suite)": "(sem suíte)",
+  "All": "Todos",
   "Cancel": "Cancelar",
   "Could not delete: ": "Não foi possível eliminar: ",
+  "Filters": "Filtros",
   "Health score trend across {n} audits: from {first} to {last}, {dir}.": "Evolução da pontuação de saúde em {n} auditorias: de {first} para {last}, {dir}.",
   "History lives only in a local SQLite file under <code>~/.zing</code> — nothing is uploaded.": "O histórico fica apenas num ficheiro SQLite local em <code>~/.zing</code> — nada é enviado.",
-  "Latest score": "Última pontuação",
+  "Last 30 days": "Últimos 30 dias",
+  "Last 7 days": "Últimos 7 dias",
+  "Last 90 days": "Últimos 90 dias",
+  "Min. score": "Pontuação mín.",
+  "No audits match these filters.": "Nenhuma auditoria corresponde a estes filtros.",
+  "Period": "Período",
+  "Relay / provider": "Relay / provedor",
+  "Relay, model, suite…": "Relay, modelo, suíte…",
+  "Reset filters": "Redefinir filtros",
   "Saved audits: {n}": "Auditorias guardadas: {n}",
+  "Search": "Pesquisar",
+  "Showing {shown} of {n} audits": "Mostrando {shown} de {n} auditorias",
+  "Trends": "Tendências",
   "falling": "em queda",
   "rising": "em subida",
-  "unchanged": "sem alterações"
+  "unchanged": "sem alterações",
+  "{metric} trend across {n} audits: from {first} to {last}.": "Tendência de {metric} em {n} auditorias: de {first} a {last}."
  }
 }

@@ -139,18 +139,27 @@ def save(report: dict[str, Any]) -> int:
         return -1
 
 
-def recent(limit: int = 50) -> list[dict[str, Any]]:
-    """Most recent audits, newest first — summary columns only (no report)."""
+def recent(limit: int = 50, perf: bool = False) -> list[dict[str, Any]]:
+    """Most recent audits, newest first — summary columns only (no report).
+
+    With ``perf`` each row also carries the performance headline of its report
+    (``latency_p50_ms`` / ``ttft_p50_ms`` / ``decode_tps_p50``, see
+    :func:`_perf_headline`) so the UI can draw trends without one call per group.
+    """
     try:
         limit = max(1, min(int(limit), 500))
     except (TypeError, ValueError):
         limit = 50
-    cols = ", ".join(_SUMMARY_COLS)
+    cols = ", ".join(_SUMMARY_COLS + (("report_json",) if perf else ()))
     with _connect() as conn:
         rows = conn.execute(
             f"SELECT {cols} FROM history ORDER BY id DESC LIMIT ?", (limit,)
         ).fetchall()
-    return [dict(r) for r in rows]
+    out = [dict(r) for r in rows]
+    if perf:
+        for item in out:
+            item.update(_perf_headline(item.pop("report_json", None)))
+    return out
 
 
 def get(rid: int) -> dict[str, Any] | None:

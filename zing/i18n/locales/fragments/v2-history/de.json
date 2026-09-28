@@ -1,13 +1,28 @@
 {
  "strings": {
+  "(no suite)": "(keine Suite)",
+  "All": "Alle",
   "Cancel": "Abbrechen",
   "Could not delete: ": "Löschen fehlgeschlagen: ",
+  "Filters": "Filter",
   "Health score trend across {n} audits: from {first} to {last}, {dir}.": "Verlauf des Health-Scores über {n} Audits: von {first} auf {last}, {dir}.",
   "History lives only in a local SQLite file under <code>~/.zing</code> — nothing is uploaded.": "Der Verlauf liegt nur in einer lokalen SQLite-Datei unter <code>~/.zing</code> — nichts wird hochgeladen.",
-  "Latest score": "Neuester Score",
+  "Last 30 days": "Letzte 30 Tage",
+  "Last 7 days": "Letzte 7 Tage",
+  "Last 90 days": "Letzte 90 Tage",
+  "Min. score": "Min. Score",
+  "No audits match these filters.": "Keine Prüfungen passen zu diesen Filtern.",
+  "Period": "Zeitraum",
+  "Relay / provider": "Relay / Anbieter",
+  "Relay, model, suite…": "Relay, Modell, Suite…",
+  "Reset filters": "Filter zurücksetzen",
   "Saved audits: {n}": "Gespeicherte Audits: {n}",
+  "Search": "Suche",
+  "Showing {shown} of {n} audits": "{shown} von {n} Prüfungen",
+  "Trends": "Trends",
   "falling": "fallend",
   "rising": "steigend",
-  "unchanged": "unverändert"
+  "unchanged": "unverändert",
+  "{metric} trend across {n} audits: from {first} to {last}.": "{metric}-Verlauf über {n} Prüfungen: von {first} auf {last}."
  }
 }

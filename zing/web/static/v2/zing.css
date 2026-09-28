@@ -12,6 +12,7 @@
  *
  * Themes: light by default; dark follows prefers-color-scheme unless the root
  * carries data-theme="light"; data-theme="dark" forces dark (the console).
+ * theme.js sets the attribute from the header's theme switch.
  */
 
 :root {
@@ -226,7 +227,8 @@ button { font: inherit; color: inherit; }
   text-decoration: none; white-space: nowrap;
 }
 .pill b { color: var(--teal); }
-.lang-sel {
+.lang-sel,
+.theme-sel {
   appearance: none; -webkit-appearance: none; cursor: pointer;
   font-family: var(--sans); font-size: 12px; font-weight: 600; color: var(--ink2);
   background: var(--card); border: 1px solid var(--line); border-radius: var(--r-pill);
@@ -236,8 +238,10 @@ button { font: inherit; color: inherit; }
   background-size: 4px 4px, 4px 4px;
   background-repeat: no-repeat;
 }
-.lang-sel:hover { border-color: var(--line-strong); }
-.lang-sel:focus-visible { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--focus-ring); }
+.lang-sel:hover,
+.theme-sel:hover { border-color: var(--line-strong); }
+.lang-sel:focus-visible,
+.theme-sel:focus-visible { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--focus-ring); }
 
 /* ---------- hero ---------- */
 .hero { padding: 24px 0 4px; }

@@ -657,10 +657,10 @@ def create_app() -> FastAPI:
         return _classic_page(request, "/history")
 
     @app.get("/api/history")
-    async def history_list(limit: int = 50) -> Any:
+    async def history_list(limit: int = 50, perf: bool = False) -> Any:
         from zing.web import history
 
-        return JSONResponse(history.recent(limit))
+        return JSONResponse(history.recent(limit, perf=perf))
 
     @app.get("/api/history/trend")
     async def history_trend(base_url: str, claimed_model: str, limit: int = 30) -> Any:

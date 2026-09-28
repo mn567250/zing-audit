@@ -6,6 +6,7 @@
 <title data-en="zing — audit history">zing — 检测历史</title>
 <script src="/locales.js"></script>
 <script src="/lang.js"></script>
+<script src="/v2/static/theme.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&amp;family=Hanken+Grotesk:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet" />
@@ -20,7 +21,7 @@
    *
    * Grade letter colour (by grade, not by risk):
    *   A, B -> good · C -> sky · D -> warn · E, F -> bad · none -> grey.
-   * Scores (row score, latest score, sparkline) use the same families through
+   * Scores (row score, trend value, sparkline) use the same families through
    * the grade thresholds of zing/scoring.py (>=80 good, >=70 sky, >=60 warn). */
   .hist { --cols: minmax(0, 1.3fr) minmax(0, 1.55fr) 3.2em 2.6em minmax(0, 1.25fr) 18px; --del: 36px; }
   .local-note { display: flex; align-items: center; gap: 7px; margin: 12px 0 0; font-size: 12.5px; color: var(--faint); line-height: 1.5; }
@@ -47,22 +48,58 @@
   .gtitle .gu { display: flex; align-items: center; gap: 6px; margin-top: 4px; min-width: 0; }
   .gtitle .gu span { font-family: var(--mono); font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .gtitle .key { flex: none; }
-  .trend { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; margin-left: auto; }
+  /* group trends: score + latency p50, each "caption / sparkline + value" */
+  .trend { display: flex; align-items: stretch; gap: 16px; flex: 0 0 auto; margin-left: auto; }
+  .tr { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .tr + .tr { padding-left: 16px; border-left: 1px solid var(--line); }
+  .tr .tl { font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+  .tr .tv { display: flex; align-items: center; gap: 9px; }
+  .tr .tv b { color: inherit; font-family: var(--disp); font-weight: 700; font-size: 17px; letter-spacing: -0.3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tr .tv b small { font-family: var(--sans); font-size: 11px; font-weight: 600; color: var(--faint); letter-spacing: 0; margin-left: 2px; }
   .trend svg { display: block; overflow: visible; }
   .trend .area { fill: currentColor; opacity: 0.14; }
   .trend .line { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .trend .base { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 2 3; }
   .trend .dot { fill: currentColor; }
-  .latest { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
-  .latest b { font-family: var(--disp); font-weight: 700; font-size: 28px; letter-spacing: -0.8px; }
-  .latest small { font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--faint); margin-top: 4px; white-space: nowrap; }
-  .lat { font-family: var(--mono); font-size: 12px; color: var(--ink2); padding-left: 12px; border-left: 1px solid var(--line); white-space: nowrap; }
+
+  /* filter bar */
+  .filters { margin-top: 22px; padding: 14px 18px 16px; }
+  .filters[hidden] { display: none; }
+  .fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 12px; align-items: end; }
+  .fgrid .fq { grid-column: 1 / -1; }
+  @media (min-width: 700px) { .fgrid .fq { grid-column: auto; } }
+  .fgrid label { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .fgrid label > span { font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fgrid .in { font-size: 13.5px; padding: 8px 11px; border-radius: 10px; }
+  .fgrid select.in { padding-right: 30px; background-position: right 16px center, right 11px center; }
+  .tsel { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .tsel > span { font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--faint); margin-right: 4px; }
+  .tsel button {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-family: var(--sans); font-weight: 600; font-size: 12.5px;
+    color: var(--ink2); background: var(--field); border: 1.5px solid var(--line); border-radius: var(--r-pill); padding: 5px 11px;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .tsel button::before { content: ""; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; }
+  .tsel button[aria-pressed="true"] { color: var(--ink); border-color: var(--ink); }
+  .tsel button[aria-pressed="true"]::before { background: currentColor; }
+  .tsel button:hover:not(:disabled) { border-color: var(--line-strong); color: var(--ink); }
+  .tsel button[aria-pressed="true"]:hover:not(:disabled) { border-color: var(--ink); }
+  .tsel button:disabled { cursor: not-allowed; opacity: 0.7; }
+  .ffoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--ink2); }
+  .ffoot .linkbtn { font-size: 12.5px; font-weight: 600; }
+  .ffoot .linkbtn[hidden] { display: none; }
+  .nomatch { text-align: center; padding: 36px 22px; color: var(--ink2); font-size: 14.5px; }
+  .nomatch p { margin: 0 0 14px; }
 
   /* colour families (text) */
   .f-good { color: var(--good); } .f-sky { color: var(--sky); } .f-warn { color: var(--warn); }
   .f-bad { color: var(--bad); } .f-grey { color: var(--grey); }
-  .trend svg.f-good { color: var(--good-fill); } .trend svg.f-sky { color: var(--sky-fill); } .trend svg.f-warn { color: var(--warn-fill); }
-  .trend svg.f-bad { color: var(--bad-fill); } .trend svg.f-grey { color: var(--grey-fill); }
+  /* trend series without a score family: latency = sky, tokens/s = violet
+     (page-local token, >= 4.5:1 on --card in both themes) */
+  .hist { --m-tps: #6d45b8; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hist { --m-tps: #b99cf2; } }
+  :root[data-theme="dark"] .hist { --m-tps: #b99cf2; }
+  .f-lat { color: var(--sky); } .f-tps { color: var(--m-tps); }
 
   /* rows */
   .rows { list-style: none; margin: 0; padding: 0 18px 10px; }
@@ -142,10 +179,12 @@
     .rdel { margin-top: 4px; }
     .grp-h { flex-wrap: nowrap; align-items: flex-start; }
     .gtitle { flex: 1 1 auto; }
-    .trend { flex-direction: column; align-items: flex-end; gap: 6px; }
+    .trend { flex-direction: column; align-items: flex-end; gap: 8px; }
+    .tr { align-items: flex-end; }
+    .tr + .tr { padding-left: 0; border-left: 0; }
     .trend svg { width: 84px; height: 26px; }
-    .trend .latest { order: -1; }
-    .lat { border-left: 0; padding-left: 0; font-size: 11px; }
+    .filters { padding: 12px 14px 14px; }
+    .fgrid { grid-template-columns: 1fr 1fr; }
   }
 </style>
 </head>
@@ -158,6 +197,8 @@
       <p data-en="Every verification you have run on this machine. Grouped by &quot;relay + claimed model&quot;, with a health-score trend line; click any row to expand that report.">这里是你在本机跑过的每一次验真。按「中转站 + 声称模型」分组，附一条健康分趋势曲线；点任意一行可展开当时那份报告。</p>
       <p class="local-note"><span class="pico" id="lockIcon"></span><span data-en="History lives only in a local SQLite file under &lt;code&gt;~/.zing&lt;/code&gt; — nothing is uploaded.">历史只保存在 <code>~/.zing</code> 下的本地 SQLite 文件里，不会上传。</span></p>
     </div>
+
+    <section class="card filters" id="filters" hidden></section>
 
     <section class="card hist" id="hist" tabindex="-1" aria-busy="true">
       <div class="state loading" data-en="Loading history…">加载历史…</div>
@@ -194,10 +235,144 @@
   var gradeC = function (g) { return GRADEC[String(g || "").toUpperCase()] || "grey"; };
   var num = function (s) { return typeof s === "number" ? String(Math.round(s)) : "—"; };
 
-  var host = $("#hist");
-  var state = { rows: null, error: null, trends: {}, reports: {}, open: null, confirm: null };
+  var host = $("#hist"), fbar = $("#filters");
+  var FKEY = "zing.v2.history.filters", NONE = "__none__";
+  var FDEF = { host: "", model: "", suite: "", mode: "", risk: "", min: "", days: "", q: "" };
+  var state = { rows: null, error: null, reports: {}, open: null, confirm: null, filters: loadFilters() };
 
   $("#lockIcon").innerHTML = ico("lock");
+
+  /* ---------------- filters ---------------- */
+  // per-viewer convenience only: storage may be missing or throw
+  function loadFilters() {
+    var f = Object.assign({}, FDEF);
+    try {
+      var saved = JSON.parse(localStorage.getItem(FKEY) || "{}");
+      Object.keys(FDEF).forEach(function (k) { if (typeof saved[k] === "string") f[k] = saved[k]; });
+    } catch (e) { /* ignore */ }
+    return f;
+  }
+  function saveFilters() {
+    try { localStorage.setItem(FKEY, JSON.stringify(state.filters)); } catch (e) { /* ignore */ }
+  }
+  function isFiltered() {
+    return Object.keys(FDEF).some(function (k) { return state.filters[k] !== FDEF[k]; });
+  }
+  function hostOf(u) {
+    try { return new URL(u).host || String(u || ""); } catch (e) { return String(u || ""); }
+  }
+  function modeOf(r) { return r.mode || "check"; }
+  function riskOf(r) { return r.risk_level || "inconclusive"; }
+
+  function filtered(rows) {
+    var f = state.filters;
+    var min = f.min === "" ? null : Number(f.min);
+    var since = f.days ? Date.now() - Number(f.days) * 864e5 : null;
+    var q = f.q.trim().toLowerCase();
+    return rows.filter(function (r) {
+      if (f.host && hostOf(r.base_url) !== f.host) return false;
+      if (f.model && (r.claimed_model || "") !== f.model) return false;
+      if (f.suite && (f.suite === NONE ? !!r.suite : r.suite !== f.suite)) return false;
+      if (f.mode && modeOf(r) !== f.mode) return false;
+      if (f.risk && riskOf(r) !== f.risk) return false;
+      if (min != null && !isNaN(min) && !(typeof r.score === "number" && r.score >= min)) return false;
+      if (since != null) {
+        var t = Date.parse(r.ts);
+        if (isNaN(t) || t < since) return false;
+      }
+      if (q && [r.base_url, r.claimed_model, r.model, r.suite, modeOf(r)].join(" ").toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+  }
+
+  // distinct values of fn(row), sorted; the current selection stays listed even when no row has it
+  function distinct(fn, current) {
+    var seen = {}, out = [];
+    (state.rows || []).forEach(function (r) {
+      var v = fn(r);
+      if (v !== "" && v != null && !seen[v]) { seen[v] = 1; out.push(v); }
+    });
+    if (current && current !== NONE && !seen[current]) out.push(current);
+    return out.sort(function (a, b) { return String(a).localeCompare(String(b)); });
+  }
+
+  function selectHTML(key, label, opts) {
+    var cur = state.filters[key];
+    return '<label><span>' + esc(label) + '</span><select class="in" data-f="' + key + '">' +
+      '<option value="">' + esc(T("全部", "All")) + "</option>" +
+      opts.map(function (o) {
+        return '<option value="' + esc(o.v) + '"' + (o.v === cur ? " selected" : "") + ">" + esc(o.t) + "</option>";
+      }).join("") + "</select></label>";
+  }
+  var asOpts = function (vals) { return vals.map(function (v) { return { v: v, t: v }; }); };
+
+  function renderFilters() {
+    if (state.error != null || !state.rows || !state.rows.length) {
+      fbar.hidden = true;
+      fbar.innerHTML = "";
+      return;
+    }
+    var f = state.filters;
+    var focusSel = document.activeElement && fbar.contains(document.activeElement) && document.activeElement.getAttribute("data-f");
+    var suites = asOpts(distinct(function (r) { return r.suite || ""; }, f.suite));
+    if ((state.rows || []).some(function (r) { return !r.suite; }) || f.suite === NONE) suites.push({ v: NONE, t: T("（无套件）", "(no suite)") });
+    var risks = ["clean", "low", "medium", "high", "inconclusive"].filter(function (l) {
+      return l === f.risk || state.rows.some(function (r) { return riskOf(r) === l; });
+    });
+    fbar.setAttribute("aria-label", T("筛选", "Filters"));
+    fbar.hidden = false;
+    fbar.innerHTML = '<div class="fgrid">' +
+      '<label class="fq"><span>' + esc(T("搜索", "Search")) + '</span><input class="in" type="search" data-f="q" value="' + esc(f.q) +
+      '" placeholder="' + esc(T("中转站、模型、套件…", "Relay, model, suite…")) + '" autocomplete="off" /></label>' +
+      selectHTML("host", T("中转站", "Relay / provider"), asOpts(distinct(function (r) { return hostOf(r.base_url); }, f.host))) +
+      selectHTML("model", T("声称模型", "Claimed model"), asOpts(distinct(function (r) { return r.claimed_model || ""; }, f.model))) +
+      selectHTML("suite", T("套件", "Suite"), suites) +
+      selectHTML("mode", T("模式", "Mode"), asOpts(distinct(modeOf, f.mode))) +
+      selectHTML("risk", T("风险", "Risk"), risks.map(function (l) { return { v: l, t: ZING_I18N.label("RISK_LEVEL", l) }; })) +
+      '<label><span>' + esc(T("最低健康分", "Min. score")) + '</span><input class="in" type="number" inputmode="numeric" min="0" max="100" step="1" data-f="min" value="' +
+      esc(f.min) + '" placeholder="0" /></label>' +
+      selectHTML("days", T("时间范围", "Period"), [
+        { v: "7", t: T("最近 7 天", "Last 7 days") },
+        { v: "30", t: T("最近 30 天", "Last 30 days") },
+        { v: "90", t: T("最近 90 天", "Last 90 days") },
+      ]) +
+      "</div>" + trendPickerHTML() + '<div class="ffoot"><span id="fcount" aria-live="polite"></span>' +
+      '<button type="button" class="linkbtn" id="freset"' + (isFiltered() ? "" : " hidden") + ">" + esc(T("重置筛选", "Reset filters")) + "</button></div>";
+    if (focusSel) {
+      var el = fbar.querySelector('[data-f="' + focusSel + '"]');
+      if (el) el.focus();
+    }
+  }
+
+  function resetFilters() {
+    state.filters = Object.assign({}, FDEF);
+    saveFilters();
+    renderFilters();
+    render();
+  }
+
+  function onFilter(ev) {
+    var k = ev.target.getAttribute("data-f");
+    // a text field fires "change" again on blur; re-rendering then would swap
+    // out the button being clicked, so only react to real changes
+    if (!k || state.filters[k] === String(ev.target.value)) return;
+    state.filters[k] = String(ev.target.value);
+    saveFilters();
+    var rb = $("#freset");
+    if (rb) rb.hidden = !isFiltered();
+    render();
+  }
+  fbar.addEventListener("input", onFilter);
+  fbar.addEventListener("change", onFilter);
+  fbar.addEventListener("click", function (ev) {
+    var tb = ev.target.closest("[data-trend]");
+    if (tb) return toggleTrend(tb.getAttribute("data-trend"));
+    if (ev.target.closest("#freset")) {
+      resetFilters();
+      var first = fbar.querySelector("[data-f]");
+      if (first) first.focus();
+    }
+  });
 
   function fmtTime(ts) {
     if (!ts) return "—";
@@ -226,7 +401,9 @@
   /* ---------------- data ---------------- */
   function load() {
     host.setAttribute("aria-busy", "true");
-    return fetch("/api/history?limit=200")
+    // perf=1: every row carries its p50 latency / decode speed, so the group
+    // trends are drawn from the (filtered) rows without one request per group.
+    return fetch("/api/history?limit=500&perf=1")
       .then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.json();
@@ -234,35 +411,15 @@
       .then(function (rows) {
         state.rows = Array.isArray(rows) ? rows : [];
         state.error = null;
-        var ids = {};
-        state.rows.forEach(function (r) { ids[r.id] = 1; });
-        if (state.open != null && !ids[state.open]) state.open = null;
+        renderFilters();
         render();
-        return loadTrends();
       })
       .catch(function (e) {
         state.error = String((e && e.message) || e);
+        renderFilters();
         render();
       })
       .then(function () { host.setAttribute("aria-busy", "false"); });
-  }
-
-  var trendGen = 0;
-  function loadTrends() {
-    var gen = ++trendGen, fresh = {};
-    var groups = groupsOf(state.rows || []);
-    return Promise.all(groups.map(function (g) {
-      var u = "/api/history/trend?base_url=" + encodeURIComponent(g.base_url || "") +
-        "&claimed_model=" + encodeURIComponent(g.claimed_model || "");
-      return fetch(u)
-        .then(function (r) { return r.ok ? r.json() : []; })
-        .then(function (t) { fresh[g.key] = Array.isArray(t) ? t : []; })
-        .catch(function () { fresh[g.key] = []; });
-    })).then(function () {
-      if (gen !== trendGen) return; // a newer load superseded this one
-      state.trends = fresh;
-      render();
-    });
   }
 
   /* ---------------- rendering ---------------- */
@@ -287,7 +444,18 @@
       return;
     }
 
-    var groups = groupsOf(state.rows);
+    var rows = filtered(state.rows);
+    var fc = $("#fcount");
+    if (fc) fc.textContent = Tf("显示 {shown} / {n} 条记录", "Showing {shown} of {n} audits", { shown: rows.length, n: state.rows.length });
+    if (state.open != null && !rows.some(function (r) { return String(r.id) === String(state.open); })) state.open = null;
+    if (state.confirm != null && state.confirm !== "all" && !rows.some(function (r) { return String(r.id) === state.confirm; })) state.confirm = null;
+    if (!rows.length) {
+      host.innerHTML = '<div class="nomatch"><p>' + esc(T("没有符合筛选条件的检测记录。", "No audits match these filters.")) +
+        '</p><button type="button" class="btn sm" id="nmreset">' + esc(T("重置筛选", "Reset filters")) + "</button></div>";
+      return;
+    }
+
+    var groups = groupsOf(rows);
     host.innerHTML =
       '<div class="colhead" aria-hidden="true"><div class="cells">' +
       "<span>" + esc(T("时间", "Time")) + "</span>" +
@@ -297,7 +465,9 @@
       "<span>" + esc(T("模式 / 套件", "Mode / suite")) + "</span><span></span></div><span></span></div>" +
       groups.map(groupHTML).join("") +
       '<div class="lfoot">' +
-      '<span class="aside">' + esc(Tf("共 {n} 条记录", "Saved audits: {n}", { n: state.rows.length })) + "</span>" +
+      '<span class="aside">' + esc(isFiltered()
+        ? Tf("显示 {shown} / {n} 条记录", "Showing {shown} of {n} audits", { shown: rows.length, n: state.rows.length })
+        : Tf("共 {n} 条记录", "Saved audits: {n}", { n: state.rows.length })) + "</span>" +
       '<button type="button" class="linkbtn clr" id="clr" aria-expanded="' + (state.confirm === "all") + '" aria-controls="clrConfirm">' +
       ico("trash") + esc(T("清空历史", "Clear history")) + "</button>" +
       confirmHTML("clrConfirm", "all", T("确定清空全部检测历史？此操作不可撤销。", "Clear the entire audit history? This cannot be undone."), T("清空历史", "Clear history")) +
@@ -335,54 +505,124 @@
   }
 
   function groupHTML(g, gi) {
-    var trend = state.trends[g.key];
     var hid = "g" + gi;
     return '<section class="group" aria-labelledby="' + hid + '"><div class="grp-h"><div class="gtitle">' +
       '<h2 id="' + hid + '" title="' + esc(T("声称模型", "Claimed model")) + '">' +
       esc(g.claimed_model || T("(未声明模型)", "(no model declared)")) + "</h2>" +
       '<div class="gu"><code class="key">base_url</code><span title="' + esc(g.base_url || "") + '">' + esc(g.base_url || "—") + "</span></div></div>" +
-      trendHTML(trend, g.rows[0]) + "</div>" +
-      '<ul class="rows">' + g.rows.map(function (r) { return rowHTML(r, trend); }).join("") + "</ul></section>";
+      trendHTML(g.rows) + "</div>" +
+      '<ul class="rows">' + g.rows.map(rowHTML).join("") + "</ul></section>";
   }
 
-  function trendHTML(trend, newest) {
-    var pts = (trend || []).filter(function (p) { return p && typeof p.score === "number"; });
-    var latest = newest ? newest.score : null; // the newest row, even when it has no score
-    var fam = scoreC(latest);
-    var out = '<div class="trend">';
-    if (pts.length >= 2) {
-      var W = 120, H = 36, P = 4;
-      var xs = pts.map(function (_, i) { return P + (i * (W - 2 * P)) / (pts.length - 1); });
-      var ys = pts.map(function (p) { return H - P - (Math.max(0, Math.min(100, p.score)) / 100) * (H - 2 * P); });
-      var d = xs.map(function (x, i) { return (i ? "L" : "M") + x.toFixed(1) + "," + ys[i].toFixed(1); }).join(" ");
-      var area = d + " L" + xs[xs.length - 1].toFixed(1) + "," + (H - P) + " L" + xs[0].toFixed(1) + "," + (H - P) + " Z";
-      var first = Math.round(pts[0].score), last = Math.round(pts[pts.length - 1].score);
-      var dir = last > first ? T("上升", "rising") : last < first ? T("下降", "falling") : T("持平", "unchanged");
-      var label = Tf("健康分趋势（{n} 次检测）：从 {first} 到 {last}，{dir}。",
-        "Health score trend across {n} audits: from {first} to {last}, {dir}.", { n: pts.length, first: first, last: last, dir: dir });
-      out += '<svg class="f-' + fam + '" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(label) + '">' +
-        "<title>" + esc(label) + "</title>" +
-        '<line class="base" x1="0" x2="' + W + '" y1="' + (H - P) + '" y2="' + (H - P) + '"/>' +
-        '<path class="area" d="' + area + '"/><path class="line" d="' + d + '"/>' +
-        '<circle class="dot" cx="' + xs[xs.length - 1].toFixed(1) + '" cy="' + ys[ys.length - 1].toFixed(1) + '" r="3"/></svg>';
-    }
-    var lat = (trend || []).filter(function (p) { return p && typeof p.latency_p50_ms === "number"; });
-    if (lat.length) {
-      var lp = lat[lat.length - 1];
-      out += '<span class="lat" title="' + esc(T("延迟 p50", "Latency p50")) + '">p50 ' + Math.round(lp.latency_p50_ms) + " ms" +
-        (typeof lp.decode_tps_p50 === "number" ? " · " + Math.round(lp.decode_tps_p50) + " tok/s" : "") + "</span>";
-    }
-    out += '<span class="latest"><b class="f-' + fam + '">' + num(latest) + "</b><small>" + esc(T("最新健康分", "Latest score")) + "</small></span></div>";
-    return out;
+  // small sparkline of vals (oldest -> newest) scaled to [lo, hi]; area fill
+  // optional. Stroke/fill use currentColor, so the tile's colour family (on
+  // .tr) colours the line and the KPI number alike.
+  function sparkSVG(vals, lo, hi, label, area, W) {
+    var H = 30, P = 3, rg = hi - lo || 1;
+    var xs = vals.map(function (_, i) { return P + (i * (W - 2 * P)) / (vals.length - 1); });
+    var ys = vals.map(function (v) { return H - P - ((Math.max(lo, Math.min(hi, v)) - lo) / rg) * (H - 2 * P); });
+    var d = xs.map(function (x, i) { return (i ? "L" : "M") + x.toFixed(1) + "," + ys[i].toFixed(1); }).join(" ");
+    var fill = area ? '<path class="area" d="' + d + " L" + xs[xs.length - 1].toFixed(1) + "," + (H - P) + " L" + xs[0].toFixed(1) + "," + (H - P) + ' Z"/>' : "";
+    return '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(label) + '">' +
+      "<title>" + esc(label) + "</title>" +
+      '<line class="base" x1="0" x2="' + W + '" y1="' + (H - P) + '" y2="' + (H - P) + '"/>' + fill +
+      '<path class="line" d="' + d + '"/>' +
+      '<circle class="dot" cx="' + xs[xs.length - 1].toFixed(1) + '" cy="' + ys[ys.length - 1].toFixed(1) + '" r="2.5"/></svg>';
   }
 
-  function rowHTML(r, trend) {
+  /* ---------------- configurable trends ---------------- */
+  // Grade letters on a 1..6 scale for the grade sparkline (F lowest).
+  var GRADEN = { A: 6, B: 5, C: 4, D: 3, E: 2, F: 1 };
+  var GRADEL = ["", "F", "E", "D", "C", "B", "A"];
+  // Each metric: value per row (null = none), scale (fixed or the points'
+  // min..max), colour family of the latest value, KPI text.
+  var METRICS = [
+    { id: "score", zh: "健康分", en: "Score", area: true, lo: 0, hi: 100,
+      get: function (r) { return typeof r.score === "number" ? r.score : null; },
+      fam: function (v) { return scoreC(v); },
+      kpi: function (v) { return String(Math.round(v)); } },
+    { id: "grade", zh: "评级", en: "Grade", area: true, lo: 1, hi: 6,
+      get: function (r) { return GRADEN[String(r.rating || "").toUpperCase()] || null; },
+      fam: function (v) { return gradeC(GRADEL[v]); },
+      kpi: function (v) { return GRADEL[v]; } },
+    { id: "lat", zh: "延迟 p50", en: "Latency p50", unit: "ms",
+      get: function (r) { return typeof r.latency_p50_ms === "number" ? r.latency_p50_ms : null; },
+      fam: function () { return "lat"; },
+      kpi: function (v) { return String(Math.round(v)); } },
+    { id: "tps", zh: "输出速度", en: "Tokens/s", unit: "tok/s",
+      get: function (r) { return typeof r.decode_tps_p50 === "number" ? r.decode_tps_p50 : null; },
+      fam: function () { return "tps"; },
+      kpi: function (v) { return String(Math.round(v)); } },
+  ];
+  var TKEY = "zing.v2.history.trends", TDEF = ["score", "lat"];
+  state.trends = (function () {
+    try {
+      var t = JSON.parse(localStorage.getItem(TKEY) || "null");
+      if (Array.isArray(t)) {
+        t = METRICS.map(function (m) { return m.id; }).filter(function (id) { return t.indexOf(id) >= 0; });
+        if (t.length) return t;
+      }
+    } catch (e) { /* ignore */ }
+    return TDEF.slice();
+  })();
+
+  function trendPickerHTML() {
+    var only = state.trends.length === 1;
+    return '<div class="tsel" role="group" aria-labelledby="tselL"><span id="tselL">' + esc(T("趋势图", "Trends")) + "</span>" +
+      METRICS.map(function (m) {
+        var on = state.trends.indexOf(m.id) >= 0;
+        return '<button type="button" data-trend="' + m.id + '" aria-pressed="' + on + '"' + (on && only ? " disabled" : "") + ">" +
+          esc(T(m.zh, m.en)) + "</button>";
+      }).join("") + "</div>";
+  }
+
+  function toggleTrend(id) {
+    var on = state.trends.indexOf(id) >= 0;
+    if (on && state.trends.length === 1) return; // keep at least one
+    var next = on ? state.trends.filter(function (x) { return x !== id; }) : state.trends.concat([id]);
+    state.trends = METRICS.map(function (m) { return m.id; }).filter(function (x) { return next.indexOf(x) >= 0; });
+    try { localStorage.setItem(TKEY, JSON.stringify(state.trends)); } catch (e) { /* ignore */ }
+    var only = state.trends.length === 1;
+    Array.prototype.forEach.call(fbar.querySelectorAll("[data-trend]"), function (b) {
+      var sel = state.trends.indexOf(b.getAttribute("data-trend")) >= 0;
+      b.setAttribute("aria-pressed", String(sel));
+      b.disabled = sel && only;
+    });
+    render();
+  }
+
+  // group trends from the group's (filtered) rows, which arrive newest first
+  function trendHTML(rows) {
+    var pts = rows.slice().reverse();
+    var W = state.trends.length > 2 ? 72 : 96;
+    var tiles = METRICS.filter(function (m) { return state.trends.indexOf(m.id) >= 0; }).map(function (m) {
+      var vals = pts.map(m.get).filter(function (v) { return v != null; });
+      if (!vals.length) return "";
+      var name = T(m.zh, m.en), last = vals[vals.length - 1];
+      var lo = m.lo != null ? m.lo : Math.min.apply(null, vals), hi = m.hi != null ? m.hi : Math.max.apply(null, vals);
+      var label;
+      if (m.id === "score") {
+        var first = Math.round(vals[0]), lst = Math.round(last);
+        var dir = lst > first ? T("上升", "rising") : lst < first ? T("下降", "falling") : T("持平", "unchanged");
+        label = Tf("健康分趋势（{n} 次检测）：从 {first} 到 {last}，{dir}。",
+          "Health score trend across {n} audits: from {first} to {last}, {dir}.", { n: vals.length, first: first, last: lst, dir: dir });
+      } else {
+        var u = m.unit ? " " + m.unit : "";
+        label = Tf("{metric}趋势（{n} 次检测）：从 {first} 到 {last}。",
+          "{metric} trend across {n} audits: from {first} to {last}.",
+          { metric: name, n: vals.length, first: m.kpi(vals[0]) + u, last: m.kpi(last) + u });
+      }
+      return '<div class="tr f-' + m.fam(last) + '"><span class="tl">' + esc(name) + '</span><div class="tv">' +
+        (vals.length >= 2 ? sparkSVG(vals, lo, hi, label, !!m.area, W) : "") +
+        "<b>" + esc(m.kpi(last)) + (m.unit ? "<small>" + esc(m.unit) + "</small>" : "") + "</b></div></div>";
+    }).join("");
+    return '<div class="trend">' + tiles + "</div>";
+  }
+
+  function rowHTML(r) {
     var id = String(r.id);
     var lvl = r.risk_level || "inconclusive";
-    var perf = null;
-    (trend || []).forEach(function (p) {
-      if (p && p.ts === r.ts && typeof p.latency_p50_ms === "number") perf = p;
-    });
+    var perf = typeof r.latency_p50_ms === "number" ? r : null;
     var open = String(state.open) === id;
     return '<li class="row" data-id="' + esc(id) + '"><div class="rline">' +
       '<button type="button" class="rmain" id="r-' + esc(id) + '" aria-expanded="' + open + '" aria-controls="p-' + esc(id) + '">' +
@@ -485,7 +725,7 @@
       .then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
         state.confirm = null;
-        if (what === "all") { state.reports = {}; state.trends = {}; state.open = null; }
+        if (what === "all") { state.reports = {}; state.open = null; }
         else delete state.reports[what];
         return load();
       })
@@ -503,6 +743,12 @@
   host.addEventListener("click", function (ev) {
     var t = ev.target.closest("button");
     if (!t || !host.contains(t)) return;
+    if (t.id === "nmreset") {
+      resetFilters();
+      var fq = fbar.querySelector("[data-f]");
+      if (fq) fq.focus();
+      return;
+    }
     if (t.classList.contains("rmain")) return toggle(t.id.slice(2));
     if (t.classList.contains("rdel")) {
       var id = t.closest(".row").getAttribute("data-id");
@@ -528,7 +774,7 @@
 
   // live language switch: re-render from cached data (no refetch); the open
   // report is re-rendered by report.js and carried over by render().
-  window.addEventListener("zing:lang", function () { render(); });
+  window.addEventListener("zing:lang", function () { renderFilters(); render(); });
 
   load();
 })();

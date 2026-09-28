@@ -1,13 +1,28 @@
 {
  "strings": {
+  "(no suite)": "(no suite)",
+  "All": "All",
   "Cancel": "Cancel",
   "Could not delete: ": "Could not delete: ",
+  "Filters": "Filters",
   "Health score trend across {n} audits: from {first} to {last}, {dir}.": "Health score trend across {n} audits: from {first} to {last}, {dir}.",
   "History lives only in a local SQLite file under <code>~/.zing</code> — nothing is uploaded.": "History lives only in a local SQLite file under <code>~/.zing</code> — nothing is uploaded.",
-  "Latest score": "Latest score",
+  "Last 30 days": "Last 30 days",
+  "Last 7 days": "Last 7 days",
+  "Last 90 days": "Last 90 days",
+  "Min. score": "Min. score",
+  "No audits match these filters.": "No audits match these filters.",
+  "Period": "Period",
+  "Relay / provider": "Relay / provider",
+  "Relay, model, suite…": "Relay, model, suite…",
+  "Reset filters": "Reset filters",
   "Saved audits: {n}": "Saved audits: {n}",
+  "Search": "Search",
+  "Showing {shown} of {n} audits": "Showing {shown} of {n} audits",
+  "Trends": "Trends",
   "falling": "falling",
   "rising": "rising",
-  "unchanged": "unchanged"
+  "unchanged": "unchanged",
+  "{metric} trend across {n} audits: from {first} to {last}.": "{metric} trend across {n} audits: from {first} to {last}."
  }
 }

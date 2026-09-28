@@ -21,6 +21,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **History (v2): filters and a latency trend.** A filter bar (search, relay,
+  claimed model, suite, mode, risk, minimum score, period) narrows the history;
+  groups and their trends are rebuilt from the matching runs only, and the
+  filters are remembered in the browser. The group trends are configurable
+  (any mix of score, grade, latency p50 and tokens/s; score + latency by
+  default), each KPI number in its sparkline's colour; the duplicate "Latest
+  score" block is gone. `GET /api/history?perf=1` adds each run's p50
+  latency / TTFT / decode speed.
+- **Theme switch (v2).** The v2 header has an Auto / Light / Dark picker,
+  remembered per browser and applied before first paint on every v2 page.
 - **Protocol: request- and response-attribute detectors.** Two new detectors in
   the protocol dimension check the wire contract attribute by attribute, for
   OpenAI Chat Completions, Anthropic Messages and OpenAI Responses:

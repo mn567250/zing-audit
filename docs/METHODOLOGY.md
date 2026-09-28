@@ -77,7 +77,8 @@ built with `zing/detectors/scale.py`): every possible outcome of each check with
 its points, status and severity. Its findings then carry the `outcome` they hit
 and the `score` (points) they contributed; the detector score is the mean of the
 counted checks, and an inconclusive check is **not counted** (it neither raises
-nor lowers the score). `protocol` is the first detector with a published scale.
+nor lowers the score). `protocol`, `connectivity` and `determinism` publish their
+scales; the other detectors show their findings without points.
 
 维度得分为其各检测器得分的**等权平均**——检查项多的检测器不会压过检查项少的；
 没有数值分数的检测器不计入。维度状态取检测器得出的最差结论；但 HIGH/CRITICAL
@@ -85,8 +86,8 @@ nor lowers the score). `protocol` is the first detector with a published scale.
 按维度记录这一过程（`DimensionScore.breakdown`），并在 Markdown/HTML 的
 **Dimension details** 与 Web 界面可展开的维度行中展示。检测器还可以**公开计分
 标准**（`DetectorResult.scoring`，由 `zing/detectors/scale.py` 构建）：列出每个
-检查项所有可能的结果及其分数；未能得出结论的检查项**不计分**。`protocol` 是第一个
-公开计分标准的检测器。
+检查项所有可能的结果及其分数；未能得出结论的检查项**不计分**。目前 `protocol`、
+`connectivity` 和 `determinism` 已公开计分标准；其他检测器只列出发现，不显示分数。
 
 ---
 
@@ -104,6 +105,14 @@ asking the model to echo an exact canary marker. Record latency and the echoed
 HTTP error) → FAIL/HIGH. `/v1/models` unreachable is only WARN/LOW (many relays
 disable it). The canary not being echoed lowers the score but does not fail the
 gate.
+
+**Scoring scale / 计分标准** (`SCALE` in `zing/detectors/connectivity.py`; the
+detector score is the mean of both checks):
+
+| Check | Outcome → points |
+|---|---|
+| `connectivity.models` | listed 100 · unavailable 60 |
+| `connectivity.chat` | content + canary echoed 100 · content, canary not echoed 85 · failed 0 (HIGH) |
 
 **False-positive caveats / 误报与确认.** `/v1/models` absence is benign — do not
 treat it as deception. A transient network/5xx error can fail the gate; re-run.
@@ -155,6 +164,15 @@ detector score is the mean of the counted checks):
 | `protocol.multi_turn` | recalled 100 · forgotten 55 (MEDIUM) · no content: not counted |
 | `protocol.stop` | truncated 100 · unconfirmed 70 · ignored 60 · no content: not counted |
 | `protocol.error_schema` | 4xx + OpenAI error body 100 · 4xx other body 80 · no HTTP response 55 · other status 55 · 5xx 35 (MEDIUM) · accepted 30 (MEDIUM) |
+
+The `determinism` detector (deep suite) scores into this dimension too (`SCALE` in
+`zing/detectors/determinism.py`). Only the temperature=1.0 check counts; the
+temperature=0 check is informational:
+
+| Check | Outcome → points |
+|---|---|
+| `determinism.temp1_variability` | varies 100 · identical, reasoning model 100 (INFO) · identical 55 (MEDIUM) · no usable samples: not counted |
+| `determinism.temp0_stability` | stable / drifts: informational, not counted · no usable answers: not counted |
 
 **Request and response attributes / 请求与响应属性.** Two further detectors in this
 dimension check the wire contract attribute by attribute, for the target's wire

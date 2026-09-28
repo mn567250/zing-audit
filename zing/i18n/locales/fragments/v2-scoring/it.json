@@ -27,6 +27,16 @@
   "No HTTP response; client-error handling could not be confirmed.": "Nessuna risposta HTTP; non è stato possibile confermare la gestione degli errori client.",
   "Another HTTP status; client-error handling could not be confirmed.": "Un altro stato HTTP; non è stato possibile confermare la gestione degli errori client.",
   "The invalid request caused a server error (5xx).": "La richiesta non valida ha causato un errore del server (5xx).",
-  "The invalid request was accepted (2xx).": "La richiesta non valida è stata accettata (2xx)."
+  "The invalid request was accepted (2xx).": "La richiesta non valida è stata accettata (2xx).",
+  "The model list (/v1/models) responded.": "L'elenco dei modelli (/v1/models) ha risposto.",
+  "The model list (/v1/models) did not respond; some relays disable it.": "L'elenco dei modelli (/v1/models) non ha risposto; alcuni relay lo disattivano.",
+  "A chat completion returned content and echoed the canary.": "Una chat completion ha restituito contenuto e ripetuto il canary.",
+  "A chat completion returned content but did not echo the canary.": "Una chat completion ha restituito contenuto, ma non ha ripetuto il canary.",
+  "The chat completion failed or returned no content.": "La chat completion non è riuscita o non ha restituito contenuto.",
+  "Repeated samples at temperature=1.0 differed, as genuine sampling does.": "I campioni ripetuti con temperature=1.0 erano diversi, come in un vero campionamento.",
+  "Samples were identical, but reasoning models legitimately ignore temperature.": "I campioni erano identici, ma i modelli di ragionamento ignorano legittimamente temperature.",
+  "All samples at temperature=1.0 were byte-identical, suggesting response caching.": "Tutti i campioni con temperature=1.0 erano identici byte per byte, il che suggerisce risposte in cache.",
+  "Identical answers at temperature=0 (expected); informational, not scored.": "Risposte identiche con temperature=0 (previsto); solo informativo, non conteggiato.",
+  "Answers differed at temperature=0; informational, not scored.": "Le risposte differivano con temperature=0; solo informativo, non conteggiato."
  }
 }

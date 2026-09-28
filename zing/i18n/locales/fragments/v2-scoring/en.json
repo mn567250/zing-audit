@@ -27,6 +27,16 @@
   "No HTTP response; client-error handling could not be confirmed.": "No HTTP response; client-error handling could not be confirmed.",
   "Another HTTP status; client-error handling could not be confirmed.": "Another HTTP status; client-error handling could not be confirmed.",
   "The invalid request caused a server error (5xx).": "The invalid request caused a server error (5xx).",
-  "The invalid request was accepted (2xx).": "The invalid request was accepted (2xx)."
+  "The invalid request was accepted (2xx).": "The invalid request was accepted (2xx).",
+  "The model list (/v1/models) responded.": "The model list (/v1/models) responded.",
+  "The model list (/v1/models) did not respond; some relays disable it.": "The model list (/v1/models) did not respond; some relays disable it.",
+  "A chat completion returned content and echoed the canary.": "A chat completion returned content and echoed the canary.",
+  "A chat completion returned content but did not echo the canary.": "A chat completion returned content but did not echo the canary.",
+  "The chat completion failed or returned no content.": "The chat completion failed or returned no content.",
+  "Repeated samples at temperature=1.0 differed, as genuine sampling does.": "Repeated samples at temperature=1.0 differed, as genuine sampling does.",
+  "Samples were identical, but reasoning models legitimately ignore temperature.": "Samples were identical, but reasoning models legitimately ignore temperature.",
+  "All samples at temperature=1.0 were byte-identical, suggesting response caching.": "All samples at temperature=1.0 were byte-identical, suggesting response caching.",
+  "Identical answers at temperature=0 (expected); informational, not scored.": "Identical answers at temperature=0 (expected); informational, not scored.",
+  "Answers differed at temperature=0; informational, not scored.": "Answers differed at temperature=0; informational, not scored."
  }
 }

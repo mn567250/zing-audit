@@ -27,6 +27,16 @@
   "No HTTP response; client-error handling could not be confirmed.": "Pas de réponse HTTP ; la gestion des erreurs client n'a pas pu être confirmée.",
   "Another HTTP status; client-error handling could not be confirmed.": "Un autre statut HTTP ; la gestion des erreurs client n'a pas pu être confirmée.",
   "The invalid request caused a server error (5xx).": "La requête invalide a provoqué une erreur serveur (5xx).",
-  "The invalid request was accepted (2xx).": "La requête invalide a été acceptée (2xx)."
+  "The invalid request was accepted (2xx).": "La requête invalide a été acceptée (2xx).",
+  "The model list (/v1/models) responded.": "La liste des modèles (/v1/models) a répondu.",
+  "The model list (/v1/models) did not respond; some relays disable it.": "La liste des modèles (/v1/models) n'a pas répondu ; certains relais la désactivent.",
+  "A chat completion returned content and echoed the canary.": "Une complétion de chat a renvoyé du contenu et répété le canari.",
+  "A chat completion returned content but did not echo the canary.": "Une complétion de chat a renvoyé du contenu, sans répéter le canari.",
+  "The chat completion failed or returned no content.": "La complétion de chat a échoué ou n'a renvoyé aucun contenu.",
+  "Repeated samples at temperature=1.0 differed, as genuine sampling does.": "Les échantillons répétés à temperature=1.0 différaient, comme avec un véritable échantillonnage.",
+  "Samples were identical, but reasoning models legitimately ignore temperature.": "Les échantillons étaient identiques, mais les modèles de raisonnement ignorent légitimement temperature.",
+  "All samples at temperature=1.0 were byte-identical, suggesting response caching.": "Tous les échantillons à temperature=1.0 étaient identiques octet pour octet, ce qui suggère une mise en cache des réponses.",
+  "Identical answers at temperature=0 (expected); informational, not scored.": "Réponses identiques à temperature=0 (attendu) ; à titre indicatif, non noté.",
+  "Answers differed at temperature=0; informational, not scored.": "Les réponses différaient à temperature=0 ; à titre indicatif, non noté."
  }
 }

@@ -13,6 +13,16 @@
   "No HTTP response; client-error handling could not be confirmed.": "没有 HTTP 响应；无法确认客户端错误处理。",
   "Another HTTP status; client-error handling could not be confirmed.": "其他 HTTP 状态；无法确认客户端错误处理。",
   "The invalid request caused a server error (5xx).": "无效请求导致服务器错误（5xx）。",
-  "The invalid request was accepted (2xx).": "无效请求被接受（2xx）。"
+  "The invalid request was accepted (2xx).": "无效请求被接受（2xx）。",
+  "The model list (/v1/models) responded.": "模型列表（/v1/models）有响应。",
+  "The model list (/v1/models) did not respond; some relays disable it.": "模型列表（/v1/models）无响应；部分中转站会关闭它。",
+  "A chat completion returned content and echoed the canary.": "对话补全返回了内容，并回显了标记串。",
+  "A chat completion returned content but did not echo the canary.": "对话补全返回了内容，但没有回显标记串。",
+  "The chat completion failed or returned no content.": "对话补全失败或没有返回内容。",
+  "Repeated samples at temperature=1.0 differed, as genuine sampling does.": "temperature=1.0 下的多次采样结果不同，符合真实采样。",
+  "Samples were identical, but reasoning models legitimately ignore temperature.": "采样结果相同，但推理模型会正当地忽略 temperature。",
+  "All samples at temperature=1.0 were byte-identical, suggesting response caching.": "temperature=1.0 下的所有采样逐字节相同，疑似缓存了响应。",
+  "Identical answers at temperature=0 (expected); informational, not scored.": "temperature=0 下回答相同（符合预期）；仅供参考，不计分。",
+  "Answers differed at temperature=0; informational, not scored.": "temperature=0 下回答不同；仅供参考，不计分。"
  }
 }

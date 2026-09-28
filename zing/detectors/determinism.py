@@ -10,6 +10,10 @@ To avoid falsely accusing honest models, the caching call only fires when ALL of
 several long high-temperature samples come back byte-identical, and it is
 suppressed for reasoning models, which legitimately ignore/clamp sampling
 parameters (e.g. deepseek-reasoner ignores temperature) and can repeat output.
+
+Checks score points from the published scale ``SCALE``. Only the temperature=1.0
+check is counted; the temperature=0 check is informational, and an inconclusive
+check is not counted.
 """
 
 from __future__ import annotations
@@ -17,7 +21,27 @@ from __future__ import annotations
 from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
-from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
+from zing.detectors.scale import Scale, outcome
+from zing.models import DetectorResult, Dimension, RequestSpec, Severity, Status
+
+_NO_RESPONSE = "No usable response to judge by."  # same sentence as protocol's scale
+
+SCALE = Scale(
+    outcome("determinism.temp1_variability", "varies", 100.0, Status.PASS,
+            label="Repeated samples at temperature=1.0 differed, as genuine sampling does."),
+    outcome("determinism.temp1_variability", "identical_reasoning", 100.0, Status.INFO,
+            label="Samples were identical, but reasoning models legitimately ignore temperature."),
+    outcome("determinism.temp1_variability", "identical", 55.0, Status.WARN, Severity.MEDIUM,
+            label="All samples at temperature=1.0 were byte-identical, suggesting response caching."),
+    outcome("determinism.temp1_variability", "not_assessed", None, Status.INCONCLUSIVE,
+            Severity.LOW, label=_NO_RESPONSE),
+    outcome("determinism.temp0_stability", "stable", None, Status.INFO,
+            label="Identical answers at temperature=0 (expected); informational, not scored."),
+    outcome("determinism.temp0_stability", "drifts", None, Status.INFO,
+            label="Answers differed at temperature=0; informational, not scored."),
+    outcome("determinism.temp0_stability", "not_assessed", None, Status.INCONCLUSIVE,
+            Severity.LOW, label=_NO_RESPONSE),
+)
 
 
 @register
@@ -34,8 +58,7 @@ class DeterminismDetector(Detector):
     CACHING_SAMPLES = 4
 
     async def run(self, ctx: AuditContext) -> DetectorResult:
-        result = self.new_result()
-        score_parts: list[float] = []
+        result = self.new_result(scoring=SCALE.scoring())
         # Reasoning models legitimately ignore/clamp temperature and may repeat
         # output, so a byte-identical run is NOT evidence of caching for them.
         reasoning = bool(ctx.profile and getattr(ctx.profile.model, "reasoning", False))
@@ -61,11 +84,10 @@ class DeterminismDetector(Detector):
             previews = {f"output_{i}_preview": t[:160] for i, t in enumerate(texts[:3])}
             if all_identical and not reasoning:
                 result.findings.append(
-                    Finding(
-                        id="determinism.temp1_variability",
+                    SCALE.finding(
+                        "determinism.temp1_variability",
+                        "identical",
                         title="Identical output at temperature=1.0 suggests response caching",
-                        status=Status.WARN,
-                        severity=Severity.MEDIUM,
                         summary=(
                             f"{len(usable)} identical long creative prompts at "
                             "temperature=1.0 (no seed) returned byte-identical text. A "
@@ -85,14 +107,12 @@ class DeterminismDetector(Detector):
                         ),
                     )
                 )
-                score_parts.append(55.0)
             elif all_identical and reasoning:
                 result.findings.append(
-                    Finding(
-                        id="determinism.temp1_variability",
+                    SCALE.finding(
+                        "determinism.temp1_variability",
+                        "identical_reasoning",
                         title="Identical output at temperature=1.0 (expected for a reasoning model)",
-                        status=Status.INFO,
-                        severity=Severity.INFO,
                         summary=(
                             f"{len(usable)} samples were byte-identical, but the claimed "
                             "model is a reasoning model that legitimately ignores sampling "
@@ -101,14 +121,12 @@ class DeterminismDetector(Detector):
                         evidence={"temperature": 1.0, "samples": len(usable), "reasoning": True},
                     )
                 )
-                score_parts.append(100.0)
             else:
                 result.findings.append(
-                    Finding(
-                        id="determinism.temp1_variability",
+                    SCALE.finding(
+                        "determinism.temp1_variability",
+                        "varies",
                         title="Output varies at temperature=1.0",
-                        status=Status.PASS,
-                        severity=Severity.INFO,
                         summary=(
                             f"{len(usable)} identical creative prompts at temperature=1.0 "
                             "produced differing text, as expected for genuine sampling."
@@ -116,16 +134,14 @@ class DeterminismDetector(Detector):
                         evidence={"temperature": 1.0, "samples": len(usable), "identical": False, **previews},
                     )
                 )
-                score_parts.append(100.0)
         else:
             # A relay that errors or returns nothing cannot be judged for caching.
             failed = next((o for o in outcomes if not (o.ok and o.has_content())), outcomes[0])
             result.findings.append(
-                Finding(
-                    id="determinism.temp1_variability",
+                SCALE.finding(
+                    "determinism.temp1_variability",
+                    "not_assessed",
                     title="Could not assess temperature=1.0 variability",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.LOW,
                     summary=failed.error_message or f"HTTP {failed.status_code}",
                     evidence={
                         "usable_samples": len(usable),
@@ -150,15 +166,14 @@ class DeterminismDetector(Detector):
             ans_b = fourth.content.strip()
             stable = ans_a == ans_b
             result.findings.append(
-                Finding(
-                    id="determinism.temp0_stability",
+                SCALE.finding(
+                    "determinism.temp0_stability",
+                    "stable" if stable else "drifts",
                     title=(
                         "Stable answer at temperature=0"
                         if stable
                         else "Answer drifts at temperature=0"
                     ),
-                    status=Status.INFO,
-                    severity=Severity.INFO,
                     summary=(
                         "Repeated factual prompt at temperature=0 returned "
                         + ("identical text (expected)." if stable else "differing text.")
@@ -174,11 +189,10 @@ class DeterminismDetector(Detector):
         else:
             failed = third if not (third.ok and third.has_content()) else fourth
             result.findings.append(
-                Finding(
-                    id="determinism.temp0_stability",
+                SCALE.finding(
+                    "determinism.temp0_stability",
+                    "not_assessed",
                     title="Could not assess temperature=0 stability",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.LOW,
                     summary=failed.error_message or f"HTTP {failed.status_code}",
                     evidence={
                         "third_ok": third.ok and third.has_content(),
@@ -190,12 +204,11 @@ class DeterminismDetector(Detector):
             )
 
         # Verdict: caching signal at temp=1 is the only thing that lowers status.
-        if score_parts:
-            result.score = round(sum(score_parts) / len(score_parts), 1)
+        result.score = Scale.mean(result.findings)
+        if result.score is not None:
             caching = any(f.id == "determinism.temp1_variability" and f.status == Status.WARN
                           for f in result.findings)
             result.status = Status.WARN if caching else Status.PASS
         else:
-            result.score = None
             result.status = Status.INCONCLUSIVE
         return result

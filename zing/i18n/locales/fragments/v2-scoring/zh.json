@@ -1,0 +1,18 @@
+{
+ "strings": {
+  "No usable response to judge by.": "没有可用于判断的响应。",
+  "The color from an earlier turn was recalled.": "记住了之前轮次中的颜色。",
+  "The color from an earlier turn was not recalled.": "没有记住之前轮次中的颜色。",
+  "Output stopped at the stop sequence.": "输出在停止序列处截断。",
+  "Stop handling could not be confirmed from the text.": "无法从文本确认停止序列的处理。",
+  "Text after the stop sequence was returned.": "返回了停止序列之后的文本。",
+  "finish_reason and an integer usage object are present.": "包含 finish_reason 和整数 usage 对象。",
+  "finish_reason or a complete integer usage object is missing.": "缺少 finish_reason 或完整的整数 usage 对象。",
+  "Rejected with a 4xx and an OpenAI-style error body.": "以 4xx 和 OpenAI 风格的错误体拒绝。",
+  "Rejected with a 4xx, but the body is not OpenAI-style.": "以 4xx 拒绝，但响应体不是 OpenAI 风格。",
+  "No HTTP response; client-error handling could not be confirmed.": "没有 HTTP 响应；无法确认客户端错误处理。",
+  "Another HTTP status; client-error handling could not be confirmed.": "其他 HTTP 状态；无法确认客户端错误处理。",
+  "The invalid request caused a server error (5xx).": "无效请求导致服务器错误（5xx）。",
+  "The invalid request was accepted (2xx).": "无效请求被接受（2xx）。"
+ }
+}

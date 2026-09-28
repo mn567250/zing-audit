@@ -1,0 +1,33 @@
+{
+ "strings": {
+  "Not counted": "Not counted",
+  "{p} pts": "{p} pts",
+  "No detector produced a numeric score.": "No detector produced a numeric score.",
+  "Score from one detector.": "Score from one detector.",
+  "Score: mean of {n} detectors, equal weight.": "Score: mean of {n} detectors, equal weight.",
+  "Not counted (no numeric score): {list}.": "Not counted (no numeric score): {list}.",
+  "Status raised from {from} to {to} by findings of severity {sev}: {list}. A serious finding pulls a dimension down whatever its score.": "Status raised from {from} to {to} by findings of severity {sev}: {list}. A serious finding pulls a dimension down whatever its score.",
+  "Status: the worst status its detectors concluded.": "Status: the worst status its detectors concluded.",
+  "Score {s}": "Score {s}",
+  "Detector score: mean of the counted checks' points.": "Detector score: mean of the counted checks' points.",
+  "No findings.": "No findings.",
+  "Result: {s}.": "Result: {s}.",
+  "Show scoring scale": "Show scoring scale",
+  "Hide scoring scale": "Hide scoring scale",
+  "This run": "This run",
+  "No usable response to judge by.": "No usable response to judge by.",
+  "The color from an earlier turn was recalled.": "The color from an earlier turn was recalled.",
+  "The color from an earlier turn was not recalled.": "The color from an earlier turn was not recalled.",
+  "Output stopped at the stop sequence.": "Output stopped at the stop sequence.",
+  "Stop handling could not be confirmed from the text.": "Stop handling could not be confirmed from the text.",
+  "Text after the stop sequence was returned.": "Text after the stop sequence was returned.",
+  "finish_reason and an integer usage object are present.": "finish_reason and an integer usage object are present.",
+  "finish_reason or a complete integer usage object is missing.": "finish_reason or a complete integer usage object is missing.",
+  "Rejected with a 4xx and an OpenAI-style error body.": "Rejected with a 4xx and an OpenAI-style error body.",
+  "Rejected with a 4xx, but the body is not OpenAI-style.": "Rejected with a 4xx, but the body is not OpenAI-style.",
+  "No HTTP response; client-error handling could not be confirmed.": "No HTTP response; client-error handling could not be confirmed.",
+  "Another HTTP status; client-error handling could not be confirmed.": "Another HTTP status; client-error handling could not be confirmed.",
+  "The invalid request caused a server error (5xx).": "The invalid request caused a server error (5xx).",
+  "The invalid request was accepted (2xx).": "The invalid request was accepted (2xx)."
+ }
+}

@@ -97,11 +97,17 @@ report.detectors[0].findings.push(
   f("security.headers", "pass", { header_count: 7 }, "No revealing headers", "Inspected 7 response headers; none expose upstream identity."),
   f("connectivity.chat", "fail", { status_code: 502, error_type: "upstream_error" }, "Basic chat failed", "Bad gateway."),
   f("embed.dimension", "info", { returned: 1536, claimed: 0 }, "Claimed dimension unknown", "No KB dimension for the claimed model; observed 1536-d."));
+// A published scoring scale: its outcome labels are fixed backend sentences.
+report.detectors[0].scoring = { method: "mean_of_checks", outcomes: [
+  { check: "protocol.stop", outcome: "ignored", score: 60, status: "warn", severity: "low",
+    label: "Text after the stop sequence was returned." },
+  { check: "protocol.stop", outcome: "no_content", score: null, status: "inconclusive", severity: "low",
+    label: "No usable response to judge by." }] };
 // The performance section's notes are fixed backend sentences.
 report.performance = { source: "passive", notes: [
   "Local token counts are estimates (about ±15-20%): no exact tokenizer is available for this model family.",
   "Some requests were served fully or partly from a cache and are left out of the statistics."] };
-const TEXT = /^(verdict\.(headline|summary|key_findings\.\d+)|dimensions\.\d+\.reason|(performance\.)?notes\.\d+|(baseline_)?detectors\.\d+\.(name|findings\.\d+\.(title|summary|recommendation)))$/;
+const TEXT = /^(verdict\.(headline|summary|key_findings\.\d+)|dimensions\.\d+\.reason|(performance\.)?notes\.\d+|(baseline_)?detectors\.\d+\.(name|findings\.\d+\.(title|summary|recommendation)|scoring\.outcomes\.\d+\.label))$/;
 const CJK = /[\u3400-\u9fff]/;
 const flat = (o, p, out) => { if (o && typeof o === "object") for (const k of Object.keys(o)) flat(o[k], p ? p + "." + k : k, out); else out[p] = o; return out; };
 const result = {};
@@ -175,7 +181,8 @@ def test_locale_fragments_extend_every_language(tmp_path, monkeypatch):
 
 def _backend_sentences() -> list[str]:
     """Fixed English sentences the backend puts in a report: detector names,
-    recommendations, verdict headlines, report notes and performance notes."""
+    recommendations, scoring-scale labels, verdict headlines, report notes and
+    performance notes."""
     root = Path(__file__).resolve().parent.parent / "zing"
     out: list[str] = []
 
@@ -186,8 +193,9 @@ def _backend_sentences() -> list[str]:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         rel = path.relative_to(root).as_posix()
         for node in ast.walk(tree):
-            # recommendation="…" wherever a finding is built
-            if isinstance(node, ast.keyword) and node.arg == "recommendation" and lit(node.value):
+            # recommendation="…" wherever a finding is built; label="…" of a
+            # scoring-scale outcome
+            if isinstance(node, ast.keyword) and node.arg in ("recommendation", "label") and lit(node.value):
                 out.append(lit(node.value))
             if not (isinstance(node, ast.Assign) and len(node.targets) == 1
                     and isinstance(node.targets[0], ast.Name)):
@@ -195,6 +203,8 @@ def _backend_sentences() -> list[str]:
             target = node.targets[0].id
             if rel.startswith("detectors/") and target == "name" and lit(node.value):
                 out.append(lit(node.value))  # a detector's display name
+            if rel.startswith("detectors/") and target == "_NO_RESPONSE" and lit(node.value):
+                out.append(lit(node.value))  # a shared scoring-scale label
             if rel == "perf/summary.py" and target.startswith("NOTE_") and lit(node.value):
                 out.append(lit(node.value))  # performance notes
             if rel == "runner.py" and target == "notes" and isinstance(node.value, ast.List):

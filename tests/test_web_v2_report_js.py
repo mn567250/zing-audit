@@ -63,9 +63,10 @@ def test_report_severity_dots_meters_and_summary(tmp_path):
     report = json.loads(_FIXTURE.read_text(encoding="utf-8"))
     out = _render(tmp_path, "en", report)
     html = out["html"]
-    # dot colour and glyph come from the severity: no amber dot with a red cross
+    # findings: dot colour and glyph come from the severity: no amber dot with a red cross
     glyph_for = {"bad": "x", "warn": "warning", "sky": "info"}
-    dots = re.findall(r'<span class="dot (\w+)" aria-hidden="true">(.*?)</span>', html)
+    findings = html[html.index("<h3>Findings"):]
+    dots = re.findall(r'<span class="dot (\w+)" aria-hidden="true">(.*?)</span>', findings)
     assert {c for c, _ in dots} == {"bad", "warn"}
     for colour, glyph in dots:
         assert glyph == out["icons"][glyph_for[colour]], colour
@@ -117,3 +118,78 @@ def test_report_clean_and_translated_summary(tmp_path):
     assert "Score de santé" not in summary and "boîte noire" not in summary
     assert "No warnings or failures" in html
     assert "Consistent (likely genuine)" in html
+
+
+async def _scored_report() -> dict:
+    # the transparency tests' report: protocol (published scale, one check not
+    # counted, one medium finding) + determinism (no scale) in one dimension
+    from tests.test_scoring_transparency import _report
+
+    return json.loads((await _report()).model_dump_json())
+
+
+def _panel(html: str) -> str:
+    start = html.index('<div class="zr-dd"')
+    return html[start:html.index('<div class="zr-dimw">', start) if '<div class="zr-dimw">' in html[start:] else None]
+
+
+@needs_node
+async def test_dimension_rows_expand_into_scoring_details(tmp_path):
+    report = await _scored_report()
+    html = _render(tmp_path, "en", report)["html"]
+    # one disclosure per scored dimension, collapsed, controlling its panel
+    toggles = re.findall(r'<button type="button" class="dtog" aria-expanded="false" aria-controls="(zr-dd-\d+)">', html)
+    assert len(toggles) == 1 and f'id="{toggles[0]}" role="region"' in html
+    assert html.count('role="meter"') == 1
+    panel = _text(_panel(html))
+    assert "Score: mean of 2 detectors, equal weight." in panel
+    assert "Status: the worst status its detectors concluded." in panel
+    assert "Score 85" in panel and "Score 100" in panel
+    assert "Detector score: mean of the counted checks' points." in panel
+    # every check, positive and negative, with the outcome and its points
+    assert "Multi-turn conversation memory 55 pts" in " ".join(panel.split())
+    assert "The color from an earlier turn was not recalled." in panel
+    assert "Not counted" in panel and "Result: Pass." in panel
+    assert "Output varies at temperature=1.0" in panel  # a detector without a scale
+    dots = set(re.findall(r'<span class="dot (\w+)"', _panel(html)))
+    assert {"good", "warn", "grey"} <= dots
+    # the published scale, collapsed, with this run's outcome marked
+    assert 'class="linkbtn scl" aria-expanded="false"' in html and "Show scoring scale" in html
+    assert "The invalid request was accepted (2xx)." in panel
+    assert re.search(r'<li class="hit"><span class="p">100 pts</span><span>Rejected with a 4xx and an OpenAI-style', html)
+    assert html.count("This run") == 4  # one hit per check, the not-counted one included
+
+
+@needs_node
+async def test_dimension_details_explain_a_status_override(tmp_path):
+    report = await _scored_report()
+    dim = next(d for d in report["dimensions"] if d["dimension"] == "protocol")
+    dim["status"] = "warn"
+    dim["breakdown"]["detector_status"] = "pass"
+    dim["breakdown"]["status_override"] = {"from_status": "pass", "to_status": "warn",
+                                           "severity": "medium", "findings": ["protocol.multi_turn"]}
+    panel = _text(_panel(_render(tmp_path, "en", report)["html"]))
+    assert ("Status raised from Pass to Warning by findings of severity Medium: "
+            "Multi-turn conversation memory.") in " ".join(panel.split())
+
+
+@needs_node
+@pytest.mark.parametrize(("lang", "points"), [("zh", "55 分"), ("de", "55 Pkt."), ("fr", "55 pts")])
+async def test_dimension_details_are_translated(tmp_path, lang, points):
+    html = _render(tmp_path, lang, await _scored_report())["html"]
+    panel = _text(_panel(html))
+    for en in ("Score: mean of", "Not counted", "Show scoring scale", "This run",
+               "The invalid request was accepted", "Detector score", "Result:"):
+        assert en not in panel, (lang, en)
+    assert f'<span class="pts">{points}</span>' in html
+
+
+@needs_node
+def test_old_reports_still_expand(tmp_path):
+    # reports from before the breakdown/scale existed: detectors and findings
+    report = json.loads(_FIXTURE.read_text(encoding="utf-8"))
+    html = _render(tmp_path, "en", report)["html"]
+    assert html.count('class="dtog"') == 8
+    assert "Score: mean of" in html or "Score from one detector." in html
+    assert "Status: the worst status" not in html  # needs the breakdown
+    assert not re.search(r"\d pts\b", _text(html))  # no points without a published scale

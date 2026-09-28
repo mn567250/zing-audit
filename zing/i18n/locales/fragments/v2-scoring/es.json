@@ -1,0 +1,33 @@
+{
+ "strings": {
+  "Not counted": "No computa",
+  "{p} pts": "{p} pts",
+  "No detector produced a numeric score.": "Ningún detector produjo una puntuación numérica.",
+  "Score from one detector.": "Puntuación de un solo detector.",
+  "Score: mean of {n} detectors, equal weight.": "Puntuación: media de {n} detectores, con igual peso.",
+  "Not counted (no numeric score): {list}.": "No computan (sin puntuación numérica): {list}.",
+  "Status raised from {from} to {to} by findings of severity {sev}: {list}. A serious finding pulls a dimension down whatever its score.": "Estado elevado de {from} a {to} por hallazgos de gravedad {sev}: {list}. Un hallazgo grave rebaja una dimensión sea cual sea su puntuación.",
+  "Status: the worst status its detectors concluded.": "Estado: el peor estado que concluyeron sus detectores.",
+  "Score {s}": "Puntuación {s}",
+  "Detector score: mean of the counted checks' points.": "Puntuación del detector: media de los puntos de las comprobaciones que computan.",
+  "No findings.": "Sin hallazgos.",
+  "Result: {s}.": "Resultado: {s}.",
+  "Show scoring scale": "Mostrar escala de puntuación",
+  "Hide scoring scale": "Ocultar escala de puntuación",
+  "This run": "Esta ejecución",
+  "No usable response to judge by.": "No hubo una respuesta útil para evaluar.",
+  "The color from an earlier turn was recalled.": "Se recordó el color de un turno anterior.",
+  "The color from an earlier turn was not recalled.": "No se recordó el color de un turno anterior.",
+  "Output stopped at the stop sequence.": "La salida se detuvo en la secuencia de parada.",
+  "Stop handling could not be confirmed from the text.": "No se pudo confirmar el manejo de la parada a partir del texto.",
+  "Text after the stop sequence was returned.": "Se devolvió texto posterior a la secuencia de parada.",
+  "finish_reason and an integer usage object are present.": "Hay finish_reason y un objeto usage con enteros.",
+  "finish_reason or a complete integer usage object is missing.": "Falta finish_reason o un objeto usage completo con enteros.",
+  "Rejected with a 4xx and an OpenAI-style error body.": "Rechazada con un 4xx y un cuerpo de error al estilo OpenAI.",
+  "Rejected with a 4xx, but the body is not OpenAI-style.": "Rechazada con un 4xx, pero el cuerpo no sigue el estilo OpenAI.",
+  "No HTTP response; client-error handling could not be confirmed.": "Sin respuesta HTTP; no se pudo confirmar el manejo de errores del cliente.",
+  "Another HTTP status; client-error handling could not be confirmed.": "Otro estado HTTP; no se pudo confirmar el manejo de errores del cliente.",
+  "The invalid request caused a server error (5xx).": "La solicitud no válida provocó un error del servidor (5xx).",
+  "The invalid request was accepted (2xx).": "La solicitud no válida fue aceptada (2xx)."
+ }
+}

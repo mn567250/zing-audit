@@ -161,6 +161,36 @@ class Finding(BaseModel):
     summary: str = ""
     evidence: dict[str, Any] = Field(default_factory=dict)
     recommendation: str | None = None
+    # Set by detectors that publish a scoring scale (DetectorResult.scoring):
+    # which outcome of that scale this check hit, and the 0-100 points it
+    # contributed. ``score`` None means the check was not counted (e.g. it was
+    # inconclusive), so it neither raises nor lowers the detector score.
+    outcome: str | None = None
+    score: float | None = None
+
+
+class ScoringOutcome(BaseModel):
+    """One row of a detector's scoring scale: a possible outcome of one check."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    check: str  # the finding id of the check
+    outcome: str  # stable key, unique within the check
+    score: float | None = None  # None: the outcome is not counted
+    status: Status
+    severity: Severity = Severity.INFO
+    label: str = ""  # English, one line: when this outcome applies
+
+
+class DetectorScoring(BaseModel):
+    """How a detector turns its checks into its score, with the full scale of
+    possible outcomes so a report shows what each check could have scored."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # "mean_of_checks": the plain average of the counted checks' scores.
+    method: str = "mean_of_checks"
+    outcomes: list[ScoringOutcome] = Field(default_factory=list)
 
 
 class DetectorResult(BaseModel):
@@ -180,6 +210,8 @@ class DetectorResult(BaseModel):
     error: str | None = None
     # True when this detector required an LLM judge to produce its verdict.
     used_judge: bool = False
+    # How ``score`` was derived; None for detectors that do not publish it yet.
+    scoring: DetectorScoring | None = None
 
     def worst_severity(self) -> Severity:
         order = [Severity.INFO, Severity.LOW, Severity.MEDIUM, Severity.HIGH, Severity.CRITICAL]
@@ -193,6 +225,41 @@ class DetectorResult(BaseModel):
 # --------------------------------------------------------------------------- #
 # Scoring & verdict
 # --------------------------------------------------------------------------- #
+class DimensionContribution(BaseModel):
+    """One detector's share in a dimension score."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    detector: str  # DetectorResult.id
+    score: float | None = None
+    status: Status = Status.NOT_RUN
+    counted: bool = False  # False: no numeric score, left out of the mean
+
+
+class StatusOverride(BaseModel):
+    """Why a dimension's status differs from what its detectors concluded."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    from_status: Status
+    to_status: Status
+    severity: Severity  # the finding severity that forced the change
+    findings: list[str] = Field(default_factory=list)  # ids of those findings
+
+
+class DimensionBreakdown(BaseModel):
+    """How a dimension's score and status were derived from its detectors."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # "mean_of_detectors": equal-weight average of the counted detector scores.
+    method: str = "mean_of_detectors"
+    detectors: list[DimensionContribution] = Field(default_factory=list)
+    # Worst status the detectors concluded, before any severity override.
+    detector_status: Status = Status.NOT_RUN
+    status_override: StatusOverride | None = None
+
+
 class DimensionScore(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -201,6 +268,7 @@ class DimensionScore(BaseModel):
     weight: float = 0.0
     status: Status = Status.NOT_RUN
     reason: str = ""
+    breakdown: DimensionBreakdown | None = None
 
 
 class ReliabilitySummary(BaseModel):

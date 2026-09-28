@@ -9,7 +9,8 @@
  *   })
  *     renders `report` (the /api/audit/stream "report" event, or a history row's
  *     report) into `el`, wires its interactions, and re-renders it in place when
- *     the UI language changes (expanded evidence and keyboard focus are kept).
+ *     the UI language changes (expanded dimensions, evidence and keyboard focus
+ *     are kept).
  *   ZingReport.wire(el)    (re)attach the interactions after external re-rendering.
  *
  * All text goes through T(zh, en) / ZING_LANG.server() / ZING_I18N like the
@@ -80,6 +81,16 @@
     info: { c: "sky", g: "info", r: 1 },
   };
   var SEV_NONE = { c: "grey", g: "info", r: 0 };
+  // a check's own status -> colour + glyph (the dimension details list passed
+  // checks too, so these read by outcome, not by severity)
+  var STATG = {
+    pass: { c: "good", g: "check" },
+    info: { c: "sky", g: "info" },
+    warn: { c: "warn", g: "warning" },
+    fail: { c: "bad", g: "x" },
+    error: { c: "bad", g: "x" },
+    inconclusive: { c: "grey", g: "info" },
+  };
   var DIMNAME = {
     model_identity: ["模型身份", "它是不是它自称的那个？"],
     context_window: ["上下文窗口", "长文是否真能记住？"],
@@ -186,23 +197,191 @@
 
   var uid = 0;
 
-  function dimRow(d) {
+  function dimRow(d, r) {
     var n = dimName(d.dimension) || [d.dimension, ""];
     var c = STATC[d.status] || scoreC(d.score);
     var hasScore = d.score != null && isFinite(d.score);
     var v = hasScore ? Math.max(0, Math.min(100, Math.round(d.score))) : null;
     var st = label("STATUS", d.status);
     var id = "zr-dn-" + ++uid;
+    var did = "zr-dd-" + uid;
     var valText = hasScore
       ? num(v, 0) + "/100 · " + st
       : T("未评分", "Not scored") + " · " + st;
     return (
-      '<div class="zr-dim"><div class="nm" id="' + id + '">' + esc(n[0]) + "<small>" + esc(n[1]) + "</small></div>" +
+      '<div class="zr-dimw"><div class="zr-dim"><div class="nm" id="' + id + '">' +
+      '<button type="button" class="dtog" aria-expanded="false" aria-controls="' + did + '">' +
+      '<span class="chev" aria-hidden="true">' + ico("chevronDown") + "</span>" + esc(n[0]) + "</button>" +
+      "<small>" + esc(n[1]) + "</small></div>" +
       (hasScore
         ? '<div class="bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + v +
           '" aria-valuetext="' + esc(valText) + '" aria-labelledby="' + id + '"><i data-w="' + v + '" class="' + c + '"></i></div>'
         : '<div class="bar none"><i data-w="0" class="grey"></i><span class="sr-only">' + esc(valText) + "</span></div>") +
-      '<span class="badge ' + c + '" aria-hidden="true">' + (hasScore ? esc(num(v, 0)) : "—") + "</span></div>"
+      '<span class="badge ' + c + '" aria-hidden="true">' + (hasScore ? esc(num(v, 0)) : "—") + "</span></div>" +
+      '<div class="zr-dd" id="' + did + '" role="region" aria-labelledby="' + id + '" hidden>' + dimDetails(d, r) + "</div></div>"
+    );
+  }
+
+  // ---- Dimension details: how the score and status came about, and every
+  // check behind them (passed ones included). Reads DimensionScore.breakdown
+  // and DetectorResult.scoring; reports from before those existed fall back to
+  // the dimension's detectors and their findings.
+  function pts(p) {
+    return p == null ? T("不计分", "Not counted") : Tf("{p} 分", "{p} pts", { p: num(p, 1) });
+  }
+  function dimDetails(d, r) {
+    var members = (r.detectors || []).filter(function (det) {
+      return det.dimension === d.dimension;
+    });
+    var byId = {};
+    members.forEach(function (det) {
+      byId[det.id] = det;
+    });
+    var dname = function (i) {
+      return byId[i] ? srv(byId[i].name) : i;
+    };
+    var b = d.breakdown;
+    var parts = b
+      ? b.detectors.map(function (x) {
+          return { id: x.detector, score: x.score, counted: x.counted };
+        })
+      : members.map(function (det) {
+          return { id: det.id, score: det.score, counted: det.score != null };
+        });
+    var counted = parts.filter(function (x) {
+      return x.counted;
+    });
+    var skipped = parts.filter(function (x) {
+      return !x.counted;
+    });
+    var how = !counted.length
+      ? T("没有检测器给出数值分数。", "No detector produced a numeric score.")
+      : counted.length === 1
+        ? T("得分来自一个检测器。", "Score from one detector.")
+        : Tf("得分为 {n} 个检测器的平均值（权重相同）。", "Score: mean of {n} detectors, equal weight.", { n: num(counted.length, 0) });
+    if (skipped.length)
+      how += " " + Tf("未计入（无数值分数）：{list}。", "Not counted (no numeric score): {list}.", {
+        list: skipped.map(function (x) {
+          return dname(x.id);
+        }).join(", "),
+      });
+    var o = b && b.status_override;
+    var why = o
+      ? Tf(
+          "状态由 {from} 调整为 {to}，原因是严重程度为「{sev}」的发现：{list}。严重的发现无论分数如何都会拉低该维度。",
+          "Status raised from {from} to {to} by findings of severity {sev}: {list}. A serious finding pulls a dimension down whatever its score.",
+          {
+            from: label("STATUS", o.from_status),
+            to: label("STATUS", o.to_status),
+            sev: label("SEVERITY", o.severity),
+            list: o.findings.map(function (fid) {
+              var f = null;
+              members.forEach(function (det) {
+                (det.findings || []).forEach(function (x) {
+                  if (!f && x.id === fid) f = x;
+                });
+              });
+              return f ? loc(f).title : fid;
+            }).join(", "),
+          }
+        )
+      : b
+        ? T("状态取其检测器得出的最差结论。", "Status: the worst status its detectors concluded.")
+        : "";
+    return (
+      '<p class="how">' + esc(how) + "</p>" +
+      (why ? '<p class="how">' + esc(why) + "</p>" : "") +
+      members.map(detDetails).join("")
+    );
+  }
+  function detDetails(det) {
+    var sc = det.scoring;
+    var labels = {};
+    ((sc && sc.outcomes) || []).forEach(function (o) {
+      labels[o.check + "\n" + o.outcome] = o;
+    });
+    var hasScore = det.score != null && isFinite(det.score);
+    var hid = "zr-dh-" + ++uid;
+    var rows = (det.findings || []).map(function (f) {
+      var o = sc && f.outcome != null ? labels[f.id + "\n" + f.outcome] : null;
+      return checkRow(f, sc ? pts(f.score) : null, o && o.label ? srv(o.label) : "");
+    });
+    return (
+      '<div class="zr-det"><h4 class="zr-dh" id="' + hid + '">' + esc(srv(det.name)) +
+      ' <span class="badge ' + scoreC(det.score) + '">' +
+      esc(hasScore ? Tf("{s} 分", "Score {s}", { s: num(det.score, 1) }) : T("未评分", "Not scored")) + "</span></h4>" +
+      (sc && sc.method === "mean_of_checks"
+        ? '<p class="how">' + esc(T("检测器得分为计分检查项的平均分。", "Detector score: mean of the counted checks' points.")) + "</p>"
+        : "") +
+      (rows.length
+        ? '<ul class="zr-list" aria-labelledby="' + hid + '">' + rows.join("") + "</ul>"
+        : '<p class="how">' + esc(T("没有发现。", "No findings.")) + "</p>") +
+      (sc && sc.outcomes && sc.outcomes.length ? scaleBlock(det) : "") +
+      "</div>"
+    );
+  }
+  // One check: its status, what happened, and the points it scored.
+  function checkRow(f, points, outcome) {
+    var s = STATG[f.status] || SEV_NONE;
+    var ev = evText(f.evidence);
+    var L = loc(f);
+    var id = "zr-ev-" + ++uid;
+    return (
+      '<li class="zr-find zr-chk"><span class="dot ' + s.c + '" aria-hidden="true">' + ico(s.g) + "</span>" +
+      '<div class="body"><div class="ft"><span class="sr-only">' +
+      esc(Tf("结果：{s}。", "Result: {s}.", { s: label("STATUS", f.status) })) + " </span>" + esc(L.title) +
+      (points != null ? ' <span class="pts">' + esc(points) + "</span>" : "") + "</div>" +
+      (outcome ? '<div class="oc">' + esc(outcome) + "</div>" : "") +
+      '<div class="fs">' + esc(L.summary) +
+      (f.recommendation ? ' <span class="rec">· ' + esc(T("建议：", "Recommendation: ")) + esc(srv(f.recommendation)) + "</span>" : "") +
+      "</div>" +
+      (ev
+        ? '<button type="button" class="linkbtn more" aria-expanded="false" aria-controls="' + id + '">' +
+          esc(showEvidence(false)) + "</button>" +
+          '<pre class="ev" id="' + id + '" hidden>' + esc(ev) + "</pre>"
+        : "") +
+      "</div></li>"
+    );
+  }
+  function showScale(open) {
+    return open ? T("收起计分标准", "Hide scoring scale") : T("查看计分标准", "Show scoring scale");
+  }
+  // The published scale: every outcome each check could have had, with the
+  // one this run hit marked.
+  function scaleBlock(det) {
+    var hit = {};
+    var title = {};
+    (det.findings || []).forEach(function (f) {
+      if (f.outcome != null) hit[f.id + "\n" + f.outcome] = true;
+      if (!title[f.id]) title[f.id] = loc(f).title;
+    });
+    var groups = [];
+    var at = {};
+    det.scoring.outcomes.forEach(function (o) {
+      if (!(o.check in at)) {
+        at[o.check] = groups.length;
+        groups.push({ check: o.check, rows: [] });
+      }
+      groups[at[o.check]].rows.push(o);
+    });
+    var id = "zr-sc-" + ++uid;
+    return (
+      '<button type="button" class="linkbtn scl" aria-expanded="false" aria-controls="' + id + '">' + esc(showScale(false)) + "</button>" +
+      '<div class="zr-scale" id="' + id + '" hidden>' +
+      groups.map(function (g) {
+        return (
+          "<h5>" + esc(title[g.check] || g.check) + "</h5><ul>" +
+          g.rows.map(function (o) {
+            var on = hit[o.check + "\n" + o.outcome];
+            return (
+              "<li" + (on ? ' class="hit"' : "") + '><span class="p">' + esc(pts(o.score)) + "</span><span>" + esc(srv(o.label)) +
+              (on ? ' <span class="badge sky">' + esc(T("本次结果", "This run")) + "</span>" : "") + "</span></li>"
+            );
+          }).join("") +
+          "</ul>"
+        );
+      }).join("") +
+      "</div>"
     );
   }
 
@@ -336,7 +515,9 @@
       '<dl class="meta-strip">' + meta.join("") + "</dl>" +
       '<section class="sect"><h3>' + esc(T("逐项体检", "Per-dimension checks")) +
       ' <span class="count">' + esc(count(dims.length, ["{n} 个维度", "{n} dimension"], ["{n} 个维度", "{n} dimensions"])) + "</span></h3>" +
-      dims.map(dimRow).join("") + "</section>" +
+      dims.map(function (d) {
+        return dimRow(d, r);
+      }).join("") + "</section>" +
       '<section class="sect"><h3>' + esc(T("关注点", "Findings")) +
       (findings.length
         ? ' <span class="count">' + esc(count(findings.length, ["{n} 项", "{n} finding"], ["{n} 项", "{n} findings"])) + "</span>"
@@ -371,16 +552,11 @@
     // animate the bars on first show only; a language re-render keeps them still
     if (st.still || typeof requestAnimationFrame !== "function") fill();
     else requestAnimationFrame(fill);
-    var more = el.querySelectorAll(".zr-find .more");
-    for (var j = 0; j < more.length; j++)
-      more[j].onclick = function () {
-        var btn = this,
-          ev = document.getElementById(btn.getAttribute("aria-controls"));
-        if (!ev) return;
-        var open = ev.hidden;
-        ev.hidden = !open;
-        btn.setAttribute("aria-expanded", String(open));
-        btn.textContent = showEvidence(open);
+    // disclosure buttons: evidence, dimension details, scoring scale
+    var toggles = el.querySelectorAll(TOGGLES);
+    for (var j = 0; j < toggles.length; j++)
+      toggles[j].onclick = function () {
+        toggle(this, null);
       };
     var acts = el.querySelectorAll("[data-action]");
     for (var k = 0; k < acts.length; k++)
@@ -390,6 +566,18 @@
       };
     var perf = el.querySelector(".perf-sect");
     if (perf && window.ZingPerf && st.report && st.report.performance) window.ZingPerf.wireSection(perf, st.report.performance);
+  }
+
+  var TOGGLES = ".zr-find .more, .zr-dim .dtog, .zr-det .scl";
+  // Open/close the panel a disclosure button controls (open: null = flip).
+  function toggle(btn, open) {
+    var panel = document.getElementById(btn.getAttribute("aria-controls"));
+    if (!panel) return;
+    if (open == null) open = panel.hidden;
+    panel.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    if (/\bmore\b/.test(btn.className)) btn.textContent = showEvidence(open);
+    else if (/\bscl\b/.test(btn.className)) btn.textContent = showScale(open);
   }
 
   function mount(el, report, opts, still) {
@@ -402,28 +590,22 @@
     mount(el, report, opts, false);
   }
 
-  // Re-render every mounted report in the new language, keeping open evidence
-  // and the focused control.
+  // Re-render every mounted report in the new language, keeping open panels
+  // (evidence, dimension details, scoring scales) and the focused control.
   window.addEventListener("zing:lang", function () {
     var els = document.querySelectorAll(".zr");
     for (var i = 0; i < els.length; i++) {
       var host = els[i].parentNode;
       var st = host && host.__zingReport;
       if (!st) continue;
-      var open = [].map.call(host.querySelectorAll(".zr-find .ev"), function (e) {
-        return !e.hidden;
+      var open = [].map.call(host.querySelectorAll(TOGGLES), function (b) {
+        return b.getAttribute("aria-expanded") === "true";
       });
       var btns = host.querySelectorAll("button");
       var focused = [].indexOf.call(btns, document.activeElement);
       mount(host, st.report, st.opts, true);
-      [].forEach.call(host.querySelectorAll(".zr-find .ev"), function (e, n) {
-        if (!open[n]) return;
-        e.hidden = false;
-        var b = host.querySelector('[aria-controls="' + e.id + '"]');
-        if (b) {
-          b.setAttribute("aria-expanded", "true");
-          b.textContent = showEvidence(true);
-        }
+      [].forEach.call(host.querySelectorAll(TOGGLES), function (b, n) {
+        if (open[n]) toggle(b, true);
       });
       if (focused >= 0) {
         var nb = host.querySelectorAll("button")[focused];

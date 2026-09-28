@@ -327,6 +327,10 @@
           if (f.title && !(f.title in titles)) titles[f.title] = e.title;
           return e;
         });
+        // the published scoring scale: one fixed backend sentence per outcome
+        ((det.scoring && det.scoring.outcomes) || []).forEach(function (o) {
+          if (o.label) o.label = L.exportText(o.label);
+        });
       });
     });
     var title = function (t) {

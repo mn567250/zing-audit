@@ -357,8 +357,8 @@
       li.querySelector(".n").innerHTML = i < n ? ico("check") : String(i);
     }
     window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
-    var f = n === 1 ? null : n === 2 ? $("#h-scan") : $("#report");
-    if (f) f.focus({ preventScroll: true });
+    // move focus into the new view (the old one is now display:none)
+    (n === 1 ? $("#h-form") : n === 2 ? $("#h-scan") : $("#report")).focus({ preventScroll: true });
   }
 
   // ---------- messages kept as functions so a language switch re-renders them ----------
@@ -395,6 +395,7 @@
   async function startAudit() {
     if (running) return;
     setFormErr(null);
+    ["#i-url", "#i-model", "#b-url", "#b-model"].forEach(function (x) { $(x).removeAttribute("aria-invalid"); });
     var payload = {
       base_url: $("#i-url").value.trim(),
       api_key: $("#i-key").value.trim(),
@@ -589,7 +590,7 @@
     $("#radar").classList.add("done");
     ZingReport.render($("#report"), report, {
       actions: [
-        { zh: "再测一个", en: "Test another", onClick: function () { go(1); $("#h-form").focus({ preventScroll: true }); } },
+        { zh: "再测一个", en: "Test another", onClick: function () { go(1); } },
         { zh: "下载报告 (JSON)", en: "Download report (JSON)", primary: true, onClick: download },
       ],
     });

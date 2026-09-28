@@ -228,12 +228,26 @@ def test_summary_prefers_probe_and_excludes_cached_and_warmup():
     ]
     ep = summarize_endpoint(recs)
     assert ep.source == "probe"
-    assert ep.requests == 5 and ep.successes == 3
+    # Reliability covers every call: passive + warm-up + 5 probe requests.
+    assert ep.requests == 7 and ep.successes == 5
     assert ep.errors == 1 and ep.rate_limited == 1 and ep.cached_excluded == 1
-    assert ep.error_rate == pytest.approx(0.2)
+    assert ep.error_rate == pytest.approx(1 / 7)
     assert ep.latency_ms.count == 2 and ep.latency_ms.max == 1200.0
     assert ep.cold_start_ms == 5000.0
     assert ep.network_rtt_ms.count == 1 and ep.network_rtt_ms.p50 == 40.0
+
+
+def test_error_rate_counts_failed_audit_requests_when_probe_succeeds():
+    recs = [_rec(i, phase="probe") for i in range(4)]
+    recs += [
+        _rec(10, phase="passive", ok=False, status_code=502, error_type="http_error"),
+        _rec(11, phase="passive", ok=False, timeout=True, error_type="timeout"),
+    ]
+    ep = summarize_endpoint(recs)
+    assert ep.source == "probe" and ep.latency_ms.count == 4
+    assert ep.requests == 6 and ep.successes == 4
+    assert ep.errors == 2 and ep.timeouts == 1
+    assert ep.error_rate == pytest.approx(2 / 6)
 
 
 def test_summary_falls_back_to_passive():

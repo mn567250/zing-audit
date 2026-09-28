@@ -182,10 +182,15 @@ def summarize_endpoint(
     pool = probe or [r for r in completes if r.phase == "passive"]
     good = [r for r in pool if r.ok and not r.cached]
     streamed = [r for r in good if r.stream]
-    n = len(pool)
-    errors = sum(1 for r in pool if not r.ok and not r.rate_limited)
-    timeouts = sum(1 for r in pool if r.timeout)
-    limited = sum(1 for r in pool if r.rate_limited)
+    # Reliability counts every call (the audit's own, warm-up, burst and probe),
+    # not just the stats pool: a relay failing the audit's requests while the
+    # probe succeeds must not show a 0% error rate. A call rejected for its
+    # max_tokens parameter and retried ("param_retry") is zing's, not the relay's.
+    calls = [r for r in completes if r.phase != "param_retry"]
+    n = len(calls)
+    errors = sum(1 for r in calls if not r.ok and not r.rate_limited)
+    timeouts = sum(1 for r in calls if r.timeout)
+    limited = sum(1 for r in calls if r.rate_limited)
 
     pings = [r for r in mine if r.op == "list_models" and r.phase == "ping" and r.ok]
     warmups = [r for r in completes if r.phase == "warmup"]
@@ -195,11 +200,11 @@ def summarize_endpoint(
         endpoint=endpoint,
         source=source,
         requests=n,
-        successes=sum(1 for r in pool if r.ok),
+        successes=sum(1 for r in calls if r.ok),
         errors=errors,
         timeouts=timeouts,
         rate_limited=limited,
-        cached_excluded=sum(1 for r in pool if r.ok and r.cached),
+        cached_excluded=sum(1 for r in calls if r.ok and r.cached),
         error_rate=errors / n if n else None,
         timeout_rate=timeouts / n if n else None,
         rate_limited_rate=limited / n if n else None,

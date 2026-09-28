@@ -192,6 +192,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Performance: the error rate ignored failed audit requests** when the
+  dedicated probe ran. It was computed over the probe requests only, so the report
+  showed 0.0% and "100/100 succeeded" while the chart showed failed requests. Error,
+  timeout and 429 rates (and the succeeded count) now cover every call to the
+  endpoint: the audit's own, warm-up, burst and probe. Latency and speed stats still
+  come from the probe alone.
 - **Web UI: a page no longer stays blank if a script fails** while loading.
 - **"Error response schema" finding when the relay sends no HTTP response** read
   "unexpected outcome (HTTP None)" and stayed in English in every other language.

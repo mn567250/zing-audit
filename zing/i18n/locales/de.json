@@ -365,6 +365,7 @@
   "POST /embeddings failed (HTTP {status_code}).": "POST /embeddings fehlgeschlagen (HTTP {status_code}).",
   "Expected 4 non-empty vectors, got {returned_vectors}.": "4 nicht-leere Vektoren erwartet, {returned_vectors} erhalten.",
   "POST /rerank failed (HTTP {status_code}).": "POST /rerank fehlgeschlagen (HTTP {status_code}).",
+  "Invalid request got no HTTP response ({error_type}); could not confirm OpenAI-style client-error handling.": "Die ungültige Anfrage erhielt keine HTTP-Antwort ({error_type}); eine Fehlerbehandlung im OpenAI-Stil ließ sich nicht bestätigen.",
   "Request failed (HTTP {status_code}, type {error_type}).": "Anfrage fehlgeschlagen (HTTP {status_code}, Typ {error_type}).",
   "Request failed (HTTP {status_code}).": "Anfrage fehlgeschlagen (HTTP {status_code}).",
   "Request failed (type {error_type}).": "Anfrage fehlgeschlagen (Typ {error_type}).",

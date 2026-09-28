@@ -114,6 +114,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - **Web UI: a page no longer stays blank if a script fails** while loading.
+- **"Error response schema" finding when the relay sends no HTTP response** read
+  "unexpected outcome (HTTP None)" and stayed in English in every other language.
+  It now names the error type (e.g. `ProxyError`) and is translated.
 - **Classic audit page: the "Insufficient signal" badge had no background**
   (an invalid colour token).
 - **`zing serve --help` dropped `[web]`** from the install hint (Rich markup).

@@ -91,6 +91,7 @@
   "POST /embeddings failed (HTTP {status_code}).": "POST /embeddings 失败（HTTP {status_code}）。",
   "Expected 4 non-empty vectors, got {returned_vectors}.": "预期 4 个非空向量，实际收到 {returned_vectors} 个。",
   "POST /rerank failed (HTTP {status_code}).": "POST /rerank 失败（HTTP {status_code}）。",
+  "Invalid request got no HTTP response ({error_type}); could not confirm OpenAI-style client-error handling.": "非法请求没有收到 HTTP 响应（{error_type}）；无法确认是否按 OpenAI 风格处理客户端错误。",
   "Request failed (HTTP {status_code}, type {error_type}).": "请求失败（HTTP {status_code}，类型 {error_type}）。",
   "Request failed (HTTP {status_code}).": "请求失败（HTTP {status_code}）。",
   "Request failed (type {error_type}).": "请求失败（类型 {error_type}）。",

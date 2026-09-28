@@ -10,21 +10,622 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&amp;family=Hanken+Grotesk:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/v2/static/zing.css" />
+<link rel="stylesheet" href="/v2/static/fields.css" />
+<link rel="stylesheet" href="/v2/static/report.css" />
+<link rel="stylesheet" href="/v2/static/perf.css" />
+<style>
+  /* ---------- page: audit (tokens only; light + dark) ---------- */
+  [tabindex="-1"]:focus { outline: none; }
+
+  /* stepper */
+  .steps { display: flex; gap: 6px; list-style: none; padding: 0; margin: 18px 0 0; flex-wrap: wrap; }
+  .steps li {
+    display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--faint);
+    padding: 5px 11px 5px 6px; border-radius: var(--r-pill); border: 1px solid transparent;
+  }
+  .steps .n {
+    width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700;
+    background: var(--surface-2); color: var(--ink2); border: 1px solid var(--line);
+  }
+  .steps li[aria-current="step"] { color: var(--ink); background: var(--card); border-color: var(--line); }
+  .steps li[aria-current="step"] .n { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+  .steps li.done { color: var(--ink2); }
+  .steps li.done .n { background: var(--goodbg); color: var(--good); border-color: transparent; }
+  .steps .n .zicon { width: 11px; height: 11px; }
+
+  /* form */
+  .form-card { margin-top: 20px; }
+  /* four-option segments: one row, 2 × 2 on phones (no mid-word breaks) */
+  .seg.q { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .seg.q button { min-width: 0; }
+  @media (max-width: 440px) { .seg.q { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .cmp { margin: 4px 0 16px; }
+  .cmp .disclosure { justify-content: flex-start; }
+  .cmp .disclosure > .pico { flex: none; }
+  .cmp .disclosure .t { flex: 1; display: inline-flex; align-items: center; gap: 4px 7px; flex-wrap: wrap; min-width: 0; }
+  .cmp .disclosure .cv { flex: none; }
+  .cmp .disclosure .key { font-weight: 500; }
+  .cmp .on-badge[hidden] { display: none; }
+  .cmp-hint { font-size: 12.5px; color: var(--ink2); line-height: 1.55; margin: 0 0 14px; }
+  .cmp-hint b { color: var(--ink); }
+  .in[aria-invalid="true"] { border-color: var(--bad); }
+
+  /* step 2: scan */
+  .scan { padding: 28px 24px 24px; text-align: center; }
+  @media (max-width: 520px) { .scan { padding: 22px 16px 18px; } }
+  .radar { position: relative; width: 140px; height: 140px; margin: 4px auto; }
+  .radar .ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--line-strong); }
+  .radar .ring.r2 { inset: 22%; }
+  .radar .ripple { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--teal); opacity: 0; animation: z-rip 2.4s ease-out infinite; }
+  .radar .ripple:nth-of-type(4) { animation-delay: 0.8s; }
+  .radar .ripple:nth-of-type(5) { animation-delay: 1.6s; }
+  @keyframes z-rip { 0% { transform: scale(0.35); opacity: 0.5; } 100% { transform: scale(1); opacity: 0; } }
+  .radar .sweep {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0 300deg, var(--focus-ring) 350deg, transparent 360deg);
+    animation: z-sp 1.5s linear infinite;
+  }
+  @keyframes z-sp { to { transform: rotate(360deg); } }
+  .radar .core {
+    position: absolute; inset: 34%; border-radius: 50%; display: grid; place-items: center;
+    background: var(--teal-d); color: var(--on-ink); box-shadow: var(--shadow-pop);
+  }
+  .radar .core .zicon { width: 22px; height: 22px; }
+  .radar.done .ripple, .radar.done .sweep { display: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .radar .ripple, .radar .sweep { display: none; }
+    .det.run .ic { animation: none; }
+  }
+  .scan h2 { font-family: var(--disp); font-weight: 600; font-size: 20px; margin: 14px 0 4px; }
+  .scan .target { font-size: 12.5px; color: var(--ink2); overflow-wrap: anywhere; }
+  .scan .target code { font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+  .scan .now { color: var(--teal); font-weight: 600; font-size: 13px; min-height: 18px; font-family: var(--mono); margin-top: 8px; overflow-wrap: anywhere; }
+  .prog { max-width: 380px; margin: 14px auto 6px; }
+  .pbar { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; }
+  .pbar i { display: block; height: 100%; width: 0; background: var(--teal); transition: width 0.4s ease; }
+  .prog .cnt { font-size: 12px; color: var(--faint); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .scan-actions { margin: 10px 0 18px; }
+  .blk { text-align: left; max-width: 560px; margin: 18px auto 0; }
+  .blk h3 { font-family: var(--disp); font-weight: 600; font-size: 14px; margin: 0 0 8px; color: var(--ink); }
+  .blk[hidden] { display: none; }
+  .dets { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  @media (max-width: 520px) { .dets { grid-template-columns: 1fr; } }
+  .det {
+    display: flex; align-items: center; gap: 9px; min-width: 0; font-size: 13px; color: var(--ink2);
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 11px; padding: 9px 11px;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .det .dt { min-width: 0; overflow-wrap: anywhere; }
+  .det .ic { flex: 0 0 16px; display: inline-flex; justify-content: center; }
+  .det .ic .zicon { width: 14px; height: 14px; }
+  .det.run { color: var(--ink); border-color: var(--line-strong); }
+  .det.run .ic { color: var(--teal); animation: z-bl 1s steps(2) infinite; }
+  @keyframes z-bl { 50% { opacity: 0.3; } }
+  .det.pass { color: var(--ink); }
+  .det.pass .ic { color: var(--good); }
+  .det.warn .ic { color: var(--warn); }
+  .det.fail .ic, .det.error .ic { color: var(--bad); }
+  .det.info .ic { color: var(--sky); }
+  .det.inconclusive .ic, .det.not_run .ic { color: var(--grey); }
+  /* live evidence feed */
+  .feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .fi {
+    display: flex; gap: 10px; background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--grey-fill);
+    border-radius: 11px; padding: 9px 12px; animation: z-rise 0.35s cubic-bezier(0.2, 0.85, 0.25, 1);
+  }
+  .fi.sky { border-left-color: var(--sky-fill); }
+  .fi.warn { border-left-color: var(--warn-fill); }
+  .fi.bad { border-left-color: var(--bad-fill); }
+  .fi .fdot {
+    flex: 0 0 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; margin-top: 1px;
+    color: var(--on-ink); background: var(--grey-fill);
+  }
+  .fi.sky .fdot { background: var(--sky-fill); }
+  .fi.warn .fdot { background: var(--warn-fill); }
+  .fi.bad .fdot { background: var(--bad-fill); }
+  .fi .fdot .zicon { width: 11px; height: 11px; }
+  .fi .fb { flex: 1; min-width: 0; }
+  .fi .fmeta { font-size: 11px; color: var(--faint); font-family: var(--mono); margin-bottom: 2px; overflow-wrap: anywhere; }
+  .fi .ft { font-weight: 700; font-size: 13px; line-height: 1.35; }
+  .fi .fe { font-family: var(--mono); font-size: 11px; color: var(--ink2); margin-top: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .fi .fe b { color: var(--bad); }
+
+  /* perf.js live panel: colours come from /v2/static/perf.css; fit it to the scan card */
+  #perf-live .zp-live { max-width: 560px; }
+  #perf-live .zp-plot { max-width: 100%; overflow-x: auto; }
+
+  /* step 3 */
+  #report { margin-top: 22px; }
+</style>
 </head>
 <body>
 <div class="wrap">
-  <header class="znav" data-page="audit"></header>
+  <header class="znav" data-page="audit" data-trust></header>
+
   <main>
-    <div class="hero">
-      <h1 data-en="Is this relay serving the <span class='u'>real thing</span>?">这家中转站，给的是<span class='u'>真货</span>吗？</h1>
-    </div>
-    <div class="card card-pad" style="margin-top:20px">
-      <p class="empty" data-en="This page of the new UI is still being built. Meanwhile, use the &lt;a href=&quot;?ui=v1&quot;&gt;classic page&lt;/a&gt;.">新界面的这一页还在建设中，请先使用<a href="?ui=v1">经典页面</a>。</p>
-    </div>
+    <ol class="steps" aria-label="检测进度" data-en-aria-label="Audit progress">
+      <li id="st-1" aria-current="step"><span class="n" aria-hidden="true">1</span><span data-en="Configure">配置</span></li>
+      <li id="st-2"><span class="n" aria-hidden="true">2</span><span data-en="Scan">检测</span></li>
+      <li id="st-3"><span class="n" aria-hidden="true">3</span><span data-en="Report">报告</span></li>
+    </ol>
+
+    <!-- STEP 1: form -->
+    <section class="view show" id="v1" aria-labelledby="h-form">
+      <div class="hero">
+        <h1 id="h-form" tabindex="-1" data-en="Is this relay serving the <span class='u'>real thing</span>?">这家中转站，给的是<span class="u">真货</span>吗？</h1>
+        <p data-en="Enter the relay's address and the model it claims to serve. zing runs a full black-box test suite on your machine and produces a readable, evidence-backed verification report.">填入中转站地址和它声称的模型，zing 在你本地跑一整套黑盒检测，出一份能看懂、有依据的验真报告。</p>
+      </div>
+      <div class="card card-pad form-card">
+        <form id="form" novalidate>
+          <div class="grp">
+            <label class="lab" for="i-url"><span data-en="Relay URL">中转站地址</span> <span class="key">base_url</span></label>
+            <input class="in" id="i-url" type="text" inputmode="url" autocomplete="username" spellcheck="false" autocapitalize="off" placeholder="https://relay.example.com/v1">
+          </div>
+          <div class="grp">
+            <div class="lab-row">
+              <label class="lab" for="i-key" data-en="API key">API 密钥</label>
+              <span class="aside" id="i-key-aside" data-en="Supports env:VAR / file:/path">支持 env:VAR / file:/path</span>
+            </div>
+            <input class="in" id="i-key" type="password" data-secret="i-url" autocomplete="current-password" spellcheck="false" autocapitalize="off" aria-describedby="i-key-aside" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY" value="env:ZING_API_KEY">
+          </div>
+          <div class="two">
+            <div class="grp">
+              <label class="lab" for="i-model"><span data-en="Model to request">请求的模型</span> <span class="key">model</span></label>
+              <input class="in" id="i-model" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="deepseek-chat">
+            </div>
+            <div class="grp">
+              <label class="lab" for="i-claimed"><span data-en="Claimed model">声称的模型</span> <span class="key">claimed_model</span> <span class="opt" data-en="Optional">可选</span></label>
+              <input class="in" id="i-claimed" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="i-claimed-hint" placeholder="留空 = 同请求的模型" data-en-placeholder="Empty = same as model to request">
+              <div class="hint" id="i-claimed-hint" data-en="Only if the relay sells it under another name — zing checks the answers against this model.">仅当中转站以另一个名字售卖时填写 —— zing 会按这个模型核对回答。</div>
+            </div>
+          </div>
+          <div class="grp">
+            <span class="lab" id="lab-api" data-en="Protocol">协议</span>
+            <div class="seg q" id="api" role="group" aria-labelledby="lab-api">
+              <button type="button" aria-pressed="true" data-v="auto" data-en="Auto">自动</button><button type="button" aria-pressed="false" data-v="openai">OpenAI</button><button type="button" aria-pressed="false" data-v="anthropic">Anthropic</button><button type="button" aria-pressed="false" data-v="responses" data-en="Responses">Responses</button>
+            </div>
+          </div>
+          <div class="grp">
+            <span class="lab" id="lab-suite" data-en="Test suite">检测套件</span>
+            <div class="seg q" id="suite" role="group" aria-labelledby="lab-suite">
+              <button type="button" aria-pressed="false" data-v="smoke">smoke</button><button type="button" aria-pressed="true" data-v="standard">standard</button><button type="button" aria-pressed="false" data-v="deep">deep</button><button type="button" aria-pressed="false" data-v="full">full</button>
+            </div>
+          </div>
+          <div class="grp" id="pmode-grp">
+            <span class="lab" id="lab-pmode" data-en="Performance probe requests">性能探测请求</span>
+            <div class="seg" id="pmode" role="group" aria-labelledby="lab-pmode" aria-describedby="pmode-hint">
+              <button type="button" aria-pressed="true" data-v="stream" data-en="Streaming">流式</button><button type="button" aria-pressed="false" data-v="non_stream" data-en="Non-streaming">非流式</button>
+            </div>
+            <div class="hint" id="pmode-hint"></div>
+          </div>
+
+          <div class="disclosure-box cmp" id="cmp">
+            <button type="button" class="disclosure" id="cmp-t" aria-expanded="false" aria-controls="cmp-body">
+              <span class="pico" data-icon="plus"></span><span class="t"><span data-en="Compare against a trusted baseline">对照可信基线</span> <span class="key">compare</span> <span class="badge good on-badge" id="cmp-on" hidden data-en="On">已启用</span></span>
+              <span class="cv" data-icon="chevronDown"></span>
+            </button>
+            <div class="disclosure-body" id="cmp-body" hidden>
+              <p class="cmp-hint" data-en="Enter an endpoint for the same model that you <b>trust</b> (e.g. the official API). zing uses it to corroborate the target's behavior, making substitution/downgrade verdicts more reliable — the quality judge and tamper detection only reach their highest level with a baseline.">填一个你<b>信任的同款模型端点</b>（如官方 API）。zing 会用它佐证目标的表现，让替换/降级判定更可靠——质量评审与篡改检测在有基线时才会升到最高级别。</p>
+              <div class="grp">
+                <label class="lab" for="b-url"><span data-en="Baseline URL">基线地址</span> <span class="key">base_url</span></label>
+                <input class="in" id="b-url" type="text" inputmode="url" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="https://api.openai.com/v1">
+              </div>
+              <div class="grp">
+                <label class="lab" for="b-key" data-en="Baseline API key">基线 API 密钥</label>
+                <input class="in" id="b-key" type="password" data-secret="b-url" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="sk-... 或 env:OPENAI_API_KEY" data-en-placeholder="sk-... or env:OPENAI_API_KEY">
+              </div>
+              <div class="grp">
+                <label class="lab" for="b-model"><span data-en="Baseline model">基线模型</span> <span class="key">model</span></label>
+                <input class="in" id="b-model" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="同款官方模型 id" data-en-placeholder="Official id of the same model">
+              </div>
+              <div class="grp" style="margin-bottom:0">
+                <span class="lab" id="lab-bapi" data-en="Baseline protocol">基线协议</span>
+                <div class="seg q" id="b-api" role="group" aria-labelledby="lab-bapi">
+                  <button type="button" aria-pressed="true" data-v="auto" data-en="Auto">自动</button><button type="button" aria-pressed="false" data-v="openai">OpenAI</button><button type="button" aria-pressed="false" data-v="anthropic">Anthropic</button><button type="button" aria-pressed="false" data-v="responses" data-en="Responses">Responses</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="cta" id="go"><span data-en="Start audit">开始检测</span> <span class="pico" data-icon="arrowRight"></span></button>
+          <div class="reassure" data-en="Tests are sent from <b>your local zing server</b>; the key is only used to connect to the target relay and is <b>never uploaded to any third party</b>.">检测在 <b>你本地的 zing 服务</b> 发起，密钥只用于连接目标中转站，<b>不上传任何第三方</b>。</div>
+          <div id="formerr" role="alert"></div>
+        </form>
+      </div>
+      <div class="foot" data-en="zing provides reproducible evidence of risk and deviation, not a legal verdict.">zing 给出的是风险与偏离的可复现证据，不是法律结论。</div>
+    </section>
+
+    <!-- STEP 2: live scan -->
+    <section class="view" id="v2" aria-labelledby="h-scan">
+      <div class="card scan" style="margin-top:22px">
+        <div class="radar" id="radar" aria-hidden="true"><div class="ring"></div><div class="ring r2"></div><div class="sweep"></div><div class="ripple"></div><div class="ripple"></div><div class="ripple"></div><div class="core" data-icon="bolt"></div></div>
+        <h2 id="h-scan" tabindex="-1" data-en="Running checks…">正在体检…</h2>
+        <div class="target" id="scan-target"></div>
+        <div class="now" id="now" aria-live="polite"></div>
+        <div class="prog">
+          <div class="pbar" id="pbar-wrap" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="h-scan"><i id="pbar"></i></div>
+          <div class="cnt" id="cnt"></div>
+        </div>
+        <div class="scan-actions"><button type="button" class="btn sm" id="cancel"><span class="pico" data-icon="x"></span><span data-en="Cancel">取消</span></button></div>
+        <div class="blk" id="dets-blk" hidden>
+          <h3 data-en="Checks">检测项</h3>
+          <ul class="dets" id="dets"></ul>
+        </div>
+        <div class="blk" id="feed-blk" hidden>
+          <h3 data-en="Live evidence">实时证据</h3>
+          <ol class="feed" id="feed"></ol>
+        </div>
+        <div id="perf-live"></div>
+      </div>
+    </section>
+
+    <!-- STEP 3: report -->
+    <section class="view" id="v3" aria-label="报告" data-en-aria-label="Report">
+      <div id="report" tabindex="-1"></div>
+      <div class="foot" id="cmp-tip" data-en="Want the strongest verdict? Re-check against an official baseline with <code>zing compare</code>.">想要最强结论？用 <code>zing compare</code> 对照官方基线复检。</div>
+    </section>
   </main>
 </div>
+
 <script src="/i18n.js"></script>
+<script src="/perf.js"></script>
 <script src="/icons.js"></script>
+<script src="/secretfield.js"></script>
+<script src="/modelpicker.js"></script>
 <script src="/v2/static/nav.js"></script>
+<script src="/v2/static/report.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s) { return [].slice.call(document.querySelectorAll(s)); };
+  var T = function (zh, en) { return window.ZING_LANG ? ZING_LANG.t(zh, en) : en; };
+  var srv = function (s) { return window.ZING_LANG ? ZING_LANG.server(s) : s; };
+  var ico = function (name, opts) { return window.zingIcon ? zingIcon(name, opts || {}) : ""; };
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  var reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var STATC = { pass: "good", warn: "warn", fail: "bad", info: "sky", inconclusive: "grey", not_run: "grey", error: "bad" };
+  var SEVC = { info: "sky", low: "warn", medium: "warn", high: "bad", critical: "bad" };
+  var ICON_NAME = { pass: "check", warn: "warning", fail: "x", info: "info", inconclusive: "info", not_run: "info", error: "x" };
+  var DIM = {
+    model_identity: ["模型身份", "Model identity"], context_window: ["上下文窗口", "Context window"],
+    capability: ["能力声明", "Capability claims"], billing: ["计费用量", "Billing & usage"],
+    protocol: ["协议兼容", "Protocol compliance"], connectivity: ["连通性", "Connectivity"],
+    reliability: ["并发可靠", "Concurrency reliability"], streaming: ["流式真实", "Streaming authenticity"],
+    security: ["传输安全", "Transport security"],
+  };
+  function statusLabel(s) { return window.ZING_I18N ? ZING_I18N.label("STATUS", s) : s; }
+  function detName(ev) {
+    var d = DIM[ev.dimension];
+    return (d ? T(d[0], d[1]) : ev.dimension || "") + " · " + srv(ev.name || ev.id);
+  }
+
+  // ---------- segmented controls ----------
+  function segVal(id) {
+    var b = document.querySelector("#" + id + ' button[aria-pressed="true"]');
+    return b ? b.getAttribute("data-v") : null;
+  }
+  $$(".seg").forEach(function (seg) {
+    seg.addEventListener("click", function (e) {
+      var b = e.target.closest("button");
+      if (!b || b.disabled) return;
+      [].forEach.call(seg.children, function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+      if (seg.id === "suite") syncProbeMode();
+    });
+  });
+  // Probe request mode: chosen on standard/deep; full measures both; smoke has no probe.
+  function syncProbeMode() {
+    var suite = segVal("suite"), full = suite === "full", smoke = suite === "smoke";
+    $$("#pmode button").forEach(function (b) { b.disabled = full || smoke; });
+    $("#pmode-hint").textContent = smoke
+      ? T("smoke 套件不做性能探测。", "The smoke suite runs no performance probe.")
+      : full
+      ? T("full 套件会同时测量流式与非流式。", "The full suite measures both streaming and non-streaming.")
+      : suite === "standard"
+      ? T("standard 套件只在对照基线时发送探测请求；否则使用检测自身的请求。", "On standard the probe runs only with a baseline; otherwise the audit's own requests are used.")
+      : T("非流式用于测量不支持流式的中转站。", "Non-streaming measures relays that cannot stream.");
+  }
+
+  // ---------- compare disclosure ----------
+  function syncCmpBadge() {
+    $("#cmp-on").hidden = !($("#b-url").value.trim() && $("#b-model").value.trim());
+  }
+  function setCmpOpen(open) {
+    $("#cmp-t").setAttribute("aria-expanded", String(open));
+    $("#cmp-body").hidden = !open;
+    $("#cmp").classList.toggle("open", open);
+  }
+  $("#cmp-t").addEventListener("click", function () {
+    setCmpOpen($("#cmp-t").getAttribute("aria-expanded") !== "true");
+  });
+  ["#b-url", "#b-model"].forEach(function (s) { $(s).addEventListener("input", syncCmpBadge); });
+
+  // ---------- views + stepper ----------
+  function go(n) {
+    $$(".view").forEach(function (v) { v.classList.remove("show"); });
+    $("#v" + n).classList.add("show");
+    for (var i = 1; i <= 3; i++) {
+      var li = $("#st-" + i);
+      if (i === n) li.setAttribute("aria-current", "step");
+      else li.removeAttribute("aria-current");
+      li.classList.toggle("done", i < n);
+      li.querySelector(".n").innerHTML = i < n ? ico("check") : String(i);
+    }
+    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+    // move focus into the new view (the old one is now display:none)
+    (n === 1 ? $("#h-form") : n === 2 ? $("#h-scan") : $("#report")).focus({ preventScroll: true });
+  }
+
+  // ---------- messages kept as functions so a language switch re-renders them ----------
+  var nowText = function () { return T("连接端点…", "Connecting to endpoint…"); };
+  var formErr = null, feedItems = [], progress = { done: 0, total: 0 };
+  function setNow(fn) { nowText = fn; $("#now").textContent = fn(); }
+  function setFormErr(fn) {
+    formErr = fn;
+    $("#formerr").innerHTML = fn ? '<div class="errbox">' + fn() + "</div>" : "";
+  }
+  function renderCount() {
+    $("#cnt").textContent = progress.total
+      ? T("已完成 {n} / {total} 项检测", "{n} of {total} checks done").replace("{n}", progress.done).replace("{total}", progress.total)
+      : "";
+  }
+
+  // ---------- step 1 -> 2: run the audit ----------
+  var controller = null, lastReport = null, running = false;
+  var live = window.ZingPerf ? new ZingPerf.Live($("#perf-live")) : null;
+
+  $("#form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    startAudit();
+  });
+  $("#cancel").addEventListener("click", function () {
+    if (controller) controller.abort();
+  });
+  ["#i-url", "#i-model", "#b-url", "#b-model"].forEach(function (s) {
+    $(s).addEventListener("input", function () { $(s).removeAttribute("aria-invalid"); });
+  });
+
+  function invalid(sel) { $(sel).setAttribute("aria-invalid", "true"); }
+
+  async function startAudit() {
+    if (running) return;
+    setFormErr(null);
+    ["#i-url", "#i-model", "#b-url", "#b-model"].forEach(function (x) { $(x).removeAttribute("aria-invalid"); });
+    var payload = {
+      base_url: $("#i-url").value.trim(),
+      api_key: $("#i-key").value.trim(),
+      model: $("#i-model").value.trim(),
+      claimed_model: $("#i-claimed").value.trim(),
+      api: segVal("api"),
+      suite: segVal("suite"),
+      performance_streaming: segVal("pmode") === "stream",
+    };
+    if (!payload.base_url || !payload.model) {
+      if (!payload.base_url) invalid("#i-url");
+      if (!payload.model) invalid("#i-model");
+      setFormErr(function () { return esc(T("请填写中转站地址和请求的模型。", "Please enter the relay URL and the model to request.")); });
+      (payload.base_url ? $("#i-model") : $("#i-url")).focus();
+      return;
+    }
+    var bUrl = $("#b-url").value.trim(), bModel = $("#b-model").value.trim();
+    if (!!bUrl !== !!bModel) {
+      setCmpOpen(true);
+      invalid(bUrl ? "#b-model" : "#b-url");
+      setFormErr(function () { return esc(T("要对照基线，请同时填写基线地址和基线模型。", "To compare, enter both the baseline URL and the baseline model.")); });
+      (bUrl ? $("#b-model") : $("#b-url")).focus();
+      return;
+    }
+    if (bUrl && bModel) payload.baseline = { base_url: bUrl, api_key: $("#b-key").value.trim(), model: bModel, api: segVal("b-api") };
+    if (window.ZingSecret) ZingSecret.remember($("#form"));
+
+    running = true;
+    $("#go").disabled = true;
+    resetScan(payload);
+    go(2);
+    controller = new AbortController();
+    var state = { seen: {}, finished: false };
+    try {
+      var resp = await fetch("/api/audit/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      if (!resp.ok || !resp.body) throw new Error("HTTP " + resp.status);
+      var reader = resp.body.getReader(), dec = new TextDecoder(), buf = "";
+      for (;;) {
+        var chunk = await reader.read();
+        if (chunk.done) break;
+        buf += dec.decode(chunk.value, { stream: true });
+        var i;
+        while ((i = buf.indexOf("\n\n")) >= 0) {
+          var block = buf.slice(0, i);
+          buf = buf.slice(i + 2);
+          var line = block.split("\n").find(function (l) { return l.indexOf("data:") === 0; });
+          if (!line) continue;
+          handle(JSON.parse(line.slice(5).trim()), state);
+        }
+      }
+      if (!state.finished) {
+        go(1);
+        setFormErr(function () { return esc(T("未收到报告（数据流已结束）", "No report received (stream ended)")); });
+      }
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        go(1);
+      } else if (!state.finished) {
+        var msg = String((err && err.message) || err);
+        go(1);
+        setFormErr(function () { return esc(T("连接本地服务失败：", "Could not reach the local service: ")) + esc(msg); });
+      }
+    } finally {
+      running = false;
+      controller = null;
+      $("#go").disabled = false;
+    }
+  }
+
+  function resetScan(payload) {
+    $("#dets").innerHTML = "";
+    $("#feed").innerHTML = "";
+    $("#dets-blk").hidden = true;
+    $("#feed-blk").hidden = true;
+    $("#radar").classList.remove("done");
+    feedItems = [];
+    progress = { done: 0, total: 0 };
+    renderCount();
+    if (live) live.reset({});
+    setProgress(0);
+    $("#scan-target").innerHTML = "<code>" + esc(payload.base_url) + "</code> · <code>" + esc(payload.claimed_model || payload.model) + "</code>";
+    setNow(function () { return T("连接端点…", "Connecting to endpoint…"); });
+  }
+  function setProgress(pct) {
+    $("#pbar").style.width = pct + "%";
+    $("#pbar-wrap").setAttribute("aria-valuenow", String(pct));
+  }
+
+  // One SSE event of /api/audit/stream.
+  function handle(ev, state) {
+    if (ev.type === "start") {
+      setNow(function () { return T("开始检测 ", "Starting audit of ") + (ev.claimed_model || "") + " …"; });
+      if (live) live.reset({ probeTotal: ev.probe_requests || 0, hasBaseline: !!ev.has_baseline });
+    } else if (ev.type === "requests") {
+      if (live) live.add(ev.records);
+    } else if (ev.type === "detector_start") {
+      if (!state.seen[ev.id]) {
+        var li = document.createElement("li");
+        li.className = "det run";
+        li.__ev = ev;
+        li.__status = "run";
+        li.innerHTML = detHTML(ev, "run");
+        $("#dets").appendChild(li);
+        $("#dets-blk").hidden = false;
+        state.seen[ev.id] = li;
+      }
+      if (ev.total) { progress.total = ev.total; renderCount(); }
+      setNow(function () { return detName(ev) + " …"; });
+    } else if (ev.type === "detector_done") {
+      var d = state.seen[ev.id];
+      if (d) {
+        d.className = "det " + ev.status;
+        d.__status = ev.status;
+        d.innerHTML = detHTML(d.__ev, ev.status);
+      }
+      progress.total = ev.total || progress.total;
+      progress.done = (ev.index || 0) + 1;
+      renderCount();
+      setProgress(Math.round((progress.done / (progress.total || 1)) * 100));
+      (ev.findings || []).forEach(function (f) {
+        if (["fail", "warn", "error"].indexOf(f.status) >= 0 || ["high", "critical"].indexOf(f.severity) >= 0) addFeed(ev, f);
+      });
+    } else if (ev.type === "report") {
+      state.finished = true;
+      showReport(ev.report);
+    } else if (ev.type === "error") {
+      state.finished = true;
+      go(1);
+      setFormErr(function () { return esc(T("检测失败：", "Audit failed: ")) + esc(srv(ev.message)); });
+    }
+  }
+
+  function detHTML(ev, status) {
+    var icon = status === "run" ? ico("play") : ico(ICON_NAME[status] || "info");
+    var st = status === "run" ? T("进行中", "Running") : statusLabel(status);
+    return '<span class="ic" aria-hidden="true">' + icon + '</span><span class="dt">' + esc(detName(ev)) +
+      '<span class="sr-only"> — ' + esc(st) + "</span></span>";
+  }
+
+  function loc(f) {
+    if (window.ZING_I18N && ZING_I18N.localizeFinding) return ZING_I18N.localizeFinding(f.id, f.summary, f.evidence, f.title, f.status);
+    return { title: srv(f.title), summary: srv(f.summary || "") };
+  }
+  function evHi(f) {
+    var e = f.evidence || {};
+    var pri = ["target_answer", "observed", "self-id", "forbidden_hits", "forbidden_hit", "effective_window", "ratio",
+      "reported_completion", "reported_prompt", "substitutions", "returned", "model_returned", "declared", "scheme", "overhead"];
+    for (var i = 0; i < pri.length; i++) {
+      var k = pri[i];
+      if (e[k] != null && String(e[k]).length) return k + ": " + String(e[k]).slice(0, 220);
+    }
+    var ks = Object.keys(e);
+    return ks.length ? ks[0] + ": " + String(e[ks[0]]).slice(0, 220) : "";
+  }
+  function feedHTML(ev, f) {
+    var hi = evHi(f), L = loc(f);
+    return '<span class="fdot" aria-hidden="true">' + ico(ICON_NAME[f.status] || "info") + "</span>" +
+      '<div class="fb"><div class="fmeta">' + esc(detName(ev)) + " · " + esc(statusLabel(f.status)) + "</div>" +
+      '<div class="ft">' + esc(L.title) + "</div>" +
+      (L.summary ? '<div class="fe">' + esc(L.summary) + "</div>" : "") +
+      (hi ? '<div class="fe"><b>' + esc(T("证据", "Evidence")) + "</b> " + esc(hi) + "</div>" : "") + "</div>";
+  }
+  function addFeed(ev, f) {
+    var li = document.createElement("li");
+    li.className = "fi " + (SEVC[f.severity] || STATC[f.status] || "grey");
+    li.innerHTML = feedHTML(ev, f);
+    $("#feed").appendChild(li);
+    $("#feed-blk").hidden = false;
+    feedItems.push({ el: li, ev: ev, f: f });
+  }
+
+  // ---------- step 3: report ----------
+  function download(report) {
+    if (!report) return;
+    var rep = window.ZING_I18N ? ZING_I18N.exportReport(report) : report;
+    var blob = new Blob([JSON.stringify(rep, null, 2)], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "zing-report." + (window.ZING_LANG ? ZING_LANG.get() : "en") + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+  function showReport(report) {
+    lastReport = report;
+    $("#radar").classList.add("done");
+    ZingReport.render($("#report"), report, {
+      actions: [
+        { zh: "再测一个", en: "Test another", onClick: function () { go(1); } },
+        { zh: "下载报告 (JSON)", en: "Download report (JSON)", primary: true, onClick: download },
+      ],
+    });
+    $("#cmp-tip").hidden = !!report.baseline;
+    go(3);
+  }
+
+  // ---------- language switch: re-render script-generated text ----------
+  window.addEventListener("zing:lang", function () {
+    $("#now").textContent = nowText();
+    renderCount();
+    $$("#dets .det").forEach(function (d) { if (d.__ev) d.innerHTML = detHTML(d.__ev, d.__status); });
+    feedItems.forEach(function (x) { x.el.innerHTML = feedHTML(x.ev, x.f); });
+    if (formErr) setFormErr(formErr);
+    syncProbeMode();
+    if (live) live.render();
+  });
+
+  // ---------- init ----------
+  $$("[data-icon]").forEach(function (el) { el.innerHTML = ico(el.getAttribute("data-icon")); });
+  $("#now").textContent = nowText();
+  syncProbeMode();
+  syncCmpBadge();
+  if (window.ZingModelPicker) {
+    try {
+      ZingModelPicker.enhance({
+        claimedInput: "#i-model", urlInput: "#i-url", keyInput: "#i-key",
+        api: function () { return segVal("api"); }, unstyled: true,
+      });
+    } catch (e) {}
+  }
+  // test hook: render a report without running an audit (used by the e2e checks)
+  var hookState = { seen: {}, finished: false };
+  window.ZingAuditPage = { showReport: showReport, handle: function (ev) { handle(ev, hookState); } };
+})();
+</script>
 </body>
 </html>

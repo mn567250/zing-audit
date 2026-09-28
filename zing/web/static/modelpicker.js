@@ -191,8 +191,22 @@
       styleSelect(modelSel);
     }
 
+    // v2: the field's own <label for> names the selects (it points at the
+    // text input, which is hidden while the selects are shown); technical
+    // key chips and the "optional" suffix are left out of the name.
+    function fieldLabel() {
+      if (!claimedInput.id || !document.querySelector) return "";
+      var el = document.querySelector('label[for="' + claimedInput.id + '"]');
+      if (!el) return "";
+      var c = el.cloneNode(true);
+      var drop = c.querySelectorAll ? c.querySelectorAll(".key,.opt") : [];
+      for (var i = 0; i < drop.length; i++) drop[i].parentNode.removeChild(drop[i]);
+      return (c.textContent || "").replace(/\s+/g, " ").trim();
+    }
+
     function paintLabels() {
       var lbl = typeof label === "function" ? label() : label;
+      if (!lbl && unstyled) lbl = fieldLabel();
       if (lbl) {
         provSel.setAttribute("aria-label", lbl + tr(" 供应商", " provider"));
         modelSel.setAttribute("aria-label", lbl + tr(" 模型", " model"));

@@ -506,6 +506,22 @@
     if (n === 1) return T("1 个 Webhook", "1 webhook");
     return Tf("{n} 个 Webhook", "{n} webhooks", { n: n });
   }
+  // The profile pinned when the monitor was created: every run audits against
+  // this fixed snapshot until the user re-pins it.
+  function kbCell(w) {
+    var kb = w.kb;
+    if (!kb) {
+      return esc(T("无匹配资料，每次运行使用当前知识库", "No profile matched — each run uses the current knowledge base"));
+    }
+    var out = "<code>" + esc(kb.provider + "/" + kb.model_id) + "</code>" +
+      '<span class="aside">' + esc(Tf("固定于 {when}", "pinned {when}", { when: fmtTime(kb.pinned_at) })) + "</span>";
+    if (w.kb_changed) {
+      out += '<span class="aside" style="color:var(--warn)">' + esc(T("固定之后知识库已变化", "The knowledge base has changed since then")) + "</span>" +
+        '<button type="button" class="btn sm" style="margin-top:6px" data-act="repin" data-id="' + w.id + '">' +
+        icon("refresh") + esc(T("改用当前资料", "Use the current profile")) + "</button>";
+    }
+    return out;
+  }
   function meta(dt, dd) {
     return "<div><dt>" + esc(dt) + "</dt><dd>" + dd + "</dd></div>";
   }
@@ -555,6 +571,7 @@
             meta(T("告警阈值", "Alert threshold"), esc(thresholdLabel(w.alert_on || "medium"))) +
             meta(T("Webhook", "Webhooks"), esc(hooksText((w.webhooks || []).length))) +
             meta(langLabel, '<select class="in" data-act="lang" data-id="' + w.id + '" aria-label="' + esc(langLabel + " — " + name) + '">' + langOptions(w.language) + "</select>") +
+            meta(T("知识库资料", "Knowledge profile"), kbCell(w)) +
           "</dl>" +
           '<div class="mon-last">' + lastParts.join("") + "</div>" +
         "</div>" +
@@ -676,6 +693,16 @@
             }
           });
         });
+    } else if (act === "repin") {
+      t.disabled = true;
+      patch(id, { repin: true }).then(function () {
+        s.msgKind = "ok";
+        s.msg = function () { return T("已固定为当前资料。", "Pinned to the current profile."); };
+        return load();
+      }, function () {
+        failMsg(id);
+        render();
+      });
     } else if (act === "del") {
       s.confirm = true;
       render();

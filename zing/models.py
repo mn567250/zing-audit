@@ -462,6 +462,53 @@ class RedactedTarget(BaseModel):
     api_key_fingerprint: str | None = None
 
 
+class KnowledgeEntryRef(BaseModel):
+    """A user knowledge-base entry (kb.db) that shaped the audited profile."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int
+    kind: str  # "provider" | "model"
+    provider: str
+    model_id: str | None = None
+    updated_ts: float | None = None
+    origin: str | None = None
+
+
+class KnowledgeUsage(BaseModel):
+    """Which knowledge-base profile a run audited against — and where it came from.
+
+    ``profile`` is the full resolved profile (provider-level fields plus the one
+    matched model) exactly as used, and ``profile_hash`` its content hash, so a
+    report stays verifiable after the knowledge base changes. How the requested
+    id matched (``match_confidence``) is a result of the run, not part of the
+    profile.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    requested_model: str
+    matched: bool = False
+    match_confidence: str | None = None  # exact | alias | fuzzy
+    provider: str | None = None
+    model_id: str | None = None
+    # packaged:<file> | kb_dir:<path> | kb.db:entry/<id>
+    provider_source: str | None = None
+    model_source: str | None = None
+    # The source a user entry replaced (a packaged or ZING_KB_DIR model).
+    shadows: str | None = None
+    user_entries: list[KnowledgeEntryRef] = Field(default_factory=list)
+    # False when the run left the user's kb.db out (--no-user-kb).
+    user_kb: bool = True
+    # True when the profile is a watch's pinned snapshot, not the live KB.
+    pinned: bool = False
+    pinned_at: float | None = None
+    profile_hash: str | None = None
+    profile: dict[str, Any] | None = None
+    # kb.db entries skipped while loading (invalid, unknown provider, ...).
+    warnings: list[str] = Field(default_factory=list)
+
+
 # --------------------------------------------------------------------------- #
 # Top-level report
 # --------------------------------------------------------------------------- #
@@ -496,3 +543,6 @@ class AuditReport(BaseModel):
     # fingerprints (e.g. "zh" for the Chinese fluency probes of China-native
     # models). Independent of the UI and alert language.
     prompt_languages: list[str] = Field(default_factory=list)
+    # The knowledge-base profile the target was audited against, its sources
+    # and a full snapshot of it (None in reports from before this existed).
+    knowledge: KnowledgeUsage | None = None

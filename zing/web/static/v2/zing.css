@@ -210,10 +210,13 @@ button { font: inherit; color: inherit; }
 }
 .trust b { color: var(--ink2); }
 .trust .zicon { width: 13px; height: 13px; }
+/* Six sections no longer fit beside the logo and language switch: the links
+   always get their own row (scrollable on phones). */
+.znav { flex-wrap: wrap; row-gap: 8px; }
+.znav .tail { margin-left: auto; }
+.znav .links { order: 3; flex: 1 0 100%; margin-left: 0; }
 @media (max-width: 720px) {
-  .znav { flex-wrap: wrap; row-gap: 8px; }
-  .znav .tail { margin-left: auto; }
-  .znav .links { order: 3; flex: 1 0 100%; margin: 0 -16px; padding: 0 16px; }
+  .znav .links { margin: 0 -16px; padding: 0 16px; }
 }
 
 /* ---------- pills / language switch ---------- */

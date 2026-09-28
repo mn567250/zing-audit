@@ -252,6 +252,23 @@
       .join("");
   }
 
+  // The knowledge-base profile the run audited against, and where it came from
+  // (packaged:<file> | kb_dir:<path> | kb.db:entry/<id>).
+  function kbMeta(k, code) {
+    if (!k.matched) return esc(T("无匹配资料", "No matching profile"));
+    var src = String(k.model_source || "");
+    var from = src.indexOf("kb.db:entry/") === 0
+      ? Tf("你的条目 #{id}", "your entry #{id}", { id: src.slice(12) })
+      : src.indexOf("kb_dir:") === 0
+        ? "ZING_KB_DIR"
+        : T("内置", "Packaged");
+    var parts = [from];
+    if (k.pinned) parts.push(T("监控固定", "pinned by the monitor"));
+    if (k.user_kb === false) parts.push(T("未使用你的条目", "your entries left out"));
+    return code(k.provider + "/" + k.model_id) + " · " + esc(parts.join(" · ")) +
+      (k.profile_hash ? ' <span class="sr-only">' + esc(k.profile_hash) + "</span>" : "");
+  }
+
   function html(r, opts) {
     var v = r.verdict || {};
     var risk = RISK[v.risk_level] || RISK.inconclusive;
@@ -287,6 +304,7 @@
     if (r.suite) meta.push(item(T("套件", "Suite"), code(r.suite)));
     if ((r.prompt_languages || []).length)
       meta.push(item(T("探测语言", "Probe languages"), esc(r.prompt_languages.map(langName).join(" · "))));
+    if (r.knowledge) meta.push(item(T("知识库资料", "Knowledge profile"), kbMeta(r.knowledge, code)));
     if (r.generated_at) {
       var dt = new Date(r.generated_at);
       if (!isNaN(dt))

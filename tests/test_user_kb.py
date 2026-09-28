@@ -1,0 +1,432 @@
+"""The user's own knowledge base (kb.db): layering, import checks, snapshots.
+
+No network: audits use the mock relay from conftest; the web parts are skipped
+without the optional fastapi extra.
+"""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from zing.knowledge import load_knowledge_base, store
+from zing.knowledge.importer import export_yaml, import_yaml, scan
+from zing.knowledge.research import research_prompt
+from zing.knowledge.snapshot import content_hash, knowledge_usage, resolved_from_snapshot, snapshot
+
+NEW_PROVIDER_YAML = """
+provider: acmeai
+display_name: Acme AI
+base_url_hints: [https://api.acme.test/v1]
+models:
+- id: acme-large-2
+  aliases: [acme-large-2-2026-01-01]
+  context_window_tokens: 200000
+  max_output_tokens: 16384
+  identity_keywords: [acme]
+  fingerprints:
+  - id: acme.cutoff
+    signal: cutoff
+    prompt: What is your knowledge cutoff?
+    pure_code_checkable: true
+    expect_contains_any: ["2025"]
+"""
+
+
+@pytest.fixture
+def data_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("ZING_NO_USER_KB", raising=False)
+    monkeypatch.delenv("ZING_KB_DIR", raising=False)
+    return tmp_path
+
+
+# ----- loader layering ---------------------------------------------------- #
+def test_no_kb_db_is_created_by_loading(data_dir):
+    kb = load_knowledge_base()
+    assert kb.user_kb and not kb.warnings
+    assert not (data_dir / "kb.db").exists()
+    assert kb.model_sources["openai/gpt-4o"] == "packaged:openai.yaml"
+
+
+def test_imported_model_is_used_everywhere(data_dir):
+    result, ids = import_yaml(NEW_PROVIDER_YAML, origin="import:acme.yaml")
+    assert result.ok, result.errors
+    assert len(ids) == 2  # provider entry + model entry
+    kb = load_knowledge_base()
+    r = kb.resolve("acme-large-2")
+    assert r is not None and r.provider.provider == "acmeai"
+    assert r.model.context_window_tokens == 200000
+    assert kb.model_sources["acmeai/acme-large-2"].startswith("kb.db:entry/")
+    assert kb.provider_sources["acmeai"].startswith("kb.db:entry/")
+    # opt-out keeps packaged + ZING_KB_DIR only
+    assert load_knowledge_base(include_user=False).resolve("acme-large-2") is None
+
+
+def test_env_opt_out(data_dir, monkeypatch):
+    import_yaml(NEW_PROVIDER_YAML)
+    monkeypatch.setenv("ZING_NO_USER_KB", "1")
+    kb = load_knowledge_base()
+    assert not kb.user_kb and kb.resolve("acme-large-2") is None
+
+
+def test_model_for_packaged_provider_merges_by_id(data_dir):
+    before = load_knowledge_base()
+    n = len(before.providers["openai"].models)
+    text = """
+provider: openai
+display_name: Should Be Ignored
+relay_red_flags: [my red flag]
+fingerprints:
+- {id: mine.fp, signal: s, prompt: hello}
+models:
+- id: my-openai-model
+  context_window_tokens: 1000
+"""
+    result, _ = import_yaml(text)
+    assert result.ok, result.errors
+    assert any("display_name" in w["path"] for w in result.warnings)
+    kb = load_knowledge_base()
+    openai = kb.providers["openai"]
+    assert len(openai.models) == n + 1
+    assert openai.display_name == before.providers["openai"].display_name  # scalars not overridden
+    assert "my red flag" in openai.relay_red_flags
+    assert [f.id for f in openai.fingerprints][-1] == "mine.fp"
+    assert kb.provider_sources["openai"] == "packaged:openai.yaml"
+
+
+def test_user_model_shadows_packaged_one_and_is_warned(data_dir):
+    result = scan("provider: openai\nmodels:\n- id: gpt-4o\n  context_window_tokens: 1234\n")
+    assert result.ok and result.models[0]["action"] == "shadow"
+    assert any("replaces openai/gpt-4o" in w["message"] for w in result.warnings)
+    import_yaml("provider: openai\nmodels:\n- id: gpt-4o\n  context_window_tokens: 1234\n")
+    kb = load_knowledge_base()
+    assert kb.resolve("gpt-4o").model.context_window_tokens == 1234
+    assert kb.shadowed["openai/gpt-4o"] == "packaged:openai.yaml"
+
+
+def test_invalid_stored_entries_are_skipped_with_a_warning(data_dir):
+    store.upsert("model", "openai", {"id": "broken", "no_such_field": 1}, model_id="broken")
+    store.upsert("model", "nobody", {"id": "orphan"}, model_id="orphan")
+    kb = load_knowledge_base()
+    assert kb.resolve("gpt-4o") is not None  # the rest still loads
+    assert len(kb.warnings) == 2
+    assert any("orphan" in w and "not in the knowledge base" in w for w in kb.warnings)
+
+
+def test_disabled_entries_do_not_apply(data_dir):
+    _, ids = import_yaml(NEW_PROVIDER_YAML)
+    model_entry = next(i for i in ids if store.get(i)["kind"] == "model")
+    store.set_enabled(model_entry, False)
+    assert load_knowledge_base().resolve("acme-large-2") is None
+    store.set_enabled(model_entry, True)
+    assert load_knowledge_base().resolve("acme-large-2") is not None
+
+
+# ----- import checks ------------------------------------------------------ #
+@pytest.mark.parametrize(
+    ("text", "needle"),
+    [
+        ("", "empty"),
+        ("- just a list", "mapping"),
+        ("provider: Bad Key\nmodels: []", "provider key"),
+        ("provider: x\nmodels:\n- id: m\n  unknown_field: 1", "unknown field"),
+        ("provider: x\nmodels:\n- id: has space", "without spaces"),
+        ("provider: x\nbase: &a {k: 1}\nmodels:\n- id: m\n  extra: *a", "anchors"),
+        ("provider: x\nmodels:\n- id: m\n  fingerprints:\n  - {id: f, signal: s, prompt: p, expect_regex: '(a+)+$'}", "nested quantifiers"),
+        ("provider: x\nmodels:\n- id: m\n  fingerprints:\n  - {id: f, signal: s, prompt: p, expect_regex: '(['}", "invalid regular expression"),
+        ("provider: x\nmodels:\n- id: m\n  fingerprints:\n  - {id: f, signal: s, prompt: p, max_tokens: 999999}", "max_tokens"),
+        ("provider: x\nmodels:\n- id: m\n  fingerprints:\n  - {id: f, signal: s, prompt: p, prompt_lang: zh}", "language_bound"),
+        ("provider: x\nmodels:\n- id: m\n- id: m", "duplicate model"),
+        ("provider: x\nbase_url_hints: [ftp://nope]\nmodels:\n- id: m", "http"),
+        ("provider: x\nmodels: [{id: [not, a, string]}]", "id"),
+        ("key: [unclosed", "not valid YAML"),
+    ],
+)
+def test_scan_rejects_bad_yaml(data_dir, text, needle):
+    result = scan(text)
+    assert not result.ok
+    assert any(needle.lower() in (e["message"] + " " + e["path"]).lower() for e in result.errors), result.errors
+    assert not (data_dir / "kb.db").exists() or store.list_entries() == []
+
+
+def test_scan_rejects_oversized_input(data_dir):
+    assert not scan("provider: x\n" + "#" * (600 * 1024)).ok
+
+
+def test_scan_lists_probes_and_writes_nothing(data_dir):
+    result = scan(NEW_PROVIDER_YAML)
+    assert result.ok
+    assert [p["id"] for p in result.probes] == ["acme.cutoff"]
+    assert result.probes[0]["prompt"] == "What is your knowledge cutoff?"
+    assert store.list_entries() == []
+
+
+def test_scan_reports_resolution_changes(data_dir):
+    # A new model whose id captures an existing alias-level lookup elsewhere.
+    kb = load_knowledge_base()
+    victim = next(m for p, m in kb.all_models() if p.provider == "openai" and m.aliases)
+    alias = victim.aliases[0]
+    text = f"provider: acmeai\nmodels:\n- id: thief\n  aliases: ['{alias}']\n"
+    result = scan(text)
+    assert result.ok  # a warning, not an error
+    assert any(alias in w["message"] for w in result.warnings)
+
+
+def test_reimport_updates_in_place_and_export_roundtrips(data_dir):
+    _, ids1 = import_yaml(NEW_PROVIDER_YAML)
+    result, ids2 = import_yaml(NEW_PROVIDER_YAML.replace("200000", "300000"))
+    assert result.models[0]["action"] == "update"
+    assert sorted(ids1) == sorted(ids2)
+    assert load_knowledge_base().resolve("acme-large-2").model.context_window_tokens == 300000
+    exported = export_yaml()
+    assert "acme-large-2" in exported and "300000" in exported
+    store.delete(ids2[0])
+    store.delete(ids2[1])
+    assert import_yaml(exported)[0].ok
+    assert load_knowledge_base().resolve("acme-large-2").model.context_window_tokens == 300000
+
+
+def test_research_prompt_names_fields_and_model():
+    text = research_prompt("acme-large-2", "acmeai", load_knowledge_base())
+    assert "acme-large-2" in text and "acmeai" in text
+    for field in ("context_window_tokens", "identity_forbidden", "expect_regex", "language_bound", "sources"):
+        assert field in text
+    assert "openai" in text  # existing provider keys are listed
+    assert "```yaml" in text
+
+
+# ----- snapshots ---------------------------------------------------------- #
+def test_snapshot_roundtrip_and_hash_ignores_match_confidence(data_dir):
+    kb = load_knowledge_base()
+    exact = kb.resolve("gpt-4o")
+    snap = snapshot(exact)
+    assert "models" not in snap["provider"] and snap["model"]["id"] == "gpt-4o"
+    again = resolved_from_snapshot(snap, "alias")
+    assert again.model == exact.model and again.match_confidence == "alias"
+    assert content_hash(snapshot(again)) == content_hash(snap)
+    usage = knowledge_usage(kb, exact, "gpt-4o")
+    assert usage.matched and usage.match_confidence == "exact"
+    assert usage.model_source == "packaged:openai.yaml" and usage.profile_hash == content_hash(snap)
+    none = knowledge_usage(kb, None, "nope")
+    assert not none.matched and none.profile is None
+
+
+async def test_report_carries_the_knowledge_used(data_dir, mock_server, target_config, monkeypatch):
+    from zing.config import AuditOptions
+    from zing.runner import run_audit
+
+    import_yaml("provider: openai\nmodels:\n- id: gpt-4o\n  context_window_tokens: 1234\n")
+    monkeypatch.setattr("zing.runner.make_client", _mock_client_factory(mock_server))
+    report = await run_audit(target_config, AuditOptions(suite="smoke"))
+    k = report.knowledge
+    assert k is not None and k.matched and k.provider == "openai" and k.model_id == "gpt-4o"
+    assert k.model_source.startswith("kb.db:entry/") and k.shadows == "packaged:openai.yaml"
+    assert [e.kind for e in k.user_entries] == ["model"]
+    assert k.profile["model"]["context_window_tokens"] == 1234
+    # --no-user-kb: packaged profile, and the report says so
+    report2 = await run_audit(target_config, AuditOptions(suite="smoke"), use_user_kb=False)
+    assert report2.knowledge.user_kb is False
+    assert report2.knowledge.model_source == "packaged:openai.yaml"
+    assert report2.knowledge.profile_hash != k.profile_hash
+    # human renderers show it
+    from zing.report.render import compact_dict, render_html, render_markdown
+
+    assert "## Knowledge base" in render_markdown(report)
+    assert "Knowledge base" in render_html(report)
+    assert compact_dict(report)["knowledge"]["source"].startswith("kb.db:entry/")
+
+
+async def test_pinned_profile_wins_over_the_live_kb(data_dir, mock_server, target_config, monkeypatch):
+    from zing.config import AuditOptions
+    from zing.runner import run_audit
+
+    kb = load_knowledge_base()
+    pinned = knowledge_usage(kb, kb.resolve("gpt-4o"), "gpt-4o")
+    import_yaml("provider: openai\nmodels:\n- id: gpt-4o\n  context_window_tokens: 1234\n")
+    monkeypatch.setattr("zing.runner.make_client", _mock_client_factory(mock_server))
+    report = await run_audit(target_config, AuditOptions(suite="smoke"), pinned=pinned)
+    assert report.knowledge.pinned
+    assert report.knowledge.profile_hash == pinned.profile_hash
+
+
+async def test_invalid_pinned_snapshot_falls_back_to_the_live_kb(data_dir, mock_server, target_config, monkeypatch):
+    from zing.config import AuditOptions
+    from zing.runner import run_audit
+
+    kb = load_knowledge_base()
+    pinned = knowledge_usage(kb, kb.resolve("gpt-4o"), "gpt-4o")
+    pinned.profile["model"]["field_from_the_future"] = 1
+    monkeypatch.setattr("zing.runner.make_client", _mock_client_factory(mock_server))
+    report = await run_audit(target_config, AuditOptions(suite="smoke"), pinned=pinned)
+    assert not report.knowledge.pinned and report.knowledge.matched
+    assert any("pinned profile no longer valid" in w for w in report.knowledge.warnings)
+
+
+def _mock_client_factory(mock_server):
+    from zing.clients import OpenAICompatibleClient
+
+    def make(cfg):
+        return OpenAICompatibleClient(cfg, transport=mock_server.transport)
+
+    return make
+
+
+# ----- history.db / watches.db snapshot tables ------------------------------ #
+def _report_with(profile_hash: str, snap: dict) -> dict:
+    return {
+        "generated_at": "t",
+        "target": {"base_url": "https://x/v1", "claimed_model": "gpt-4o", "model": "gpt-4o"},
+        "verdict": {"risk_level": "clean", "overall_score": 90.0},
+        "knowledge": {"requested_model": "gpt-4o", "matched": True, "match_confidence": "exact",
+                      "profile_hash": profile_hash, "profile": snap},
+    }
+
+
+def test_history_stores_each_profile_once_and_prunes(data_dir):
+    import sqlite3
+
+    from zing.web import history
+
+    kb = load_knowledge_base()
+    snap = snapshot(kb.resolve("gpt-4o"))
+    h = content_hash(snap)
+    a = history.save(_report_with(h, snap))
+    b = history.save(_report_with(h, snap))
+    with sqlite3.connect(data_dir / "history.db") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM kb_snapshots").fetchone()[0] == 1
+        stored = json.loads(conn.execute("SELECT report_json FROM history WHERE id=?", (a,)).fetchone()[0])
+    assert stored["knowledge"]["profile"] is None  # deduplicated out of the row
+    assert history.get(a)["knowledge"]["profile"] == snap  # and put back on read
+    assert history.recent()[0]["kb_match"] == "exact"
+    history.delete(a)
+    assert history.snapshot_for(b) == snap
+    history.delete(b)
+    with sqlite3.connect(data_dir / "history.db") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM kb_snapshots").fetchone()[0] == 0
+
+
+def test_history_db_from_before_snapshots_is_migrated(data_dir):
+    import sqlite3
+
+    from zing.web import history
+
+    with sqlite3.connect(data_dir / "history.db") as conn:
+        conn.execute(
+            "CREATE TABLE history (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, base_url TEXT,"
+            " claimed_model TEXT, model TEXT, mode TEXT, suite TEXT, risk_level TEXT, score REAL,"
+            " rating TEXT, report_json TEXT)"
+        )
+        conn.execute("INSERT INTO history (report_json) VALUES ('{\"verdict\": {}}')")
+    assert history.get(1) == {"verdict": {}}
+    assert history.recent()[0]["kb_match"] is None
+
+
+def test_watch_pins_a_snapshot_and_cleans_up(data_dir):
+    import sqlite3
+
+    from zing.web import watches
+
+    kb = load_knowledge_base()
+    usage = knowledge_usage(kb, kb.resolve("gpt-4o"), "gpt-4o").model_dump(mode="json")
+    wid = watches.create({"base_url": "https://x/v1", "model": "gpt-4o"}, knowledge=usage)
+    listed = watches.list_all()[0]
+    assert listed["kb"]["model_id"] == "gpt-4o" and listed["kb"]["profile"] is None
+    pinned = watches.pinned_knowledge(wid)
+    assert pinned["profile"] == usage["profile"] and pinned["pinned_at"]
+    watches.pin(wid, None)
+    assert watches.pinned_knowledge(wid) is None
+    with sqlite3.connect(data_dir / "watches.db") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM kb_snapshots").fetchone()[0] == 0
+    watches.pin(wid, usage)
+    watches.delete(wid)
+    with sqlite3.connect(data_dir / "watches.db") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM kb_snapshots").fetchone()[0] == 0
+
+
+# ----- web API + page ------------------------------------------------------- #
+@pytest.fixture
+def client(data_dir):
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from zing.web.server import create_app
+
+    return TestClient(create_app(), base_url="http://localhost")
+
+
+def test_kb_api_scan_import_list_toggle_delete(client):
+    r = client.post("/api/kb/scan", json={"yaml": NEW_PROVIDER_YAML})
+    assert r.status_code == 200 and r.json()["ok"] and client.get("/api/kb/profiles").json()["entries"] == []
+    bad = client.post("/api/kb/import", json={"yaml": "provider: x\nmodels:\n- id: m\n  nope: 1"})
+    assert bad.status_code == 400 and bad.json()["errors"]
+    ok = client.post("/api/kb/import", json={"yaml": NEW_PROVIDER_YAML, "filename": "acme.yaml"})
+    assert ok.status_code == 201 and len(ok.json()["entry_ids"]) == 2
+    data = client.get("/api/kb/profiles").json()
+    acme = next(p for p in data["providers"] if p["provider"] == "acmeai")
+    assert acme["models"][0]["source"].startswith("kb.db:entry/")
+    assert {e["origin"] for e in data["entries"]} == {"import:acme.yaml"}
+    assert "body" not in data["entries"][0]
+    res = client.post("/api/kb/resolve", json={"model": "acme-large-2"}).json()
+    assert res["matched"] and res["provider"] == "acmeai"
+    eid = next(e["id"] for e in data["entries"] if e["kind"] == "model")
+    assert client.patch(f"/api/kb/entries/{eid}", json={"enabled": False}).status_code == 200
+    assert not client.post("/api/kb/resolve", json={"model": "acme-large-2"}).json()["matched"]
+    assert client.delete(f"/api/kb/entries/{eid}").status_code == 200
+    assert client.delete(f"/api/kb/entries/{eid}").status_code == 404
+    exp = client.get("/api/kb/export")
+    assert exp.status_code == 200 and "acmeai" in exp.text and "attachment" in exp.headers["content-disposition"]
+    prompt = client.get("/api/kb/prompt", params={"model": "acme-large-2"})
+    assert prompt.status_code == 200 and "acme-large-2" in prompt.text
+
+
+def test_kb_import_refuses_cross_site_and_non_json(client):
+    r = client.post("/api/kb/import", json={"yaml": NEW_PROVIDER_YAML}, headers={"Origin": "https://evil.example"})
+    assert r.status_code == 403
+    r = client.post("/api/kb/import", content=json.dumps({"yaml": NEW_PROVIDER_YAML}), headers={"Content-Type": "text/plain"})
+    assert r.status_code == 415
+    assert store.list_entries() == []
+
+
+def test_kb_page_and_nav(client):
+    r = client.get("/v2/kb")
+    assert r.status_code == 200 and '<header class="znav" data-page="kb"' in r.text
+    assert '<script src="/v2/static/nav.js"></script>' in r.text
+    assert '"/v2/kb"' in client.get("/v2/static/nav.js").text
+    assert client.get("/v2/kb?ui=v1", follow_redirects=False).headers["location"] == "/"
+
+
+def test_watch_api_pins_and_repins(client):
+    wid = client.post("/api/watches", json={"base_url": "https://x/v1", "model": "gpt-4o"}).json()["id"]
+    row = client.get("/api/watches").json()[0]
+    assert row["kb"]["model_id"] == "gpt-4o" and row["kb_changed"] is False
+    import_yaml("provider: openai\nmodels:\n- id: gpt-4o\n  context_window_tokens: 1234\n")
+    row = client.get("/api/watches").json()[0]
+    assert row["kb_changed"] is True
+    assert client.patch(f"/api/watches/{wid}", json={"repin": True}).status_code == 200
+    row = client.get("/api/watches").json()[0]
+    assert row["kb_changed"] is False and row["kb"]["model_source"].startswith("kb.db:entry/")
+
+
+def test_cli_kb_import_check_and_prompt(data_dir, tmp_path):
+    from typer.testing import CliRunner
+
+    from zing.cli import app
+
+    f = tmp_path / "acme.yaml"
+    f.write_text(NEW_PROVIDER_YAML, encoding="utf-8")
+    runner = CliRunner()
+    res = runner.invoke(app, ["kb-import", str(f), "--check"])
+    assert res.exit_code == 0 and store.list_entries() == []
+    res = runner.invoke(app, ["kb-import", str(f)])
+    assert res.exit_code == 0 and len(store.list_entries()) == 2
+    res = runner.invoke(app, ["kb", "acmeai", "--json"])
+    assert json.loads(res.stdout)["models"][0]["source"].startswith("kb.db:entry/")
+    res = runner.invoke(app, ["kb", "acmeai", "--json", "--no-user-kb"])
+    assert json.loads(res.stdout)["models"] == []
+    res = runner.invoke(app, ["kb-prompt", "acme-large-2"])
+    assert res.exit_code == 0 and "acme-large-2" in res.stdout
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("provider: x\nmodels:\n- id: m\n  nope: 1\n", encoding="utf-8")
+    assert runner.invoke(app, ["kb-import", str(bad)]).exit_code == 1

@@ -405,6 +405,25 @@ profiles without forking:
 zing check --kb-dir ./my-profiles ...     # or set ZING_KB_DIR
 ```
 
+**Your own profiles, without YAML files or an editable install.** The web UI's
+**Models** page (`/v2/kb`) lists every profile with its source and lets you add
+models: copy a research prompt into the AI assistant of your choice, upload the
+YAML it answers with, and zing checks it (schema, limits, unsafe regular
+expressions, every prompt it would send, model ids that would resolve
+differently) before storing it in `kb.db` in your data directory. The CLI does
+the same with `zing kb-prompt <model>`, `zing kb-import <file>` and
+`zing kb-export`. Your entries have the highest priority — a model with a
+packaged id replaces it, reported as *shadowing* it — but they never change a
+packaged provider's own settings; fingerprints are merged by id. `zing check`
+and `zing serve` use exactly the same profiles; `--no-user-kb` (or
+`ZING_NO_USER_KB=1`) leaves your entries out.
+
+Every report records which profile it audited against (`knowledge`: provider,
+model, how the id matched, its source file or `kb.db` entry, and a full snapshot
+with its content hash), so a report stays verifiable after the knowledge base
+changes. Monitors pin the profile they were created with and keep auditing
+against that snapshot until you re-pin them.
+
 ## Responsible use
 
 zing is a black-box auditing aid. It **cannot prove**:

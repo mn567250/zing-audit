@@ -6,6 +6,11 @@ Endpoints:
                              ?ui=v1|v2 on any page picks one (remembered in the
                              `zing_ui` cookie)
   GET  /api/health           {ok, version}
+  GET  /api/kb/profiles      the merged knowledge base with sources + your kb.db entries
+  GET  /api/kb/prompt        research prompt for an external AI (?model=&provider=)
+  POST /api/kb/scan          check uploaded profile YAML (writes nothing)
+  POST /api/kb/import        check + store profile YAML in kb.db
+  GET  /api/kb/export        your kb.db entries as YAML
   POST /api/models           list a relay's /models (connection check + model ids)
   POST /api/audit/stream     run an audit; stream detector progress, batched
                              per-request timing records and the final report
@@ -47,6 +52,7 @@ from zing.config import (
     validate_api,
     validate_suite,
 )
+from zing.models import KnowledgeUsage
 from zing.runner import run_audit
 from zing.web.security import LocalOnlyMiddleware
 
@@ -122,6 +128,17 @@ def _coerce_int(value: Any) -> int:
         return 0
 
 
+def _watch_knowledge(row: dict[str, Any], kb: Any = None) -> dict[str, Any]:
+    """KnowledgeUsage (with profile snapshot) a watch's claimed model resolves to now."""
+    from zing.knowledge import load_knowledge_base
+    from zing.knowledge.snapshot import knowledge_usage
+
+    claimed = str(row.get("claimed_model") or row.get("model") or "")
+    kb = kb if kb is not None else load_knowledge_base()
+    resolved = kb.resolve(claimed, row.get("declared_provider") or None)
+    return knowledge_usage(kb, resolved, claimed).model_dump(mode="json")
+
+
 def _kb_embedding_dimensions(model_id: str | None, provider_hint: str | None) -> int:
     """Native embedding dimension for ``model_id`` from the KB; 0 if unknown."""
     if not model_id:
@@ -165,6 +182,10 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
             api=validate_api(row.get("api")),
         )
         options = AuditOptions(suite=suite)
+        # Audit against the profile pinned when the watch was created, so a
+        # knowledge-base edit cannot silently change what the monitor measures.
+        pinned_raw = watches.pinned_knowledge(wid)
+        pinned = KnowledgeUsage(**pinned_raw) if pinned_raw else None
 
         # Previous saved run for this target+model — used for the regression check
         # and the "since last run" delta in the alert. notify.send needs the full report,
@@ -179,7 +200,7 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
                 previous = history.get(int(item["id"]))
                 break
 
-        report = await run_audit(target, options, baseline=None, mode="check")
+        report = await run_audit(target, options, baseline=None, mode="check", pinned=pinned)
         report_dict = json.loads(report.model_dump_json())
         report_id = history.save(report_dict)
         if report_id is not None and report_id < 0:
@@ -317,6 +338,16 @@ def create_app() -> FastAPI:
     async def v2_tools(request: Request) -> Any:
         return _v2_page(request, "/tools")
 
+    @app.get("/v2/kb")
+    async def v2_kb(request: Request) -> Any:
+        # v2 only (no classic counterpart): ?ui=v1 goes to the classic start page.
+        resp: Response
+        if request.query_params.get("ui") == "v1":
+            resp = RedirectResponse("/", status_code=307)
+        else:
+            resp = FileResponse(_V2 / "kb.html")
+        return _remember_ui(resp, request.query_params.get("ui"))
+
     # v2 stylesheets / scripts, e.g. /v2/static/zing.css
     app.mount("/v2/static", StaticFiles(directory=str(_V2)), name="v2-static")
 
@@ -370,6 +401,108 @@ def create_app() -> FastAPI:
             for prov in provs
         ]
         return JSONResponse({"providers": providers})
+
+    # ----- Knowledge base: browse, research prompt, import/export -------- #
+    @app.get("/api/kb/profiles")
+    async def kb_profiles() -> Any:
+        # Every provider/model as merged for audits, with its source and the
+        # user's entries (kb.db) — plus entries that were skipped.
+        from zing.knowledge import load_knowledge_base, store
+
+        knowledge = load_knowledge_base()
+        providers = []
+        for prov in sorted(knowledge.providers.values(), key=lambda p: p.provider):
+            models = []
+            for m in prov.models:
+                key = f"{prov.provider}/{m.id}"
+                models.append({
+                    **m.model_dump(mode="json"),
+                    "source": knowledge.model_sources.get(key),
+                    "shadows": knowledge.shadowed.get(key),
+                    "entry_id": (knowledge.entries.get(f"model:{key}") or {}).get("id"),
+                })
+            providers.append({
+                **prov.model_dump(mode="json", exclude={"models"}),
+                "source": knowledge.provider_sources.get(prov.provider),
+                "entry_id": (knowledge.entries.get(f"provider:{prov.provider}") or {}).get("id"),
+                "models": models,
+            })
+        entries = [{k: v for k, v in e.items() if k != "body"} for e in store.list_entries()]
+        return JSONResponse({"providers": providers, "entries": entries,
+                             "user_kb": knowledge.user_kb, "warnings": knowledge.warnings})
+
+    @app.get("/api/kb/prompt")
+    async def kb_prompt(model: str = "", provider: str = "") -> Any:
+        from zing.knowledge import load_knowledge_base
+        from zing.knowledge.research import research_prompt
+
+        text = research_prompt(model[:200], provider[:64] or None, load_knowledge_base())
+        return Response(text, media_type="text/plain; charset=utf-8")
+
+    @app.post("/api/kb/resolve")
+    async def kb_resolve(request: Request) -> Any:
+        from zing.knowledge import load_knowledge_base
+
+        body = await request.json()
+        knowledge = load_knowledge_base()
+        r = knowledge.resolve(str(body.get("model") or "")[:200], body.get("provider") or None)
+        if r is None:
+            return JSONResponse({"matched": False})
+        key = f"{r.provider.provider}/{r.model.id}"
+        return JSONResponse({"matched": True, "provider": r.provider.provider, "model_id": r.model.id,
+                             "match_confidence": r.match_confidence,
+                             "source": knowledge.model_sources.get(key)})
+
+    async def _yaml_body(request: Request) -> tuple[str, str | None]:
+        body = await request.json()
+        text = body.get("yaml") if isinstance(body, dict) else None
+        name = body.get("filename") if isinstance(body, dict) else None
+        return (text if isinstance(text, str) else ""), (str(name)[:120] if name else None)
+
+    @app.post("/api/kb/scan")
+    async def kb_scan(request: Request) -> Any:
+        # Check uploaded YAML; nothing is written.
+        from zing.knowledge.importer import scan
+
+        text, _name = await _yaml_body(request)
+        return JSONResponse(scan(text).to_dict())
+
+    @app.post("/api/kb/import")
+    async def kb_import(request: Request) -> Any:
+        from zing.knowledge.importer import import_yaml
+
+        text, name = await _yaml_body(request)
+        result, ids = import_yaml(text, origin=f"import:{name}" if name else "import")
+        body = {**result.to_dict(), "entry_ids": ids}
+        return JSONResponse(body, status_code=201 if result.ok else 400)
+
+    @app.get("/api/kb/export")
+    async def kb_export(provider: str = "") -> Any:
+        from zing.knowledge.importer import export_yaml
+
+        text = export_yaml(provider or None)
+        fname = f"zing-kb-{provider or 'mine'}.yaml"
+        return Response(text, media_type="application/yaml; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+    @app.patch("/api/kb/entries/{entry_id}")
+    async def kb_entry_patch(entry_id: int, request: Request) -> Any:
+        from zing.knowledge import store
+
+        body = await request.json()
+        if "enabled" not in body:
+            return JSONResponse({"error": "nothing to change"}, status_code=400)
+        if not store.set_enabled(entry_id, bool(body.get("enabled"))):
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"ok": True})
+
+    @app.delete("/api/kb/entries/{entry_id}")
+    async def kb_entry_delete(entry_id: int) -> Any:
+        from zing.knowledge import store
+
+        if not store.delete(entry_id):
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"ok": True})
 
     @app.post("/api/models")
     async def relay_models(request: Request) -> Any:
@@ -568,7 +701,27 @@ def create_app() -> FastAPI:
         from zing.web import watches
 
         # list_all() never returns api_key, so this is safe to send to the browser.
-        return JSONResponse(watches.list_all())
+        rows = watches.list_all()
+        # Flag pinned profiles that differ from what the knowledge base resolves now.
+        from zing.knowledge import load_knowledge_base
+
+        try:
+            kb = load_knowledge_base() if rows else None
+        except Exception:
+            kb = None
+        for row in rows:
+            row["kb_current_hash"] = None
+            row["kb_changed"] = False
+            if kb is None:
+                continue
+            try:
+                current = _watch_knowledge(row, kb).get("profile_hash")
+            except Exception:
+                continue
+            row["kb_current_hash"] = current
+            pinned_hash = (row.get("kb") or {}).get("profile_hash")
+            row["kb_changed"] = bool(pinned_hash and pinned_hash != current)
+        return JSONResponse(rows)
 
     @app.post("/api/watches")
     async def watches_create(request: Request) -> Any:
@@ -592,7 +745,11 @@ def create_app() -> FastAPI:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
         cfg = {**body, "suite": suite}
-        wid = watches.create(cfg)
+        try:
+            knowledge = _watch_knowledge(cfg)
+        except Exception as exc:  # e.g. a broken ZING_KB_DIR file
+            return JSONResponse({"error": f"knowledge base: {exc}"}, status_code=400)
+        wid = watches.create(cfg, knowledge=knowledge)
         return JSONResponse({"ok": True, "id": wid}, status_code=201)
 
     @app.delete("/api/watches/{wid}")
@@ -606,13 +763,20 @@ def create_app() -> FastAPI:
     async def watches_patch(wid: int, request: Request) -> Any:
         from zing.web import watches
 
-        if watches.get(wid) is None:
+        row = watches.get(wid)
+        if row is None:
             return JSONResponse({"error": "not found"}, status_code=404)
         body = await request.json()
         if "enabled" in body:
             watches.set_enabled(wid, bool(body.get("enabled")))
         if "language" in body:
             watches.set_language(wid, body.get("language"))
+        if body.get("repin"):
+            # Re-pin to the profile the knowledge base resolves to now.
+            try:
+                watches.pin(wid, _watch_knowledge(row))
+            except Exception as exc:
+                return JSONResponse({"error": f"knowledge base: {exc}"}, status_code=400)
         return JSONResponse({"ok": True})
 
     @app.post("/api/watches/{wid}/run")

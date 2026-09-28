@@ -6,7 +6,53 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **`zing serve` is local-only by construction.** It refuses any bind address
+  other than loopback (`127.0.0.1`, `::1`, `localhost`); `--host 0.0.0.0` is no
+  longer accepted. It answers only to `Host: localhost`, `127.0.0.1` or `[::1]`
+  (DNS-rebinding protection; `ZING_ALLOWED_HOSTS` adds names), refuses
+  state-changing requests from another origin or site (CSRF), requires
+  `application/json` request bodies, and sends anti-framing / no-sniff /
+  no-referrer headers.
+- **Owner-only data directory.** `~/.zing` (or `$ZING_DATA_DIR`, when zing
+  creates it) is `0700`, and `history.db` / `watches.db` (which holds monitor
+  API keys) are `0600`.
+
 ### Added
+
+- **Docker image for the web UI** (`Dockerfile`, [docs/DOCKER.md](docs/DOCKER.md)).
+  Inside a container the server may listen on the container's interfaces when
+  `ZING_CONTAINER=1` is set *and* a container runtime is detected; publish it
+  to the host's loopback (`-p 127.0.0.1:8000:8000`). `zing serve` also reads
+  `ZING_HOST` / `ZING_PORT`, and opens no browser in a container.
+- **Your own knowledge-base profiles (`kb.db`).** A new **Models** page in the
+  v2 UI (`/v2/kb`) lists every profile with its source (packaged,
+  `ZING_KB_DIR`, yours) and adds models without YAML files or an editable
+  install: copy a research prompt for an external AI assistant, upload its YAML
+  answer, and zing checks it before storing it — schema and limits, YAML
+  anchors, nested-quantifier regular expressions, every fingerprint prompt it
+  would send, and model ids that would resolve to a different profile. CLI:
+  `zing kb-prompt`, `zing kb-import [--check]`, `zing kb-export`; `zing kb`
+  shows a source column. Entries are merged per model and per fingerprint id
+  and win over packaged models (reported as shadowing them); a packaged
+  provider's own settings are never overridden; invalid entries are skipped
+  with a warning. `zing check` and `zing serve` load the same profiles;
+  `--no-user-kb` / `ZING_NO_USER_KB=1` leaves them out. `ZING_KB_DIR` behaves
+  as before.
+  The v2 header now puts its section links on their own row, so all six fit
+  in every language.
+- **Reports record the knowledge-base profile they used** (`knowledge`):
+  provider and model, how the requested id matched, the source file or `kb.db`
+  entry, the user entries involved, and a full snapshot with its content hash.
+  Shown in the Markdown/HTML reports, the compact JSON and the v2 report.
+  `history.db` stores each distinct snapshot once and links it from the run;
+  snapshots nothing points to are deleted with the runs.
+- **Monitors pin their profile.** A watch snapshots the profile its model
+  resolves to when it is created (`watches.db`) and every run audits against
+  it, so a knowledge-base edit cannot silently change what a monitor measures.
+  The Monitors page shows the pinned profile, flags when the knowledge base has
+  changed since, and re-pins on request.
 
 - **Web UI v2, served side by side with the classic UI for A/B comparison.**
   `/v2/`, `/v2/history`, `/v2/watches`, `/v2/tools` and `/v2/console` rebuild

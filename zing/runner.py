@@ -22,11 +22,13 @@ from zing.context import AuditContext
 from zing.detectors.base import run_detector, select_detectors
 from zing.detectors.performance import planned_probe_requests, probe_modes
 from zing.judge import Judge
-from zing.knowledge import load_knowledge_base
+from zing.knowledge import ResolvedProfile, load_knowledge_base
+from zing.knowledge.snapshot import knowledge_usage, resolved_from_snapshot
 from zing.models import (
     AuditReport,
     DetectorResult,
     Dimension,
+    KnowledgeUsage,
     RedactedTarget,
     ReliabilitySummary,
     TargetConfig,
@@ -102,12 +104,33 @@ async def run_audit(
     mode: str = "check",
     command: str | None = None,
     kb_dirs: list[Path] | None = None,
+    use_user_kb: bool | None = None,
+    pinned: KnowledgeUsage | None = None,
     on_event: Callable[[dict[str, Any]], None] | None = None,
 ) -> AuditReport:
-    kb = load_knowledge_base(kb_dirs)
-    # Resolve against the CLAIMED model (defaults to the requested model id), so an
-    # endpoint serving model X can be audited against the profile it's sold as.
-    profile = kb.resolve(target.claimed, target.declared_provider)
+    """Run one audit.
+
+    ``use_user_kb`` includes/excludes the user's kb.db entries (default: unless
+    ``ZING_NO_USER_KB``). ``pinned`` audits against a fixed profile snapshot
+    (a watch's) instead of resolving the live knowledge base.
+    """
+    kb = load_knowledge_base(kb_dirs, include_user=use_user_kb)
+    profile: ResolvedProfile | None = None
+    stale_pin: str | None = None
+    if pinned is not None and pinned.profile:
+        try:
+            profile = resolved_from_snapshot(pinned.profile, pinned.match_confidence)
+        except Exception as exc:  # e.g. the schema changed since the snapshot was taken
+            stale_pin = f"pinned profile no longer valid, using the live knowledge base: {str(exc).splitlines()[0]}"
+    if profile is not None and pinned is not None:
+        knowledge = pinned.model_copy(update={"pinned": True, "warnings": list(kb.warnings)})
+    else:
+        # Resolve against the CLAIMED model (defaults to the requested model id), so an
+        # endpoint serving model X can be audited against the profile it's sold as.
+        profile = kb.resolve(target.claimed, target.declared_provider)
+        knowledge = knowledge_usage(kb, profile, target.claimed)
+        if stale_pin:
+            knowledge.warnings.append(stale_pin)
 
     def _emit(event: dict[str, Any]) -> None:
         if on_event is not None:
@@ -228,4 +251,5 @@ async def run_audit(
         notes=notes,
         warnings=warnings,
         prompt_languages=_prompt_languages(results),
+        knowledge=knowledge,
     )

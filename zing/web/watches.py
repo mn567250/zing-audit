@@ -17,12 +17,19 @@ Secret handling: the stored ``api_key`` is what the scheduler needs to actually
 run the audit, so it is kept in the DB. But :func:`list_all` (the listing the
 browser sees) NEVER returns it — only :func:`get` and :func:`due`, used
 server-side by the scheduler, expose the key.
+
+Pinned knowledge-base profile: when a watch is created, the profile its
+claimed model resolves to is snapshotted into this database (``kb_snapshots``,
+linked by ``kb_snapshot_id``; how it matched and where it came from in
+``kb_usage``). Every scheduled run audits against that fixed snapshot, so a
+later knowledge-base edit cannot silently change what a monitor measures;
+:func:`pin` re-pins it to the current knowledge base on request. A watch whose
+model matched no profile at creation resolves the live knowledge base per run.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 import time
 from collections.abc import Iterator
@@ -30,7 +37,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from zing import i18n
+from zing import datadir, i18n
+from zing.knowledge import snapshot as kb_snapshot
 
 # Full column set, in table order. ``api_key`` lives here for the scheduler, but
 # is filtered out of the public listing (see _LIST_COLS).
@@ -54,34 +62,28 @@ _ALL_COLS = (
     "last_score",
     "last_report_id",
     "language",
+    "kb_snapshot_id",
+    "kb_usage",
+    "kb_pinned_ts",
 )
 
 # Columns safe to return to the browser — everything except the API key.
 _LIST_COLS = tuple(c for c in _ALL_COLS if c != "api_key")
 
 
-def _data_dir() -> Path:
-    return Path(os.environ.get("ZING_DATA_DIR") or (Path.home() / ".zing"))
+_DB_NAME = "watches.db"
 
 
 def _db_path() -> Path:
-    return _data_dir() / "watches.db"
+    return datadir.db_path(_DB_NAME)
 
 
 @contextmanager
 def _connect() -> Iterator[sqlite3.Connection]:
     """Yield a fresh connection with rows as dicts; commit + close on exit."""
-    _data_dir().mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(_db_path()), timeout=5.0)
-    conn.row_factory = sqlite3.Row
-    try:
-        conn.execute("PRAGMA busy_timeout=5000")
-        conn.execute("PRAGMA journal_mode=WAL")
+    with datadir.connect(_DB_NAME) as conn:
         _ensure_table(conn)
         yield conn
-        conn.commit()
-    finally:
-        conn.close()
 
 
 def _ensure_table(conn: sqlite3.Connection) -> None:
@@ -116,6 +118,10 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(watches)")}
     if "language" not in cols:
         conn.execute("ALTER TABLE watches ADD COLUMN language TEXT")
+    kb_snapshot.ensure_table(conn)
+    kb_snapshot.add_link_columns(
+        conn, "watches", {"kb_snapshot_id": "INTEGER", "kb_usage": "TEXT", "kb_pinned_ts": "REAL"}
+    )
 
 
 def init() -> None:
@@ -143,16 +149,70 @@ def _row_to_dict(row: sqlite3.Row, *, include_key: bool) -> dict[str, Any]:
         d["webhooks"] = []
     d["enabled"] = bool(d.get("enabled"))
     d["language"] = i18n.normalize(d.get("language"))
+    # kb_usage: the pinned profile's match/sources (the profile itself stays
+    # in kb_snapshots); exposed as `kb`, None when nothing is pinned.
+    raw_kb = d.pop("kb_usage", None)
+    try:
+        kb = json.loads(raw_kb) if isinstance(raw_kb, str) and raw_kb else None
+    except (ValueError, TypeError):
+        kb = None
+    d["kb"] = kb if isinstance(kb, dict) and d.get("kb_snapshot_id") is not None else None
+    if d["kb"] is not None:
+        d["kb"]["pinned_at"] = d.get("kb_pinned_ts")
     return d
 
 
-def create(cfg: dict[str, Any]) -> int:
+def _pin(conn: sqlite3.Connection, wid: int, knowledge: dict[str, Any] | None) -> None:
+    snap = (knowledge or {}).get("profile")
+    if isinstance(snap, dict):
+        sid: int | None = kb_snapshot.put(conn, snap)
+        usage = json.dumps({**(knowledge or {}), "profile": None}, ensure_ascii=False, default=str)
+        ts: float | None = time.time()
+    else:
+        sid, usage, ts = None, None, None
+    conn.execute(
+        "UPDATE watches SET kb_snapshot_id = ?, kb_usage = ?, kb_pinned_ts = ? WHERE id = ?",
+        (sid, usage, ts, int(wid)),
+    )
+    kb_snapshot.prune(conn, "watches")
+
+
+def pin(wid: int, knowledge: dict[str, Any] | None) -> None:
+    """Pin (or re-pin) a watch to a knowledge-base profile.
+
+    ``knowledge`` is a :class:`~zing.models.KnowledgeUsage` dict with its
+    ``profile`` snapshot; without one the watch resolves the live KB per run.
+    """
+    with _connect() as conn:
+        _pin(conn, wid, knowledge)
+
+
+def pinned_knowledge(wid: int) -> dict[str, Any] | None:
+    """The pinned KnowledgeUsage dict (profile snapshot included), or None."""
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT kb_snapshot_id, kb_usage, kb_pinned_ts FROM watches WHERE id = ?", (int(wid),)
+        ).fetchone()
+        if not row or row["kb_snapshot_id"] is None or not row["kb_usage"]:
+            return None
+        snap = kb_snapshot.get(conn, row["kb_snapshot_id"])
+    try:
+        usage = json.loads(row["kb_usage"])
+    except (ValueError, TypeError):
+        return None
+    if snap is None or not isinstance(usage, dict):
+        return None
+    return {**usage, "profile": snap, "pinned_at": row["kb_pinned_ts"]}
+
+
+def create(cfg: dict[str, Any], knowledge: dict[str, Any] | None = None) -> int:
     """Insert a new watch from a config dict; return its new id.
 
     Expected keys: name, base_url, api_key, model, claimed_model, api,
     declared_provider, suite, interval_sec, alert_on, webhooks (list), language
     (alert language code; unknown/missing -> English). Unknown keys are ignored;
-    missing keys fall back to sensible defaults.
+    missing keys fall back to sensible defaults. ``knowledge`` (a
+    KnowledgeUsage dict with its profile) pins the watch's profile.
     """
     cfg = cfg or {}
     webhooks = cfg.get("webhooks") or []
@@ -188,7 +248,10 @@ def create(cfg: dict[str, Any]) -> int:
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             row,
         )
-        return int(cur.lastrowid or -1)
+        wid = int(cur.lastrowid or -1)
+        if knowledge is not None:
+            _pin(conn, wid, knowledge)
+        return wid
 
 
 def list_all() -> list[dict[str, Any]]:
@@ -236,6 +299,7 @@ def delete(wid: int) -> None:
     """Remove one watch by id. No-op if it doesn't exist."""
     with _connect() as conn:
         conn.execute("DELETE FROM watches WHERE id = ?", (int(wid),))
+        kb_snapshot.prune(conn, "watches")
 
 
 def mark_run(

@@ -18,7 +18,7 @@ from zing.web.server import create_app  # noqa: E402
 
 @pytest.fixture
 def client():
-    return TestClient(create_app())
+    return TestClient(create_app(), base_url="http://localhost")
 
 
 def test_watch_store_roundtrip(tmp_path, monkeypatch):

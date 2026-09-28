@@ -47,6 +47,10 @@
       '<rect x="4" y="10" width="16" height="11" rx="2"/>' +
       '<path d="M8 10V7a4 4 0 0 1 8 0v3"/>' +
       '<path d="M12 14v3"/>',
+    // book — knowledge base
+    book:
+      '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/>' +
+      '<path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7.5h6"/>',
     // folder — history grouping
     folder:
       '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',

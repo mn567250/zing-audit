@@ -244,8 +244,27 @@ def mock_server() -> MockServer:
     return MockServer()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _isolated_data_dir(tmp_path_factory):
+    """Keep every test away from the developer's real ~/.zing (history,
+    watches and the user knowledge base in kb.db). Tests that need their own
+    directory still monkeypatch ZING_DATA_DIR per test."""
+    import os
+
+    saved = {k: os.environ.get(k) for k in ("ZING_DATA_DIR", "ZING_KB_DIR", "ZING_NO_USER_KB")}
+    os.environ["ZING_DATA_DIR"] = str(tmp_path_factory.mktemp("zing-data"))
+    os.environ.pop("ZING_KB_DIR", None)
+    os.environ.pop("ZING_NO_USER_KB", None)
+    yield
+    for k, v in saved.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
+
+
 @pytest.fixture(scope="session")
-def knowledge_base():
+def knowledge_base(_isolated_data_dir):
     """The packaged knowledge base (loaded once)."""
     return load_knowledge_base()
 

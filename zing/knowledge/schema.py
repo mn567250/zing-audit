@@ -9,6 +9,8 @@ audit against it.
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -119,11 +121,28 @@ class ResolvedProfile(BaseModel):
 
 
 class KnowledgeBase(BaseModel):
-    """All loaded provider profiles plus model-id resolution."""
+    """All loaded provider profiles plus model-id resolution.
+
+    Besides the merged profiles it records where each one came from, so a
+    report can name exactly what it audited against: ``provider_sources`` /
+    ``model_sources`` (keyed ``provider`` / ``provider/model_id``) hold
+    ``packaged:<file>``, ``kb_dir:<path>`` or ``kb.db:entry/<id>``;
+    ``entries`` the user's kb.db entries that were applied (same keys, prefixed
+    ``provider:`` / ``model:``); ``shadowed`` the source a user model replaced.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     providers: dict[str, ProviderProfile] = Field(default_factory=dict)
+    provider_sources: dict[str, str] = Field(default_factory=dict)
+    model_sources: dict[str, str] = Field(default_factory=dict)
+    entries: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    shadowed: dict[str, str] = Field(default_factory=dict)
+    # False when the user's kb.db entries were deliberately left out
+    # (--no-user-kb / ZING_NO_USER_KB).
+    user_kb: bool = True
+    # kb.db entries that were skipped (invalid, unknown provider, ...).
+    warnings: list[str] = Field(default_factory=list)
 
     def all_models(self) -> list[tuple[ProviderProfile, ModelProfile]]:
         pairs: list[tuple[ProviderProfile, ModelProfile]] = []

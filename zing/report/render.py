@@ -17,7 +17,7 @@ from __future__ import annotations
 import html
 import json
 
-from zing.models import AuditReport, RiskLevel, Severity, Status
+from zing.models import AuditReport, KnowledgeUsage, RiskLevel, Severity, Status
 from zing.report.performance import (
     PERF_CSS,
     compact_performance,
@@ -193,7 +193,49 @@ def compact_dict(report: AuditReport) -> dict:
         "reliability": rel,
         "performance": compact_performance(report.performance),
         "judge_used": report.judge_used,
+        "knowledge": _compact_knowledge(report.knowledge),
         "warnings": report.warnings or [],
+    }
+
+
+def _knowledge_lines(k: KnowledgeUsage) -> list[tuple[str, str]]:
+    """(label, value) rows describing the knowledge-base profile a run used."""
+    if not k.matched:
+        rows = [("Profile", f"none — no knowledge-base profile matches `{k.requested_model}`")]
+    else:
+        rows = [
+            ("Profile", f"{k.provider}/{k.model_id} (match: {k.match_confidence}"
+                        f"{', pinned by the watch' if k.pinned else ''})"),
+            ("Model source", k.model_source or "—"),
+            ("Provider source", k.provider_source or "—"),
+        ]
+        if k.shadows:
+            rows.append(("Shadows", k.shadows))
+        for e in k.user_entries:
+            what = f"model {e.provider}/{e.model_id}" if e.kind == "model" else f"provider {e.provider}"
+            origin = f", from {e.origin}" if e.origin else ""
+            rows.append(("Your entry", f"kb.db entry {e.id}: {what}{origin}"))
+        rows.append(("Profile hash", k.profile_hash or "—"))
+    if not k.user_kb:
+        rows.append(("Your entries", "left out (--no-user-kb)"))
+    for w in k.warnings:
+        rows.append(("Skipped", w))
+    return rows
+
+
+def _compact_knowledge(k: KnowledgeUsage | None) -> dict | None:
+    if k is None:
+        return None
+    return {
+        "matched": k.matched,
+        "provider": k.provider,
+        "model_id": k.model_id,
+        "match_confidence": k.match_confidence,
+        "source": k.model_source,
+        "user_entries": [e.id for e in k.user_entries],
+        "user_kb": k.user_kb,
+        "pinned": k.pinned,
+        "profile_hash": k.profile_hash,
     }
 
 
@@ -339,6 +381,13 @@ def render_markdown(report: AuditReport) -> str:
         lines.append("")
 
     lines.extend(markdown_section(report.performance))
+
+    if report.knowledge is not None:
+        lines.append("## Knowledge base")
+        lines.append("")
+        for label, value in _knowledge_lines(report.knowledge):
+            lines.append(f"- **{label}:** {_md(value)}")
+        lines.append("")
 
     # Notes & warnings.
     if report.notes:
@@ -543,6 +592,12 @@ def render_html(report: AuditReport) -> str:
         out.append("</ul></section>")
 
     out.append(html_section(report.performance))
+
+    if report.knowledge is not None:
+        out.append('<section class="card"><h2>Knowledge base</h2><table class="evidence"><tbody>')
+        for label, value in _knowledge_lines(report.knowledge):
+            out.append(f'<tr><td class="ekey">{_esc(label)}</td><td><code>{_esc(value)}</code></td></tr>')
+        out.append("</tbody></table></section>")
 
     # Notes & warnings.
     if report.notes:

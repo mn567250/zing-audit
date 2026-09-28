@@ -5,7 +5,8 @@ Commands:
   zing check     audit one relay endpoint
   zing compare   audit a relay against a trusted baseline of the same model
   zing models    quickly probe an endpoint's /models list
-  zing kb        inspect the bundled knowledge base
+  zing kb        inspect the knowledge base (packaged, ZING_KB_DIR, your entries)
+  zing kb-prompt / kb-import / kb-export   add your own model profiles
 """
 
 from __future__ import annotations
@@ -51,6 +52,11 @@ _WATCH_RISK_RANK = {
 
 # Webhook alert languages: one per zing/i18n/locales/<code>.json.
 _ALERT_LANGS = _i18n.codes()
+
+_NO_USER_KB_HELP = (
+    "Ignore the knowledge-base entries you added in the web UI (kb.db); "
+    "packaged profiles and ZING_KB_DIR still apply. Env: ZING_NO_USER_KB=1."
+)
 
 app = typer.Typer(
     name="zing",
@@ -392,6 +398,7 @@ def _run_and_report(
     as_json,
     as_compact,
     kb_dirs,
+    use_user_kb=None,
 ) -> None:
     # Imported here so a partially-built report module never breaks `zing kb` etc.
     from zing.report import render_compact, write_reports
@@ -407,6 +414,7 @@ def _run_and_report(
             mode=mode,
             command=command,
             kb_dirs=kb_dirs,
+            use_user_kb=use_user_kb,
         )
     )
 
@@ -467,6 +475,7 @@ def check_command(
     performance_max_tokens: Annotated[int | None, typer.Option("--performance-max-tokens", help="Output tokens per performance probe request.")] = None,
     performance_streaming: Annotated[bool | None, typer.Option("--performance-streaming/--performance-non-streaming", help="Probe with streaming or non-streaming requests (standard/deep; full measures both).")] = None,
     kb_dir: Annotated[list[Path] | None, typer.Option("--kb-dir", help="Extra knowledge-base directory (repeatable).")] = None,
+    no_user_kb: Annotated[bool, typer.Option("--no-user-kb", help=_NO_USER_KB_HELP)] = False,
     fail_under: Annotated[float | None, typer.Option("--fail-under", help="Exit 1 if overall score < this.")] = None,
     fail_on_risk: Annotated[str | None, typer.Option("--fail-on-risk", help="Exit 1 if risk >= this (low|medium|high).")] = None,
     as_json: Annotated[bool, typer.Option("--json", help="Print the full JSON report to stdout instead of writing files.")] = False,
@@ -503,6 +512,7 @@ def check_command(
             fmt=fmt or section(cfg, "run").get("format") or "all",
             fail_under=fail_under, fail_on_risk=fail_on_risk, as_json=as_json, as_compact=compact,
             kb_dirs=list(kb_dir) if kb_dir else None,
+            use_user_kb=False if no_user_kb else None,
         )
     except ConfigError as exc:
         if _machine_mode(as_json, compact):
@@ -536,6 +546,7 @@ def compare_command(
     performance_max_tokens: Annotated[int | None, typer.Option("--performance-max-tokens", help="Output tokens per performance probe request.")] = None,
     performance_streaming: Annotated[bool | None, typer.Option("--performance-streaming/--performance-non-streaming", help="Probe with streaming or non-streaming requests (standard/deep; full measures both).")] = None,
     kb_dir: Annotated[list[Path] | None, typer.Option("--kb-dir", help="Extra knowledge-base directory (repeatable).")] = None,
+    no_user_kb: Annotated[bool, typer.Option("--no-user-kb", help=_NO_USER_KB_HELP)] = False,
     fail_under: Annotated[float | None, typer.Option("--fail-under", help="Exit 1 if overall score < this.")] = None,
     fail_on_risk: Annotated[str | None, typer.Option("--fail-on-risk", help="Exit 1 if risk >= this.")] = None,
     as_json: Annotated[bool, typer.Option("--json", help="Print the full JSON report to stdout.")] = False,
@@ -574,6 +585,7 @@ def compare_command(
             fmt=fmt or section(cfg, "run").get("format") or "all",
             fail_under=fail_under, fail_on_risk=fail_on_risk, as_json=as_json, as_compact=compact,
             kb_dirs=list(kb_dir) if kb_dir else None,
+            use_user_kb=False if no_user_kb else None,
         )
     except ConfigError as exc:
         if _machine_mode(as_json, compact):
@@ -629,9 +641,10 @@ def kb_command(
     provider: Annotated[str | None, typer.Argument(help="Filter by provider key (openai, deepseek, ...).")] = None,
     kb_dir: Annotated[list[Path] | None, typer.Option("--kb-dir", help="Extra knowledge-base directory.")] = None,
     as_json: Annotated[bool, typer.Option("--json", help="Print the knowledge base as JSON (for programmatic discovery).")] = False,
+    no_user_kb: Annotated[bool, typer.Option("--no-user-kb", help=_NO_USER_KB_HELP)] = False,
 ) -> None:
-    """Inspect the bundled knowledge base."""
-    kb = load_knowledge_base(list(kb_dir) if kb_dir else None)
+    """Inspect the knowledge base: packaged profiles, ZING_KB_DIR and your own entries."""
+    kb = load_knowledge_base(list(kb_dir) if kb_dir else None, include_user=False if no_user_kb else None)
     provs = [p for p in sorted(kb.providers.values(), key=lambda p: p.provider)
              if not provider or p.provider == provider]
 
@@ -639,6 +652,7 @@ def kb_command(
         models = [
             {
                 "provider": prov.provider,
+                "source": kb.model_sources.get(f"{prov.provider}/{m.id}"),
                 "id": m.id,
                 "aliases": m.aliases,
                 "context_window_tokens": m.context_window_tokens,
@@ -654,7 +668,8 @@ def kb_command(
             for prov in provs
             for m in prov.models
         ]
-        print(json.dumps({"count": len(models), "providers": [p.provider for p in provs], "models": models},
+        print(json.dumps({"count": len(models), "providers": [p.provider for p in provs], "models": models,
+                          "user_kb": kb.user_kb, "warnings": kb.warnings},
                          ensure_ascii=False, indent=2))
         return
 
@@ -664,35 +679,108 @@ def kb_command(
     table.add_column("Context", justify="right")
     table.add_column("Max out", justify="right")
     table.add_column("Reasoning")
+    table.add_column("Source")
     for prov in provs:
         for m in prov.models:
+            key = f"{prov.provider}/{m.id}"
+            source = kb.model_sources.get(key, "")
+            if key in kb.shadowed:
+                source += f" (shadows {kb.shadowed[key]})"
             table.add_row(
                 prov.provider,
                 m.id,
                 f"{m.context_window_tokens:,}" if m.context_window_tokens > 0 else "—",
                 f"{m.max_output_tokens:,}" if m.max_output_tokens > 0 else "—",
                 "yes" if m.reasoning else "",
+                source,
             )
     console.print(table)
     total = sum(len(p.models) for p in provs)
     console.print(f"{total} models across {len(provs)} providers.")
+    if not kb.user_kb:
+        console.print("[dim]Your own entries (kb.db) are left out (--no-user-kb / ZING_NO_USER_KB).[/dim]")
+    for warning in kb.warnings:
+        err_console.print(f"[yellow]![/yellow] {warning}")
+
+
+@app.command("kb-prompt")
+def kb_prompt_command(
+    model: Annotated[str, typer.Argument(help="Model id to research.")],
+    provider: Annotated[str | None, typer.Option("--provider", help="Provider key, if known.")] = None,
+) -> None:
+    """Print a research prompt for an external AI assistant; import its YAML answer with `zing kb-import`."""
+    from zing.knowledge.research import research_prompt
+
+    print(research_prompt(model, provider, load_knowledge_base()), end="")
+
+
+@app.command("kb-import")
+def kb_import_command(
+    path: Annotated[Path, typer.Argument(help="Provider YAML file (e.g. an AI assistant's answer to `zing kb-prompt`).")],
+    check_only: Annotated[bool, typer.Option("--check", help="Only check the file; store nothing.")] = False,
+    as_json: Annotated[bool, typer.Option("--json", help="Print the check result as JSON.")] = False,
+) -> None:
+    """Check a profile YAML and store it in your knowledge base (kb.db in the data directory)."""
+    from zing.knowledge.importer import import_yaml, scan
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        err_console.print(f"[red]Cannot read {path}:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+    ids: list[int] = []
+    if check_only:
+        result = scan(text)
+    else:
+        result, ids = import_yaml(text, origin=f"import:{path.name}")
+    if as_json:
+        print(json.dumps({**result.to_dict(), "entry_ids": ids}, ensure_ascii=False, indent=2))
+        raise typer.Exit(code=0 if result.ok else 1)
+    for e in result.errors:
+        err_console.print(f"[red]✗[/red] {e['path'] + ': ' if e['path'] else ''}{e['message']}")
+    for w in result.warnings:
+        err_console.print(f"[yellow]![/yellow] {w['path'] + ': ' if w['path'] else ''}{w['message']}")
+    for m in result.models:
+        console.print(f"  • {m['provider']}/{m['id']}  ({m['action']})")
+    if result.probes:
+        console.print(f"{len(result.probes)} fingerprint prompt(s) will be sent to audited endpoints.")
+    if not result.ok:
+        err_console.print("[red]Not imported.[/red]")
+        raise typer.Exit(code=1)
+    if check_only:
+        console.print("[green]Check passed.[/green] Run without --check to store it.")
+    else:
+        console.print(f"[green]Stored {len(ids)} entries[/green] in your knowledge base.")
+
+
+@app.command("kb-export")
+def kb_export_command(
+    provider: Annotated[str | None, typer.Option("--provider", help="Only this provider.")] = None,
+) -> None:
+    """Print your own knowledge-base entries (kb.db) as provider YAML."""
+    from zing.knowledge.importer import export_yaml
+
+    print(export_yaml(provider), end="")
 
 
 @app.command("serve")
 def serve_command(
-    host: Annotated[str, typer.Option("--host", help="Bind address (default localhost only).")] = "127.0.0.1",
-    port: Annotated[int, typer.Option("--port", "-p", help="Port to serve on.")] = 8000,
-    open_browser: Annotated[bool, typer.Option("--open/--no-open", help="Open the UI in a browser.")] = True,
+    host: Annotated[str | None, typer.Option("--host", help="Loopback bind address: 127.0.0.1 (default), ::1 or localhost. Env: ZING_HOST.")] = None,
+    port: Annotated[int | None, typer.Option("--port", "-p", help="Port to serve on (default 8000). Env: ZING_PORT.")] = None,
+    open_browser: Annotated[bool | None, typer.Option("--open/--no-open", help="Open the UI in a browser (default: yes, except in a container).")] = None,
 ) -> None:
     """Serve the local web UI — a point-and-click front end for `zing check`.
 
     Runs entirely on your machine: keys entered in the browser reach only this
-    local server and the target relay, never a third party. Requires the web extra:
+    local server and the target relay, never a third party. It listens on
+    loopback only; in a container set ZING_CONTAINER=1 and publish the port to
+    the host's loopback (-p 127.0.0.1:8000:8000). Requires the web extra:
     `pip install 'zing-audit\\[web]'`.
     """
     try:
         import uvicorn
 
+        from zing.web.security import BindError, resolve_bind
         from zing.web.server import create_app
     except ImportError as exc:
         err_console.print(
@@ -701,13 +789,22 @@ def serve_command(
         )
         raise typer.Exit(code=2) from exc
 
-    url = f"http://{'localhost' if host in ('127.0.0.1', '0.0.0.0') else host}:{port}"
+    try:
+        host, port = resolve_bind(host, port)
+    except BindError as exc:
+        err_console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2) from exc
+    loopback = host in ("127.0.0.1", "::1", "localhost")
+    url = f"http://localhost:{port}"
     console.print(f"[green]zing[/green] web UI → [bold]{url}[/bold]   (Ctrl-C to stop)")
-    if host == "0.0.0.0":
+    if not loopback:
         err_console.print(
-            "[yellow]![/yellow] Binding 0.0.0.0 exposes the audit API (and any keys you "
-            "type) to your network. Prefer the default 127.0.0.1."
+            f"[yellow]![/yellow] Container mode: listening on {host} inside the container. "
+            "Publish the port to the host's loopback only, e.g. -p 127.0.0.1:"
+            f"{port}:{port}."
         )
+    if open_browser is None:
+        open_browser = loopback
     if open_browser:
         import threading
         import webbrowser

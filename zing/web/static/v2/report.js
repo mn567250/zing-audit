@@ -302,8 +302,18 @@
     });
     var hasScore = det.score != null && isFinite(det.score);
     var hid = "zr-dh-" + ++uid;
-    var rows = (det.findings || []).map(function (f) {
-      return checkRow(f, sc ? pts(f.score) : null, sc ? scale[f.id] : null);
+    // Subjects of one parametrized check (e.g. every response attribute) share
+    // one row; everything else is a row of its own.
+    var items = [];
+    var groups = {};
+    (det.findings || []).forEach(function (f) {
+      if (!(f.subject && f.check)) return items.push(f);
+      if (!groups[f.check]) items.push((groups[f.check] = [f.check]));
+      groups[f.check].push(f);
+    });
+    var rows = items.map(function (x) {
+      if (Array.isArray(x)) return groupRow(x[0], x.slice(1), sc, sc ? scale[x[0]] : null);
+      return checkRow(x, sc ? pts(x.score) : null, sc ? scale[x.check || x.id] : null);
     });
     return (
       '<div class="zr-det"><h4 class="zr-dh" id="' + hid + '">' + esc(srv(det.name)) +
@@ -331,7 +341,7 @@
       '<div class="body"><div class="ft"><span class="sr-only">' +
       esc(Tf("结果：{s}。", "Result: {s}.", { s: label("STATUS", f.status) })) + " </span>" + esc(L.title) +
       (points != null ? ' <span class="pts">' + esc(points) + "</span>" : "") +
-      (outcomes && outcomes.length ? scaleTip(f, outcomes) : "") + "</div>" +
+      (outcomes && outcomes.length ? scaleTip(hitsOf([f]), outcomes) : "") + "</div>" +
       '<div class="fs">' + esc(L.summary) +
       (f.recommendation ? ' <span class="rec">· ' + esc(T("建议：", "Recommendation: ")) + esc(srv(f.recommendation)) + "</span>" : "") +
       "</div>" +
@@ -343,18 +353,101 @@
       "</div></li>"
     );
   }
-  // Toggletip: shown on hover/focus, pinned open by a click (touch).
-  function scaleTip(f, outcomes) {
+  // outcome -> how often the findings hit it
+  function hitsOf(fs) {
+    var h = {};
+    fs.forEach(function (f) {
+      if (f.outcome != null) h[f.outcome] = (h[f.outcome] || 0) + 1;
+    });
+    return h;
+  }
+  var STATUS_RANK = { pass: 0, info: 1, inconclusive: 2, warn: 3, error: 4, fail: 5 };
+  function worstStatus(fs) {
+    return fs.reduce(function (w, f) {
+      return (STATUS_RANK[f.status] || 0) > (STATUS_RANK[w] || 0) ? f.status : w;
+    }, "pass");
+  }
+  function observed(f) {
+    var e = f.evidence || {};
+    if (e.observed != null) return fmt(e.observed);
+    if (e.status_code != null) return "HTTP " + e.status_code;
+    return "—";
+  }
+  // One parametrized check: a summary line, its non-passing subjects listed
+  // inline (problems are never hidden), and every subject with its outcome
+  // and points in a table behind a disclosure — so the mean stays reproducible.
+  function groupRow(check, fs, sc, outcomes) {
+    var s = STATG[worstStatus(fs)] || SEV_NONE;
+    var byKey = {};
+    (outcomes || []).forEach(function (o) {
+      byKey[o.outcome] = o;
+    });
+    var what = function (f) {
+      var o = byKey[f.outcome];
+      return o && o.label ? srv(o.label) : loc(f).summary;
+    };
+    var title = (sc && sc.titles && sc.titles[check]) || check;
+    var ok = fs.filter(function (f) {
+      return f.status === "pass";
+    });
+    var counted = fs.filter(function (f) {
+      return f.score != null;
+    });
+    var mean = counted.length
+      ? counted.reduce(function (a, f) {
+          return a + f.score;
+        }, 0) / counted.length
+      : null;
+    var bad = fs.filter(function (f) {
+      return f.status !== "pass";
+    });
+    var id = "zr-ga-" + ++uid;
+    var subDot = function (f) {
+      var g = STATG[f.status] || SEV_NONE;
+      return '<span class="dot sm ' + g.c + '" aria-hidden="true">' + ico(g.g) + "</span>" +
+        '<span class="sr-only">' + esc(label("STATUS", f.status)) + " </span>";
+    };
+    var showAll = Tf("显示全部 {n} 项", "Show all {n}", { n: num(fs.length, 0) });
+    return (
+      '<li class="zr-find zr-chk zr-grp"><span class="dot ' + s.c + '" aria-hidden="true">' + ico(s.g) + "</span>" +
+      '<div class="body"><div class="ft"><span class="sr-only">' +
+      esc(Tf("结果：{s}。", "Result: {s}.", { s: label("STATUS", worstStatus(fs)) })) + " </span>" + esc(srv(title)) +
+      (sc && mean != null ? ' <span class="pts">' + esc(Tf("平均 {p} 分", "avg {p} pts", { p: num(mean, 1) })) + "</span>" : "") +
+      (outcomes && outcomes.length ? scaleTip(hitsOf(fs), outcomes) : "") + "</div>" +
+      '<div class="fs">' + esc(Tf("{ok}/{n} 项正常", "{ok} of {n} OK", { ok: num(ok.length, 0), n: num(fs.length, 0) })) + "</div>" +
+      (bad.length
+        ? '<ul class="zr-sub">' +
+          bad.map(function (f) {
+            return "<li>" + subDot(f) + "<code>" + esc(f.subject) + "</code> — " + esc(what(f)) +
+              (sc ? ' <span class="pts">' + esc(pts(f.score)) + "</span>" : "") + "</li>";
+          }).join("") + "</ul>"
+        : "") +
+      '<button type="button" class="linkbtn more" aria-expanded="false" aria-controls="' + id + '" data-l0="' +
+      esc(showAll) + '" data-l1="' + esc(T("收起", "Show fewer")) + '">' + esc(showAll) + "</button>" +
+      '<div class="zr-at" id="' + id + '" hidden><table><thead><tr>' +
+      "<th>" + esc(T("属性", "Attribute")) + "</th><th>" + esc(T("实际值", "Observed")) + "</th><th>" +
+      esc(T("结果", "Result")) + '</th><th class="num">' + esc(T("分数", "Points")) + "</th></tr></thead><tbody>" +
+      fs.map(function (f) {
+        return "<tr><td>" + subDot(f) + "<code>" + esc(f.subject) + "</code></td><td><code>" + esc(observed(f)) +
+          "</code></td><td>" + esc(what(f)) + '</td><td class="num">' + esc(sc ? pts(f.score) : "—") + "</td></tr>";
+      }).join("") +
+      "</tbody></table></div></div></li>"
+    );
+  }
+  // Toggletip: shown on hover/focus, pinned open by a click (touch). ``hits``
+  // marks the outcomes this run had (with a count when several subjects did).
+  function scaleTip(hits, outcomes) {
     var id = "zr-tip-" + ++uid;
     return (
       '<span class="zr-tip"><button type="button" class="tipb" aria-expanded="false" aria-describedby="' + id + '" aria-label="' +
       esc(T("计分标准", "Scoring scale")) + '">' + ico("info") + "</button>" +
       '<span class="bubble" role="tooltip" id="' + id + '">' +
       outcomes.map(function (o) {
-        var on = o.outcome === f.outcome;
+        var n = hits[o.outcome] || 0;
+        var badge = n > 1 ? Tf("本次结果 ×{n}", "This run ×{n}", { n: num(n, 0) }) : T("本次结果", "This run");
         return (
-          '<span class="row' + (on ? " hit" : "") + '"><span class="p">' + esc(pts(o.score)) + "</span><span>" + esc(srv(o.label)) +
-          (on ? ' <span class="badge sky">' + esc(T("本次结果", "This run")) + "</span>" : "") + "</span></span>"
+          '<span class="row' + (n ? " hit" : "") + '"><span class="p">' + esc(pts(o.score)) + "</span><span>" + esc(srv(o.label)) +
+          (n ? ' <span class="badge sky">' + esc(badge) + "</span>" : "") + "</span></span>"
         );
       }).join("") +
       "</span></span>"
@@ -564,7 +657,8 @@
     if (open == null) open = panel.hidden;
     panel.hidden = !open;
     btn.setAttribute("aria-expanded", String(open));
-    if (/\bmore\b/.test(btn.className)) btn.textContent = showEvidence(open);
+    if (btn.hasAttribute("data-l0")) btn.textContent = btn.getAttribute(open ? "data-l1" : "data-l0");
+    else if (/\bmore\b/.test(btn.className)) btn.textContent = showEvidence(open);
   }
 
   function mount(el, report, opts, still) {

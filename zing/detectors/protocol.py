@@ -1,8 +1,9 @@
 """Protocol detector — OpenAI-compatibility conformance.
 
 A relay can return content yet still violate the OpenAI chat-completion contract:
-forget prior turns, ignore ``stop``, omit ``finish_reason``/``usage``, or reject
-malformed input with a non-standard error body. Each sub-check exercises one such
+forget prior turns, ignore ``stop``, or reject malformed input with a non-standard
+error body. (Which request/response attributes survive the relay is checked
+attribute by attribute in :mod:`zing.detectors.protocol_attrs`.) Each sub-check exercises one such
 contract and scores points from the published scale ``SCALE`` (every possible
 outcome of every check); the detector score is the average of the counted checks.
 An inconclusive check (no usable response) is not counted.
@@ -13,9 +14,9 @@ from __future__ import annotations
 from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
-from zing.detectors.helpers import contains_ci, usage_field
+from zing.detectors.helpers import contains_ci
 from zing.detectors.scale import Scale, outcome
-from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
+from zing.models import DetectorResult, Dimension, RequestSpec, Severity, Status
 
 _NO_RESPONSE = "No usable response to judge by."
 
@@ -33,12 +34,6 @@ SCALE = Scale(
     outcome("protocol.stop", "ignored", 60.0, Status.WARN, Severity.LOW,
             label="Text after the stop sequence was returned."),
     outcome("protocol.stop", "no_content", None, Status.INCONCLUSIVE, Severity.LOW,
-            label=_NO_RESPONSE),
-    outcome("protocol.shape", "conformant", 100.0, Status.PASS,
-            label="finish_reason and an integer usage object are present."),
-    outcome("protocol.shape", "incomplete", 65.0, Status.WARN, Severity.LOW,
-            label="finish_reason or a complete integer usage object is missing."),
-    outcome("protocol.shape", "no_response", None, Status.INCONCLUSIVE, Severity.LOW,
             label=_NO_RESPONSE),
     outcome("protocol.error_schema", "rejected_openai_body", 100.0, Status.PASS,
             label="Rejected with a 4xx and an OpenAI-style error body."),
@@ -61,18 +56,17 @@ class ProtocolDetector(Detector):
     name = "OpenAI-compatibility conformance"
     dimension = Dimension.PROTOCOL
     min_suite = "standard"
-    cost_hint = 4
+    cost_hint = 3
 
     async def run(self, ctx: AuditContext) -> DetectorResult:
         result = self.new_result(scoring=SCALE.scoring())
 
         await self._check_multi_turn(ctx, result)
         await self._check_stop_sequence(ctx, result)
-        await self._check_response_shape(ctx, result)
         await self._check_error_schema(ctx, result)
 
         result.score = Scale.mean(result.findings)
-        result.status = _roll_up_status(result.findings)
+        result.status = Scale.roll_up(result.findings)
         return result
 
     # 1) Does the relay carry prior turns through to the model? ------------- #
@@ -164,57 +158,7 @@ class ProtocolDetector(Detector):
             )
         )
 
-    # 3) Does a normal call carry finish_reason + a typed usage object? ----- #
-    async def _check_response_shape(self, ctx: AuditContext, result: DetectorResult) -> None:
-        spec = RequestSpec(
-            messages=[{"role": "user", "content": prompts.text("protocol.shape")}],
-            temperature=0.0,
-            max_tokens=16,
-        )
-        outcome = await ctx.client.complete(spec)
-        if not outcome.ok:
-            result.findings.append(
-                SCALE.finding(
-                    "protocol.shape",
-                    "no_response",
-                    title="Response-shape check failed to return",
-                    summary=outcome.error_message or f"HTTP {outcome.status_code}.",
-                    evidence={"status_code": outcome.status_code, "error_type": outcome.error_type},
-                )
-            )
-            return
-
-        has_finish = bool(outcome.finish_reason)
-        prompt_tokens = usage_field(outcome.usage, "prompt_tokens", "input_tokens")
-        completion_tokens = usage_field(outcome.usage, "completion_tokens", "output_tokens")
-        total_tokens = usage_field(outcome.usage, "total_tokens")
-        has_usage = (
-            prompt_tokens is not None
-            and completion_tokens is not None
-            and total_tokens is not None
-        )
-        conformant = has_finish and has_usage
-        result.findings.append(
-            SCALE.finding(
-                "protocol.shape",
-                "conformant" if conformant else "incomplete",
-                title="Response envelope shape",
-                summary=(
-                    "finish_reason and an integer usage object were present."
-                    if conformant
-                    else "Response is missing finish_reason and/or a complete integer usage object."
-                ),
-                evidence={
-                    "finish_reason": outcome.finish_reason,
-                    "has_usage": has_usage,
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": total_tokens,
-                },
-            )
-        )
-
-    # 4) Does a malformed request fail with an OpenAI-style error body? ----- #
+    # 3) Does a malformed request fail with an OpenAI-style error body? ----- #
     async def _check_error_schema(self, ctx: AuditContext, result: DetectorResult) -> None:
         spec = RequestSpec(messages=[])  # empty messages — deliberately invalid
         outcome = await ctx.client.complete(spec)
@@ -278,12 +222,3 @@ class ProtocolDetector(Detector):
             )
         )
 
-
-def _roll_up_status(findings: list[Finding]) -> Status:
-    """Worst-of roll-up across sub-checks, ignoring purely informational ones."""
-    order = [Status.PASS, Status.INCONCLUSIVE, Status.WARN, Status.FAIL]
-    worst = Status.PASS
-    for finding in findings:
-        if finding.status in order and order.index(finding.status) > order.index(worst):
-            worst = finding.status
-    return worst

@@ -107,7 +107,7 @@ report.detectors[0].scoring = { method: "mean_of_checks", outcomes: [
 report.performance = { source: "passive", notes: [
   "Local token counts are estimates (about ±15-20%): no exact tokenizer is available for this model family.",
   "Some requests were served fully or partly from a cache and are left out of the statistics."] };
-const TEXT = /^(verdict\.(headline|summary|key_findings\.\d+)|dimensions\.\d+\.reason|(performance\.)?notes\.\d+|(baseline_)?detectors\.\d+\.(name|findings\.\d+\.(title|summary|recommendation)|scoring\.outcomes\.\d+\.label))$/;
+const TEXT = /^(verdict\.(headline|summary|key_findings\.\d+)|dimensions\.\d+\.reason|(performance\.)?notes\.\d+|(baseline_)?detectors\.\d+\.(name|findings\.\d+\.(title|summary|recommendation)|scoring\.(outcomes\.\d+\.label|titles\..+)))$/;
 const CJK = /[\u3400-\u9fff]/;
 const flat = (o, p, out) => { if (o && typeof o === "object") for (const k of Object.keys(o)) flat(o[k], p ? p + "." + k : k, out); else out[p] = o; return out; };
 const result = {};
@@ -195,8 +195,10 @@ def _backend_sentences() -> list[str]:
         for node in ast.walk(tree):
             # recommendation="…" wherever a finding is built; label="…" of a
             # scoring-scale outcome
-            if isinstance(node, ast.keyword) and node.arg in ("recommendation", "label") and lit(node.value):
-                out.append(lit(node.value))
+            if isinstance(node, ast.keyword) and node.arg in ("recommendation", "label"):
+                # a literal, or either literal branch of `"…" if cond else None`
+                values = [node.value.body, node.value.orelse] if isinstance(node.value, ast.IfExp) else [node.value]
+                out += [s for s in map(lit, values) if s]
             if not (isinstance(node, ast.Assign) and len(node.targets) == 1
                     and isinstance(node.targets[0], ast.Name)):
                 continue

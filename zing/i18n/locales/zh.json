@@ -148,6 +148,22 @@
    "错误响应结构",
    "非法请求返回 HTTP {status_code}；错误体是否为 OpenAI 风格：{conforming_error_body}。"
   ],
+  "protocol_response.core.*": [
+   "响应属性 {attribute}",
+   "{attribute}：{availability}"
+  ],
+  "protocol_response.minor.*": [
+   "响应属性 {attribute}",
+   "{attribute}：{availability}"
+  ],
+  "protocol_request.param.*": [
+   "请求参数 {attribute}",
+   "{attribute}：{availability}"
+  ],
+  "protocol_response.call": [
+   "响应属性探测没有返回响应体",
+   "HTTP {status_code}；没有响应体。"
+  ],
   "context_window.no_ladder": [
    "上下文窗口探测无法运行",
    "在下限与上限之间没有可用的探测尺寸（声称 {declared}，上限 {upper}，下限 {floor}）。"

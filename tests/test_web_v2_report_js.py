@@ -144,7 +144,7 @@ async def test_dimension_rows_expand_into_scoring_details(tmp_path):
     panel = _text(_panel(html))
     assert "Score: mean of 2 detectors, equal weight." in panel
     assert "Status: the worst status its detectors concluded." in panel
-    assert "Score 85" in panel and "Score 100" in panel
+    assert "Score 77.5" in panel and "Score 100" in panel
     assert "Detector score: mean of the counted checks' points." in panel
     # every check, positive and negative, with the outcome and its points
     assert "Multi-turn conversation memory 55 pts" in " ".join(panel.split())
@@ -157,13 +157,13 @@ async def test_dimension_rows_expand_into_scoring_details(tmp_path):
     assert "zr-scale" not in html and "Show scoring scale" not in html
     tips = re.findall(r'<span class="zr-tip"><button type="button" class="tipb" aria-expanded="false" '
                       r'aria-describedby="(zr-tip-\d+)" aria-label="Scoring scale">', html)
-    assert len(tips) == 4
+    assert len(tips) == 3
     assert f'<span class="bubble" role="tooltip" id="{tips[0]}">' in html
     assert "The invalid request was accepted (2xx)." in panel
     assert re.search(r'<span class="row hit"><span class="p">100 pts</span><span>Rejected with a 4xx and an OpenAI-style', html)
     # the outcome is no longer repeated as its own line under the title
     assert '<div class="oc">' not in html
-    assert html.count("This run") == 4  # one hit per check, the not-counted one included
+    assert html.count("This run") == 3  # one hit per check, the not-counted one included
 
 
 @needs_node
@@ -199,3 +199,49 @@ def test_old_reports_still_expand(tmp_path):
     assert "Score: mean of" in html or "Score from one detector." in html
     assert "Status: the worst status" not in html  # needs the breakdown
     assert not re.search(r"\d pts\b", _text(html))  # no points without a published scale
+
+
+async def _attr_report() -> dict:
+    # the response-attribute detector: 12 attribute findings, two parametrized checks
+    from tests.test_scoring_transparency import _attr_report as build
+
+    return json.loads((await build()).model_dump_json())
+
+
+@needs_node
+async def test_parametrized_checks_fold_into_one_row_each(tmp_path):
+    html = _render(tmp_path, "en", await _attr_report())["html"]
+    panel = _panel(html)
+    text = " ".join(_text(panel).split())
+    # one row per check, not per attribute; one scale tip each
+    assert panel.count('class="zr-find zr-chk zr-grp"') == 2
+    assert panel.count('aria-label="Scoring scale"') == 2
+    assert "Core response attributes avg 90 pts" in text and "7 of 8 OK" in text
+    assert "Minor response attributes avg 90 pts" in text and "3 of 4 OK" in text
+    # problems listed inline, with their outcome and points
+    sub = re.findall(r'<ul class="zr-sub">(.*?)</ul>', panel)
+    assert len(sub) == 2 and "usage.completion_tokens" in sub[0] and "id" in sub[1]
+    assert "Present but zero or empty (e.g. completion_tokens: 0). 20 pts" in " ".join(_text(sub[0]).split())
+    # every attribute in a table behind a disclosure; the scale marks repeated hits
+    toggles = re.findall(r'<button type="button" class="linkbtn more" aria-expanded="false" '
+                         r'aria-controls="(zr-ga-\d+)" data-l0="Show all (\d+)" data-l1="Show fewer">', panel)
+    assert [n for _, n in toggles] == ["8", "4"]
+    assert all(f'<div class="zr-at" id="{i}" hidden>' in panel for i, _ in toggles)
+    assert panel.count("<tr><td>") == 12
+    assert "This run ×7" in panel and "This run ×3" in panel
+    # the findings list shows only the two problems
+    findings = html[html.index("<h3>Findings"):]
+    assert findings.count('class="zr-find"') == 2
+
+
+@needs_node
+@pytest.mark.parametrize(("lang", "words"), [
+    ("de", ["Zentrale Antwortattribute", "7 von 8 in Ordnung", "Alle 8 anzeigen", "Attribut", "Dieser Lauf ×7"]),
+    ("zh", ["核心响应属性", "7/8 项正常", "显示全部 8 项", "属性", "本次结果 ×7"]),
+])
+async def test_parametrized_checks_are_translated(tmp_path, lang, words):
+    panel = _panel(_render(tmp_path, lang, await _attr_report())["html"])
+    for w in words:
+        assert w in panel, (lang, w)
+    for en in ("Core response attributes", "Show all", "of 8 OK", "Present with a valid value"):
+        assert en not in panel, (lang, en)

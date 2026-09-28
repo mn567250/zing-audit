@@ -32,8 +32,6 @@ _BLUE = CompletionOutcome(ok=True, status_code=200, content="Your favorite color
                           finish_reason="stop",
                           usage={"prompt_tokens": 9, "completion_tokens": 5, "total_tokens": 14})
 _STOPPED = CompletionOutcome(ok=True, status_code=200, content="alpha ", finish_reason="stop")
-_SHAPE = CompletionOutcome(ok=True, status_code=200, content="ok", finish_reason="stop",
-                           usage={"prompt_tokens": 9, "completion_tokens": 1, "total_tokens": 10})
 _REJECTED = CompletionOutcome(ok=False, status_code=400,
                               raw_error={"error": {"message": "messages is empty"}})
 _TIMEOUT = CompletionOutcome(ok=False, error_type="timeout", error_message="Read timed out.")
@@ -54,7 +52,7 @@ def _finding(result: DetectorResult, fid: str) -> Finding:
 
 
 async def test_every_check_scores_from_the_published_scale():
-    result = await _run(_BLUE, _STOPPED, _SHAPE, _REJECTED)
+    result = await _run(_BLUE, _STOPPED, _REJECTED)
     assert result.score == 100.0 and result.status == Status.PASS
     assert result.scoring is not None and result.scoring.method == "mean_of_checks"
     assert len(result.scoring.outcomes) == len(SCALE.outcomes)
@@ -62,25 +60,25 @@ async def test_every_check_scores_from_the_published_scale():
         o = SCALE.get(f.id, f.outcome or "")
         assert (f.score, f.status, f.severity) == (o.score, o.status, o.severity)
     assert [f.outcome for f in result.findings] == [
-        "recalled", "truncated", "conformant", "rejected_openai_body",
+        "recalled", "truncated", "rejected_openai_body",
     ]
 
 
 async def test_inconclusive_checks_are_left_out_of_the_mean():
-    # stop (no content) is not counted: (55 + 100 + 100) / 3, not / 4 with a 50
+    # stop (no content) is not counted: (55 + 100) / 2, not / 3 with a 50
     forgotten = CompletionOutcome(ok=True, status_code=200, content="I don't know.")
-    result = await _run(forgotten, _TIMEOUT, _SHAPE, _REJECTED)
+    result = await _run(forgotten, _TIMEOUT, _REJECTED)
     stop = _finding(result, "protocol.stop")
     assert stop.status == Status.INCONCLUSIVE and stop.outcome == "no_content"
     assert stop.score is None
-    assert result.score == 85.0
+    assert result.score == 77.5
     assert _finding(result, "protocol.multi_turn").score == 55.0
 
 
 async def test_no_counted_check_means_no_score():
-    result = await _run(_TIMEOUT, _TIMEOUT, _TIMEOUT, _REJECTED)
+    result = await _run(_TIMEOUT, _TIMEOUT, _REJECTED)
     assert result.score == 100.0  # error_schema still counts: a rejection is conclusive
-    result = await _run(_TIMEOUT, _TIMEOUT, _TIMEOUT, _TIMEOUT)
+    result = await _run(_TIMEOUT, _TIMEOUT, _TIMEOUT)
     # a request that never got an HTTP response is still a (WARN) outcome
     assert _finding(result, "protocol.error_schema").outcome == "no_http_response"
     assert result.score == 55.0
@@ -95,7 +93,7 @@ def test_scale_rejects_duplicate_outcomes():
 def test_every_protocol_outcome_has_a_label():
     assert all(o.label for o in SCALE.outcomes)
     checks = {o.check for o in SCALE.outcomes}
-    assert checks == {"protocol.multi_turn", "protocol.stop", "protocol.shape", "protocol.error_schema"}
+    assert checks == {"protocol.multi_turn", "protocol.stop", "protocol.error_schema"}
 
 
 def _det(id_: str, score: float | None, status: Status, *findings: Finding) -> DetectorResult:
@@ -135,7 +133,7 @@ def test_dimension_breakdown_explains_a_severity_override():
 
 async def _report() -> AuditReport:
     forgotten = CompletionOutcome(ok=True, status_code=200, content="I don't know.")
-    protocol = await _run(forgotten, _TIMEOUT, _SHAPE, _REJECTED)
+    protocol = await _run(forgotten, _TIMEOUT, _REJECTED)
     legacy = _det("determinism", 100.0, Status.PASS,
                   Finding(id="determinism.temp1_variability", title="Output varies at temperature=1.0",
                           status=Status.PASS))
@@ -150,8 +148,8 @@ async def _report() -> AuditReport:
 async def test_markdown_explains_scores_status_and_scale():
     md = render_markdown(await _report())
     details = md[md.index("## Dimension details"):md.index("## Findings")]
-    assert "### ⚠️ protocol — 92.5 (warn)" in details
-    assert "Mean of 2 detectors, equal weight: OpenAI-compatibility conformance 85, Determinism 100 → 92.5." in details
+    assert "### ⚠️ protocol — 88.8 (warn)" in details
+    assert "Mean of 2 detectors, equal weight: OpenAI-compatibility conformance 77.5, Determinism 100 → 88.8." in details
     assert "- Status warn: the worst status its detectors concluded." in details
     # every check with its outcome and points, positive and negative
     assert "| ⚠️ | Multi-turn conversation memory | The color from an earlier turn was not recalled. | 55 |" in details
@@ -204,3 +202,58 @@ def test_reports_without_breakdown_still_render():
     })
     md = render_markdown(report)
     assert "Score of one detector: P 70." in md and "- ⚠️ Stop" in md
+
+
+# --------------------------------------------------------------------------- #
+# Parametrized checks: many subjects, one row
+# --------------------------------------------------------------------------- #
+async def _attr_report() -> AuditReport:
+    """The response-attribute detector on a body with a zero completion count
+    and no id: 12 attribute findings in two parametrized checks (8 core, 4 minor)."""
+    from tests.test_protocol_attrs import BODIES, _drop, _respond, _set
+
+    body = _drop(_set(BODIES["openai"], "usage.completion_tokens", 0), "id")
+    body["usage"]["total_tokens"] = 12
+    det, _ = await _respond("openai", body)
+    return AuditReport(
+        tool_version="test", mode="check", suite="standard",
+        target=RedactedTarget(name="t", kind="target", base_url="http://relay.test/v1", model="gpt-4o"),
+        verdict=Verdict(), dimensions=build_dimensions([det], None), detectors=[det],
+    )
+
+
+def test_scale_finding_with_a_subject():
+    f = SCALE.finding("protocol.stop", "ignored", title="t")
+    assert (f.id, f.check, f.subject, f.scale_check) == ("protocol.stop", None, None, "protocol.stop")
+    g = Scale(outcome("c", "ok", 100.0, Status.PASS, label="x"), titles={"c": "C"})
+    f = g.finding("c", "ok", title="t", subject="a.b")
+    assert (f.id, f.check, f.subject, f.scale_check) == ("c.a.b", "c", "a.b", "c")
+    assert g.scoring().titles == {"c": "C"}
+
+
+async def test_markdown_groups_the_subjects_of_a_check():
+    md = render_markdown(await _attr_report())
+    details = md[md.index("## Dimension details"):md.index("## Findings")]
+    # one row per parametrized check, problems named, points averaged
+    assert "| ❌ | Core response attributes | 7 of 8 OK; usage.completion\\_tokens (Present but zero or empty" in details
+    assert "| ⚠️ | Minor response attributes | 3 of 4 OK; id (Missing from the response.) | avg 90 |" in details
+    assert details.count("| ❌ |") + details.count("| ⚠️ |") == 2 + 2  # two groups + two subject rows
+    # every subject with its observed value and points, behind a disclosure
+    assert "<details><summary>Core response attributes: all 8</summary>" in details
+    assert "| ✅ | `usage.prompt\\_tokens` | 12 | Present with a valid value. | 100 |" in details
+    assert "| ❌ | `usage.completion\\_tokens` | 0 |" in details
+    # the scale lists each check once, not once per subject
+    assert details.count("(`protocol_response.core`)") == 1
+    # the findings section keeps problems itemised, passed subjects folded
+    findings = md[md.index("## Findings"):]
+    assert "**Core response attributes** — 7 passed: model, choices" in findings
+    assert "Response attribute usage.completion\\_tokens" in findings
+    assert "Response attribute usage.prompt\\_tokens" not in findings
+
+
+async def test_html_groups_the_subjects_of_a_check():
+    page = render_html(await _attr_report())
+    assert page.count("<summary>All 8</summary>") == 1 and page.count("<summary>All 4</summary>") == 1
+    assert "7 of 8 OK; usage.completion_tokens (Present but zero or empty" in page
+    assert "<code>usage.completion_tokens</code></td><td><code>0</code>" in page
+    assert "7 passed: <code>model, choices" in page

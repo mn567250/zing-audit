@@ -245,22 +245,24 @@
     return s;
   }
 
-  // Resolve an id in a per-language catalog (FR/ES/PT/IT); the dynamic
-  // model_identity.fp.<probe> family is stored under "model_identity.fp.*".
+  // Resolve an id in a catalog, including dynamic id families stored under a
+  // "<prefix>.*" key — per-fingerprint identity findings
+  // (model_identity.fp.<probe>) and per-attribute protocol findings
+  // (protocol_response.core.<attribute>, …). The longest matching prefix wins.
   function lookupIn(cat, id) {
-    if (!id) return null;
+    if (!id || !cat) return null;
     if (Object.prototype.hasOwnProperty.call(cat, id)) return cat[id];
-    if (id.indexOf("model_identity.fp.") === 0) return cat["model_identity.fp.*"] || null;
+    var parts = String(id).split(".");
+    for (var i = parts.length - 1; i > 0; i--) {
+      var key = parts.slice(0, i).join(".") + ".*";
+      if (Object.prototype.hasOwnProperty.call(cat, key)) return cat[key];
+    }
     return null;
   }
 
-  // Resolve a catalog entry, including dynamic id families.
+  // Resolve a Chinese catalog entry.
   function lookup(id) {
-    if (!id) return null;
-    if (Object.prototype.hasOwnProperty.call(FINDINGS, id)) return FINDINGS[id];
-    // Per-fingerprint identity findings: model_identity.fp.<probe-id>
-    if (id.indexOf("model_identity.fp.") === 0) return FINDINGS["model_identity.fp.*"] || null;
-    return null;
+    return lookupIn(FINDINGS, id);
   }
 
   /**
@@ -281,15 +283,16 @@
       var cat = ((window.ZING_LOCALES || {}).findings || {})[L.get()];
       var le = cat && lookupIn(cat, id);
       var ls = summaryFor(id, status, evidence, le && le.tpl, [L.tr("yes"), L.tr("no")]);
+      var lt = le && le.title ? fillTemplate(le.title, evidence) : null;
       return {
-        title: le && le.title ? le.title : L.server(fallbackTitle || id || "Check"),
+        title: lt || L.server(fallbackTitle || id || "Check"),
         summary: ls != null ? ls : L.server(fallbackSummary || ""),
       };
     }
     var entry = lookup(id);
     var summary = summaryFor(id, status, evidence, entry && entry.tpl);
     return {
-      title: (entry && entry.title) || GENERIC_TITLE,
+      title: (entry && entry.title && fillTemplate(entry.title, evidence)) || GENERIC_TITLE,
       summary: summary != null ? summary : fallbackSummary || "",
     };
   }
@@ -303,7 +306,7 @@
     if (isZh()) {
       var entry = lookup(f.id);
       var s = summaryFor(f.id, f.status, f.evidence, entry && entry.tpl);
-      out.title = entry && entry.title ? entry.title : L.exportText(f.title);
+      out.title = (entry && entry.title && fillTemplate(entry.title, f.evidence)) || L.exportText(f.title);
       out.summary = s != null ? s : L.exportText(f.summary || "");
     } else {
       var loc = localizeFinding(f.id, f.summary, f.evidence, f.title, f.status);
@@ -331,9 +334,17 @@
         ((det.scoring && det.scoring.outcomes) || []).forEach(function (o) {
           if (o.label) o.label = L.exportText(o.label);
         });
+        // titles of parametrized checks
+        var st = det.scoring && det.scoring.titles;
+        if (st) Object.keys(st).forEach(function (k) {
+          st[k] = L.exportText(st[k]);
+        });
       });
     });
     var title = function (t) {
+      // "<title> (+N more)": several subjects of one parametrized check
+      var m = /^(.*) \(\+(\d+) more\)$/.exec(t);
+      if (m) return title(m[1]) + " " + L.exportText("(+{n} more)").replace("{n}", m[2]);
       return Object.prototype.hasOwnProperty.call(titles, t) ? titles[t] : L.exportText(t);
     };
     var v = r.verdict;

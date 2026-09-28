@@ -19,6 +19,7 @@ covered and a detector gains the points/scale view by adopting
 from __future__ import annotations
 
 import html
+from dataclasses import dataclass, field
 
 from zing.models import (
     AuditReport,
@@ -103,7 +104,7 @@ def _labels(det: DetectorResult) -> dict[tuple[str, str], ScoringOutcome]:
 
 
 def _check_titles(det: DetectorResult) -> dict[str, str]:
-    titles: dict[str, str] = {}
+    titles: dict[str, str] = dict(det.scoring.titles) if det.scoring else {}
     for f in det.findings:
         titles.setdefault(f.id, f.title)
     return titles
@@ -118,6 +119,86 @@ def _scale_by_check(det: DetectorResult) -> list[tuple[str, list[ScoringOutcome]
 
 def _points(f: Finding) -> str:
     return _NOT_COUNTED if f.score is None else _num(f.score)
+
+
+_WORST = [Status.PASS, Status.INFO, Status.NOT_RUN, Status.INCONCLUSIVE, Status.WARN,
+          Status.ERROR, Status.FAIL]
+
+
+@dataclass
+class _Group:
+    """The subjects of one parametrized check (e.g. every response attribute)."""
+
+    check: str
+    title: str
+    findings: list[Finding] = field(default_factory=list)
+
+    @property
+    def status(self) -> Status:
+        return max((f.status for f in self.findings), key=_WORST.index)
+
+    @property
+    def ok(self) -> int:
+        return sum(f.status == Status.PASS for f in self.findings)
+
+    @property
+    def mean(self) -> float | None:
+        points = [f.score for f in self.findings if f.score is not None]
+        return round(sum(points) / len(points), 1) if points else None
+
+    def summary(self, labels: dict[tuple[str, str], ScoringOutcome]) -> str:
+        """"8 of 9 OK; missing: usage.total_tokens" — the problems by name."""
+        text = f"{self.ok} of {len(self.findings)} OK"
+        issues = [
+            f"{f.subject} ({_label(labels, f)})" for f in self.findings if f.status != Status.PASS
+        ]
+        return text + ("; " + "; ".join(issues) if issues else "")
+
+
+def _label(labels: dict[tuple[str, str], ScoringOutcome], f: Finding) -> str:
+    o = labels.get((f.scale_check, f.outcome or ""))
+    return o.label if o and o.label else f.summary
+
+
+def _observed(f: Finding) -> str:
+    ev = f.evidence
+    if ev.get("observed") is not None:
+        return str(ev["observed"])[:60]
+    if ev.get("status_code") is not None:
+        return f"HTTP {ev['status_code']}"
+    return "—"
+
+
+def _rows(det: DetectorResult) -> list[Finding | _Group]:
+    """The detector's findings, the subjects of each parametrized check folded
+    into one group (in first-seen order)."""
+    titles = det.scoring.titles if det.scoring else {}
+    rows: list[Finding | _Group] = []
+    groups: dict[str, _Group] = {}
+    for f in det.findings:
+        if not (f.check and f.subject):
+            rows.append(f)
+            continue
+        if f.check not in groups:
+            groups[f.check] = _Group(f.check, titles.get(f.check, f.check))
+            rows.append(groups[f.check])
+        groups[f.check].findings.append(f)
+    return rows
+
+
+def fold_passed_subjects(det: DetectorResult) -> tuple[list[Finding], list[tuple[str, list[str]]]]:
+    """For a findings listing: the findings to show one by one, and the passed
+    subjects of each parametrized check folded into ``(title, subjects)`` —
+    problems stay itemised, a wall of passed attributes does not."""
+    titles = det.scoring.titles if det.scoring else {}
+    shown: list[Finding] = []
+    folded: dict[str, list[str]] = {}
+    for f in det.findings:
+        if f.check and f.subject and f.status == Status.PASS:
+            folded.setdefault(f.check, []).append(f.subject)
+        else:
+            shown.append(f)
+    return shown, [(titles.get(c, c), subjects) for c, subjects in folded.items()]
 
 
 # --------------------------------------------------------------------------- #
@@ -152,13 +233,33 @@ def _markdown_detector(det: DetectorResult, md) -> list[str]:
     if det.scoring is not None:
         lines.append("| | Check | Outcome | Points |")
         lines.append("| --- | --- | --- | ---: |")
-        for f in det.findings:
-            o = labels.get((f.id, f.outcome or ""))
-            outcome = o.label if o and o.label else f.summary
+        groups: list[_Group] = []
+        for row in _rows(det):
+            if isinstance(row, _Group):
+                groups.append(row)
+                lines.append(
+                    f"| {_STATUS_EMOJI.get(row.status, '')} | {md(row.title)} | "
+                    f"{md(row.summary(labels))} | avg {_num(row.mean)} |"
+                )
+                continue
             lines.append(
-                f"| {_STATUS_EMOJI.get(f.status, '')} | {md(f.title)} | {md(outcome)} | {_points(f)} |"
+                f"| {_STATUS_EMOJI.get(row.status, '')} | {md(row.title)} | "
+                f"{md(_label(labels, row))} | {_points(row)} |"
             )
         lines.append("")
+        for g in groups:
+            lines.append(f"<details><summary>{md(g.title)}: all {len(g.findings)}</summary>")
+            lines.append("")
+            lines.append("| | Attribute | Observed | Outcome | Points |")
+            lines.append("| --- | --- | --- | --- | ---: |")
+            for f in g.findings:
+                lines.append(
+                    f"| {_STATUS_EMOJI.get(f.status, '')} | `{md(f.subject or '')}` | "
+                    f"{md(_observed(f))} | {md(_label(labels, f))} | {_points(f)} |"
+                )
+            lines.append("")
+            lines.append("</details>")
+            lines.append("")
         if det.scoring.method == "mean_of_checks":
             lines.append("_Detector score: mean of the counted checks' points._")
             lines.append("")
@@ -236,12 +337,17 @@ def _html_detector(det: DetectorResult) -> str:
             '<table><thead><tr><th></th><th>Check</th><th>Outcome</th>'
             '<th class="num">Points</th></tr></thead><tbody>'
         )
-        for f in det.findings:
-            o = labels.get((f.id, f.outcome or ""))
-            outcome = o.label if o and o.label else f.summary
+        for row in _rows(det):
+            if isinstance(row, _Group):
+                out.append(
+                    f"<tr><td>{_pill(row.status)}</td><td>{_esc(row.title)}</td>"
+                    f"<td>{_esc(row.summary(labels))}{_html_group(row, labels)}</td>"
+                    f'<td class="num">avg {_esc(_num(row.mean))}</td></tr>'
+                )
+                continue
             out.append(
-                f"<tr><td>{_pill(f.status)}</td><td>{_esc(f.title)}</td>"
-                f'<td>{_esc(outcome)}</td><td class="num">{_esc(_points(f))}</td></tr>'
+                f"<tr><td>{_pill(row.status)}</td><td>{_esc(row.title)}</td>"
+                f'<td>{_esc(_label(labels, row))}</td><td class="num">{_esc(_points(row))}</td></tr>'
             )
         out.append("</tbody></table>")
         if det.scoring.method == "mean_of_checks":
@@ -261,6 +367,20 @@ def _html_detector(det: DetectorResult) -> str:
         out.append(f"<li>{_pill(f.status)} {_esc(f.title)}</li>")
     out.append("</ul></div>")
     return "".join(out)
+
+
+def _html_group(g: _Group, labels: dict[tuple[str, str], ScoringOutcome]) -> str:
+    rows = "".join(
+        f"<tr><td>{_pill(f.status)}</td><td><code>{_esc(f.subject)}</code></td>"
+        f"<td><code>{_esc(_observed(f))}</code></td><td>{_esc(_label(labels, f))}</td>"
+        f'<td class="num">{_esc(_points(f))}</td></tr>'
+        for f in g.findings
+    )
+    return (
+        f'<details class="scale"><summary>All {len(g.findings)}</summary><table><thead><tr>'
+        "<th></th><th>Attribute</th><th>Observed</th><th>Outcome</th>"
+        f'<th class="num">Points</th></tr></thead><tbody>{rows}</tbody></table></details>'
+    )
 
 
 DIM_CSS = """

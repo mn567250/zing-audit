@@ -111,6 +111,9 @@ class RequestSpec(BaseModel):
     tool_choice: str | dict[str, Any] | None = None
     stream: bool = False
     extra_body: dict[str, Any] = Field(default_factory=dict)
+    # Client-side only (never sent): keep the redacted raw JSON response body in
+    # ``CompletionOutcome.raw_body`` (non-stream calls), for envelope checks.
+    capture_raw: bool = False
 
 
 # --------------------------------------------------------------------------- #
@@ -141,6 +144,9 @@ class CompletionOutcome(BaseModel):
     error_type: str | None = None
     error_message: str | None = None
     raw_error: dict[str, Any] | None = None
+    # The redacted raw JSON body of a successful non-stream call, only when the
+    # request asked for it (RequestSpec.capture_raw).
+    raw_body: dict[str, Any] | None = None
 
     def has_content(self) -> bool:
         return bool(self.content and self.content.strip())
@@ -167,6 +173,16 @@ class Finding(BaseModel):
     # inconclusive), so it neither raises nor lowers the detector score.
     outcome: str | None = None
     score: float | None = None
+    # Parametrized checks: one scale check applied to many subjects (e.g. every
+    # attribute of a response). ``check`` names the scale check this finding
+    # scored against (None: the finding id itself); ``subject`` what was checked.
+    check: str | None = None
+    subject: str | None = None
+
+    @property
+    def scale_check(self) -> str:
+        """The scoring-scale check this finding belongs to."""
+        return self.check or self.id
 
 
 class ScoringOutcome(BaseModel):
@@ -191,6 +207,9 @@ class DetectorScoring(BaseModel):
     # "mean_of_checks": the plain average of the counted checks' scores.
     method: str = "mean_of_checks"
     outcomes: list[ScoringOutcome] = Field(default_factory=list)
+    # English display titles of parametrized checks (check -> title): a report
+    # lists their subjects under one row with this title.
+    titles: dict[str, str] = Field(default_factory=dict)
 
 
 class DetectorResult(BaseModel):

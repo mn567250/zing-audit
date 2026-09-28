@@ -28,6 +28,15 @@
  * Styling: keyed off the page CSS vars (--line, --teal, --ink, --ink2, --sans,
  * #fbfdfa input bg) so it visually matches the .in / select look on every page.
  *
+ * `unstyled: true` (the v2 UI, with /v2/static/fields.css) skips every inline
+ * style and exposes class hooks instead: wrapper .zmp.zmp-unstyled, rows
+ * .zmp-sels / .zmp-fetch, selects .in.zmp-sel (.zmp-prov / .zmp-model, plus
+ * .is-empty while the placeholder is shown), the relay button .btn.sm
+ * .zmp-fetch-btn, its status .zmp-status (.is-busy/.is-ok/.is-warn/.is-error)
+ * and the mode toggle .linkbtn.zmp-custom[aria-pressed]. Both selects get a
+ * translated aria-label; options and selects carry the full label as `title`,
+ * and provider names are shortened ("DeepSeek (DeepSeek-AI / …)" → "DeepSeek").
+ *
  * Usage (per-page agent copy):
  *   ZingModelPicker.enhance({ claimedInput: "#e-claimed", providerInput: "#e-provider" });
  */
@@ -106,11 +115,22 @@
     });
   }
 
-  function opt(value, text) {
+  function opt(value, text, title) {
     var o = document.createElement("option");
     o.value = value;
     o.textContent = text;
+    if (title) o.title = title;
     return o;
+  }
+
+  // Short provider name for the unstyled (v2) picker: the part before the
+  // first parenthesis, em dash, semicolon or comma, e.g.
+  // "Alibaba Cloud — Qwen / …" → "Alibaba Cloud". The full name stays in
+  // the option's title.
+  function shortName(s) {
+    s = String(s == null ? "" : s);
+    var cut = s.split(/\s*(?:\(|\u2014|;|,)\s*/)[0].trim();
+    return cut || s;
   }
 
   function enhance(opts) {
@@ -128,23 +148,27 @@
     loadKb()
       .then(function (providers) {
         if (!providers.length && !relay.urlInput) return; // nothing to offer
-        build(claimedInput, providerInput, providers, opts.label, relay);
+        build(claimedInput, providerInput, providers, opts.label, relay, !!opts.unstyled);
       })
       .catch(function () {
         // Defensive: any failure leaves the original input untouched.
       });
   }
 
-  function build(claimedInput, providerInput, providers, label, relay) {
+  function build(claimedInput, providerInput, providers, label, relay, unstyled) {
     var ids = knownIds(providers);
+    // Inline styles only for the classic (styled) picker.
+    function css(el, prop, value) {
+      if (!unstyled) el.style[prop] = value;
+    }
 
     // Container inserted right before the original input; the input is moved
     // inside it so "free-text mode" can re-show it in place.
     var wrap = document.createElement("div");
-    wrap.className = "zmp";
-    wrap.style.display = "flex";
-    wrap.style.flexDirection = "column";
-    wrap.style.gap = "8px";
+    wrap.className = unstyled ? "zmp zmp-unstyled" : "zmp";
+    css(wrap, "display", "flex");
+    css(wrap, "flexDirection", "column");
+    css(wrap, "gap", "8px");
 
     var parent = claimedInput.parentNode;
     parent.insertBefore(wrap, claimedInput);
@@ -152,39 +176,62 @@
     // The two selects live in their own row container so we can hide/show them
     // as a unit when toggling to custom mode.
     var selectRow = document.createElement("div");
-    selectRow.style.display = "flex";
-    selectRow.style.flexDirection = "column";
-    selectRow.style.gap = "8px";
+    if (unstyled) selectRow.className = "zmp-sels";
+    css(selectRow, "display", "flex");
+    css(selectRow, "flexDirection", "column");
+    css(selectRow, "gap", "8px");
 
     var provSel = document.createElement("select");
     var modelSel = document.createElement("select");
-    styleSelect(provSel);
-    styleSelect(modelSel);
+    if (unstyled) {
+      provSel.className = "in zmp-sel zmp-prov";
+      modelSel.className = "in zmp-sel zmp-model";
+    } else {
+      styleSelect(provSel);
+      styleSelect(modelSel);
+    }
 
     function paintLabels() {
       var lbl = typeof label === "function" ? label() : label;
       if (lbl) {
         provSel.setAttribute("aria-label", lbl + tr(" 供应商", " provider"));
         modelSel.setAttribute("aria-label", lbl + tr(" 模型", " model"));
+      } else if (unstyled) {
+        provSel.setAttribute("aria-label", tr("供应商", "Provider"));
+        modelSel.setAttribute("aria-label", tr("模型", "Model"));
       }
     }
     paintLabels();
+
+    // v2: the chosen option's full text as the select's tooltip, and an
+    // .is-empty hook while the placeholder is shown.
+    function paintSel(sel) {
+      if (!unstyled) return;
+      var o = sel.options[sel.selectedIndex];
+      var empty = !sel.value;
+      sel.classList.toggle("is-empty", empty);
+      sel.title = o && !empty ? o.title || o.textContent : "";
+    }
 
     function fillProviders() {
       var keep = provSel.value;
       provSel.innerHTML = "";
       provSel.appendChild(opt("", tr("选择供应商…", "Select provider…")));
       providers.forEach(function (p) {
-        provSel.appendChild(opt(p.provider, enText(p.display_name || p.provider) || p.provider));
+        var full = enText(p.display_name || p.provider) || p.provider;
+        if (unstyled) provSel.appendChild(opt(p.provider, shortName(full), full));
+        else provSel.appendChild(opt(p.provider, full));
       });
       if (relay.urlInput) {
         provSel.appendChild(opt(CUSTOM, tr("自定义（从中转站获取）", "Custom (from relay)")));
       }
       provSel.value = keep;
+      paintSel(provSel);
     }
     fillProviders();
     modelSel.appendChild(opt("", tr("选择模型…", "Select model…")));
     modelSel.disabled = true;
+    paintSel(modelSel);
 
     selectRow.appendChild(provSel);
 
@@ -193,26 +240,32 @@
     // mode hides it too).
     var fetchRow = document.createElement("div");
     fetchRow.style.display = "none";
-    fetchRow.style.alignItems = "center";
-    fetchRow.style.flexWrap = "wrap";
-    fetchRow.style.gap = "10px";
+    css(fetchRow, "alignItems", "center");
+    css(fetchRow, "flexWrap", "wrap");
+    css(fetchRow, "gap", "10px");
     var fetchBtn = document.createElement("button");
     fetchBtn.type = "button";
-    fetchBtn.style.font = "inherit";
-    fetchBtn.style.fontSize = "13px";
-    fetchBtn.style.fontWeight = "700";
-    fetchBtn.style.fontFamily = "var(--sans, system-ui, sans-serif)";
-    fetchBtn.style.color = "#fff";
-    fetchBtn.style.background = "var(--teal, #0f6f5f)";
-    fetchBtn.style.border = "0";
-    fetchBtn.style.borderRadius = "10px";
-    fetchBtn.style.padding = "8px 14px";
-    fetchBtn.style.cursor = "pointer";
+    css(fetchBtn, "font", "inherit");
+    css(fetchBtn, "fontSize", "13px");
+    css(fetchBtn, "fontWeight", "700");
+    css(fetchBtn, "fontFamily", "var(--sans, system-ui, sans-serif)");
+    css(fetchBtn, "color", "#fff");
+    css(fetchBtn, "background", "var(--teal, #0f6f5f)");
+    css(fetchBtn, "border", "0");
+    css(fetchBtn, "borderRadius", "10px");
+    css(fetchBtn, "padding", "8px 14px");
+    css(fetchBtn, "cursor", "pointer");
     var fetchStatus = document.createElement("span");
-    fetchStatus.style.fontSize = "12.5px";
-    fetchStatus.style.fontFamily = "var(--sans, system-ui, sans-serif)";
-    fetchStatus.style.color = "var(--ink2, #4a5d59)";
-    fetchStatus.style.wordBreak = "break-word";
+    css(fetchStatus, "fontSize", "12.5px");
+    css(fetchStatus, "fontFamily", "var(--sans, system-ui, sans-serif)");
+    css(fetchStatus, "color", "var(--ink2, #4a5d59)");
+    css(fetchStatus, "wordBreak", "break-word");
+    if (unstyled) {
+      fetchRow.className = "zmp-fetch";
+      fetchBtn.className = "btn sm zmp-fetch-btn";
+      fetchStatus.className = "zmp-status";
+      fetchStatus.setAttribute("role", "status");
+    }
     fetchRow.appendChild(fetchBtn);
     fetchRow.appendChild(fetchStatus);
     selectRow.appendChild(fetchRow);
@@ -222,16 +275,17 @@
     // Toggle link between select mode and free-text (custom) mode.
     var toggle = document.createElement("button");
     toggle.type = "button";
-    toggle.style.alignSelf = "flex-start";
-    toggle.style.font = "inherit";
-    toggle.style.fontSize = "12px";
-    toggle.style.fontWeight = "700";
-    toggle.style.fontFamily = "var(--sans, system-ui, sans-serif)";
-    toggle.style.color = "var(--teal, #0f6f5f)";
-    toggle.style.background = "none";
-    toggle.style.border = "0";
-    toggle.style.padding = "0";
-    toggle.style.cursor = "pointer";
+    if (unstyled) toggle.className = "linkbtn zmp-custom";
+    css(toggle, "alignSelf", "flex-start");
+    css(toggle, "font", "inherit");
+    css(toggle, "fontSize", "12px");
+    css(toggle, "fontWeight", "700");
+    css(toggle, "fontFamily", "var(--sans, system-ui, sans-serif)");
+    css(toggle, "color", "var(--teal, #0f6f5f)");
+    css(toggle, "background", "none");
+    css(toggle, "border", "0");
+    css(toggle, "padding", "0");
+    css(toggle, "cursor", "pointer");
 
     wrap.appendChild(selectRow);
     // Move the original input into the wrap so it shows in custom mode in place.
@@ -251,26 +305,32 @@
       var hasUrl = !!(relay.urlInput && relay.urlInput.value.trim());
       var loading = fetchState === "loading";
       fetchBtn.disabled = !hasUrl || loading;
-      fetchBtn.style.opacity = fetchBtn.disabled ? "0.5" : "1";
-      fetchBtn.style.cursor = fetchBtn.disabled ? "not-allowed" : "pointer";
+      css(fetchBtn, "opacity", fetchBtn.disabled ? "0.5" : "1");
+      css(fetchBtn, "cursor", fetchBtn.disabled ? "not-allowed" : "pointer");
       fetchBtn.textContent = tr("获取模型列表", "Fetch models");
       fetchBtn.title = hasUrl ? "" : tr("请先填写 base_url", "Enter the base_url first");
       var st = fetchState;
+      var kind = "";
       if (st === "loading") {
-        fetchStatus.style.color = "var(--ink2, #4a5d59)";
+        kind = "busy";
+        css(fetchStatus, "color", "var(--ink2, #4a5d59)");
         fetchStatus.textContent = tr("正在获取模型…", "Fetching models…");
       } else if (st && st.error) {
-        fetchStatus.style.color = "var(--red, #b3261e)";
+        kind = "error";
+        css(fetchStatus, "color", "var(--red, #b3261e)");
         fetchStatus.textContent = "✗ " + tr("连接失败", "Connection failed") + " — " + st.error;
       } else if (st && st.count === 0) {
-        fetchStatus.style.color = "var(--amber, #9a6700)";
+        kind = "warn";
+        css(fetchStatus, "color", "var(--amber, #9a6700)");
         fetchStatus.textContent = "⚠ " + tr("中转站未返回任何模型", "The relay returned no models");
       } else if (st) {
-        fetchStatus.style.color = "var(--teal, #0f6f5f)";
+        kind = "ok";
+        css(fetchStatus, "color", "var(--teal, #0f6f5f)");
         fetchStatus.textContent = "✓ " + tr("已找到模型：", "Models found:") + " " + st.count;
       } else {
         fetchStatus.textContent = "";
       }
+      if (unstyled) fetchStatus.className = "zmp-status" + (kind ? " is-" + kind : "");
     }
 
     function fillFetched() {
@@ -279,11 +339,12 @@
         opt("", fetched.length ? tr("选择模型…", "Select model…") : tr("请先获取模型…", "Fetch models first…"))
       );
       fetched.forEach(function (id) {
-        modelSel.appendChild(opt(id, id));
+        modelSel.appendChild(opt(id, id, unstyled ? id : ""));
       });
       modelSel.disabled = fetched.length === 0;
       var cur = (relay.modelInput.value || "").trim();
       if (cur && fetched.indexOf(cur) !== -1) modelSel.value = cur;
+      paintSel(modelSel);
     }
 
     function fetchModels() {
@@ -355,9 +416,10 @@
           alias && alias.toLowerCase() !== m.id.toLowerCase()
             ? m.id + " · " + alias
             : m.id;
-        modelSel.appendChild(opt(m.id, text));
+        modelSel.appendChild(opt(m.id, text, unstyled ? text : ""));
       });
       modelSel.disabled = models.length === 0;
+      paintSel(modelSel);
       return prov;
     }
 
@@ -369,6 +431,7 @@
 
     provSel.addEventListener("change", function () {
       var pid = provSel.value;
+      paintSel(provSel);
       fillModels(pid);
       paintFetch();
       if (providerInput && pid && pid !== CUSTOM) {
@@ -379,6 +442,7 @@
     });
 
     modelSel.addEventListener("change", function () {
+      paintSel(modelSel);
       if (!modelSel.value) return;
       if (isCustom()) {
         // A relay-listed id is what the relay accepts: the requested model.
@@ -403,6 +467,7 @@
         claimedInput.style.display = "none";
         toggle.textContent = tr("自定义输入", "Custom input");
       }
+      if (unstyled) toggle.setAttribute("aria-pressed", custom ? "true" : "false");
     }
 
     toggle.addEventListener("click", function () {
@@ -427,6 +492,8 @@
           provSel.value = p.provider;
           fillModels(p.provider);
           modelSel.value = current;
+          paintSel(provSel);
+          paintSel(modelSel);
           if (providerInput && !providerInput.value) providerInput.value = p.provider;
           break;
         }
@@ -443,6 +510,7 @@
       if (provSel.value) {
         fillModels(provSel.value);
         modelSel.value = keepModel;
+        paintSel(modelSel);
       } else {
         modelSel.options[0].textContent = tr("选择模型…", "Select model…");
       }

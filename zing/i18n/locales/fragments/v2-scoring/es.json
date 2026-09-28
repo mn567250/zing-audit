@@ -27,6 +27,16 @@
   "No HTTP response; client-error handling could not be confirmed.": "Sin respuesta HTTP; no se pudo confirmar el manejo de errores del cliente.",
   "Another HTTP status; client-error handling could not be confirmed.": "Otro estado HTTP; no se pudo confirmar el manejo de errores del cliente.",
   "The invalid request caused a server error (5xx).": "La solicitud no válida provocó un error del servidor (5xx).",
-  "The invalid request was accepted (2xx).": "La solicitud no válida fue aceptada (2xx)."
+  "The invalid request was accepted (2xx).": "La solicitud no válida fue aceptada (2xx).",
+  "The model list (/v1/models) responded.": "La lista de modelos (/v1/models) respondió.",
+  "The model list (/v1/models) did not respond; some relays disable it.": "La lista de modelos (/v1/models) no respondió; algunos relays la desactivan.",
+  "A chat completion returned content and echoed the canary.": "Una completion de chat devolvió contenido y repitió el canario.",
+  "A chat completion returned content but did not echo the canary.": "Una completion de chat devolvió contenido, pero no repitió el canario.",
+  "The chat completion failed or returned no content.": "La completion de chat falló o no devolvió contenido.",
+  "Repeated samples at temperature=1.0 differed, as genuine sampling does.": "Las muestras repetidas con temperature=1.0 fueron distintas, como en un muestreo real.",
+  "Samples were identical, but reasoning models legitimately ignore temperature.": "Las muestras fueron idénticas, pero los modelos de razonamiento ignoran legítimamente temperature.",
+  "All samples at temperature=1.0 were byte-identical, suggesting response caching.": "Todas las muestras con temperature=1.0 fueron idénticas byte a byte, lo que sugiere respuestas en caché.",
+  "Identical answers at temperature=0 (expected); informational, not scored.": "Respuestas idénticas con temperature=0 (esperado); solo informativo, no puntúa.",
+  "Answers differed at temperature=0; informational, not scored.": "Las respuestas difirieron con temperature=0; solo informativo, no puntúa."
  }
 }

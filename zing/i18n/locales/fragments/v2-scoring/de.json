@@ -27,6 +27,16 @@
   "No HTTP response; client-error handling could not be confirmed.": "Keine HTTP-Antwort; die Behandlung von Client-Fehlern ließ sich nicht bestätigen.",
   "Another HTTP status; client-error handling could not be confirmed.": "Ein anderer HTTP-Status; die Behandlung von Client-Fehlern ließ sich nicht bestätigen.",
   "The invalid request caused a server error (5xx).": "Die ungültige Anfrage verursachte einen Serverfehler (5xx).",
-  "The invalid request was accepted (2xx).": "Die ungültige Anfrage wurde angenommen (2xx)."
+  "The invalid request was accepted (2xx).": "Die ungültige Anfrage wurde angenommen (2xx).",
+  "The model list (/v1/models) responded.": "Die Modellliste (/v1/models) hat geantwortet.",
+  "The model list (/v1/models) did not respond; some relays disable it.": "Die Modellliste (/v1/models) hat nicht geantwortet; manche Relays deaktivieren sie.",
+  "A chat completion returned content and echoed the canary.": "Eine Chat-Completion lieferte Inhalt und gab das Canary zurück.",
+  "A chat completion returned content but did not echo the canary.": "Eine Chat-Completion lieferte Inhalt, gab das Canary aber nicht zurück.",
+  "The chat completion failed or returned no content.": "Die Chat-Completion schlug fehl oder lieferte keinen Inhalt.",
+  "Repeated samples at temperature=1.0 differed, as genuine sampling does.": "Wiederholte Samples bei temperature=1.0 unterschieden sich, wie bei echtem Sampling.",
+  "Samples were identical, but reasoning models legitimately ignore temperature.": "Die Samples waren identisch, aber Reasoning-Modelle ignorieren temperature berechtigterweise.",
+  "All samples at temperature=1.0 were byte-identical, suggesting response caching.": "Alle Samples bei temperature=1.0 waren byte-identisch, was auf zwischengespeicherte Antworten hindeutet.",
+  "Identical answers at temperature=0 (expected); informational, not scored.": "Identische Antworten bei temperature=0 (erwartet); nur zur Information, nicht gewertet.",
+  "Answers differed at temperature=0; informational, not scored.": "Die Antworten unterschieden sich bei temperature=0; nur zur Information, nicht gewertet."
  }
 }

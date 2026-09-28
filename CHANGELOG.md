@@ -48,7 +48,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   New report fields: `DimensionScore.breakdown`, `DetectorResult.scoring` (a
   detector's published scale of outcomes and points), and `Finding.outcome` /
   `Finding.score`; the compact JSON carries each finding's `points`. The
-  `protocol` detector is the first with a published scale.
+  `protocol`, `connectivity` and `determinism` detectors publish their scales.
 
 - **Docker image for the web UI** (`Dockerfile`, [docs/DOCKER.md](docs/DOCKER.md)).
   Inside a container the server may listen on the container's interfaces when

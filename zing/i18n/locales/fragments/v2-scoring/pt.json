@@ -27,6 +27,16 @@
   "No HTTP response; client-error handling could not be confirmed.": "Sem resposta HTTP; não foi possível confirmar o tratamento de erros do cliente.",
   "Another HTTP status; client-error handling could not be confirmed.": "Outro estado HTTP; não foi possível confirmar o tratamento de erros do cliente.",
   "The invalid request caused a server error (5xx).": "A solicitação inválida causou um erro de servidor (5xx).",
-  "The invalid request was accepted (2xx).": "A solicitação inválida foi aceita (2xx)."
+  "The invalid request was accepted (2xx).": "A solicitação inválida foi aceita (2xx).",
+  "The model list (/v1/models) responded.": "A lista de modelos (/v1/models) respondeu.",
+  "The model list (/v1/models) did not respond; some relays disable it.": "A lista de modelos (/v1/models) não respondeu; alguns relays a desativam.",
+  "A chat completion returned content and echoed the canary.": "Uma completion de chat devolveu conteúdo e repetiu o canário.",
+  "A chat completion returned content but did not echo the canary.": "Uma completion de chat devolveu conteúdo, mas não repetiu o canário.",
+  "The chat completion failed or returned no content.": "A completion de chat falhou ou não devolveu conteúdo.",
+  "Repeated samples at temperature=1.0 differed, as genuine sampling does.": "As amostras repetidas com temperature=1.0 diferiram, como numa amostragem real.",
+  "Samples were identical, but reasoning models legitimately ignore temperature.": "As amostras foram idênticas, mas modelos de raciocínio ignoram legitimamente temperature.",
+  "All samples at temperature=1.0 were byte-identical, suggesting response caching.": "Todas as amostras com temperature=1.0 foram idênticas byte a byte, o que sugere respostas em cache.",
+  "Identical answers at temperature=0 (expected); informational, not scored.": "Respostas idênticas com temperature=0 (esperado); apenas informativo, não pontua.",
+  "Answers differed at temperature=0; informational, not scored.": "As respostas diferiram com temperature=0; apenas informativo, não pontua."
  }
 }

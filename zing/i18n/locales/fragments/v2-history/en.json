@@ -10,7 +10,6 @@
   "Last 30 days": "Last 30 days",
   "Last 7 days": "Last 7 days",
   "Last 90 days": "Last 90 days",
-  "Latency p50 trend across {n} audits: from {first} ms to {last} ms.": "Latency p50 trend across {n} audits: from {first} ms to {last} ms.",
   "Min. score": "Min. score",
   "No audits match these filters.": "No audits match these filters.",
   "Period": "Period",
@@ -20,8 +19,10 @@
   "Saved audits: {n}": "Saved audits: {n}",
   "Search": "Search",
   "Showing {shown} of {n} audits": "Showing {shown} of {n} audits",
+  "Trends": "Trends",
   "falling": "falling",
   "rising": "rising",
-  "unchanged": "unchanged"
+  "unchanged": "unchanged",
+  "{metric} trend across {n} audits: from {first} to {last}.": "{metric} trend across {n} audits: from {first} to {last}."
  }
 }

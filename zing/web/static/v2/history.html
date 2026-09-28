@@ -6,6 +6,7 @@
 <title data-en="zing — audit history">zing — 检测历史</title>
 <script src="/locales.js"></script>
 <script src="/lang.js"></script>
+<script src="/v2/static/theme.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&amp;family=Hanken+Grotesk:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet" />
@@ -53,15 +54,13 @@
   .tr + .tr { padding-left: 16px; border-left: 1px solid var(--line); }
   .tr .tl { font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
   .tr .tv { display: flex; align-items: center; gap: 9px; }
-  .tr .tv b { font-family: var(--disp); font-weight: 700; font-size: 17px; letter-spacing: -0.3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tr .tv b { color: inherit; font-family: var(--disp); font-weight: 700; font-size: 17px; letter-spacing: -0.3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .tr .tv b small { font-family: var(--sans); font-size: 11px; font-weight: 600; color: var(--faint); letter-spacing: 0; margin-left: 2px; }
-  .tr .sub { font-family: var(--mono); font-size: 11px; color: var(--faint); white-space: nowrap; }
   .trend svg { display: block; overflow: visible; }
   .trend .area { fill: currentColor; opacity: 0.14; }
   .trend .line { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .trend .base { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 2 3; }
   .trend .dot { fill: currentColor; }
-  .trend svg.f-lat { color: var(--sky-fill); }
 
   /* filter bar */
   .filters { margin-top: 22px; padding: 14px 18px 16px; }
@@ -73,6 +72,19 @@
   .fgrid label > span { font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fgrid .in { font-size: 13.5px; padding: 8px 11px; border-radius: 10px; }
   .fgrid select.in { padding-right: 30px; background-position: right 16px center, right 11px center; }
+  .tsel { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .tsel > span { font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--faint); margin-right: 4px; }
+  .tsel button {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-family: var(--sans); font-weight: 600; font-size: 12.5px;
+    color: var(--ink2); background: var(--field); border: 1.5px solid var(--line); border-radius: var(--r-pill); padding: 5px 11px;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .tsel button::before { content: ""; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; }
+  .tsel button[aria-pressed="true"] { color: var(--ink); border-color: var(--ink); }
+  .tsel button[aria-pressed="true"]::before { background: currentColor; }
+  .tsel button:hover:not(:disabled) { border-color: var(--line-strong); color: var(--ink); }
+  .tsel button[aria-pressed="true"]:hover:not(:disabled) { border-color: var(--ink); }
+  .tsel button:disabled { cursor: not-allowed; opacity: 0.7; }
   .ffoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--ink2); }
   .ffoot .linkbtn { font-size: 12.5px; font-weight: 600; }
   .ffoot .linkbtn[hidden] { display: none; }
@@ -82,8 +94,12 @@
   /* colour families (text) */
   .f-good { color: var(--good); } .f-sky { color: var(--sky); } .f-warn { color: var(--warn); }
   .f-bad { color: var(--bad); } .f-grey { color: var(--grey); }
-  .trend svg.f-good { color: var(--good-fill); } .trend svg.f-sky { color: var(--sky-fill); } .trend svg.f-warn { color: var(--warn-fill); }
-  .trend svg.f-bad { color: var(--bad-fill); } .trend svg.f-grey { color: var(--grey-fill); }
+  /* trend series without a score family: latency = sky, tokens/s = violet
+     (page-local token, >= 4.5:1 on --card in both themes) */
+  .hist { --m-tps: #6d45b8; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hist { --m-tps: #b99cf2; } }
+  :root[data-theme="dark"] .hist { --m-tps: #b99cf2; }
+  .f-lat { color: var(--sky); } .f-tps { color: var(--m-tps); }
 
   /* rows */
   .rows { list-style: none; margin: 0; padding: 0 18px 10px; }
@@ -320,7 +336,7 @@
         { v: "30", t: T("最近 30 天", "Last 30 days") },
         { v: "90", t: T("最近 90 天", "Last 90 days") },
       ]) +
-      '</div><div class="ffoot"><span id="fcount" aria-live="polite"></span>' +
+      "</div>" + trendPickerHTML() + '<div class="ffoot"><span id="fcount" aria-live="polite"></span>' +
       '<button type="button" class="linkbtn" id="freset"' + (isFiltered() ? "" : " hidden") + ">" + esc(T("重置筛选", "Reset filters")) + "</button></div>";
     if (focusSel) {
       var el = fbar.querySelector('[data-f="' + focusSel + '"]');
@@ -349,6 +365,8 @@
   fbar.addEventListener("input", onFilter);
   fbar.addEventListener("change", onFilter);
   fbar.addEventListener("click", function (ev) {
+    var tb = ev.target.closest("[data-trend]");
+    if (tb) return toggleTrend(tb.getAttribute("data-trend"));
     if (ev.target.closest("#freset")) {
       resetFilters();
       var first = fbar.querySelector("[data-f]");
@@ -496,49 +514,109 @@
       '<ul class="rows">' + g.rows.map(rowHTML).join("") + "</ul></section>";
   }
 
-  // small sparkline of vals (oldest -> newest) scaled to [lo, hi]; area fill optional
-  function sparkSVG(vals, lo, hi, cls, label, area) {
-    var W = 96, H = 30, P = 3, rg = hi - lo || 1;
+  // small sparkline of vals (oldest -> newest) scaled to [lo, hi]; area fill
+  // optional. Stroke/fill use currentColor, so the tile's colour family (on
+  // .tr) colours the line and the KPI number alike.
+  function sparkSVG(vals, lo, hi, label, area, W) {
+    var H = 30, P = 3, rg = hi - lo || 1;
     var xs = vals.map(function (_, i) { return P + (i * (W - 2 * P)) / (vals.length - 1); });
     var ys = vals.map(function (v) { return H - P - ((Math.max(lo, Math.min(hi, v)) - lo) / rg) * (H - 2 * P); });
     var d = xs.map(function (x, i) { return (i ? "L" : "M") + x.toFixed(1) + "," + ys[i].toFixed(1); }).join(" ");
     var fill = area ? '<path class="area" d="' + d + " L" + xs[xs.length - 1].toFixed(1) + "," + (H - P) + " L" + xs[0].toFixed(1) + "," + (H - P) + ' Z"/>' : "";
-    return '<svg class="' + cls + '" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(label) + '">' +
+    return '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(label) + '">' +
       "<title>" + esc(label) + "</title>" +
       '<line class="base" x1="0" x2="' + W + '" y1="' + (H - P) + '" y2="' + (H - P) + '"/>' + fill +
       '<path class="line" d="' + d + '"/>' +
       '<circle class="dot" cx="' + xs[xs.length - 1].toFixed(1) + '" cy="' + ys[ys.length - 1].toFixed(1) + '" r="2.5"/></svg>';
   }
 
+  /* ---------------- configurable trends ---------------- */
+  // Grade letters on a 1..6 scale for the grade sparkline (F lowest).
+  var GRADEN = { A: 6, B: 5, C: 4, D: 3, E: 2, F: 1 };
+  var GRADEL = ["", "F", "E", "D", "C", "B", "A"];
+  // Each metric: value per row (null = none), scale (fixed or the points'
+  // min..max), colour family of the latest value, KPI text.
+  var METRICS = [
+    { id: "score", zh: "健康分", en: "Score", area: true, lo: 0, hi: 100,
+      get: function (r) { return typeof r.score === "number" ? r.score : null; },
+      fam: function (v) { return scoreC(v); },
+      kpi: function (v) { return String(Math.round(v)); } },
+    { id: "grade", zh: "评级", en: "Grade", area: true, lo: 1, hi: 6,
+      get: function (r) { return GRADEN[String(r.rating || "").toUpperCase()] || null; },
+      fam: function (v) { return gradeC(GRADEL[v]); },
+      kpi: function (v) { return GRADEL[v]; } },
+    { id: "lat", zh: "延迟 p50", en: "Latency p50", unit: "ms",
+      get: function (r) { return typeof r.latency_p50_ms === "number" ? r.latency_p50_ms : null; },
+      fam: function () { return "lat"; },
+      kpi: function (v) { return String(Math.round(v)); } },
+    { id: "tps", zh: "输出速度", en: "Tokens/s", unit: "tok/s",
+      get: function (r) { return typeof r.decode_tps_p50 === "number" ? r.decode_tps_p50 : null; },
+      fam: function () { return "tps"; },
+      kpi: function (v) { return String(Math.round(v)); } },
+  ];
+  var TKEY = "zing.v2.history.trends", TDEF = ["score", "lat"];
+  state.trends = (function () {
+    try {
+      var t = JSON.parse(localStorage.getItem(TKEY) || "null");
+      if (Array.isArray(t)) {
+        t = METRICS.map(function (m) { return m.id; }).filter(function (id) { return t.indexOf(id) >= 0; });
+        if (t.length) return t;
+      }
+    } catch (e) { /* ignore */ }
+    return TDEF.slice();
+  })();
+
+  function trendPickerHTML() {
+    var only = state.trends.length === 1;
+    return '<div class="tsel" role="group" aria-labelledby="tselL"><span id="tselL">' + esc(T("趋势图", "Trends")) + "</span>" +
+      METRICS.map(function (m) {
+        var on = state.trends.indexOf(m.id) >= 0;
+        return '<button type="button" data-trend="' + m.id + '" aria-pressed="' + on + '"' + (on && only ? " disabled" : "") + ">" +
+          esc(T(m.zh, m.en)) + "</button>";
+      }).join("") + "</div>";
+  }
+
+  function toggleTrend(id) {
+    var on = state.trends.indexOf(id) >= 0;
+    if (on && state.trends.length === 1) return; // keep at least one
+    var next = on ? state.trends.filter(function (x) { return x !== id; }) : state.trends.concat([id]);
+    state.trends = METRICS.map(function (m) { return m.id; }).filter(function (x) { return next.indexOf(x) >= 0; });
+    try { localStorage.setItem(TKEY, JSON.stringify(state.trends)); } catch (e) { /* ignore */ }
+    var only = state.trends.length === 1;
+    Array.prototype.forEach.call(fbar.querySelectorAll("[data-trend]"), function (b) {
+      var sel = state.trends.indexOf(b.getAttribute("data-trend")) >= 0;
+      b.setAttribute("aria-pressed", String(sel));
+      b.disabled = sel && only;
+    });
+    render();
+  }
+
   // group trends from the group's (filtered) rows, which arrive newest first
   function trendHTML(rows) {
     var pts = rows.slice().reverse();
-    var out = '<div class="trend">';
-
-    var sc = pts.filter(function (p) { return typeof p.score === "number"; });
-    if (sc.length) {
-      var first = Math.round(sc[0].score), last = Math.round(sc[sc.length - 1].score);
-      var dir = last > first ? T("上升", "rising") : last < first ? T("下降", "falling") : T("持平", "unchanged");
-      var label = Tf("健康分趋势（{n} 次检测）：从 {first} 到 {last}，{dir}。",
-        "Health score trend across {n} audits: from {first} to {last}, {dir}.", { n: sc.length, first: first, last: last, dir: dir });
-      out += '<div class="tr"><span class="tl">' + esc(T("健康分", "Score")) + '</span><div class="tv">' +
-        (sc.length >= 2 ? sparkSVG(sc.map(function (p) { return p.score; }), 0, 100, "f-" + scoreC(last), label, true) : "") +
-        '<b class="f-' + scoreC(last) + '">' + last + "</b></div></div>";
-    }
-
-    var lat = pts.filter(function (p) { return typeof p.latency_p50_ms === "number"; });
-    if (lat.length) {
-      var vals = lat.map(function (p) { return p.latency_p50_ms; });
-      var lf = Math.round(vals[0]), ll = Math.round(vals[vals.length - 1]);
-      var lp = lat[lat.length - 1];
-      var llabel = Tf("延迟 p50 趋势（{n} 次检测）：从 {first} ms 到 {last} ms。",
-        "Latency p50 trend across {n} audits: from {first} ms to {last} ms.", { n: lat.length, first: lf, last: ll });
-      out += '<div class="tr"><span class="tl">' + esc(T("延迟 p50", "Latency p50")) + '</span><div class="tv">' +
-        (lat.length >= 2 ? sparkSVG(vals, Math.min.apply(null, vals), Math.max.apply(null, vals), "f-lat", llabel, false) : "") +
-        "<b>" + ll + "<small>ms</small></b></div>" +
-        (typeof lp.decode_tps_p50 === "number" ? '<span class="sub">' + Math.round(lp.decode_tps_p50) + " tok/s</span>" : "") + "</div>";
-    }
-    return out + "</div>";
+    var W = state.trends.length > 2 ? 72 : 96;
+    var tiles = METRICS.filter(function (m) { return state.trends.indexOf(m.id) >= 0; }).map(function (m) {
+      var vals = pts.map(m.get).filter(function (v) { return v != null; });
+      if (!vals.length) return "";
+      var name = T(m.zh, m.en), last = vals[vals.length - 1];
+      var lo = m.lo != null ? m.lo : Math.min.apply(null, vals), hi = m.hi != null ? m.hi : Math.max.apply(null, vals);
+      var label;
+      if (m.id === "score") {
+        var first = Math.round(vals[0]), lst = Math.round(last);
+        var dir = lst > first ? T("上升", "rising") : lst < first ? T("下降", "falling") : T("持平", "unchanged");
+        label = Tf("健康分趋势（{n} 次检测）：从 {first} 到 {last}，{dir}。",
+          "Health score trend across {n} audits: from {first} to {last}, {dir}.", { n: vals.length, first: first, last: lst, dir: dir });
+      } else {
+        var u = m.unit ? " " + m.unit : "";
+        label = Tf("{metric}趋势（{n} 次检测）：从 {first} 到 {last}。",
+          "{metric} trend across {n} audits: from {first} to {last}.",
+          { metric: name, n: vals.length, first: m.kpi(vals[0]) + u, last: m.kpi(last) + u });
+      }
+      return '<div class="tr f-' + m.fam(last) + '"><span class="tl">' + esc(name) + '</span><div class="tv">' +
+        (vals.length >= 2 ? sparkSVG(vals, lo, hi, label, !!m.area, W) : "") +
+        "<b>" + esc(m.kpi(last)) + (m.unit ? "<small>" + esc(m.unit) + "</small>" : "") + "</b></div></div>";
+    }).join("");
+    return '<div class="trend">' + tiles + "</div>";
   }
 
   function rowHTML(r) {

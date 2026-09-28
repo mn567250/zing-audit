@@ -8,7 +8,8 @@
  *
  * The markup follows the i18n convention of the whole UI (Chinese inline,
  * English in data-en), so lang.js translates it at boot and on every switch;
- * the language <select class="lang-sel"> is filled by lang.js too. The
+ * the language <select class="lang-sel"> is filled by lang.js too. The theme
+ * <select class="theme-sel"> is driven by theme.js (loaded in <head>). The
  * "Classic UI" link goes back to the classic page (?ui=v1 — see server.py).
  */
 (function () {
@@ -49,6 +50,10 @@
       '<nav class="links" aria-label="主导航" data-en-aria-label="Main navigation">' + links + "</nav>" +
       '<div class="tail">' +
       '<a class="classic" href="?ui=v1" data-en="Classic UI">经典界面</a>' +
+      '<select class="theme-sel" aria-label="主题" title="主题" data-en-aria-label="Theme" data-en-title="Theme">' +
+      '<option value="system" data-en="Auto theme">跟随系统</option>' +
+      '<option value="light" data-en="Light">浅色</option>' +
+      '<option value="dark" data-en="Dark">深色</option></select>' +
       '<select class="lang-sel" aria-label="语言" title="语言" data-en-aria-label="Language" data-en-title="Language"></select>' +
       "</div>";
     if (header.hasAttribute("data-trust")) {
@@ -58,6 +63,13 @@
         ico("lock") +
         ' <span data-en="Runs locally · keys <b>never leave</b>">本地运行 · 密钥<b>不经手</b></span>';
       header.parentNode.insertBefore(p, header.nextSibling);
+    }
+    var ts = header.querySelector("select.theme-sel");
+    if (window.ZING_THEME) {
+      ts.value = window.ZING_THEME.get();
+      ts.addEventListener("change", function () { window.ZING_THEME.set(ts.value); });
+    } else {
+      ts.remove(); // page without theme.js
     }
     // keep the active tab visible when the link row scrolls (phones)
     var active = header.querySelector('[aria-current="page"]');

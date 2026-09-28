@@ -92,6 +92,9 @@
   .spin { display: inline-flex; animation: mon-spin 1s linear infinite; }
   @keyframes mon-spin { to { transform: rotate(360deg); } }
   #list-title:focus { outline: none; }
+  /* until the shared picker styles (fields.css + unstyled) land: keep its selects on the tokens */
+  .zmp select { background-color: var(--field) !important; color: var(--ink) !important; border-color: var(--line) !important; }
+  .zmp select:disabled { opacity: 0.6; }
   .empty.boxed { border: 1.5px dashed var(--line-strong); border-radius: 18px; }
   .empty p { margin: 8px 0 0; }
 </style>

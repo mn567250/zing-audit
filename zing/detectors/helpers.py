@@ -142,3 +142,26 @@ def usage_field(usage: dict[str, Any] | None, *names: str) -> int | None:
         if isinstance(value, (int, float)):
             return int(value)
     return None
+
+
+MISSING: Any = object()
+
+
+def dig(obj: Any, path: str) -> Any:
+    """The value at a dotted path (``choices.0.message.role``) or :data:`MISSING`.
+
+    Numeric segments index lists. JSON ``null`` counts as missing: a relay that
+    sends ``"usage": null`` has not provided usage.
+    """
+    cur = obj
+    for part in path.split("."):
+        if isinstance(cur, dict):
+            cur = cur.get(part, MISSING)
+        elif isinstance(cur, list) and part.isdigit():
+            idx = int(part)
+            cur = cur[idx] if idx < len(cur) else MISSING
+        else:
+            return MISSING
+        if cur is MISSING or cur is None:
+            return MISSING
+    return cur

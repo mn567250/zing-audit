@@ -45,6 +45,7 @@ _HELP: dict[str, str] = {
     "supports_json_mode": "JSON object output mode",
     "supports_json_schema": "strict JSON-schema structured output",
     "usage_in_stream": "token usage reported in streamed responses",
+    "unsupported_params": "request parameters the model itself rejects (e.g. temperature, top_p)",
     "identity_keywords": "lower-case words the genuine model uses to identify itself",
     "identity_forbidden": "lower-case words that would betray a different model (rival brands)",
     "notes": "one paragraph: what matters for spotting a substitute, with dates",
@@ -104,6 +105,7 @@ _EXAMPLE = {
         "supports_json_mode": True,
         "supports_json_schema": True,
         "usage_in_stream": True,
+        "unsupported_params": [],
         "identity_keywords": ["example", "example ai"],
         "identity_forbidden": ["gpt", "openai", "claude", "anthropic", "gemini", "qwen", "deepseek"],
         "fingerprints": [{

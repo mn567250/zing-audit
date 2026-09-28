@@ -154,8 +154,41 @@ detector score is the mean of the counted checks):
 |---|---|
 | `protocol.multi_turn` | recalled 100 · forgotten 55 (MEDIUM) · no content: not counted |
 | `protocol.stop` | truncated 100 · unconfirmed 70 · ignored 60 · no content: not counted |
-| `protocol.shape` | conformant 100 · incomplete 65 · no response: not counted |
 | `protocol.error_schema` | 4xx + OpenAI error body 100 · 4xx other body 80 · no HTTP response 55 · other status 55 · 5xx 35 (MEDIUM) · accepted 30 (MEDIUM) |
+
+**Request and response attributes / 请求与响应属性.** Two further detectors in this
+dimension check the wire contract attribute by attribute, for the target's wire
+protocol (OpenAI Chat Completions, Anthropic Messages or OpenAI Responses; catalogs
+in `zing/detectors/wire_attrs.py`). Each attribute is one *subject* of a
+parametrized check: it is scored on its own, but the scale is published once per
+check and reports show one row per check (problems listed by name, every attribute
+with its observed value and points behind a disclosure). The detector score is the
+mean of the counted attributes.
+
+- `protocol_response` (1 call): every attribute of a normal non-stream response,
+  judged on the raw body — e.g. `id`, `object`, `created`, `model`,
+  `choices[0].message.role/content`, `finish_reason`, `usage.prompt_tokens`,
+  `usage.completion_tokens`, `usage.total_tokens` (= sum of the two). A zero where a
+  count must be positive (`completion_tokens: 0` for a non-empty answer) scores
+  `zero`, not `valid`.
+- `protocol_request` (≈5 calls): every request parameter is sent. Parameters with an
+  observable effect get their own call and must show it (`system`/`instructions`
+  followed, output limit → `finish_reason: length`, `n: 2` → two choices, `logprobs`
+  returned); accept-only ones (`temperature`, `top_p`, `seed`, penalties, `user`,
+  `top_k`, `metadata`) share one call and are retried one by one only when it is
+  rejected. Tools/JSON mode stay with `capability`, `stop` with `protocol.stop`,
+  stream usage with `streaming`.
+
+| Check | Outcome → points |
+|---|---|
+| `protocol_response.core` | valid 100 · zero 20 (MEDIUM) · invalid 40 (MEDIUM) · missing 0 (MEDIUM) |
+| `protocol_response.minor` (`id`, `object`, `created`, `choices[0].index`, `type`) | valid 100 · invalid 70 · missing 60 · zero 50 |
+| `protocol_response.call` | no response body: not counted |
+| `protocol_request.param` | honored 100 · accepted 100 · ignored 50 · rejected 40 · dropped by relay (baseline accepts) 15 (MEDIUM) · model limit: not counted · 5xx/no response: not counted |
+
+A 4xx is a `model_limit` (not counted) rather than `rejected` when the knowledge
+base lists the parameter under `unsupported_params`, when a sampling parameter is
+sent to a reasoning model, or when a baseline on the same protocol rejects it too.
 
 **False-positive caveats / 误报与确认.** Legitimate gateways may emit
 provider-specific extra fields (forbidding them would over-flag) — only flag
@@ -178,6 +211,15 @@ OpenAI 兼容性合规套件（只有 vLLM 这一事实标准、以及 NeMo 的 
 
 **何为发现.** 结构非法的封装、非法的 `finish_reason`、缺少必填字段、或畸形的
 SSE 终止符——视严重度判 WARN/FAIL。这些是合规缺陷，（暂）不等同于欺诈。
+
+**请求与响应属性.** 本维度另有两个检测器逐个属性检查接口契约（按目标的协议：
+OpenAI Chat Completions、Anthropic Messages 或 OpenAI Responses）。每个属性是一个
+参数化检查项的*对象*：单独计分，但计分标准每个检查项只公布一次；报告中每个检查项
+一行，问题按名称列出，所有属性及其实际值和分数可展开查看。`protocol_response`
+检查普通响应的每个属性（例如 `usage.completion_tokens` 为 0 记为 `zero`，而非有效）；
+`protocol_request` 发送每个请求参数，能观察到效果的参数须体现效果，仅需被接受的参数
+合并为一次请求，只有被拒绝时才逐个重试。推理模型拒绝采样参数、知识库
+`unsupported_params` 中的参数、或基线同样拒绝的参数，记为「模型限制」，不计分。
 
 **误报与确认.** 合法网关可能附带厂商特定的额外字段（一律禁止会过度告警）——
 只对**缺失必填**或**结构非法**的字段告警，不对额外字段告警。Anthropic↔OpenAI

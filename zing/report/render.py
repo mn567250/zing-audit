@@ -346,7 +346,13 @@ def render_markdown(report: AuditReport) -> str:
                 lines.append("_No findings._")
                 lines.append("")
                 continue
-            for f in det.findings:
+            shown, folded = dimension_details.fold_passed_subjects(det)
+            for title, subjects in folded:
+                lines.append(
+                    f"- ✅ **{_md(title)}** — {len(subjects)} passed: "
+                    f"{_md(', '.join(subjects))} (points under Dimension details)"
+                )
+            for f in shown:
                 sev = _SEVERITY_EMOJI.get(f.severity, "")
                 stat = _STATUS_EMOJI.get(f.status, "")
                 lines.append(
@@ -543,7 +549,14 @@ def render_html(report: AuditReport) -> str:
                 out.append(f'<p class="fail">Detector error: {_esc(det.error)}</p>')
             if not det.findings:
                 out.append('<p class="muted">No findings.</p>')
-            for f in det.findings:
+            shown, folded = dimension_details.fold_passed_subjects(det)
+            for title, subjects in folded:
+                out.append(
+                    '<div class="finding"><p class="f-head"><span class="pill pass">pass</span> '
+                    f"<strong>{_esc(title)}</strong></p><p>{len(subjects)} passed: "
+                    f"<code>{_esc(', '.join(subjects))}</code> (points under Dimension details)</p></div>"
+                )
+            for f in shown:
                 f_cls = _STATUS_CLASS.get(f.status, "muted")
                 sev = _esc(f.severity.value)
                 out.append('<div class="finding">')

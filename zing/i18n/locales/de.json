@@ -488,6 +488,22 @@
    "Struktur von Fehlerantworten",
    "Eine ungültige Anfrage liefert HTTP {status_code}; Fehler-Body im OpenAI-Stil: {conforming_error_body}."
   ],
+  "protocol_response.core.*": [
+   "Antwortattribut {attribute}",
+   "{attribute}: {availability}"
+  ],
+  "protocol_response.minor.*": [
+   "Antwortattribut {attribute}",
+   "{attribute}: {availability}"
+  ],
+  "protocol_request.param.*": [
+   "Anfrageparameter {attribute}",
+   "{attribute}: {availability}"
+  ],
+  "protocol_response.call": [
+   "Antwortattribut-Test ohne Antwortinhalt",
+   "HTTP {status_code}; kein Antwortinhalt."
+  ],
   "context_window.no_ladder": [
    "Kontextfenster-Sonde nicht ausführbar",
    "Keine nutzbare Sondengröße zwischen Unter- und Obergrenze (angegeben {declared}, Obergrenze {upper}, Untergrenze {floor})."

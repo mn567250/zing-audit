@@ -488,6 +488,22 @@
    "Structure des réponses d'erreur",
    "Une requête invalide renvoie HTTP {status_code} ; corps d'erreur au format OpenAI : {conforming_error_body}."
   ],
+  "protocol_response.core.*": [
+   "Attribut de réponse {attribute}",
+   "{attribute} : {availability}"
+  ],
+  "protocol_response.minor.*": [
+   "Attribut de réponse {attribute}",
+   "{attribute} : {availability}"
+  ],
+  "protocol_request.param.*": [
+   "Paramètre de requête {attribute}",
+   "{attribute} : {availability}"
+  ],
+  "protocol_response.call": [
+   "La sonde d'attributs n'a renvoyé aucun corps",
+   "HTTP {status_code} ; aucun corps de réponse."
+  ],
   "context_window.no_ladder": [
    "Sonde de fenêtre de contexte impossible",
    "Aucune taille de sonde utilisable entre le plancher et le plafond (annoncé {declared}, plafond {upper}, plancher {floor})."

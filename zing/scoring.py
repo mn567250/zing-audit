@@ -90,6 +90,23 @@ def _all_findings(detectors: list[DetectorResult]) -> list[tuple[DetectorResult,
     return [(d, f) for d in detectors for f in d.findings]
 
 
+def _titles(findings: list[Finding]) -> list[str]:
+    """Finding titles, the subjects of one parametrized check (e.g. several
+    missing response attributes) folded into one: "<first> (+2 more)"."""
+    titles: list[str] = []
+    more: list[int] = []
+    at: dict[str, int] = {}  # parametrized check -> its index in ``titles``
+    for f in findings:
+        if f.check and f.subject:
+            if f.check in at:
+                more[at[f.check]] += 1
+                continue
+            at[f.check] = len(titles)
+        titles.append(f.title)
+        more.append(0)
+    return [t + (f" (+{n} more)" if n else "") for t, n in zip(titles, more, strict=True)]
+
+
 def _worst_status(statuses: list[Status]) -> Status:
     if not statuses:
         return Status.NOT_RUN
@@ -142,10 +159,10 @@ def build_dimensions(
         elif score is None:
             reason = "Ran but produced no numeric score (see findings)."
         else:
-            reason = "; ".join(
-                f.title for det in members for f in det.findings
+            reason = "; ".join(_titles([
+                f for det in members for f in det.findings
                 if f.status in (Status.FAIL, Status.WARN)
-            )[:200] or "All checks passed."
+            ]))[:200] or "All checks passed."
         dimensions.append(
             DimensionScore(
                 dimension=dim,
@@ -251,7 +268,7 @@ def build_verdict(
 
     headline = _headline(risk, confidence)
     summary = _summary(risk, score, critical, high, medium, profile_matched, used_baseline)
-    key = [f.title for f in (critical + high + medium)][:6]
+    key = _titles(critical + high + medium)[:6]
 
     return Verdict(
         overall_score=score,

@@ -1,0 +1,27 @@
+{
+ "strings": {
+  "Response attribute availability": "响应属性完整性",
+  "Request attribute support": "请求属性支持",
+  "Core response attributes": "核心响应属性",
+  "Minor response attributes": "次要响应属性",
+  "Request parameters": "请求参数",
+  "Response-attribute probe": "响应属性探测",
+  "A conformant endpoint returns every attribute of its wire protocol with a valid value.": "合规的端点会按其协议返回每个属性，且取值有效。",
+  "A conformant endpoint accepts and forwards every request parameter of its wire protocol.": "合规的端点会接受并转发其协议的每个请求参数。",
+  "Present with a valid value.": "存在且取值有效。",
+  "Present but zero or empty (e.g. completion_tokens: 0).": "存在但为零或为空（例如 completion_tokens: 0）。",
+  "Present with a wrong type or value (e.g. total ≠ sum of parts).": "存在但类型或取值错误（例如 total 不等于各部分之和）。",
+  "Missing from the response.": "响应中缺失。",
+  "Present but zero or empty.": "存在但为零或为空。",
+  "Present with a wrong type or value.": "存在但类型或取值错误。",
+  "The probe call returned no response body to judge by.": "探测请求没有返回可用于判断的响应体。",
+  "Accepted, and its effect is visible in the response.": "被接受，且响应中可见其效果。",
+  "Accepted (its effect cannot be observed from one response).": "被接受（单次响应无法观察其效果）。",
+  "Accepted, but its effect is missing from the response.": "被接受，但响应中没有其效果。",
+  "Rejected with a 4xx (possibly a limit of the model itself).": "以 4xx 拒绝（可能是模型本身的限制）。",
+  "Rejected with a 4xx, while the baseline accepts it.": "以 4xx 拒绝，而基线接受该参数。",
+  "Rejected, but the model itself does not support it; not counted.": "被拒绝，但模型本身不支持该参数；不计分。",
+  "Server error or no response; not counted.": "服务器错误或无响应；不计分。",
+  "(+{n} more)": "（另有 {n} 项）"
+ }
+}

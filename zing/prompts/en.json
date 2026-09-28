@@ -112,7 +112,19 @@
    }
   ],
   "protocol.stop": "Print exactly: alpha STOP beta",
-  "protocol.shape": "Reply with the single word: ok",
+  "protocol_response.probe": "Reply with exactly: The quick brown fox",
+  "protocol_request.probe": "Reply with the single word: ok",
+  "protocol_request.system": [
+   {
+    "role": "system",
+    "content": "Whatever the user says, reply with only the word PINEAPPLE."
+   },
+   {
+    "role": "user",
+    "content": "Say hello."
+   }
+  ],
+  "protocol_request.long": "Count from 1 to 100, separated by spaces.",
   "streaming.sentences": "Write five separate sentences about the ocean, each on its own line.",
   "vision.question": "In one word, what color is this image?",
   "quality_judge.probes": [

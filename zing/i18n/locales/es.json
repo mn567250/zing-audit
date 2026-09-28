@@ -488,6 +488,22 @@
    "Estructura de las respuestas de error",
    "Una petición no válida devuelve HTTP {status_code}; ¿cuerpo de error al estilo OpenAI?: {conforming_error_body}."
   ],
+  "protocol_response.core.*": [
+   "Atributo de respuesta {attribute}",
+   "{attribute}: {availability}"
+  ],
+  "protocol_response.minor.*": [
+   "Atributo de respuesta {attribute}",
+   "{attribute}: {availability}"
+  ],
+  "protocol_request.param.*": [
+   "Parámetro de solicitud {attribute}",
+   "{attribute}: {availability}"
+  ],
+  "protocol_response.call": [
+   "El sondeo de atributos no devolvió cuerpo",
+   "HTTP {status_code}; sin cuerpo de respuesta."
+  ],
   "context_window.no_ladder": [
    "No se pudo ejecutar la sonda de ventana de contexto",
    "No hay tamaños de sonda utilizables entre el mínimo y el máximo (declarado {declared}, máximo {upper}, mínimo {floor})."

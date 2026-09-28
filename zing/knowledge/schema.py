@@ -83,6 +83,9 @@ class ModelProfile(BaseModel):
     supports_json_mode: bool = False
     supports_json_schema: bool = False
     usage_in_stream: bool = True
+    # Request parameters the model itself refuses (e.g. "temperature" on some
+    # reasoning models), so a relay's 4xx for them is not held against the relay.
+    unsupported_params: list[str] = Field(default_factory=list)
     # Identity expectations: words a genuine model uses to identify itself, and
     # words that would betray a different model behind the curtain.
     identity_keywords: list[str] = Field(default_factory=list)

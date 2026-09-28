@@ -91,6 +91,12 @@ class BaseHTTPClient:
         """Secrets to scrub from any relay-controlled text before it is stored."""
         return [self.config.api_key]
 
+    def _raw_body(self, data: Any, capture: bool) -> dict[str, Any] | None:
+        """The redacted raw response body, when the request asked for it."""
+        if not capture or not isinstance(data, dict):
+            return None
+        return redact_json(data, extra_secrets=self._extra_secrets())
+
     @staticmethod
     async def _attach_trace(request: httpx.Request) -> None:
         """Hand the in-flight call's transport events to its performance trace."""

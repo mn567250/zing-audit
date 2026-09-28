@@ -488,6 +488,22 @@
    "Estrutura das respostas de erro",
    "Um pedido inválido devolve HTTP {status_code}; corpo de erro ao estilo OpenAI: {conforming_error_body}."
   ],
+  "protocol_response.core.*": [
+   "Atributo de resposta {attribute}",
+   "{attribute}: {availability}"
+  ],
+  "protocol_response.minor.*": [
+   "Atributo de resposta {attribute}",
+   "{attribute}: {availability}"
+  ],
+  "protocol_request.param.*": [
+   "Parâmetro de pedido {attribute}",
+   "{attribute}: {availability}"
+  ],
+  "protocol_response.call": [
+   "A sonda de atributos não devolveu corpo",
+   "HTTP {status_code}; sem corpo de resposta."
+  ],
   "context_window.no_ladder": [
    "Não foi possível executar a sonda de janela de contexto",
    "Não há tamanhos de sonda utilizáveis entre o mínimo e o máximo (declarado {declared}, máximo {upper}, mínimo {floor})."

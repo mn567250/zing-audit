@@ -21,6 +21,25 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Protocol: request- and response-attribute detectors.** Two new detectors in
+  the protocol dimension check the wire contract attribute by attribute, for
+  OpenAI Chat Completions, Anthropic Messages and OpenAI Responses:
+  `protocol_response` judges every attribute of a response (a missing `usage`,
+  `completion_tokens: 0` or a `total_tokens` that is not the sum of its parts no
+  longer passes), and `protocol_request` checks that every request parameter is
+  accepted — and honored where the effect is visible (`system`, output limit,
+  `n`, `logprobs`). Accept-only parameters share one call; a 4xx the model itself
+  would give (reasoning models, `unsupported_params` in the knowledge base, or a
+  baseline that rejects it too) is not counted. The coarser `protocol.shape`
+  check is retired (its question is now answered attribute by attribute).
+- **Parametrized checks in reports.** A check applied to many subjects (here:
+  attributes) publishes its scale once and shows as one row — problems named
+  inline, every subject with its observed value and points behind a disclosure —
+  in the v2 UI and the Markdown/HTML reports; passed subjects fold into one line
+  in the findings list, and several failing subjects take one key finding.
+  New optional fields: `Finding.check` / `Finding.subject`,
+  `DetectorScoring.titles`; `RequestSpec.capture_raw` /
+  `CompletionOutcome.raw_body` (redacted raw response body, on request).
 - **Transparent dimension scoring.** Every report now explains each dimension:
   how its score was computed (equal-weight mean of its detectors), where its
   status came from (and which findings overrode it), and every check behind it,

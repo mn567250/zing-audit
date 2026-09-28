@@ -318,9 +318,11 @@ class OpenAICompatibleClient(BaseHTTPClient):
         body = self._build_body(spec)
         if spec.stream:
             return await self._complete_stream(body)
-        return await self._complete_nonstream(body)
+        return await self._complete_nonstream(body, capture_raw=spec.capture_raw)
 
-    async def _complete_nonstream(self, body: dict[str, Any]) -> CompletionOutcome:
+    async def _complete_nonstream(
+        self, body: dict[str, Any], *, capture_raw: bool = False
+    ) -> CompletionOutcome:
         started = time.perf_counter()
         try:
             async with self._session() as client:
@@ -348,6 +350,7 @@ class OpenAICompatibleClient(BaseHTTPClient):
                     usage=data.get("usage") if isinstance(data, dict) else None,
                     duration_ms=duration_ms,
                     ttft_ms=duration_ms,
+                    raw_body=self._raw_body(data, capture_raw),
                     headers=headers,
                     model_returned=data.get("model") if isinstance(data, dict) else None,
                 )

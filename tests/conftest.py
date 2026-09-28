@@ -172,6 +172,7 @@ class MockServer:
         payload = {
             "id": "chatcmpl-test",
             "object": "chat.completion",
+            "created": 1767225600,
             "model": self.served_model,
             "choices": [
                 {

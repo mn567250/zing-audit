@@ -8,6 +8,10 @@ premium model yet quietly serve a cheaper substitute that lacks — or, tellingl
 profile is resolved we report observed behavior only and make no downgrade claim.
 
 Budget: up to 4 chat completions.
+
+Each check scores points from the published scale ``SCALE``; the detector score
+is the mean of the counted checks. A probe that failed to complete is not
+counted, and neither are observations without a claim to verify.
 """
 
 from __future__ import annotations
@@ -16,7 +20,53 @@ from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import first_json_object
-from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
+from zing.detectors.scale import Scale, outcome
+from zing.models import DetectorResult, Dimension, RequestSpec, Severity, Status
+
+_NO_RESPONSE = "No usable response to judge by."  # same sentence as protocol's scale
+
+SCALE = Scale(
+    outcome("capability.tools", "delivered", 100.0, Status.PASS,
+            label="A tool call came back for an explicit tool-use request."),
+    outcome("capability.tools", "not_delivered", 0.0, Status.FAIL, Severity.MEDIUM,
+            label="Tool calling is claimed but no tool call came back."),
+    outcome("capability.tools", "not_claimed", None, Status.INFO,
+            label="No tool call came back, and tool calling is not claimed."),
+    outcome("capability.tools", "failed", None, Status.INCONCLUSIVE, Severity.LOW,
+            label=_NO_RESPONSE),
+    outcome("capability.tools.encoding", "non_openai", None, Status.WARN, Severity.LOW,
+            label="Tool arguments arrived as an object, not the JSON string OpenAI returns."),
+    outcome("capability.json_mode", "delivered", 100.0, Status.PASS,
+            label="JSON mode returned a parseable object with the requested value."),
+    outcome("capability.json_mode", "value_mismatch", 70.0, Status.INFO,
+            label="A JSON object came back with the wrong value; JSON mode is not claimed."),
+    outcome("capability.json_mode", "no_json", 50.0, Status.WARN,
+            label="No parseable JSON object came back; JSON mode is not claimed."),
+    outcome("capability.json_mode", "not_delivered", 0.0, Status.FAIL, Severity.MEDIUM,
+            label="JSON mode is claimed but no valid object with the value came back."),
+    outcome("capability.json_mode", "failed", None, Status.INCONCLUSIVE, Severity.LOW,
+            label=_NO_RESPONSE),
+    outcome("capability.json_schema", "honored", 100.0, Status.PASS,
+            label="The strict schema is claimed and the response conformed."),
+    outcome("capability.json_schema", "absent_as_claimed", 100.0, Status.INFO,
+            label="The strict schema was not enforced, consistent with the claim."),
+    outcome("capability.json_schema", "over_delivered", 90.0, Status.INFO,
+            label="The response conformed although the claimed model lacks strict schemas."),
+    outcome("capability.json_schema", "not_enforced", 40.0, Status.WARN, Severity.LOW,
+            label="The strict schema is claimed but the response did not conform."),
+    outcome("capability.json_schema", "failed", None, Status.INCONCLUSIVE, Severity.LOW,
+            label=_NO_RESPONSE),
+    outcome("capability.max_output", "to_cap", 100.0, Status.PASS,
+            label="Output continued up to the requested token cap."),
+    outcome("capability.max_output", "plausible", 90.0, Status.PASS,
+            label="Output stopped before the cap at a plausible length."),
+    outcome("capability.max_output", "stopped_early", 70.0, Status.WARN, Severity.LOW,
+            label="Output stopped below a quarter of the requested length."),
+    outcome("capability.max_output", "far_below", 60.0, Status.WARN, Severity.LOW,
+            label="Output stopped below a quarter of the request despite a large claimed maximum."),
+    outcome("capability.max_output", "failed", None, Status.INCONCLUSIVE, Severity.LOW,
+            label=_NO_RESPONSE),
+)
 
 
 @register
@@ -28,22 +78,21 @@ class CapabilityDetector(Detector):
     cost_hint = 4
 
     async def run(self, ctx: AuditContext) -> DetectorResult:
-        result = self.new_result()
+        result = self.new_result(scoring=SCALE.scoring())
         model = ctx.profile.model if ctx.profile else None
         result.evidence["has_profile"] = model is not None
-        score_parts: list[float] = []
 
-        await self._check_tools(ctx, result, model, score_parts)
-        await self._check_json_mode(ctx, result, model, score_parts)
-        await self._check_json_schema(ctx, result, model, score_parts)
-        await self._check_max_output(ctx, result, model, score_parts)
+        await self._check_tools(ctx, result, model)
+        await self._check_json_mode(ctx, result, model)
+        await self._check_json_schema(ctx, result, model)
+        await self._check_max_output(ctx, result, model)
 
-        result.score = round(sum(score_parts) / len(score_parts), 1) if score_parts else None
+        result.score = Scale.mean(result.findings)
         result.status = self._roll_up_status(result)
         return result
 
     # -- sub-checks -------------------------------------------------------- #
-    async def _check_tools(self, ctx, result, model, score_parts) -> None:
+    async def _check_tools(self, ctx, result, model) -> None:
         """Probe function/tool calling and inspect the arguments encoding."""
         spec = RequestSpec(
             messages=[
@@ -62,16 +111,14 @@ class CapabilityDetector(Detector):
 
         if not outcome.ok:
             result.findings.append(
-                Finding(
-                    id="capability.tools",
+                SCALE.finding(
+                    "capability.tools",
+                    "failed",
                     title="Tool-calling probe failed to complete",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.LOW,
                     summary=outcome.error_message or f"HTTP {outcome.status_code}",
                     evidence={"status_code": outcome.status_code, "error_type": outcome.error_type},
                 )
             )
-            score_parts.append(50.0)
             return
 
         call = outcome.tool_calls[0] if outcome.tool_calls else None
@@ -90,23 +137,20 @@ class CapabilityDetector(Detector):
                 "non_openai_arguments_encoding": non_openai_encoding,
             }
             result.findings.append(
-                Finding(
-                    id="capability.tools",
+                SCALE.finding(
+                    "capability.tools",
+                    "delivered",
                     title="Tool calling delivered",
-                    status=Status.PASS,
-                    severity=Severity.INFO,
                     summary=f"Returned a tool call to '{fn_name}'.",
                     evidence=evidence,
                 )
             )
-            score_parts.append(100.0)
             if non_openai_encoding:
                 result.findings.append(
-                    Finding(
-                        id="capability.tools.encoding",
+                    SCALE.finding(
+                        "capability.tools.encoding",
+                        "non_openai",
                         title="Non-OpenAI tool arguments encoding",
-                        status=Status.WARN,
-                        severity=Severity.LOW,
                         summary=(
                             "function.arguments arrived as a structured object rather than a "
                             "JSON string; genuine OpenAI-compatible APIs return a string "
@@ -117,11 +161,10 @@ class CapabilityDetector(Detector):
                 )
         elif claimed:
             result.findings.append(
-                Finding(
-                    id="capability.tools",
+                SCALE.finding(
+                    "capability.tools",
+                    "not_delivered",
                     title="Claimed tool-calling not delivered",
-                    status=Status.FAIL,
-                    severity=Severity.MEDIUM,
                     summary=(
                         "Profile claims tool-calling support but the relay returned no tool "
                         "call for an explicit tool-use request."
@@ -130,21 +173,19 @@ class CapabilityDetector(Detector):
                     recommendation="Confirm the served engine actually supports function calling.",
                 )
             )
-            score_parts.append(0.0)
         else:
             # No claim to verify against — observed-only.
             result.findings.append(
-                Finding(
-                    id="capability.tools",
+                SCALE.finding(
+                    "capability.tools",
+                    "not_claimed",
                     title="No tool call returned",
-                    status=Status.INFO,
-                    severity=Severity.INFO,
                     summary="Relay returned no tool call; capability not claimed in any profile.",
                     evidence={"finish_reason": outcome.finish_reason},
                 )
             )
 
-    async def _check_json_mode(self, ctx, result, model, score_parts) -> None:
+    async def _check_json_mode(self, ctx, result, model) -> None:
         """Verify response_format=json_object yields a parseable object."""
         spec = RequestSpec(
             messages=[
@@ -162,16 +203,14 @@ class CapabilityDetector(Detector):
 
         if not outcome.ok:
             result.findings.append(
-                Finding(
-                    id="capability.json_mode",
+                SCALE.finding(
+                    "capability.json_mode",
+                    "failed",
                     title="JSON-mode probe failed to complete",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.LOW,
                     summary=outcome.error_message or f"HTTP {outcome.status_code}",
                     evidence={"status_code": outcome.status_code, "error_type": outcome.error_type},
                 )
             )
-            score_parts.append(50.0)
             return
 
         parsed = first_json_object(outcome.content)
@@ -179,23 +218,20 @@ class CapabilityDetector(Detector):
 
         if parsed is not None and value_ok:
             result.findings.append(
-                Finding(
-                    id="capability.json_mode",
+                SCALE.finding(
+                    "capability.json_mode",
+                    "delivered",
                     title="JSON mode delivered",
-                    status=Status.PASS,
-                    severity=Severity.INFO,
                     summary="response_format=json_object produced a parseable object with the requested value.",
                     evidence={"parsed_keys": sorted(parsed.keys())},
                 )
             )
-            score_parts.append(100.0)
         elif claimed:
             result.findings.append(
-                Finding(
-                    id="capability.json_mode",
+                SCALE.finding(
+                    "capability.json_mode",
+                    "not_delivered",
                     title="Claimed JSON mode not delivered",
-                    status=Status.FAIL,
-                    severity=Severity.MEDIUM,
                     summary=(
                         "Profile claims JSON-mode support but the relay did not return a valid "
                         "JSON object carrying the requested value."
@@ -204,15 +240,12 @@ class CapabilityDetector(Detector):
                     recommendation="Verify the served engine honors response_format=json_object.",
                 )
             )
-            score_parts.append(0.0)
         else:
-            status = Status.INFO if parsed is not None else Status.WARN
             result.findings.append(
-                Finding(
-                    id="capability.json_mode",
+                SCALE.finding(
+                    "capability.json_mode",
+                    "value_mismatch" if parsed is not None else "no_json",
                     title="JSON mode observed without strong claim",
-                    status=status,
-                    severity=Severity.INFO,
                     summary=(
                         "Returned a JSON object but value mismatched."
                         if parsed is not None
@@ -221,9 +254,8 @@ class CapabilityDetector(Detector):
                     evidence={"parsed": parsed is not None, "value_matched": value_ok},
                 )
             )
-            score_parts.append(70.0 if parsed is not None else 50.0)
 
-    async def _check_json_schema(self, ctx, result, model, score_parts) -> None:
+    async def _check_json_schema(self, ctx, result, model) -> None:
         """Strict json_schema: verify when claimed; flag over-delivery when not.
 
         If the profile says the genuine model lacks strict json_schema but the
@@ -249,16 +281,14 @@ class CapabilityDetector(Detector):
 
         if not outcome.ok:
             result.findings.append(
-                Finding(
-                    id="capability.json_schema",
+                SCALE.finding(
+                    "capability.json_schema",
+                    "failed",
                     title="JSON-schema probe failed to complete",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.LOW,
                     summary=outcome.error_message or f"HTTP {outcome.status_code}",
                     evidence={"status_code": outcome.status_code, "error_type": outcome.error_type},
                 )
             )
-            score_parts.append(50.0)
             return
 
         parsed = first_json_object(outcome.content)
@@ -267,28 +297,24 @@ class CapabilityDetector(Detector):
         if model.supports_json_schema:
             if enforced:
                 result.findings.append(
-                    Finding(
-                        id="capability.json_schema",
+                    SCALE.finding(
+                        "capability.json_schema",
+                        "honored",
                         title="Strict JSON schema honored",
-                        status=Status.PASS,
-                        severity=Severity.INFO,
                         summary="Relay returned an object conforming to the strict schema, as claimed.",
                         evidence={"conforms": True},
                     )
                 )
-                score_parts.append(100.0)
             else:
                 result.findings.append(
-                    Finding(
-                        id="capability.json_schema",
+                    SCALE.finding(
+                        "capability.json_schema",
+                        "not_enforced",
                         title="Claimed strict JSON schema not enforced",
-                        status=Status.WARN,
-                        severity=Severity.LOW,
                         summary="Profile claims json_schema support but the response did not conform.",
                         evidence={"conforms": False, "parsed": parsed is not None},
                     )
                 )
-                score_parts.append(40.0)
         else:
             # Claimed model does NOT support strict json_schema. A conforming object
             # here is only a faint hint of a substitute: the person schema is trivial
@@ -296,11 +322,10 @@ class CapabilityDetector(Detector):
             # enforcement, so this is INFO-only and never escalates risk on its own.
             if enforced:
                 result.findings.append(
-                    Finding(
-                        id="capability.json_schema",
+                    SCALE.finding(
+                        "capability.json_schema",
+                        "over_delivered",
                         title="Returned a schema-conforming object though claimed model lacks strict json_schema",
-                        status=Status.INFO,
-                        severity=Severity.INFO,
                         summary=(
                             "The response conformed to the requested schema even though the claimed "
                             "model is not documented to support strict json_schema. This trivial "
@@ -310,21 +335,18 @@ class CapabilityDetector(Detector):
                         evidence={"conforms": True, "claimed_supports_json_schema": False},
                     )
                 )
-                score_parts.append(90.0)
             else:
                 result.findings.append(
-                    Finding(
-                        id="capability.json_schema",
+                    SCALE.finding(
+                        "capability.json_schema",
+                        "absent_as_claimed",
                         title="Strict JSON schema not enforced (consistent with claim)",
-                        status=Status.INFO,
-                        severity=Severity.INFO,
                         summary="Relay did not enforce strict json_schema, consistent with the claimed model.",
                         evidence={"conforms": False},
                     )
                 )
-                score_parts.append(100.0)
 
-    async def _check_max_output(self, ctx, result, model, score_parts) -> None:
+    async def _check_max_output(self, ctx, result, model) -> None:
         """Flag gross under-delivery of output length against the claimed max.
 
         Cost-bounded: we request at most 2048 tokens, so this only catches a model
@@ -346,16 +368,14 @@ class CapabilityDetector(Detector):
 
         if not outcome.ok:
             result.findings.append(
-                Finding(
-                    id="capability.max_output",
+                SCALE.finding(
+                    "capability.max_output",
+                    "failed",
                     title="Max-output probe failed to complete",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.LOW,
                     summary=outcome.error_message or f"HTTP {outcome.status_code}",
                     evidence={"status_code": outcome.status_code, "error_type": outcome.error_type},
                 )
             )
-            score_parts.append(50.0)
             return
 
         content = outcome.content or ""
@@ -375,16 +395,14 @@ class CapabilityDetector(Detector):
         if finish == "length":
             # Hit the cap — expected, the model kept producing as asked.
             result.findings.append(
-                Finding(
-                    id="capability.max_output",
+                SCALE.finding(
+                    "capability.max_output",
+                    "to_cap",
                     title="Sustained output to the request cap",
-                    status=Status.PASS,
-                    severity=Severity.INFO,
                     summary=f"Produced ~{line_count} lines and stopped at the {cap}-token cap (finish_reason=length).",
                     evidence=evidence,
                 )
             )
-            score_parts.append(100.0)
             return
 
         # Stopped early. Gauge how far below the cap by a rough token estimate.
@@ -396,11 +414,10 @@ class CapabilityDetector(Detector):
             # early on tedious tasks for benign reasons, so this must not escalate
             # overall risk on its own.
             result.findings.append(
-                Finding(
-                    id="capability.max_output",
+                SCALE.finding(
+                    "capability.max_output",
+                    "far_below",
                     title="Output stopped far below requested length",
-                    status=Status.WARN,
-                    severity=Severity.LOW,
                     summary=(
                         f"Model gave up early (finish_reason={finish}) at roughly "
                         f"{produced_ratio*100:.0f}% of the {cap}-token request despite a large "
@@ -410,31 +427,26 @@ class CapabilityDetector(Detector):
                     recommendation="Long-form generation may under-deliver relative to the claimed ceiling; confirm with a longer probe.",
                 )
             )
-            score_parts.append(60.0)
         elif produced_ratio < 0.25:
             result.findings.append(
-                Finding(
-                    id="capability.max_output",
+                SCALE.finding(
+                    "capability.max_output",
+                    "stopped_early",
                     title="Output stopped early",
-                    status=Status.WARN,
-                    severity=Severity.LOW,
                     summary=f"Model stopped early (finish_reason={finish}) at ~{produced_ratio*100:.0f}% of the request cap.",
                     evidence=evidence,
                 )
             )
-            score_parts.append(70.0)
         else:
             result.findings.append(
-                Finding(
-                    id="capability.max_output",
+                SCALE.finding(
+                    "capability.max_output",
+                    "plausible",
                     title="Output length plausible",
-                    status=Status.PASS,
-                    severity=Severity.INFO,
                     summary=f"Produced ~{line_count} lines (finish_reason={finish}); no gross under-delivery.",
                     evidence=evidence,
                 )
             )
-            score_parts.append(90.0)
 
     # -- helpers ----------------------------------------------------------- #
     @staticmethod

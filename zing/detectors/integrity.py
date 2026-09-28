@@ -22,7 +22,8 @@ from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import contains_ci
-from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
+from zing.detectors.scale import Scale, outcome
+from zing.models import DetectorResult, Dimension, RequestSpec, Severity, Status
 
 
 @dataclass
@@ -62,6 +63,20 @@ _CANARIES: tuple[_Canary, ...] = (
 )
 
 
+# The detector score is its one verdict's points (the published scale).
+SCALE = Scale(
+    outcome("integrity.verdict", "intact", 100.0, Status.PASS,
+            label="Known-answer canaries came back intact."),
+    outcome("integrity.verdict", "tampering", 45.0, Status.FAIL, Severity.MEDIUM,
+            label="A canary value was substituted (not yet confirmed by a baseline)."),
+    outcome("integrity.verdict", "tampering_corroborated", 10.0, Status.FAIL, Severity.CRITICAL,
+            label="A canary value was substituted while the trusted baseline kept it intact."),
+    outcome("integrity.verdict", "inconclusive", None, Status.INCONCLUSIVE,
+            label="No canary was echoed verbatim, so tampering could not be assessed."),
+    titles={"integrity.verdict": "Response integrity"},
+)
+
+
 @register
 class IntegrityDetector(Detector):
     id = "integrity"
@@ -71,7 +86,7 @@ class IntegrityDetector(Detector):
     cost_hint = 3
 
     async def run(self, ctx: AuditContext) -> DetectorResult:
-        result = self.new_result()
+        result = self.new_result(scoring=SCALE.scoring())
         substitutions: list[str] = []
         verbatim = 0
         noncompliant = 0
@@ -104,11 +119,11 @@ class IntegrityDetector(Detector):
         if substitutions:
             corroborated = ctx.has_baseline
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "integrity.verdict",
+                    "tampering_corroborated" if corroborated else "tampering",
                     id="integrity.tampering",
                     title="Relay-controlled value substitution detected",
-                    status=Status.FAIL,
-                    severity=Severity.CRITICAL if corroborated else Severity.MEDIUM,
                     summary=(
                         "A known-answer canary came back with its value substituted while "
                         "its structure was preserved"
@@ -125,27 +140,27 @@ class IntegrityDetector(Detector):
                 )
             )
             result.status = Status.FAIL
-            result.score = 10.0 if corroborated else 45.0
+            result.score = Scale.mean(result.findings)
         elif verbatim:
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "integrity.verdict",
+                    "intact",
                     id="integrity.intact",
                     title="Known-answer canaries returned intact",
-                    status=Status.PASS,
-                    severity=Severity.INFO,
                     summary=f"{verbatim} canary value(s) echoed verbatim; no substitution observed.",
                     evidence={"verbatim": verbatim, "noncompliant": noncompliant},
                 )
             )
             result.status = Status.PASS
-            result.score = 100.0
+            result.score = Scale.mean(result.findings)
         else:
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "integrity.verdict",
+                    "inconclusive",
                     id="integrity.inconclusive",
                     title="Integrity canaries inconclusive",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.INFO,
                     summary="The model did not echo any canary verbatim, so tampering could not be assessed.",
                     evidence={"noncompliant": noncompliant},
                 )

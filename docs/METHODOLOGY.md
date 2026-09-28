@@ -84,7 +84,11 @@ Detectors that judge by elimination use the **deductions** method instead
 (`DeductionScale`): the score starts at 100, each finding may deduct points
 (`Finding.deduction`) and/or cap the score (`Finding.cap`), and the lowest cap
 wins. The scale then lists each outcome's deduction or cap. `model_identity` and
-`billing` use it. The other detectors show their findings without points.
+`billing` use it, and so do `context_window`, `streaming`, `reliability` and
+`security`. Detectors that return one verdict (`vision`, `injected_prompt`,
+`integrity`, `quality_judge`) publish one row per verdict; informational ones
+(`performance`, `prompt_cache`) publish their outcomes as not counted. Every
+detector now publishes its scale.
 
 维度得分为其各检测器得分的**等权平均**——检查项多的检测器不会压过检查项少的；
 没有数值分数的检测器不计入。维度状态取检测器得出的最差结论；但 HIGH/CRITICAL
@@ -96,7 +100,9 @@ wins. The scale then lists each outcome's deduction or cap. `model_identity` and
 `connectivity` 和 `determinism` 采用这种平均分方式。`model_identity` 和 `billing`
 采用**扣分**方式（`DeductionScale`）：从 100 分开始，每项发现可扣分
 （`Finding.deduction`）和/或设定分数上限（`Finding.cap`），取最低上限。其他检测器
-只列出发现，不显示分数。
+现在所有检测器都公开计分标准：`context_window`、`streaming`、`reliability` 和
+`security` 也采用扣分方式；只给出单一结论的检测器每种结论对应一行；仅供参考的检测器
+（`performance`、`prompt_cache`）的结果都标为不计分。
 
 ---
 
@@ -279,6 +285,17 @@ effective/advertised ratio < ~0.5 is a strong finding. Distinctive all-or-nothin
 or chunk-boundary failure patterns, or failure on non-literal needles that a
 literal needle passes → RAG/summarization-shim risk.
 
+**Scoring scale / 计分标准** (`SCALE` in `zing/detectors/context_window.py`,
+method "deductions"): the score starts at 100.
+
+| Check | Outcome → effect |
+|---|---|
+| `context_window.window` (the verdict) | ≥ 90% of the declared window recalled / 50–90% / below half: −(100 − measured ÷ declared × 100) · no recall at all: −100 (HIGH) |
+| `context_window.lost_in_middle` | start and end recalled, middle not: −15 (MEDIUM) |
+| `context_window.rejected_below_claim` | rejected well below the claim: none (HIGH; status only) |
+
+Without a declared window the measurement is reported but not scored.
+
 **False-positive caveats / 误报与确认.** A genuine long-context model exhibits
 *lost-in-the-middle* and can fail a too-hard mid-needle even with no truncation —
 so **only edge-placement failures** prove truncation. Make the needle trivially
@@ -439,6 +456,19 @@ rate under stress, the forced tool not being chosen, or argument values not matc
 the determined expectation → faked/unreliable-capability risk. Single failures are
 not findings — *rates* are.
 
+**Scoring scale / 计分标准** (`SCALE` in `zing/detectors/capability.py`; the
+detector score is the mean of the counted checks):
+
+| Check | Outcome → points |
+|---|---|
+| `capability.tools` | delivered 100 · claimed, not delivered 0 (MEDIUM) · no call and not claimed: not counted |
+| `capability.json_mode` | delivered 100 · wrong value, not claimed 70 · no JSON, not claimed 50 · claimed, not delivered 0 (MEDIUM) |
+| `capability.json_schema` | honored 100 · absent as claimed 100 · over-delivered 90 · claimed, not enforced 40 |
+| `capability.max_output` | to the cap 100 · plausible length 90 · stopped early 70 · far below a large claim 60 |
+| `capability.tools.encoding` | non-OpenAI arguments encoding: not counted (LOW) |
+
+A probe that failed to complete is not counted (it used to count 50).
+
 **False-positive caveats / 误报与确认.** Even genuine top models occasionally emit
 invalid JSON or skip a forced tool, so measure failure **rates** over many trials,
 not single failures. Legitimate Anthropic↔OpenAI dialect translation reshapes
@@ -493,6 +523,17 @@ buffered** = R ≈ 1 (whole answer in a late burst). **FAKE-timer** = CV(ITL) ne
 
 **What counts as a finding / 何为发现.** R ≈ 1 / late-burst delivery, or uniform-timer
 ITL (CV near zero) → fake-streaming risk (the timer pattern is the strongest tell).
+
+**Scoring scale / 计分标准** (`SCALE` in `zing/detectors/streaming.py`, method
+"deductions"): the score starts at 100.
+
+| Check | Outcome → effect |
+|---|---|
+| `streaming.few_chunks`, `streaming.late_ttft`, `streaming.uniform_gaps` | buffering signal: the first −40, a second −20, any further one none (MEDIUM) |
+| `streaming.no_usage` | no usage chunk: −15, only when nothing is buffered (LOW) |
+| `streaming.failed` | the stream failed: cap 0 (HIGH) |
+
+So: authentic 100 · usage missing 85 · one buffering signal 60 · two or more 40 · failed 0.
 
 **False-positive caveats / 误报与确认.** Network jitter, short outputs, server-side
 speculative decoding, and a fast small model can all mimic burst delivery; a real
@@ -630,6 +671,17 @@ concurrency → throttling/peak-downgrade risk. Quota decrementing while you are
 premature 429s vs your declared limits, or leaked upstream request-ids → shared-pool
 risk.
 
+**Scoring scale / 计分标准** (`SCALE` in `zing/detectors/reliability.py`, method
+"deductions"): the score starts at 100.
+
+| Check | Outcome → effect |
+|---|---|
+| `reliability.success_rate` | all succeeded: none · some/many failed: −(100 − success rate × 100) (LOW/MEDIUM) · all rate-limited: not scored |
+| `reliability.latency` | p95 above 30 s: −15% of the remaining score (LOW) |
+| `reliability.rate_limited` | HTTP 429 throttling: none (excluded from the success rate) |
+
+The `performance` probe in this dimension is informational: its outcomes are published but never counted.
+
 **False-positive caveats / 误报与确认.** Genuine providers also slow down and 429
 under real load, and output length varies naturally; a single-snapshot audit misses
 time-based behavior. Require **repeated** measurements across time windows; correlate
@@ -716,6 +768,14 @@ identities → shared-cache / retention risk. A leaked preamble *plus* a `prompt
 overcount (≥2 independent indicators) → injected-system-prompt risk. Any value
 substitution in a determined tool argument / canary-anchored output → response-tampering
 risk.
+
+**Scoring scales / 计分标准.** `security` (method "deductions"): plain http
+caps at 40, a verbatim API-key echo caps at 30, the lowest cap wins (http + echo
+now scores 30, it used to score 40); headers and the black-box note have no effect.
+`injected_prompt` (one verdict): clean 100 · leak only 85 · fixed overhead 75 ·
+overhead + leak 55 · unmeasurable: not counted. `integrity` (one verdict): intact 100
+· substitution 45 · substitution corroborated by a baseline 10 (CRITICAL) ·
+inconclusive: not counted. `prompt_cache` is informational: never counted.
 
 **False-positive caveats / 误报与确认.** Prefix caching is a *legitimate* optimization
 and same-account warming or a warm GPU can lower TTFT without cross-user leakage — use

@@ -21,7 +21,8 @@ from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import usage_field
-from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
+from zing.detectors.scale import Scale, outcome
+from zing.models import DetectorResult, Dimension, RequestSpec, Severity, Status
 from zing.utils.tokenize import estimate_messages_tokens
 
 # Overhead (reported prompt_tokens − estimate) above this, holding roughly constant
@@ -29,6 +30,22 @@ from zing.utils.tokenize import estimate_messages_tokens
 _OVERHEAD_TOKENS = 30
 # The two probes' overheads must agree within this to count as a *fixed* prefix.
 _OVERHEAD_CONSISTENCY = 16
+
+
+# The detector score is its one verdict's points (the published scale).
+SCALE = Scale(
+    outcome("injected_prompt.verdict", "clean", 100.0, Status.PASS,
+            label="Input-token overhead is small and no hidden instructions leaked."),
+    outcome("injected_prompt.verdict", "leak", 85.0, Status.INFO, Severity.LOW,
+            label="Instruction-like text leaked when asked (weak on its own)."),
+    outcome("injected_prompt.verdict", "overhead", 75.0, Status.WARN, Severity.LOW,
+            label="A large fixed input-token overhead, constant across message sizes."),
+    outcome("injected_prompt.verdict", "suspected", 55.0, Status.WARN, Severity.MEDIUM,
+            label="A fixed input-token overhead and a leaked preamble together."),
+    outcome("injected_prompt.verdict", "inconclusive", None, Status.INCONCLUSIVE,
+            label="No usable prompt token counts to measure the overhead."),
+    titles={"injected_prompt.verdict": "Injected system prompt"},
+)
 
 
 @register
@@ -40,7 +57,7 @@ class InjectedPromptDetector(Detector):
     cost_hint = 3
 
     async def run(self, ctx: AuditContext) -> DetectorResult:
-        result = self.new_result()
+        result = self.new_result(scoring=SCALE.scoring())
         tok = ctx.tokenizer_hint()
 
         overhead = await self._measure_overhead(ctx, tok)
@@ -57,11 +74,11 @@ class InjectedPromptDetector(Detector):
         if fixed_prefix and leaked:
             assert overhead is not None  # fixed_prefix implies a measured overhead
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "injected_prompt.verdict",
+                    "suspected",
                     id="injected_prompt.suspected",
                     title="Hidden system prompt likely injected",
-                    status=Status.WARN,
-                    severity=Severity.MEDIUM,
                     summary=(
                         f"Reported prompt tokens carry a large fixed overhead "
                         f"(~{overhead['min']} tokens beyond estimate, constant across "
@@ -73,15 +90,15 @@ class InjectedPromptDetector(Detector):
                 )
             )
             result.status = Status.WARN
-            result.score = 55.0
+            result.score = Scale.mean(result.findings)
         elif fixed_prefix:
             assert overhead is not None
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "injected_prompt.verdict",
+                    "overhead",
                     id="injected_prompt.overhead",
                     title="Unexpected fixed input-token overhead",
-                    status=Status.WARN,
-                    severity=Severity.LOW,
                     summary=(
                         f"Prompt tokens sit ~{overhead['min']} above estimate and stay "
                         f"constant as the message grows — consistent with a hidden "
@@ -91,14 +108,14 @@ class InjectedPromptDetector(Detector):
                 )
             )
             result.status = Status.WARN
-            result.score = 75.0
+            result.score = Scale.mean(result.findings)
         elif leaked:
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "injected_prompt.verdict",
+                    "leak",
                     id="injected_prompt.leak",
                     title="Model surfaced instruction-like preamble (weak)",
-                    status=Status.INFO,
-                    severity=Severity.LOW,
                     summary=(
                         "When asked to repeat preceding instructions the model returned "
                         "instruction-like text rather than NONE. Models confabulate, so "
@@ -108,33 +125,33 @@ class InjectedPromptDetector(Detector):
                 )
             )
             result.status = Status.INFO
-            result.score = 85.0
+            result.score = Scale.mean(result.findings)
         elif overhead is None:
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "injected_prompt.verdict",
+                    "inconclusive",
                     id="injected_prompt.inconclusive",
                     title="Could not measure input-token overhead",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.INFO,
                     summary="No usable prompt_tokens in the responses; overhead check skipped.",
                     evidence={},
                 )
             )
             result.status = Status.INCONCLUSIVE
-            result.score = None
+            result.score = Scale.mean(result.findings)
         else:
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "injected_prompt.verdict",
+                    "clean",
                     id="injected_prompt.clean",
                     title="No sign of an injected system prompt",
-                    status=Status.PASS,
-                    severity=Severity.INFO,
                     summary="Input-token overhead is small/template-sized and no preamble leaked.",
                     evidence={"overhead": overhead},
                 )
             )
             result.status = Status.PASS
-            result.score = 100.0
+            result.score = Scale.mean(result.findings)
         return result
 
     # ------------------------------------------------------------------ #

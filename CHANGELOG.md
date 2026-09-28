@@ -51,7 +51,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `protocol`, `connectivity` and `determinism` detectors publish their scales;
   `model_identity` and `billing` publish "deductions" scales (start at 100, each
   finding deducts points and/or caps the score) with `Finding.deduction` /
-  `Finding.cap`.
+  `Finding.cap`. Every other detector publishes its scale too (capability,
+  vision, context window, streaming, reliability, performance, security,
+  injected prompt, integrity, prompt cache, LLM judge).
 
 - **Docker image for the web UI** (`Dockerfile`, [docs/DOCKER.md](docs/DOCKER.md)).
   Inside a container the server may listen on the container's interfaces when
@@ -179,6 +181,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **`capability`: inconclusive checks no longer count** (a probe that failed
+  to complete scored 50), as in `protocol`.
+- **`security`: the lowest cap wins.** Plain http plus a verbatim API-key echo
+  now scores 30 (the key-echo cap), not 40.
 - **`protocol`: inconclusive checks no longer count.** A check without a usable
   response used to score 50 and pull the detector down; it is now left out of
   the mean (the detector has no score when no check counted).

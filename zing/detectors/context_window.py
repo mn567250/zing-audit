@@ -5,6 +5,11 @@ from, and compares it to the advertised context window. A relay that silently
 truncates, summarizes, or RAG-shims long prompts will recall well below its
 claim, or fail a needle buried in the middle while passing start and end. zing
 reports the measured divergence; it never asserts fraud outright.
+
+Scoring follows the published ``SCALE`` (method "deductions"): the score starts
+at 100, the window verdict deducts the share of the declared window that did not
+recall (100 - measured/declared x 100), and a needle lost in the middle deducts
+15. Without a declared window the measurement is reported but not scored.
 """
 
 from __future__ import annotations
@@ -12,11 +17,11 @@ from __future__ import annotations
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import build_haystack, contains_ci, stable_marker
+from zing.detectors.scale import DeductionScale, outcome
 from zing.models import (
     CompletionOutcome,
     DetectorResult,
     Dimension,
-    Finding,
     RequestSpec,
     Severity,
     Status,
@@ -52,6 +57,39 @@ _PARAM_REJECTION_HINTS = (
 )
 
 
+_LOST_IN_MIDDLE_DEDUCTION = 15.0
+_WINDOW = "deducts the share of the declared window that did not recall."
+
+SCALE = DeductionScale(
+    outcome("context_window.window", "consistent", None, Status.PASS, max_deduction=10.0,
+            label="Recall held up to at least 90% of the declared window; " + _WINDOW),
+    outcome("context_window.window", "short", None, Status.WARN, Severity.MEDIUM,
+            max_deduction=50.0,
+            label="Recall held up to 50-90% of the declared window; " + _WINDOW),
+    outcome("context_window.window", "truncated", None, Status.FAIL, Severity.HIGH,
+            max_deduction=100.0,
+            label="Recall failed below half of the declared window; " + _WINDOW),
+    outcome("context_window.window", "no_recall", None, Status.FAIL, Severity.HIGH,
+            deduction=100.0, label="Not even the smallest probe size recalled the needle."),
+    outcome("context_window.lost_in_middle", "lost", None, Status.WARN, Severity.MEDIUM,
+            deduction=_LOST_IN_MIDDLE_DEDUCTION,
+            label="The start and end were recalled but the middle was not."),
+    outcome("context_window.rejected_below_claim", "rejected", None, Status.FAIL, Severity.HIGH,
+            label="A prompt well below the declared window was rejected as too long."),
+    outcome("context_window.measured", "no_claim", None, Status.INFO,
+            label="No declared window to compare against: measured only, not scored."),
+    outcome("context_window.no_ladder", "no_sizes", None, Status.INCONCLUSIVE, Severity.LOW,
+            label="No probe size fit between the floor and the cap."),
+    titles={"context_window.window": "Effective context window"},
+)
+
+
+def _window_deduction(ratio: float) -> float:
+    """Points the window verdict takes off: the unrecalled share of the claim
+    (rounded like the score itself)."""
+    return round(100.0 - round(min(1.0, ratio) * 100, 1), 1)
+
+
 @register
 class ContextWindowDetector(Detector):
     id = "context_window"
@@ -61,7 +99,7 @@ class ContextWindowDetector(Detector):
     cost_hint = 14
 
     async def run(self, ctx: AuditContext) -> DetectorResult:
-        result = self.new_result()
+        result = self.new_result(scoring=SCALE.scoring())
         tokenizer = ctx.tokenizer_hint()
 
         declared = ctx.declared_context_window()
@@ -72,11 +110,10 @@ class ContextWindowDetector(Detector):
         ladder_sizes = self._ladder(floor, upper)
         if not ladder_sizes:
             result.findings.append(
-                Finding(
-                    id="context_window.no_ladder",
+                SCALE.finding(
+                    "context_window.no_ladder",
+                    "no_sizes",
                     title="Context-window probe could not run",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.LOW,
                     summary=f"No probe sizes fit between floor and cap (upper={upper}).",
                     evidence={"declared": declared, "upper": upper, "floor": floor},
                 )
@@ -142,7 +179,6 @@ class ContextWindowDetector(Detector):
 
         # --- Lost-in-the-middle at a mid size (depths 0.1 / 0.5 / 0.9). ------- #
         depth_results: dict[str, bool | None] = {}
-        lost_in_middle = False
         mid_size = min(32_000, effective_window or 16_000)
         # Only worth spending calls if the mid size is at/below what we know works.
         if mid_size >= floor and (effective_window is None or mid_size <= effective_window):
@@ -157,13 +193,11 @@ class ContextWindowDetector(Detector):
             end_ok = depth_results.get("0.9") is True
             middle_ok = depth_results.get("0.5") is True
             if start_ok and end_ok and not middle_ok:
-                lost_in_middle = True
                 result.findings.append(
-                    Finding(
-                        id="context_window.lost_in_middle",
+                    SCALE.finding(
+                        "context_window.lost_in_middle",
+                        "lost",
                         title="Needle in the middle was not recalled",
-                        status=Status.WARN,
-                        severity=Severity.MEDIUM,
                         summary=(
                             "Start and end of the prompt were recalled but the middle "
                             "was not (lost-in-the-middle; cheap RAG/summarization shim "
@@ -177,11 +211,10 @@ class ContextWindowDetector(Detector):
         # --- Verdicts ---------------------------------------------------------- #
         if rejected_at is not None and declared and rejected_at < 0.9 * declared:
             result.findings.append(
-                Finding(
-                    id="context_window.rejected_below_claim",
+                SCALE.finding(
+                    "context_window.rejected_below_claim",
+                    "rejected",
                     title="Endpoint rejects context below its advertised window",
-                    status=Status.FAIL,
-                    severity=Severity.HIGH,
                     summary=(
                         f"A ~{rejected_at}-token prompt was rejected with a context-length "
                         f"error, well below the declared {declared}-token window."
@@ -197,11 +230,11 @@ class ContextWindowDetector(Detector):
             if effective_window is None:
                 # Even the smallest ladder rung did not recall — nothing usable.
                 result.findings.append(
-                    Finding(
+                    SCALE.finding(
+                        "context_window.window",
+                        "no_recall",
                         id="context_window.no_recall",
                         title="No probe size recalled the needle",
-                        status=Status.FAIL,
-                        severity=Severity.HIGH,
                         summary=(
                             f"Even a ~{ladder_sizes[0]}-token prompt failed recall; the "
                             f"usable window appears far below the declared {declared}."
@@ -212,11 +245,12 @@ class ContextWindowDetector(Detector):
                 result.status = Status.FAIL
             elif ratio < 0.5:
                 result.findings.append(
-                    Finding(
+                    SCALE.finding(
+                        "context_window.window",
+                        "truncated",
                         id="context_window.truncation",
+                        deduction=_window_deduction(ratio),
                         title="Real context window far below the declared one",
-                        status=Status.FAIL,
-                        severity=Severity.HIGH,
                         summary=(
                             f"Real context window ~{measured} << declared {declared} "
                             f"(silent truncation suspected)."
@@ -228,11 +262,12 @@ class ContextWindowDetector(Detector):
                 result.status = Status.FAIL
             elif ratio < 0.9:
                 result.findings.append(
-                    Finding(
+                    SCALE.finding(
+                        "context_window.window",
+                        "short",
                         id="context_window.short",
+                        deduction=_window_deduction(ratio),
                         title="Real context window below the declared one",
-                        status=Status.WARN,
-                        severity=Severity.MEDIUM,
                         summary=(
                             f"Real context window ~{measured} is below the declared "
                             f"{declared} (recall degrades before the advertised limit)."
@@ -243,11 +278,12 @@ class ContextWindowDetector(Detector):
                 result.status = Status.WARN if result.status != Status.FAIL else result.status
             else:
                 result.findings.append(
-                    Finding(
+                    SCALE.finding(
+                        "context_window.window",
+                        "consistent",
                         id="context_window.consistent",
+                        deduction=_window_deduction(ratio),
                         title="Measured context window consistent with the claim",
-                        status=Status.PASS,
-                        severity=Severity.INFO,
                         summary=(
                             f"Recalled a needle at ~{measured} tokens, near the declared "
                             f"{declared}."
@@ -258,18 +294,14 @@ class ContextWindowDetector(Detector):
                 if result.status not in (Status.FAIL, Status.WARN):
                     result.status = Status.PASS
 
-            score = round(min(1.0, ratio) * 100, 1)
-            if lost_in_middle:
-                score = round(max(0.0, score - 15.0), 1)
-            result.score = score
+            result.score = SCALE.total(result.findings)
         else:
             # Declared window unknown — report the measurement, do not score.
             result.findings.append(
-                Finding(
-                    id="context_window.measured",
+                SCALE.finding(
+                    "context_window.measured",
+                    "no_claim",
                     title="Measured effective context window",
-                    status=Status.INFO,
-                    severity=Severity.INFO,
                     summary=(
                         f"No declared context window to compare against; measured "
                         f"effective window ~{effective_window or '<' + str(ladder_sizes[0])} tokens."

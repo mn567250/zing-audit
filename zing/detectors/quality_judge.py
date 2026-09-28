@@ -15,11 +15,11 @@ from typing import Any
 from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
+from zing.detectors.scale import Scale, outcome
 from zing.models import (
     CompletionOutcome,
     DetectorResult,
     Dimension,
-    Finding,
     RequestSpec,
     Severity,
     Status,
@@ -34,6 +34,33 @@ _PROBES: tuple[tuple[str, str], ...] = tuple(
 _ANSWER_CLIP = 2000  # cap each answer fed to the judge, keeping the prompt bounded
 
 
+# The detector score is its one verdict's points (the published scale).
+SCALE = Scale(
+    outcome("quality_judge.verdict", "consistent", 95.0, Status.PASS,
+            label="The judge found the answers consistent with the claimed model."),
+    outcome("quality_judge.verdict", "suspicious", 50.0, Status.WARN, Severity.MEDIUM,
+            label="The judge found the answers unlike the claimed model (low/medium confidence)."),
+    outcome("quality_judge.verdict", "confident", 25.0, Status.WARN, Severity.MEDIUM,
+            label="The judge is confident the answers are unlike the claimed model (no baseline)."),
+    outcome("quality_judge.verdict", "confident_corroborated", 25.0, Status.FAIL, Severity.HIGH,
+            label="The judge is confident, and a trusted baseline corroborated the difference."),
+    outcome("quality_judge.verdict", "unrated_corroborated", 50.0, Status.FAIL, Severity.HIGH,
+            label="The judge gave no confidence, and a trusted baseline corroborated the difference."),
+    outcome("quality_judge.verdict", "inconclusive", None, Status.INCONCLUSIVE, Severity.LOW,
+            label="The judge could not commit to a verdict."),
+    outcome("quality_judge.verdict", "unavailable", None, Status.INCONCLUSIVE, Severity.LOW,
+            label="No target answers to judge."),
+    titles={"quality_judge.verdict": "LLM judge verdict"},
+)
+
+
+def _suspicious_outcome(confidence: str, high_sev: bool) -> str:
+    """Which "suspicious" row of the scale applies (score by confidence,
+    severity by confidence plus baseline corroboration)."""
+    if confidence == "high":
+        return "confident_corroborated" if high_sev else "confident"
+    return "unrated_corroborated" if high_sev else "suspicious"
+
 @register
 class QualityJudgeDetector(Detector):
     id = "quality_judge"
@@ -44,7 +71,7 @@ class QualityJudgeDetector(Detector):
     cost_hint = 5
 
     async def run(self, ctx: AuditContext) -> DetectorResult:
-        result = self.new_result()
+        result = self.new_result(scoring=SCALE.scoring())
         result.used_judge = True
         claimed = ctx.target.model
 
@@ -69,11 +96,11 @@ class QualityJudgeDetector(Detector):
         # If the target could not answer any probe, there is nothing to judge.
         if target_failures == len(_PROBES):
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "quality_judge.verdict",
+                    "unavailable",
                     id="quality_judge.unavailable",
                     title="No target answers to judge",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.LOW,
                     summary="Target returned no usable content for any discriminating probe.",
                     evidence={"probes": len(_PROBES), "failed": target_failures},
                     recommendation="Re-run once the endpoint reliably returns completions.",
@@ -121,14 +148,14 @@ class QualityJudgeDetector(Detector):
             corroborated = bool(baseline_answers)
             high_sev = (not low_conf) and corroborated
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "quality_judge.verdict",
+                    _suspicious_outcome(confidence, high_sev),
                     id="quality_judge.suspicious",
                     title=(
                         "LLM judge: behavior inconsistent with claimed model "
                         "(possible downgrade/substitution/quantization)"
                     ),
-                    status=Status.FAIL if high_sev else Status.WARN,
-                    severity=Severity.HIGH if high_sev else Severity.MEDIUM,
                     summary=(
                         f"Judge ({confidence or 'unspecified'} confidence) found the answers "
                         f"unlike '{claimed}'"
@@ -149,14 +176,14 @@ class QualityJudgeDetector(Detector):
                 )
             )
             result.status = Status.FAIL if high_sev else Status.WARN
-            result.score = 25.0 if confidence == "high" else 50.0
+            result.score = Scale.mean(result.findings)
         elif kind == "consistent":
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "quality_judge.verdict",
+                    "consistent",
                     id="quality_judge.consistent",
                     title="LLM judge: behavior consistent with claimed model",
-                    status=Status.PASS,
-                    severity=Severity.INFO,
                     summary=(
                         f"Judge ({confidence or 'unspecified'} confidence) found the answers "
                         f"consistent with '{claimed}'."
@@ -165,15 +192,15 @@ class QualityJudgeDetector(Detector):
                 )
             )
             result.status = Status.PASS
-            result.score = 95.0
+            result.score = Scale.mean(result.findings)
         else:
             # "inconclusive", an unrecognized verdict, or a judge error.
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "quality_judge.verdict",
+                    "inconclusive",
                     id="quality_judge.inconclusive",
                     title="LLM judge: assessment inconclusive",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.LOW,
                     summary=(
                         verdict.get("_error")
                         or f"Judge could not commit to a verdict for '{claimed}'."

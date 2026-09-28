@@ -6,7 +6,26 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **`zing serve` is local-only by construction.** It refuses any bind address
+  other than loopback (`127.0.0.1`, `::1`, `localhost`); `--host 0.0.0.0` is no
+  longer accepted. It answers only to `Host: localhost`, `127.0.0.1` or `[::1]`
+  (DNS-rebinding protection; `ZING_ALLOWED_HOSTS` adds names), refuses
+  state-changing requests from another origin or site (CSRF), requires
+  `application/json` request bodies, and sends anti-framing / no-sniff /
+  no-referrer headers.
+- **Owner-only data directory.** `~/.zing` (or `$ZING_DATA_DIR`, when zing
+  creates it) is `0700`, and `history.db` / `watches.db` (which holds monitor
+  API keys) are `0600`.
+
 ### Added
+
+- **Docker image for the web UI** (`Dockerfile`, [docs/DOCKER.md](docs/DOCKER.md)).
+  Inside a container the server may listen on the container's interfaces when
+  `ZING_CONTAINER=1` is set *and* a container runtime is detected; publish it
+  to the host's loopback (`-p 127.0.0.1:8000:8000`). `zing serve` also reads
+  `ZING_HOST` / `ZING_PORT`, and opens no browser in a container.
 
 - **Web UI v2, served side by side with the classic UI for A/B comparison.**
   `/v2/`, `/v2/history`, `/v2/watches`, `/v2/tools` and `/v2/console` rebuild

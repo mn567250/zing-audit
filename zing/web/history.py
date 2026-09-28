@@ -13,12 +13,13 @@ stream, so :func:`save` swallows its own errors and returns ``-1`` on failure.
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+
+from zing import datadir
 
 # Columns returned by the list view (everything except the heavy report_json).
 _SUMMARY_COLS = (
@@ -35,31 +36,18 @@ _SUMMARY_COLS = (
 )
 
 
-def _data_dir() -> Path:
-    return Path(os.environ.get("ZING_DATA_DIR") or (Path.home() / ".zing"))
+_DB_NAME = "history.db"
 
 
 def _db_path() -> Path:
-    return _data_dir() / "history.db"
+    return datadir.db_path(_DB_NAME)
 
 
 @contextmanager
 def _connect() -> Iterator[sqlite3.Connection]:
-    """Yield a fresh connection with rows as dicts; commit + close on exit.
-
-    A short busy_timeout lets concurrent local writers retry instead of raising
-    ``database is locked`` — plenty for a single-user local server.
-    """
-    _data_dir().mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(_db_path()), timeout=5.0)
-    conn.row_factory = sqlite3.Row
-    try:
-        conn.execute("PRAGMA busy_timeout=5000")
-        conn.execute("PRAGMA journal_mode=WAL")
+    """Yield a fresh connection with rows as dicts; commit + close on exit."""
+    with datadir.connect(_DB_NAME) as conn:
         yield conn
-        conn.commit()
-    finally:
-        conn.close()
 
 
 def init() -> None:

@@ -48,6 +48,7 @@ from zing.config import (
     validate_suite,
 )
 from zing.runner import run_audit
+from zing.web.security import LocalOnlyMiddleware
 
 _STATIC = Path(__file__).parent / "static"
 _V2 = _STATIC / "v2"
@@ -275,6 +276,9 @@ def create_app() -> FastAPI:
         redoc_url=None,
         lifespan=_lifespan,
     )
+    # Local-only: Host allowlist (DNS rebinding), Origin + JSON checks (CSRF),
+    # security headers. See zing/web/security.py.
+    app.add_middleware(LocalOnlyMiddleware)
 
     @app.get("/api/health")
     async def health() -> Any:

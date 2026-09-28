@@ -162,7 +162,10 @@ Enter a relay and the model it claims; watch the audit stream **live** (per-dete
 progress over SSE), then read a shareable verdict report (grade, per-dimension
 breakdown, plain-language findings, downloadable JSON). It runs entirely on your
 machine — a key typed in the browser reaches only your local server and the target
-relay, never a third party. Bind stays on `127.0.0.1` by default.
+relay, never a third party. The server only listens on loopback (`127.0.0.1`, `::1`,
+`localhost`) and answers only to those host names, and it refuses cross-site requests —
+it has no login because nothing outside your machine can reach it. To run it in Docker,
+see [docs/DOCKER.md](docs/DOCKER.md) (`docker run -p 127.0.0.1:8000:8000 -v zing-data:/data zing`).
 
 A language dropdown in the header of every page switches the UI between
 **🇬🇧 English** (default), **🇨🇳 Chinese** (the original UI), **🇫🇷 French**, **🇪🇸 Spanish**,

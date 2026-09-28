@@ -21,7 +21,7 @@ SECRET = "sk-tools-secret-key-abcdef123456"
 
 @pytest.fixture
 def client():
-    return TestClient(create_app())
+    return TestClient(create_app(), base_url="http://localhost")
 
 
 def _embed_verdict(target) -> dict:

@@ -680,19 +680,22 @@ def kb_command(
 
 @app.command("serve")
 def serve_command(
-    host: Annotated[str, typer.Option("--host", help="Bind address (default localhost only).")] = "127.0.0.1",
-    port: Annotated[int, typer.Option("--port", "-p", help="Port to serve on.")] = 8000,
-    open_browser: Annotated[bool, typer.Option("--open/--no-open", help="Open the UI in a browser.")] = True,
+    host: Annotated[str | None, typer.Option("--host", help="Loopback bind address: 127.0.0.1 (default), ::1 or localhost. Env: ZING_HOST.")] = None,
+    port: Annotated[int | None, typer.Option("--port", "-p", help="Port to serve on (default 8000). Env: ZING_PORT.")] = None,
+    open_browser: Annotated[bool | None, typer.Option("--open/--no-open", help="Open the UI in a browser (default: yes, except in a container).")] = None,
 ) -> None:
     """Serve the local web UI — a point-and-click front end for `zing check`.
 
     Runs entirely on your machine: keys entered in the browser reach only this
-    local server and the target relay, never a third party. Requires the web extra:
+    local server and the target relay, never a third party. It listens on
+    loopback only; in a container set ZING_CONTAINER=1 and publish the port to
+    the host's loopback (-p 127.0.0.1:8000:8000). Requires the web extra:
     `pip install 'zing-audit\\[web]'`.
     """
     try:
         import uvicorn
 
+        from zing.web.security import BindError, resolve_bind
         from zing.web.server import create_app
     except ImportError as exc:
         err_console.print(
@@ -701,13 +704,22 @@ def serve_command(
         )
         raise typer.Exit(code=2) from exc
 
-    url = f"http://{'localhost' if host in ('127.0.0.1', '0.0.0.0') else host}:{port}"
+    try:
+        host, port = resolve_bind(host, port)
+    except BindError as exc:
+        err_console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2) from exc
+    loopback = host in ("127.0.0.1", "::1", "localhost")
+    url = f"http://localhost:{port}"
     console.print(f"[green]zing[/green] web UI → [bold]{url}[/bold]   (Ctrl-C to stop)")
-    if host == "0.0.0.0":
+    if not loopback:
         err_console.print(
-            "[yellow]![/yellow] Binding 0.0.0.0 exposes the audit API (and any keys you "
-            "type) to your network. Prefer the default 127.0.0.1."
+            f"[yellow]![/yellow] Container mode: listening on {host} inside the container. "
+            "Publish the port to the host's loopback only, e.g. -p 127.0.0.1:"
+            f"{port}:{port}."
         )
+    if open_browser is None:
+        open_browser = loopback
     if open_browser:
         import threading
         import webbrowser

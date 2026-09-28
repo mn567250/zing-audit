@@ -22,7 +22,6 @@ server-side by the scheduler, expose the key.
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 import time
 from collections.abc import Iterator
@@ -30,7 +29,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from zing import i18n
+from zing import datadir, i18n
 
 # Full column set, in table order. ``api_key`` lives here for the scheduler, but
 # is filtered out of the public listing (see _LIST_COLS).
@@ -60,28 +59,19 @@ _ALL_COLS = (
 _LIST_COLS = tuple(c for c in _ALL_COLS if c != "api_key")
 
 
-def _data_dir() -> Path:
-    return Path(os.environ.get("ZING_DATA_DIR") or (Path.home() / ".zing"))
+_DB_NAME = "watches.db"
 
 
 def _db_path() -> Path:
-    return _data_dir() / "watches.db"
+    return datadir.db_path(_DB_NAME)
 
 
 @contextmanager
 def _connect() -> Iterator[sqlite3.Connection]:
     """Yield a fresh connection with rows as dicts; commit + close on exit."""
-    _data_dir().mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(_db_path()), timeout=5.0)
-    conn.row_factory = sqlite3.Row
-    try:
-        conn.execute("PRAGMA busy_timeout=5000")
-        conn.execute("PRAGMA journal_mode=WAL")
+    with datadir.connect(_DB_NAME) as conn:
         _ensure_table(conn)
         yield conn
-        conn.commit()
-    finally:
-        conn.close()
 
 
 def _ensure_table(conn: sqlite3.Connection) -> None:

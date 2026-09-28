@@ -173,6 +173,10 @@ class Finding(BaseModel):
     # inconclusive), so it neither raises nor lowers the detector score.
     outcome: str | None = None
     score: float | None = None
+    # Scale method "deductions": the points this finding took off the detector's
+    # starting 100, and the ceiling it put on the detector score (None: neither).
+    deduction: float | None = None
+    cap: float | None = None
     # Parametrized checks: one scale check applied to many subjects (e.g. every
     # attribute of a response). ``check`` names the scale check this finding
     # scored against (None: the finding id itself); ``subject`` what was checked.
@@ -193,6 +197,11 @@ class ScoringOutcome(BaseModel):
     check: str  # the finding id of the check
     outcome: str  # stable key, unique within the check
     score: float | None = None  # None: the outcome is not counted
+    # Method "deductions" (instead of ``score``): a fixed deduction from 100, or
+    # one that varies per finding up to ``max_deduction``; and/or a score cap.
+    deduction: float | None = None
+    max_deduction: float | None = None
+    cap: float | None = None
     status: Status
     severity: Severity = Severity.INFO
     label: str = ""  # English, one line: when this outcome applies
@@ -205,6 +214,8 @@ class DetectorScoring(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     # "mean_of_checks": the plain average of the counted checks' scores.
+    # "deductions": start at 100, subtract every finding's deduction, then apply
+    # the lowest cap any finding set (clamped to 0-100).
     method: str = "mean_of_checks"
     outcomes: list[ScoringOutcome] = Field(default_factory=list)
     # English display titles of parametrized checks (check -> title): a report

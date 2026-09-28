@@ -245,3 +245,61 @@ async def test_parametrized_checks_are_translated(tmp_path, lang, words):
         assert w in panel, (lang, w)
     for en in ("Core response attributes", "Show all", "of 8 OK", "Present with a valid value"):
         assert en not in panel, (lang, en)
+
+
+def _deductions_report() -> dict:
+    # billing with an inflated prompt (cap 55) and model identity with one
+    # diverging fingerprint (-12.5) — detectors on "deductions" scales
+    from zing.detectors import billing, model_identity
+    from zing.detectors.scale import DeductionScale
+    from zing.models import AuditReport, DetectorResult, Dimension, RedactedTarget, Status, Verdict
+    from zing.scoring import build_dimensions
+
+    b = billing.SCALE
+    bill = DetectorResult(id="billing", name="Token/usage billing audit", dimension=Dimension.BILLING,
+                          status=Status.FAIL, scoring=b.scoring(), findings=[
+                              b.finding("billing.usage-inflation", "inflated",
+                                        title="Reported prompt tokens far exceed estimate",
+                                        summary="Reported prompt tokens (900) far exceed independent estimate (~135)."),
+                          ])
+    m = model_identity.SCALE
+    ident = DetectorResult(id="model_identity", name="Model identity & downgrade fingerprinting",
+                           dimension=Dimension.MODEL_IDENTITY, status=Status.WARN, scoring=m.scoring(),
+                           findings=[
+                               m.finding("model_identity.self_id", "consistent", title="Self-identification consistent",
+                                         summary="Self-id mentions genuine brand words for gpt-4o."),
+                               m.finding("model_identity.fp", "diverged", id="model_identity.fp.cutoff",
+                                         deduction=12.5, title="Fingerprint divergence: cutoff",
+                                         summary="Probe 'cutoff' diverged from native behavior."),
+                           ])
+    for det in (bill, ident):
+        det.score = DeductionScale.total(det.findings)
+    report = AuditReport(
+        tool_version="t", mode="check", suite="standard",
+        target=RedactedTarget(name="t", kind="target", base_url="http://relay.test/v1", model="gpt-4o"),
+        verdict=Verdict(), dimensions=build_dimensions([bill, ident], None), detectors=[bill, ident],
+    )
+    return json.loads(report.model_dump_json())
+
+
+@needs_node
+def test_deduction_scales_show_deductions_and_caps(tmp_path):
+    report = _deductions_report()
+    assert [d["score"] for d in report["detectors"]] == [55.0, 87.5]
+    html = _render(tmp_path, "en", report)["html"]
+    text = " ".join(_text(html).split())
+    assert text.count("Detector score: starts at 100; findings deduct points or cap it") == 2
+    # what each finding did to the score, next to it
+    assert '<span class="pts">cap 55</span>' in html
+    assert '<span class="pts">−12.5 pts</span>' in html
+    assert '<span class="pts">No deduction</span>' in html
+    # and the scale tip lists every outcome's effect
+    assert '<span class="p">up to −25 pts · cap 20</span>' in html
+    assert '<span class="p">cap 55</span>' in html  # a check's tip lists its own outcomes
+
+
+@needs_node
+def test_deduction_scales_are_translated(tmp_path):
+    html = _render(tmp_path, "de", _deductions_report())["html"]
+    assert '<span class="pts">Obergrenze 55</span>' in html and '<span class="pts">Kein Abzug</span>' in html
+    assert "starts at 100" not in html and "The answer diverged" not in html

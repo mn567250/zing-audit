@@ -6,6 +6,10 @@ prompt checked against the genuine brand words (and rival brands that betray a
 swap), the knowledge base's pure-code behavioral fingerprints (knowledge cutoff,
 tokenizer quirks, etc.), and the ``model`` field the relay echoes back. Divergence
 between the claim and what the model actually behaves like is the signal.
+
+Scoring follows the published ``SCALE`` (method "deductions"): the score starts
+at 100, each diverging fingerprint deducts its weight share of 100 points (at
+most 25), and a rival-brand contradiction caps the score at 20.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from zing.detectors.helpers import (
     contains_word_any,
     words_present,
 )
+from zing.detectors.scale import DeductionScale, outcome
 from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
 
 # Substrings that name a cheaper/smaller tier of a family. If the returned model
@@ -53,6 +58,45 @@ _RIVAL_BRANDS = (
 )
 
 _SELF_ID_PROMPT = prompts.text("model_identity.self_id")
+
+# A single fingerprint can take at most this many points; a rival-brand
+# contradiction caps the whole score at _CONTRADICTION_CAP.
+_MAX_FP_DEDUCTION = 25.0
+_CONTRADICTION_CAP = 20.0
+_NO_RESPONSE = "No usable response to judge by."  # same sentence as protocol's scale
+
+SCALE = DeductionScale(
+    outcome("model_identity.self_id", "consistent", None, Status.PASS,
+            label="The self-description named the genuine brand."),
+    outcome("model_identity.self_id", "rival_brand", None, Status.FAIL, Severity.HIGH,
+            cap=_CONTRADICTION_CAP,
+            label="The self-description named a rival brand and not the genuine one."),
+    outcome("model_identity.self_id", "both_brands", None, Status.WARN, Severity.LOW,
+            label="The self-description named the genuine brand and a rival (usually a benign contrast)."),
+    outcome("model_identity.self_id", "evasive", None, Status.WARN, Severity.LOW,
+            label="The self-description named neither the genuine brand nor a rival."),
+    outcome("model_identity.self_id", "unavailable", None, Status.INCONCLUSIVE,
+            label=_NO_RESPONSE),
+    outcome("model_identity.fp", "consistent", None, Status.PASS,
+            label="The answer matched the claimed model's native behavior."),
+    outcome("model_identity.fp", "diverged", None, Status.WARN, Severity.LOW,
+            max_deduction=_MAX_FP_DEDUCTION,
+            label="The answer diverged from native behavior: deducts the probe's weight share of 100 points."),
+    outcome("model_identity.fp", "rival_brand", None, Status.FAIL, Severity.HIGH,
+            max_deduction=_MAX_FP_DEDUCTION, cap=_CONTRADICTION_CAP,
+            label="The answer named a rival brand and not the genuine one: deducts the probe's weight share."),
+    outcome("model_identity.fp", "inconclusive", None, Status.INCONCLUSIVE,
+            label=_NO_RESPONSE),
+    outcome("model_identity.fp_aggregate", "diverged", None, Status.WARN, Severity.MEDIUM,
+            label="Two or more behavioral fingerprints diverged."),
+    outcome("model_identity.model_field", "consistent", None, Status.PASS,
+            label="The echoed model field matched the requested model."),
+    outcome("model_identity.model_field", "diverges", None, Status.WARN, Severity.MEDIUM,
+            label="The echoed model field names a different or smaller model."),
+    outcome("model_identity.model_field", "unavailable", None, Status.INCONCLUSIVE,
+            label="The response had no usable model field."),
+    titles={"model_identity.fp": "Behavioral fingerprints"},
+)
 
 
 @register
@@ -92,6 +136,7 @@ class ModelIdentityDetector(Detector):
             result.score = None
             return result
 
+        result.scoring = SCALE.scoring()
         model = ctx.profile.model
         has_high = False
         has_medium = False
@@ -102,7 +147,6 @@ class ModelIdentityDetector(Detector):
             has_high = True
 
         # 2) Pure-code behavioral fingerprints. -------------------------- #
-        score = 100.0
         probes = [fp for fp in ctx.profile.all_fingerprints() if fp.pure_code_checkable]
         probes = probes[: self.MAX_FINGERPRINTS]
         total_weight = sum(max(fp.weight, 0.0) for fp in probes)
@@ -123,11 +167,11 @@ class ModelIdentityDetector(Detector):
                 # A relay that errors or stays silent on a probe is not evidence of
                 # a downgrade by itself — record it but do not penalize the score.
                 result.findings.append(
-                    Finding(
+                    SCALE.finding(
+                        "model_identity.fp",
+                        "inconclusive",
                         id=f"model_identity.fp.{fp.id}",
                         title=f"Fingerprint inconclusive: {fp.signal}",
-                        status=Status.INCONCLUSIVE,
-                        severity=Severity.INFO,
                         summary=outcome.error_message or f"No usable response (HTTP {outcome.status_code}).",
                         evidence={"probe": fp.id, "status_code": outcome.status_code},
                     )
@@ -144,10 +188,13 @@ class ModelIdentityDetector(Detector):
             is_violation = self._fingerprint_violated(fp, text) or forbidden_contradiction
             if is_violation:
                 violated += 1
-                if total_weight > 0:
-                    # Cap a single probe's penalty so one fragile fingerprint can't
-                    # tank the identity score on its own.
-                    score -= min((max(fp.weight, 0.0) / total_weight) * 100.0, 25.0)
+                # Cap a single probe's penalty so one fragile fingerprint can't
+                # tank the identity score on its own.
+                deduction = (
+                    min((max(fp.weight, 0.0) / total_weight) * 100.0, _MAX_FP_DEDUCTION)
+                    if total_weight > 0
+                    else 0.0
+                )
                 if forbidden_contradiction:
                     has_high = True
                     hit = forbidden_hits[0]
@@ -155,22 +202,21 @@ class ModelIdentityDetector(Detector):
                         f"Probe '{fp.signal}' surfaced a forbidden brand ({hit}); "
                         f"expected behavior consistent with {model.id}."
                     )
-                    severity = Severity.HIGH
-                    status = Status.FAIL
+                    key = "rival_brand"
                 else:
                     soft_violations.append(fp.signal)
                     summary = (
                         f"Probe '{fp.signal}' diverged from native behavior. "
                         f"Expected: {fp.native_expected or self._expectation_text(fp)}."
                     )
-                    severity = Severity.LOW
-                    status = Status.WARN
+                    key = "diverged"
                 result.findings.append(
-                    Finding(
+                    SCALE.finding(
+                        "model_identity.fp",
+                        key,
                         id=f"model_identity.fp.{fp.id}",
+                        deduction=deduction,
                         title=f"Fingerprint divergence: {fp.signal}",
-                        status=status,
-                        severity=severity,
                         summary=summary,
                         evidence={
                             "probe": fp.id,
@@ -183,11 +229,11 @@ class ModelIdentityDetector(Detector):
                 )
             else:
                 result.findings.append(
-                    Finding(
+                    SCALE.finding(
+                        "model_identity.fp",
+                        "consistent",
                         id=f"model_identity.fp.{fp.id}",
                         title=f"Fingerprint consistent: {fp.signal}",
-                        status=Status.PASS,
-                        severity=Severity.INFO,
                         summary=f"Behavior consistent with {model.id}.",
                         evidence={"probe": fp.id, "observed": text[:200]},
                     )
@@ -197,11 +243,10 @@ class ModelIdentityDetector(Detector):
         if len(soft_violations) >= 2:
             has_medium = True
             result.findings.append(
-                Finding(
-                    id="model_identity.fp_aggregate",
+                SCALE.finding(
+                    "model_identity.fp_aggregate",
+                    "diverged",
                     title="Multiple behavioral fingerprints diverged",
-                    status=Status.WARN,
-                    severity=Severity.MEDIUM,
                     summary=(
                         f"{len(soft_violations)} pure-code fingerprints diverged from native "
                         f"{model.id} behavior ({', '.join(soft_violations)}); investigate "
@@ -217,10 +262,7 @@ class ModelIdentityDetector(Detector):
             has_medium = True
 
         # Score & status. ----------------------------------------------- #
-        score = max(0.0, min(100.0, score))
-        if has_high:
-            score = min(score, 20.0)
-        result.score = round(score, 1)
+        result.score = SCALE.total(result.findings)
 
         if has_high:
             result.status = Status.FAIL
@@ -267,11 +309,10 @@ class ModelIdentityDetector(Detector):
 
         if not (outcome.ok and outcome.has_content()):
             result.findings.append(
-                Finding(
-                    id="model_identity.self_id",
+                SCALE.finding(
+                    "model_identity.self_id",
+                    "unavailable",
                     title="Self-identification unavailable",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.INFO,
                     summary=outcome.error_message or f"No usable response (HTTP {outcome.status_code}).",
                     evidence={**evidence, "status_code": outcome.status_code},
                 )
@@ -290,11 +331,10 @@ class ModelIdentityDetector(Detector):
         if forbidden_hits and not keyword_present:
             hit = forbidden_hits[0]
             result.findings.append(
-                Finding(
-                    id="model_identity.self_id",
+                SCALE.finding(
+                    "model_identity.self_id",
+                    "rival_brand",
                     title="Self-identifies as a rival brand",
-                    status=Status.FAIL,
-                    severity=Severity.HIGH,
                     summary=(
                         f"Self-identifies as a rival brand ({hit}) under the claimed "
                         f"model id {ctx.target.claimed}, without naming the genuine brand."
@@ -307,11 +347,10 @@ class ModelIdentityDetector(Detector):
 
         if forbidden_hits and keyword_present:
             result.findings.append(
-                Finding(
-                    id="model_identity.self_id",
+                SCALE.finding(
+                    "model_identity.self_id",
+                    "both_brands",
                     title="Self-id names both the genuine and a rival brand",
-                    status=Status.WARN,
-                    severity=Severity.LOW,
                     summary=(
                         f"Self-id mentions genuine brand words for {model.id} but also a rival "
                         f"brand ({', '.join(forbidden_hits)}); commonly a benign contrast "
@@ -325,11 +364,10 @@ class ModelIdentityDetector(Detector):
 
         if not keyword_present:
             result.findings.append(
-                Finding(
-                    id="model_identity.self_id",
+                SCALE.finding(
+                    "model_identity.self_id",
+                    "evasive",
                     title="Evasive self-identification",
-                    status=Status.WARN,
-                    severity=Severity.LOW,
                     summary=(
                         "Self-id response names neither the genuine brand nor a rival; "
                         "treat as weak/evasive evidence."
@@ -340,11 +378,10 @@ class ModelIdentityDetector(Detector):
             return False
 
         result.findings.append(
-            Finding(
-                id="model_identity.self_id",
+            SCALE.finding(
+                "model_identity.self_id",
+                "consistent",
                 title="Self-identification consistent",
-                status=Status.PASS,
-                severity=Severity.INFO,
                 summary=f"Self-id mentions genuine brand words for {model.id}.",
                 evidence=evidence,
             )
@@ -365,11 +402,10 @@ class ModelIdentityDetector(Detector):
         returned = (outcome.model_returned or "").strip()
         if not (outcome.ok) or not returned:
             result.findings.append(
-                Finding(
-                    id="model_identity.model_field",
+                SCALE.finding(
+                    "model_identity.model_field",
+                    "unavailable",
                     title="No usable echoed model field",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.INFO,
                     summary=(
                         outcome.error_message
                         or "Response omitted a 'model' field; cannot compare."
@@ -381,11 +417,10 @@ class ModelIdentityDetector(Detector):
 
         if self._model_field_diverges(requested, returned):
             result.findings.append(
-                Finding(
-                    id="model_identity.model_field",
+                SCALE.finding(
+                    "model_identity.model_field",
+                    "diverges",
                     title="Echoed model field differs from requested",
-                    status=Status.WARN,
-                    severity=Severity.MEDIUM,
                     summary=(
                         f"Response 'model' field ({returned}) differs from requested "
                         f"({requested})."
@@ -397,11 +432,10 @@ class ModelIdentityDetector(Detector):
             return True
 
         result.findings.append(
-            Finding(
-                id="model_identity.model_field",
+            SCALE.finding(
+                "model_identity.model_field",
+                "consistent",
                 title="Echoed model field consistent",
-                status=Status.PASS,
-                severity=Severity.INFO,
                 summary=f"Response 'model' field ({returned}) matches requested.",
                 evidence={"requested": requested, "returned": returned},
             )

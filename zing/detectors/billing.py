@@ -6,6 +6,10 @@ heuristic (exact only when a tiktoken encoding is available), so we tolerate wid
 margins and flag only gross deviations — inflated counts that would overbill the
 buyer, missing accounting that makes billing unverifiable, or internally
 inconsistent totals.
+
+Scoring follows the published ``SCALE`` (method "deductions"): the score starts
+at 100 and each problem caps it (inflated tokens at 55, no usage at 75, ...);
+the lowest cap wins.
 """
 
 from __future__ import annotations
@@ -14,11 +18,39 @@ from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import usage_field
-from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
+from zing.detectors.scale import DeductionScale, outcome
+from zing.models import DetectorResult, Dimension, RequestSpec, Severity, Status
 from zing.utils.tokenize import estimate_messages_tokens, estimate_tokens, is_exact_tokenizer
 
 # The probe summarizes a fixed paragraph (~110 words, "billing.known_paragraph" in
 # zing/prompts/en.json) so the prompt size is stable across runs.
+
+SCALE = DeductionScale(
+    outcome("billing.request-failed", "no_response", None, Status.INCONCLUSIVE, Severity.LOW,
+            label="No usable response to judge by."),
+    outcome("billing.missing-usage", "missing", None, Status.WARN, Severity.MEDIUM, cap=75.0,
+            label="The response carried no token usage at all."),
+    outcome("billing.usage-inflation", "inflated", None, Status.FAIL, Severity.HIGH, cap=55.0,
+            label="Reported prompt tokens far exceed the independent estimate."),
+    outcome("billing.usage-inflation-completion", "inflated", None, Status.FAIL, Severity.HIGH,
+            cap=55.0,
+            label="Reported completion tokens far exceed the estimate of an exact tokenizer."),
+    outcome("billing.usage-inflation-completion", "above_heuristic", None, Status.WARN,
+            Severity.MEDIUM, cap=70.0,
+            label="Reported completion tokens are far above a heuristic estimate."),
+    outcome("billing.reasoning-tokens", "hidden_reasoning", None, Status.INFO,
+            label="Completion tokens exceed the visible text, as expected for a reasoning model."),
+    outcome("billing.usage-undercount-prompt", "below_estimate", None, Status.INFO,
+            label="Reported prompt tokens are well below the estimate (not buyer-harmful)."),
+    outcome("billing.usage-undercount-completion", "below_estimate", None, Status.INFO,
+            label="Reported completion tokens are well below the estimate (not buyer-harmful)."),
+    outcome("billing.total-mismatch", "mismatch", None, Status.WARN, Severity.LOW, cap=90.0,
+            label="The reported total does not equal prompt + completion tokens."),
+    outcome("billing.partial-usage", "partial", None, Status.WARN, Severity.MEDIUM, cap=80.0,
+            label="Usage reports a total without the prompt/completion split."),
+    outcome("billing.usage-consistent", "consistent", None, Status.PASS,
+            label="Reported usage is within tolerance of the independent estimate."),
+)
 
 
 @register
@@ -30,7 +62,7 @@ class BillingDetector(Detector):
     cost_hint = 1
 
     async def run(self, ctx: AuditContext) -> DetectorResult:
-        result = self.new_result()
+        result = self.new_result(scoring=SCALE.scoring())
         tok = ctx.tokenizer_hint()
 
         spec = RequestSpec(
@@ -52,17 +84,16 @@ class BillingDetector(Detector):
         # the prompt-token padding check still runs even then.
         if not outcome.ok or (not outcome.has_content() and outcome.usage is None):
             result.findings.append(
-                Finding(
-                    id="billing.request-failed",
+                SCALE.finding(
+                    "billing.request-failed",
+                    "no_response",
                     title="Billing probe request failed",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.LOW,
                     summary=outcome.error_message or f"HTTP {outcome.status_code}",
                     evidence={"status_code": outcome.status_code, "error_type": outcome.error_type},
                 )
             )
             result.status = Status.INCONCLUSIVE
-            result.score = None
+            result.score = None  # nothing measured: not scored
             return result
 
         est_prompt = estimate_messages_tokens(spec.messages, tok)
@@ -93,21 +124,19 @@ class BillingDetector(Detector):
         # No usage block at all — billing cannot be independently verified.
         if prompt is None and completion is None and total is None:
             result.findings.append(
-                Finding(
-                    id="billing.missing-usage",
+                SCALE.finding(
+                    "billing.missing-usage",
+                    "missing",
                     title="No usage accounting returned",
-                    status=Status.WARN,
-                    severity=Severity.MEDIUM,
                     summary="Response omitted token usage; billing is unverifiable.",
                     evidence={"usage_present": usage is not None},
                     recommendation="Confirm with the provider how usage is metered if billing is per-token.",
                 )
             )
             result.status = Status.WARN
-            result.score = 75.0
+            result.score = SCALE.total(result.findings)
             return result
 
-        score = 100.0
         worst = Status.PASS
         exact = is_exact_tokenizer(tok)
         reasoning = bool(ctx.profile and ctx.profile.model.reasoning)
@@ -122,11 +151,10 @@ class BillingDetector(Detector):
             and prompt > est_prompt + 50
         ):
             result.findings.append(
-                Finding(
-                    id="billing.usage-inflation",
+                SCALE.finding(
+                    "billing.usage-inflation",
+                    "inflated",
                     title="Reported prompt tokens far exceed estimate",
-                    status=Status.FAIL,
-                    severity=Severity.HIGH,
                     summary=(
                         f"Reported prompt tokens ({prompt}) far exceed independent "
                         f"estimate (~{est_prompt})."
@@ -135,7 +163,6 @@ class BillingDetector(Detector):
                     recommendation="Cross-check billing against a known-size prompt; possible per-token overbilling.",
                 )
             )
-            score = min(score, 55.0)
             worst = Status.FAIL
 
         # Completion-token inflation — the trickiest. For a REASONING model the
@@ -148,11 +175,10 @@ class BillingDetector(Detector):
             if reasoning:
                 if comp_ratio > 1.5:
                     result.findings.append(
-                        Finding(
-                            id="billing.reasoning-tokens",
+                        SCALE.finding(
+                            "billing.reasoning-tokens",
+                            "hidden_reasoning",
                             title="Completion tokens exceed visible text (reasoning model)",
-                            status=Status.INFO,
-                            severity=Severity.INFO,
                             summary=(
                                 f"Reported completion tokens ({completion}) exceed the visible-text "
                                 f"estimate (~{est_completion}); expected for a reasoning model whose "
@@ -164,11 +190,10 @@ class BillingDetector(Detector):
             elif exact:
                 if completion > 1.8 * est_completion and completion > est_completion + 50:
                     result.findings.append(
-                        Finding(
-                            id="billing.usage-inflation-completion",
+                        SCALE.finding(
+                            "billing.usage-inflation-completion",
+                            "inflated",
                             title="Reported completion tokens far exceed estimate",
-                            status=Status.FAIL,
-                            severity=Severity.HIGH,
                             summary=(
                                 f"Reported completion tokens ({completion}) far exceed "
                                 f"independent estimate (~{est_completion})."
@@ -177,17 +202,15 @@ class BillingDetector(Detector):
                             recommendation="Cross-check billing against output length; possible per-token overbilling.",
                         )
                     )
-                    score = min(score, 55.0)
                     worst = Status.FAIL
             elif comp_ratio > 3.0 and completion > est_completion + 80:
                 # Non-exact tokenizer, non-reasoning: estimate is approximate, so a
                 # gross divergence is only a soft signal worth a second look.
                 result.findings.append(
-                    Finding(
-                        id="billing.usage-inflation-completion",
+                    SCALE.finding(
+                        "billing.usage-inflation-completion",
+                        "above_heuristic",
                         title="Reported completion tokens well above heuristic estimate",
-                        status=Status.WARN,
-                        severity=Severity.MEDIUM,
                         summary=(
                             f"Reported completion tokens ({completion}) are far above the "
                             f"heuristic estimate (~{est_completion}); the estimate is approximate "
@@ -197,7 +220,6 @@ class BillingDetector(Detector):
                         recommendation="Compare token accounting against a trusted baseline of the same model.",
                     )
                 )
-                score = min(score, 70.0)
                 if worst == Status.PASS:
                     worst = Status.WARN
 
@@ -208,11 +230,10 @@ class BillingDetector(Detector):
         ):
             if reported is not None and estimated > 0 and reported < 0.5 * estimated:
                 result.findings.append(
-                    Finding(
-                        id=f"billing.usage-undercount-{label}",
+                    SCALE.finding(
+                        f"billing.usage-undercount-{label}",
+                        "below_estimate",
                         title=f"Reported {label} tokens well below estimate",
-                        status=Status.INFO,
-                        severity=Severity.INFO,
                         summary=(
                             f"Reported {label} tokens ({reported}) are far below the "
                             f"estimate (~{estimated}); not buyer-harmful but unusual."
@@ -229,11 +250,10 @@ class BillingDetector(Detector):
             and abs(total - (prompt + completion)) > 2
         ):
             result.findings.append(
-                Finding(
-                    id="billing.total-mismatch",
+                SCALE.finding(
+                    "billing.total-mismatch",
+                    "mismatch",
                     title="Usage total != prompt + completion",
-                    status=Status.WARN,
-                    severity=Severity.LOW,
                     summary=(
                         f"Reported total ({total}) does not equal prompt "
                         f"({prompt}) + completion ({completion})."
@@ -241,7 +261,6 @@ class BillingDetector(Detector):
                     evidence={"total": total, "prompt": prompt, "completion": completion},
                 )
             )
-            score = min(score, 90.0)
             if worst == Status.PASS:
                 worst = Status.WARN
 
@@ -252,11 +271,10 @@ class BillingDetector(Detector):
         if worst == Status.PASS:
             if prompt is None or completion is None:
                 result.findings.append(
-                    Finding(
-                        id="billing.partial-usage",
+                    SCALE.finding(
+                        "billing.partial-usage",
+                        "partial",
                         title="Incomplete usage breakdown",
-                        status=Status.WARN,
-                        severity=Severity.MEDIUM,
                         summary=(
                             f"Usage reports only total={total} (prompt={prompt}, "
                             f"completion={completion}); the per-direction split that "
@@ -267,14 +285,12 @@ class BillingDetector(Detector):
                     )
                 )
                 worst = Status.WARN
-                score = min(score, 80.0)
             else:
                 result.findings.append(
-                    Finding(
-                        id="billing.usage-consistent",
+                    SCALE.finding(
+                        "billing.usage-consistent",
+                        "consistent",
                         title="Usage consistent with independent estimate",
-                        status=Status.PASS,
-                        severity=Severity.INFO,
                         summary=(
                             f"Reported prompt={prompt}, completion={completion} within "
                             f"tolerance of estimate (~{est_prompt}/~{est_completion})."
@@ -284,5 +300,5 @@ class BillingDetector(Detector):
                 )
 
         result.status = worst
-        result.score = round(score, 1)
+        result.score = SCALE.total(result.findings)
         return result

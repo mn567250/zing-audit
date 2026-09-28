@@ -1,0 +1,31 @@
+{
+ "strings": {
+  "<b>Vector dimension</b> vs. the claimed model: the #1 bait-and-switch signal.": "<b>Dimension des vecteurs</b> face au modèle annoncé : le signal n° 1 de tromperie sur la marchandise.",
+  "A <b>known-answer probe</b>: the obvious answer must rank first.": "Une <b>sonde à réponse connue</b> : la réponse évidente doit arriver en tête.",
+  "API key": "Clé API",
+  "At least two lines, one document each": "Au moins deux lignes, un document par ligne",
+  "Claimed dimension": "Dimension annoncée",
+  "Declared provider": "Fournisseur déclaré",
+  "Determinism and distinctness re-tests back it up.": "Des tests répétés de déterminisme et de distinction le confirment.",
+  "Embedding and rerank endpoints only speak the OpenAI-compatible API.": "Les endpoints d'embedding et de rerank ne parlent que l'API compatible OpenAI.",
+  "Embedding and rerank endpoints return vectors or rankings, not chat, so they get dedicated probes instead of the chat audit.": "Les endpoints d'embedding et de rerank renvoient des vecteurs ou des classements, pas du chat : ils ont donc leurs propres sondes au lieu de l'audit de chat.",
+  "Empty = built-in probe": "Vide = sonde intégrée",
+  "Empty = first line (0)": "Vide = première ligne (0)",
+  "Empty = same as model to request": "Vide = identique au modèle demandé",
+  "Key signal": "Signal clé",
+  "Model to request": "Modèle demandé",
+  "OpenAI-compatible": "Compatible OpenAI",
+  "Please enter the relay URL and the model to request.": "Veuillez saisir l'URL du relais et le modèle demandé.",
+  "Relay URL": "URL du relais",
+  "Rerank": "Rerank",
+  "Supporting": "Complément",
+  "The custom probe needs a query and at least two documents.": "La sonde personnalisée nécessite une requête et au moins deux documents.",
+  "The expected line must be between 0 and {n}.": "La ligne attendue doit être comprise entre 0 et {n}.",
+  "Verification result": "Résultat de la vérification",
+  "Verification type": "Type de vérification",
+  "e.g. bge-reranker-v2-m3": "p. ex. bge-reranker-v2-m3",
+  "e.g. https://relay.example.com/v1": "p. ex. https://relay.example.com/v1",
+  "e.g. text-embedding-3-large": "p. ex. text-embedding-3-large",
+  "optional": "facultatif"
+ }
+}

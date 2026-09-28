@@ -3,28 +3,465 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title data-en="zing — tools">zing — 工具</title>
+<title data-en="zing — Toolbox · embedding / rerank verification">zing — 工具箱 · 嵌入 / 重排验真</title>
 <script src="/locales.js"></script>
 <script src="/lang.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&amp;family=Hanken+Grotesk:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/v2/static/zing.css" />
+<link rel="stylesheet" href="/v2/static/fields.css" />
+<style>
+  /* ---- hero: short, scannable intro ---- */
+  .intro { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; max-width: 62ch; }
+  .intro li { display: flex; gap: 10px; align-items: baseline; color: var(--ink2); font-size: 14.5px; line-height: 1.5; }
+  .intro li b { color: var(--ink); }
+  .intro .tag { flex: 0 0 auto; }
+
+  /* ---- tabs ---- */
+  .tool-card { margin-top: 20px; }
+  .tabs { display: flex; gap: 6px; padding: 6px; margin: 0 0 20px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 16px; }
+  .tabs [role="tab"] {
+    flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: var(--disp); font-weight: 600; font-size: 15px; color: var(--ink2); cursor: pointer;
+    background: transparent; border: 0; border-radius: 11px; padding: 11px 10px; text-align: center;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  }
+  .tabs [role="tab"]:hover { color: var(--ink); }
+  .tabs [role="tab"][aria-selected="true"] { color: var(--on-ink); background: var(--ink); box-shadow: var(--shadow-pop); }
+  .tabs [role="tab"] .zicon { width: 15px; height: 15px; flex: none; }
+  [role="tabpanel"][hidden] { display: none; }
+  [role="tabpanel"] { animation: z-rise 0.35s cubic-bezier(0.2, 0.85, 0.25, 1); }
+  [role="tabpanel"]:focus-visible { outline-offset: 6px; border-radius: 6px; }
+
+  .seg-hint { margin-top: 7px; }
+  .cta { margin-top: 6px; }
+  .cta .spin {
+    width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent;
+    animation: tspin 0.8s linear infinite; display: none;
+  }
+  .cta[aria-busy="true"] .spin { display: inline-block; }
+  .cta[aria-busy="true"] .go, .cta[aria-busy="true"] .lbl, .cta .blbl { display: none; }
+  .cta[aria-busy="true"] .blbl { display: inline; }
+  @keyframes tspin { to { transform: rotate(360deg); } }
+  .probe { margin: 2px 0 16px; }
+  .probe .disclosure > span:first-child { display: inline-flex; align-items: center; gap: 8px; }
+  .probe .adv-hint { font-size: 12.5px; color: var(--ink2); line-height: 1.55; margin: 0 0 12px; }
+  .probe .cv { width: 16px; height: 16px; flex: none; align-items: center; justify-content: center; }
+  .probe .cv .zicon, .probe .pico .zicon { width: 15px; height: 15px; }
+  .probe textarea.in { min-height: 104px; resize: vertical; line-height: 1.5; }
+  .narrow { max-width: 260px; }
+
+  /* ---- result ---- */
+  .out:empty { display: none; }
+  .out { margin-top: 18px; }
+  .res { border: 1px solid var(--line); border-radius: 18px; background: var(--card); overflow: hidden; }
+  .res .ribbon { height: 4px; background: var(--grey-fill); }
+  .res.good .ribbon { background: var(--good-fill); }
+  .res.sky .ribbon { background: var(--sky-fill); }
+  .res.warn .ribbon { background: var(--warn-fill); }
+  .res.bad .ribbon { background: var(--bad-fill); }
+  .res-head { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+  .res-head .vbadge { font-family: var(--disp); font-weight: 600; font-size: 14.5px; padding: 6px 14px; }
+  .res-head .score { font-size: 13px; color: var(--ink2); }
+  .res-head .score b { font-family: var(--disp); font-size: 18px; color: var(--ink); }
+  .res-head .score b.good { color: var(--good); }
+  .res-head .score b.warn { color: var(--warn); }
+  .res-head .score b.bad { color: var(--bad); }
+  .res-head .tgt { flex: 1 1 100%; font-family: var(--mono); font-size: 12px; color: var(--faint); overflow-wrap: anywhere; }
+  .checks { list-style: none; margin: 0; padding: 0 18px; }
+  .chk { display: flex; gap: 12px; padding: 14px 0; border-top: 1px dotted var(--line); }
+  .chk:first-child { border-top: 0; }
+  .chk .dot { flex: 0 0 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: var(--on-ink); background: var(--grey-fill); margin-top: 1px; }
+  .chk .dot .zicon { width: 13px; height: 13px; }
+  .chk .dot.good { background: var(--good-fill); }
+  .chk .dot.sky { background: var(--sky-fill); }
+  .chk .dot.warn { background: var(--warn-fill); }
+  .chk .dot.bad { background: var(--bad-fill); }
+  .chk .body { flex: 1; min-width: 0; }
+  .chk .top { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: flex-start; justify-content: space-between; }
+  .chk .top .badge { margin-top: 1px; }
+  .chk .ft { flex: 1 1 14em; min-width: 0; font-weight: 600; font-size: 14px; line-height: 1.4; overflow-wrap: break-word; hyphens: auto; }
+  .chk .fs { color: var(--ink2); font-size: 13.5px; line-height: 1.55; margin-top: 3px; overflow-wrap: anywhere; }
+  .chk .metrics { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; font-family: var(--mono); font-size: 12px; color: var(--ink); }
+  .chk .metrics > span { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+  .chk .metrics .key { white-space: nowrap; }
+  .chk .more { margin-top: 7px; }
+  .chk pre {
+    margin: 7px 0 0; font-family: var(--mono); font-size: 11.5px; color: var(--ink2); background: var(--surface-2);
+    border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word;
+  }
+  .chk pre[hidden] { display: none; }
+  .res .none { padding: 16px 0; color: var(--ink2); font-size: 14px; margin: 0; }
+</style>
 </head>
 <body>
 <div class="wrap">
-  <header class="znav" data-page="tools"></header>
+  <header class="znav" data-page="tools" data-trust></header>
   <main>
     <div class="hero">
-      <h1 data-en="Toolbox · <span class='u'>embedding / rerank</span> verification">工具箱 · <span class='u'>embedding / rerank</span> 验真</h1>
+      <h1 data-en="Toolbox · <span class='u'>embedding / rerank</span> verification">工具箱 · <span class="u">嵌入 / 重排</span>验真</h1>
+      <p data-en="Embedding and rerank endpoints return vectors or rankings, not chat, so they get dedicated probes instead of the chat audit.">嵌入和重排端点返回的是向量或排名而非对话，因此不走对话检测，而用专门的探针核验。</p>
+      <ul class="intro">
+        <li><span class="badge bad tag" data-en="Key signal">关键信号</span><span data-en="<b>Vector dimension</b> vs. the claimed model: the #1 bait-and-switch signal.">对照所声称模型的<b>向量维度</b>：货不对板的头号信号。</span></li>
+        <li><span class="badge sky tag" data-en="Supporting">辅助</span><span data-en="Determinism and distinctness re-tests back it up.">确定性与可区分性复测作为佐证。</span></li>
+        <li><span class="badge grey tag" data-en="Rerank">重排</span><span data-en="A <b>known-answer probe</b>: the obvious answer must rank first.">用<b>已知答案探针</b>：显而易见的答案必须排在首位。</span></li>
+      </ul>
     </div>
-    <div class="card card-pad" style="margin-top:20px">
-      <p class="empty" data-en="This page of the new UI is still being built. Meanwhile, use the &lt;a href=&quot;?ui=v1&quot;&gt;classic page&lt;/a&gt;.">新界面的这一页还在建设中，请先使用<a href="?ui=v1">经典页面</a>。</p>
+
+    <div class="card card-pad tool-card">
+      <div class="tabs" role="tablist" aria-label="验真类型" data-en-aria-label="Verification type">
+        <button type="button" role="tab" id="tab-embed" aria-selected="true" aria-controls="panel-embed" tabindex="0"><span class="pico" data-icon="chart"></span><span data-en="Embedding audit">嵌入审计</span></button>
+        <button type="button" role="tab" id="tab-rerank" aria-selected="false" aria-controls="panel-rerank" tabindex="-1"><span class="pico" data-icon="search"></span><span data-en="Rerank audit">重排审计</span></button>
+      </div>
+
+      <!-- EMBEDDING -->
+      <section role="tabpanel" id="panel-embed" aria-labelledby="tab-embed" tabindex="0">
+        <form id="embed-form" novalidate>
+          <div class="grp">
+            <label class="lab" for="e-url"><span data-en="Relay URL">中转站地址</span> <span class="key">base_url</span></label>
+            <input class="in mono" id="e-url" type="url" inputmode="url" autocomplete="username" spellcheck="false" autocapitalize="off" placeholder="例如 https://relay.example.com/v1" data-en-placeholder="e.g. https://relay.example.com/v1">
+          </div>
+          <div class="grp">
+            <div class="lab-row"><label class="lab" for="e-key" data-en="API key">API 密钥</label><span class="aside" data-en="Supports env:VAR / file:/path">支持 env:VAR / file:/path</span></div>
+            <input class="in mono" id="e-key" type="password" data-secret="e-url" autocomplete="current-password" spellcheck="false" autocapitalize="off" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY">
+          </div>
+          <div class="two">
+            <div class="grp">
+              <label class="lab" for="e-model" data-en="Model to request">请求的模型</label>
+              <input class="in" id="e-model" spellcheck="false" autocapitalize="off" placeholder="例如 text-embedding-3-large" data-en-placeholder="e.g. text-embedding-3-large">
+            </div>
+            <div class="grp">
+              <label class="lab" for="e-claimed"><span data-en="Claimed model">声称的模型</span> <span class="opt" data-en="optional">可选</span></label>
+              <input class="in" id="e-claimed" spellcheck="false" autocapitalize="off" placeholder="留空 = 与请求的模型相同" data-en-placeholder="Empty = same as model to request">
+            </div>
+          </div>
+          <div class="two">
+            <div class="grp">
+              <label class="lab" for="e-dims"><span data-en="Claimed dimension">声称维度</span> <span class="opt" data-en="optional">可选</span></label>
+              <input class="in" id="e-dims" type="number" min="1" step="1" inputmode="numeric" placeholder="留空 = 查知识库" data-en-placeholder="Empty = look up in knowledge base">
+            </div>
+            <div class="grp">
+              <label class="lab" for="e-provider"><span data-en="Declared provider">声明厂商</span> <span class="opt" data-en="optional">可选</span></label>
+              <input class="in" id="e-provider" spellcheck="false" autocapitalize="off" placeholder="例如 openai / deepseek" data-en-placeholder="e.g. openai / deepseek">
+            </div>
+          </div>
+          <div class="grp">
+            <div class="lab" id="e-api-lab" data-en="Protocol">协议</div>
+            <div class="seg" role="group" aria-labelledby="e-api-lab" data-seg="e-api">
+              <button type="button" aria-pressed="true" data-v="auto" data-en="Auto">自动</button>
+              <button type="button" aria-pressed="false" data-v="openai" data-en="OpenAI-compatible">OpenAI 兼容</button>
+            </div>
+            <div class="hint seg-hint" data-en="Embedding and rerank endpoints only speak the OpenAI-compatible API.">嵌入与重排端点只走 OpenAI 兼容接口。</div>
+          </div>
+          <button type="submit" class="cta" id="e-go"><span class="spin" aria-hidden="true"></span><span class="lbl" data-en="Verify embedding endpoint">核验嵌入端点</span><span class="blbl" data-en="Running checks…">检测中…</span> <span class="pico go" data-icon="arrowRight"></span></button>
+          <div class="reassure" data-en="Requests are sent from <b>your local zing server</b>; the key is only used to connect to the target relay and is <b>never uploaded to any third party</b>.">请求在 <b>你本地的 zing 服务</b> 发起，密钥只用于连接目标中转站，<b>不上传任何第三方</b>。</div>
+        </form>
+        <div class="out" id="e-out" aria-live="polite"></div>
+      </section>
+
+      <!-- RERANK -->
+      <section role="tabpanel" id="panel-rerank" aria-labelledby="tab-rerank" tabindex="0" hidden>
+        <form id="rerank-form" novalidate>
+          <div class="grp">
+            <label class="lab" for="r-url"><span data-en="Relay URL">中转站地址</span> <span class="key">base_url</span></label>
+            <input class="in mono" id="r-url" type="url" inputmode="url" autocomplete="username" spellcheck="false" autocapitalize="off" placeholder="例如 https://relay.example.com/v1" data-en-placeholder="e.g. https://relay.example.com/v1">
+          </div>
+          <div class="grp">
+            <div class="lab-row"><label class="lab" for="r-key" data-en="API key">API 密钥</label><span class="aside" data-en="Supports env:VAR / file:/path">支持 env:VAR / file:/path</span></div>
+            <input class="in mono" id="r-key" type="password" data-secret="r-url" autocomplete="current-password" spellcheck="false" autocapitalize="off" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY">
+          </div>
+          <div class="grp">
+            <label class="lab" for="r-model" data-en="Model to request">请求的模型</label>
+            <input class="in" id="r-model" spellcheck="false" autocapitalize="off" placeholder="例如 bge-reranker-v2-m3" data-en-placeholder="e.g. bge-reranker-v2-m3">
+          </div>
+          <div class="grp">
+            <div class="lab" id="r-api-lab" data-en="Protocol">协议</div>
+            <div class="seg" role="group" aria-labelledby="r-api-lab" data-seg="r-api">
+              <button type="button" aria-pressed="true" data-v="auto" data-en="Auto">自动</button>
+              <button type="button" aria-pressed="false" data-v="openai" data-en="OpenAI-compatible">OpenAI 兼容</button>
+            </div>
+            <div class="hint seg-hint" data-en="Embedding and rerank endpoints only speak the OpenAI-compatible API.">嵌入与重排端点只走 OpenAI 兼容接口。</div>
+          </div>
+
+          <div class="disclosure-box probe" id="r-adv">
+            <button type="button" class="disclosure" id="r-adv-t" aria-expanded="false" aria-controls="r-adv-body">
+              <span><span class="pico" data-icon="plus"></span><span data-en="Custom probe (defaults to the built-in known-answer probe)">自定义探针（默认用内置的已知答案探针）</span></span>
+              <span class="cv" data-icon="chevronDown"></span>
+            </button>
+            <div class="disclosure-body" id="r-adv-body" hidden>
+              <p class="adv-hint" data-en="Leave empty to use zing's built-in probe: a question plus several documents, where the <b>single obvious answer</b> should be ranked first. To customize, enter a query, one document per line, and the line number (0-based) of the document expected to rank first.">不填则使用 zing 内置探针：一个问题加几段文档，其中<b>唯一显而易见的答案</b>应被排在首位。若要自定义，填入查询、每行一段文档，并指定预期排首位的文档行号（从 0 起）。</p>
+              <div class="grp">
+                <label class="lab" for="r-query"><span data-en="Query">查询</span> <span class="key">query</span></label>
+                <input class="in" id="r-query" placeholder="留空 = 使用内置探针" data-en-placeholder="Empty = built-in probe">
+              </div>
+              <div class="grp">
+                <label class="lab" for="r-docs"><span data-en="Documents (one per line)">文档（每行一段）</span> <span class="key">documents</span></label>
+                <textarea class="in" id="r-docs" rows="4" placeholder="至少两行，每行一段文档" data-en-placeholder="At least two lines, one document each"></textarea>
+              </div>
+              <div class="grp narrow">
+                <label class="lab" for="r-top"><span data-en="Line expected to rank first">预期排首位的行号</span> <span class="key">expected_top_index</span></label>
+                <input class="in" id="r-top" type="number" min="0" step="1" inputmode="numeric" placeholder="留空 = 第一行（0）" data-en-placeholder="Empty = first line (0)">
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="cta" id="r-go"><span class="spin" aria-hidden="true"></span><span class="lbl" data-en="Verify rerank endpoint">核验重排端点</span><span class="blbl" data-en="Running checks…">检测中…</span> <span class="pico go" data-icon="arrowRight"></span></button>
+          <div class="reassure" data-en="Requests are sent from <b>your local zing server</b>; the key is only used to connect to the target relay and is <b>never uploaded to any third party</b>.">请求在 <b>你本地的 zing 服务</b> 发起，密钥只用于连接目标中转站，<b>不上传任何第三方</b>。</div>
+        </form>
+        <div class="out" id="r-out" aria-live="polite"></div>
+      </section>
     </div>
+
+    <p class="foot" data-en="Embedding/rerank checks are black-box, non-chat tests: a dimension mismatch is the strongest &quot;bait-and-switch&quot; signal; determinism and distinctness are supporting evidence.">嵌入/重排是黑盒非对话检测：维度不符是最强的“货不对板”信号；确定性与可区分性是辅助证据。</p>
   </main>
 </div>
+
 <script src="/i18n.js"></script>
 <script src="/icons.js"></script>
+<script src="/secretfield.js"></script>
+<script src="/modelpicker.js"></script>
 <script src="/v2/static/nav.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  function tt(zh, en) { return window.T ? window.T(zh, en) : en; }
+  function ico(name, opts) { return window.zingIcon ? window.zingIcon(name, opts || {}) : ""; }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function srv(s) { return window.ZING_LANG ? window.ZING_LANG.server(s) : s; }
+
+  // static icons
+  $$("[data-icon]").forEach(function (el) { el.innerHTML = ico(el.getAttribute("data-icon")); });
+
+  // ---------- tabs (WAI-ARIA tabs, automatic activation) ----------
+  var tabs = $$('[role="tab"]');
+  function selectTab(tab, focus) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute("aria-selected", String(on));
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+    });
+    if (focus) tab.focus();
+    var name = tab.id.replace("tab-", "");
+    try { history.replaceState(null, "", name === "embed" ? location.pathname + location.search : "#" + name); } catch (e) {}
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener("click", function () { selectTab(t, false); });
+    t.addEventListener("keydown", function (e) {
+      var n = null;
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") n = tabs[(i + 1) % tabs.length];
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") n = tabs[(i - 1 + tabs.length) % tabs.length];
+      else if (e.key === "Home") n = tabs[0];
+      else if (e.key === "End") n = tabs[tabs.length - 1];
+      if (n) { e.preventDefault(); selectTab(n, true); }
+    });
+  });
+  if (location.hash === "#rerank") selectTab($("#tab-rerank"), false);
+
+  // ---------- segmented controls ----------
+  $$("[data-seg] button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      $$("button", b.parentElement).forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+    });
+  });
+  function segVal(name) {
+    var on = $('[data-seg="' + name + '"] [aria-pressed="true"]');
+    return on ? on.getAttribute("data-v") : "auto";
+  }
+
+  // ---------- custom-probe disclosure ----------
+  $("#r-adv-t").addEventListener("click", function () {
+    var btn = this, open = btn.getAttribute("aria-expanded") !== "true";
+    btn.setAttribute("aria-expanded", String(open));
+    $("#r-adv-body").hidden = !open;
+    $("#r-adv").classList.toggle("open", open);
+  });
+
+  // ---------- result rendering ----------
+  var RISK = {
+    clean: ["good", "check", "大概率是真货", "Most likely genuine"],
+    low: ["sky", "info", "基本可信，小瑕疵", "Mostly trustworthy, minor issues"],
+    medium: ["warn", "warning", "有偏离，建议核实", "Deviations, verify"],
+    high: ["bad", "x", "货不对板", "Bait-and-switch"],
+    inconclusive: ["grey", "info", "信号不足", "Insufficient signal"],
+  };
+  var STATC = { pass: "good", warn: "warn", fail: "bad", info: "sky", inconclusive: "grey", not_run: "grey", error: "bad" };
+  var ICON = { pass: "check", warn: "warning", fail: "x", info: "info", inconclusive: "info", not_run: "info", error: "x" };
+  // per check: the evidence fields worth showing at a glance (technical keys)
+  var METRICS = {
+    "embed.connectivity": ["dimension", "vectors", "status_code"],
+    "embed.dimension": ["returned", "claimed"],
+    "embed.determinism": ["cosine", "threshold"],
+    "embed.distinctness": ["cosine", "threshold"],
+    "embed.model_field": ["model_returned"],
+    "rerank.connectivity": ["results", "status_code"],
+    "rerank.known_answer": ["top_index", "expected", "ranking"],
+  };
+  var scoreC = function (v) { return v == null ? "" : v >= 85 ? "good" : v >= 70 ? "warn" : "bad"; };
+  function statusLabel(s) {
+    return window.ZING_I18N && ZING_I18N.label ? ZING_I18N.label("STATUS", s) : s;
+  }
+  function loc(f) {
+    return window.ZING_I18N && ZING_I18N.localizeFinding
+      ? ZING_I18N.localizeFinding(f.id, f.summary, f.evidence, f.title, f.status)
+      : { title: f.title || f.id, summary: f.summary || "" };
+  }
+  function fmtVal(k, x) {
+    if (x == null) return "—";
+    if (typeof x === "number" && k === "cosine") return x.toFixed(x > 0.99 ? 6 : 4);
+    if (Array.isArray(x)) return "[" + x.join(", ") + "]";
+    if (typeof x === "object") return JSON.stringify(x).slice(0, 200);
+    return String(x).slice(0, 240);
+  }
+  function evText(e) {
+    if (!e || typeof e !== "object") return "";
+    return Object.keys(e).map(function (k) { return k + ": " + fmtVal(k, e[k]); }).join("\n");
+  }
+
+  // last output per pane, kept so a language switch can re-render it
+  var OUT = {};
+  function showErr(sel, fn) {
+    OUT[sel] = { err: fn };
+    $(sel).innerHTML = '<div class="errbox" role="alert">' + fn() + "</div>";
+  }
+  function renderResult(sel, v, openIds) {
+    OUT[sel] = { data: v };
+    v = v || {};
+    var risk = RISK[v.risk_level] ? v.risk_level : "inconclusive", R = RISK[risk], t = v.target || {};
+    var pre = sel.slice(1) + "-ev-";
+    var rows = (v.findings || []).map(function (f, i) {
+      var c = STATC[f.status] || "grey", L = loc(f), ev = evText(f.evidence), id = pre + i;
+      var metrics = (METRICS[f.id] || []).filter(function (k) { return f.evidence && f.evidence[k] != null && f.evidence[k] !== ""; })
+        .map(function (k) { return '<span><span class="key">' + esc(k) + "</span>" + esc(fmtVal(k, f.evidence[k])) + "</span>"; }).join("");
+      var open = openIds && openIds.indexOf(id) >= 0;
+      return '<li class="chk"><span class="dot ' + c + '" aria-hidden="true">' + ico(ICON[f.status] || "info") + "</span>" +
+        '<div class="body"><div class="top"><span class="ft">' + esc(L.title) + '</span><span class="badge ' + c + '">' + esc(statusLabel(f.status)) + "</span></div>" +
+        (metrics ? '<div class="metrics">' + metrics + "</div>" : "") +
+        (L.summary ? '<div class="fs">' + esc(L.summary) + "</div>" : "") +
+        (ev ? '<button type="button" class="linkbtn more" aria-expanded="' + open + '" aria-controls="' + id + '">' +
+          (open ? tt("收起证据", "Hide evidence") : tt("查看证据", "Show evidence")) + "</button>" +
+          '<pre id="' + id + '"' + (open ? "" : " hidden") + ">" + esc(ev) + "</pre>" : "") +
+        "</div></li>";
+    }).join("");
+    var target = t.base_url ? esc(t.base_url) + (t.claimed_model || t.model ? " · " + esc(t.claimed_model || t.model) : "") : "";
+    $(sel).innerHTML =
+      '<section class="res ' + R[0] + '" aria-label="' + esc(tt("核验结果", "Verification result")) + '"><div class="ribbon"></div>' +
+      '<div class="res-head"><span class="badge vbadge ' + R[0] + '">' + ico(R[1]) + esc(tt(R[2], R[3])) + "</span>" +
+      '<span class="score">' + esc(tt("健康分", "Health score")) + ' <b class="' + scoreC(v.score) + '">' + (v.score == null ? "—" : esc(Math.round(v.score))) + "</b>/100</span>" +
+      (target ? '<span class="tgt">' + target + "</span>" : "") + "</div>" +
+      (rows ? '<ul class="checks">' + rows + "</ul>" : '<div class="checks"><p class="none">' + esc(tt("没有检测项。", "No checks.")) + "</p></div>") +
+      "</section>";
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest ? e.target.closest(".chk .more") : null;
+    if (!b) return;
+    var open = b.getAttribute("aria-expanded") !== "true", pre = document.getElementById(b.getAttribute("aria-controls"));
+    b.setAttribute("aria-expanded", String(open));
+    b.textContent = open ? tt("收起证据", "Hide evidence") : tt("查看证据", "Show evidence");
+    if (pre) pre.hidden = !open;
+  });
+
+  // ---------- submit ----------
+  function setBusy(btn, busy) {
+    btn.disabled = busy;
+    btn.setAttribute("aria-busy", String(busy));
+  }
+  async function postAudit(url, payload, btn, sel) {
+    $(sel).innerHTML = "";
+    delete OUT[sel];
+    setBusy(btn, true);
+    try {
+      var resp = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      var data = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) {
+        var status = resp.status;
+        showErr(sel, function () { return esc(srv(data.error) || "HTTP " + status); });
+        return;
+      }
+      renderResult(sel, data);
+    } catch (e) {
+      var msg = String((e && e.message) || e);
+      showErr(sel, function () { return esc(tt("连接本地服务失败：", "Could not reach the local service: ")) + esc(msg); });
+    } finally {
+      setBusy(btn, false);
+    }
+  }
+  var needTarget = function () {
+    return esc(tt("请填写中转站地址和请求的模型。", "Please enter the relay URL and the model to request."));
+  };
+
+  $("#embed-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    if ($("#e-go").disabled) return;
+    var payload = {
+      base_url: $("#e-url").value.trim(), api_key: $("#e-key").value.trim(),
+      model: $("#e-model").value.trim(), claimed_model: $("#e-claimed").value.trim(),
+      declared_provider: $("#e-provider").value.trim(), api: segVal("e-api"),
+    };
+    var dims = $("#e-dims").value.trim();
+    if (dims) payload.claimed_dimensions = parseInt(dims, 10);
+    if (!payload.base_url || !payload.model) { showErr("#e-out", needTarget); (payload.base_url ? $("#e-model") : $("#e-url")).focus(); return; }
+    if (window.ZingSecret) ZingSecret.remember($("#embed-form"));
+    postAudit("/api/embed", payload, $("#e-go"), "#e-out");
+  });
+
+  $("#rerank-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    if ($("#r-go").disabled) return;
+    var payload = { base_url: $("#r-url").value.trim(), api_key: $("#r-key").value.trim(), model: $("#r-model").value.trim(), api: segVal("r-api") };
+    if (!payload.base_url || !payload.model) { showErr("#r-out", needTarget); (payload.base_url ? $("#r-model") : $("#r-url")).focus(); return; }
+    var q = $("#r-query").value.trim();
+    // line numbers refer to the textarea as typed: drop trailing blank lines only,
+    // and map the expected line past any blank lines in between
+    var lines = $("#r-docs").value.split("\n").map(function (s) { return s.trim(); });
+    while (lines.length && !lines[lines.length - 1]) lines.pop();
+    var docs = lines.filter(Boolean);
+    var top = $("#r-top").value.trim();
+    if (q || docs.length || top) {
+      // a half-filled custom probe would silently fall back to the built-in one
+      if (!q || docs.length < 2) {
+        showErr("#r-out", function () { return esc(tt("自定义探针需要一个查询和至少两段文档。", "The custom probe needs a query and at least two documents.")); });
+        return;
+      }
+      var line = top ? parseInt(top, 10) : 0;
+      if (!(line >= 0 && line < lines.length && lines[line])) {
+        var n = lines.length - 1;
+        showErr("#r-out", function () { return esc(tt("预期行号必须在 0 到 {n} 之间。", "The expected line must be between 0 and {n}.").replace("{n}", n)); });
+        return;
+      }
+      payload.query = q;
+      payload.documents = docs;
+      payload.expected_top_index = lines.slice(0, line).filter(Boolean).length;
+    }
+    if (window.ZingSecret) ZingSecret.remember($("#rerank-form"));
+    postAudit("/api/rerank", payload, $("#r-go"), "#r-out");
+  });
+
+  // ---------- language switch: re-render results / errors in place ----------
+  window.addEventListener("zing:lang", function () {
+    Object.keys(OUT).forEach(function (sel) {
+      var o = OUT[sel];
+      if (o.err) { showErr(sel, o.err); return; }
+      var openIds = $$('.more[aria-expanded="true"]', $(sel)).map(function (b) { return b.getAttribute("aria-controls"); });
+      renderResult(sel, o.data, openIds);
+    });
+  });
+
+  // ---------- claimed-model picker ----------
+  if (window.ZingModelPicker) {
+    ZingModelPicker.enhance({
+      claimedInput: "#e-claimed", providerInput: "#e-provider", urlInput: "#e-url", keyInput: "#e-key",
+      modelInput: "#e-model", api: function () { return segVal("e-api"); }, unstyled: true,
+    });
+  }
+})();
+</script>
 </body>
 </html>

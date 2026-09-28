@@ -38,12 +38,12 @@ from zing.clients import Client
 from zing.config import AuditOptions
 from zing.context import AuditContext
 from zing.detectors.base import SUITE_ORDER, Detector, register
+from zing.detectors.scale import Scale, outcome
 from zing.models import (
     CompletionOutcome,
     DetectorResult,
     Dimension,
     EndpointPerformance,
-    Finding,
     RequestRecord,
     RequestSpec,
     Severity,
@@ -131,6 +131,26 @@ class _Endpoint:
         self.seen: set[str] = set()
 
 
+# Informational: no outcome is counted, so the probe never has a score.
+SCALE = Scale(
+    outcome("performance.summary", "measured", None, Status.INFO,
+            label="Latency, TTFT and throughput were measured (informational)."),
+    outcome("performance.summary", "no_success", None, Status.INCONCLUSIVE,
+            label="None of the probe requests succeeded."),
+    outcome("performance.errors", "failed", None, Status.WARN, Severity.LOW,
+            label="Many probe requests failed or timed out (informational)."),
+    outcome("performance.cache_hit", "cached", None, Status.WARN, Severity.LOW,
+            label="Unique probe prompts came back from a cache (left out of the statistics)."),
+    outcome("performance.reasoning", "hidden_reasoning", None, Status.INFO,
+            label="The model spends hidden reasoning tokens; TTFT includes thinking."),
+    outcome("performance.relay_overhead", "compared", None, Status.INFO,
+            label="Latency compared with the trusted baseline (informational)."),
+    outcome("performance.throughput_mismatch", "faster", None, Status.WARN, Severity.LOW,
+            label="The target decodes much faster than the baseline (consistent with a smaller model)."),
+    outcome("performance.skipped", "disabled", None, Status.INFO,
+            label="The performance probe was disabled."),
+)
+
 @register
 class PerformanceDetector(Detector):
     id = "performance"
@@ -206,17 +226,17 @@ class PerformanceDetector(Detector):
 
     # -- run ---------------------------------------------------------------- #
     async def run(self, ctx: AuditContext) -> DetectorResult:
-        result = self.new_result()
+        result = self.new_result(scoring=SCALE.scoring())
         result.score = None
         opts = ctx.options
         n = planned_probe_requests(opts, has_baseline=ctx.has_baseline)
         if n <= 0:
             result.status = Status.NOT_RUN
             result.findings.append(
-                Finding(
-                    id="performance.skipped",
+                SCALE.finding(
+                    "performance.skipped",
+                    "disabled",
                     title="Performance probe disabled",
-                    status=Status.INFO,
                     summary="performance_requests <= 0; no probe requests were sent.",
                     evidence={"performance_requests": opts.performance_requests},
                 )
@@ -328,10 +348,10 @@ class PerformanceDetector(Detector):
         else:
             summary = f"None of the {target.requests} probe requests succeeded."
         result.findings.append(
-            Finding(
-                id="performance.summary",
+            SCALE.finding(
+                "performance.summary",
+                "measured" if target.successes else "no_success",
                 title="Performance probe results",
-                status=Status.INFO if target.successes else Status.INCONCLUSIVE,
                 summary=summary,
                 evidence=head,
             )
@@ -340,11 +360,10 @@ class PerformanceDetector(Detector):
         for ep in summaries.values():
             if ep.error_rate is not None and ep.error_rate > _ERROR_RATE_WARN:
                 result.findings.append(
-                    Finding(
-                        id="performance.errors",
+                    SCALE.finding(
+                        "performance.errors",
+                        "failed",
                         title="Performance probe requests failed",
-                        status=Status.WARN,
-                        severity=Severity.LOW,
                         summary=f"{ep.errors + ep.timeouts} of {ep.requests} {ep.endpoint} probe "
                         f"requests failed ({ep.timeouts} timed out, {ep.rate_limited} rate-limited).",
                         evidence={
@@ -364,11 +383,10 @@ class PerformanceDetector(Detector):
             ]
             if cached:
                 result.findings.append(
-                    Finding(
-                        id="performance.cache_hit",
+                    SCALE.finding(
+                        "performance.cache_hit",
+                        "cached",
                         title="Unique probe prompts were served from a cache",
-                        status=Status.WARN,
-                        severity=Severity.LOW,
                         summary=f"{len(cached)} {label} probe request(s) reported cached input "
                         "tokens or repeated an earlier answer verbatim, although every prompt "
                         "was unique. They were left out of the statistics.",
@@ -381,10 +399,10 @@ class PerformanceDetector(Detector):
         probe_records = [r for r in records if r.op == "complete"]
         if hidden_reasoning(probe_records):
             result.findings.append(
-                Finding(
-                    id="performance.reasoning",
+                SCALE.finding(
+                    "performance.reasoning",
+                    "hidden_reasoning",
                     title="Reasoning tokens in the probe",
-                    status=Status.INFO,
                     summary="The model spends hidden reasoning tokens: TTFT is the time to the "
                     "first visible token and includes thinking. zing sets no reasoning "
                     "effort, so the model thinks at its default effort.",
@@ -400,10 +418,10 @@ class PerformanceDetector(Detector):
         ttft_t, ttft_b = target.ttft_ms.p50, baseline.ttft_ms.p50
         if lat_t is not None and lat_b is not None:
             result.findings.append(
-                Finding(
-                    id="performance.relay_overhead",
+                SCALE.finding(
+                    "performance.relay_overhead",
+                    "compared",
                     title="Latency versus the baseline",
-                    status=Status.INFO,
                     summary=f"Target p50 latency {_fmt(lat_t, 'ms')} vs baseline "
                     f"{_fmt(lat_b, 'ms')} ({_signed(lat_t - lat_b)} ms)"
                     + (
@@ -439,11 +457,10 @@ class PerformanceDetector(Detector):
         ):
             ratio = tps_t.p50 / tps_b.p50
             result.findings.append(
-                Finding(
-                    id="performance.throughput_mismatch",
+                SCALE.finding(
+                    "performance.throughput_mismatch",
+                    "faster",
                     title="Target generates much faster than the baseline",
-                    status=Status.WARN,
-                    severity=Severity.LOW,
                     summary=f"Target decodes at {_fmt(tps_t.p50, 'tok/s')} vs baseline "
                     f"{_fmt(tps_b.p50, 'tok/s')} ({ratio:.1f}x). The same model normally "
                     "decodes at a similar speed; a much faster target is consistent with a "

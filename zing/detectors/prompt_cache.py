@@ -16,13 +16,12 @@ from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import build_filler, stable_marker
+from zing.detectors.scale import Scale, outcome
 from zing.models import (
     CompletionOutcome,
     DetectorResult,
     Dimension,
-    Finding,
     RequestSpec,
-    Severity,
     Status,
 )
 
@@ -31,6 +30,18 @@ from zing.models import (
 _WARM_RATIO = 0.5
 _MIN_ABS_DROP_MS = 150.0
 _PREFIX_TOKENS = 1200
+
+
+# Informational: no outcome is counted, so the detector never has a score.
+SCALE = Scale(
+    outcome("prompt_cache.verdict", "detected", None, Status.INFO,
+            label="A repeated prompt prefix came back much faster: prefix caching is active."),
+    outcome("prompt_cache.verdict", "none", None, Status.INFO,
+            label="A repeated prompt prefix was not distinctly faster."),
+    outcome("prompt_cache.verdict", "inconclusive", None, Status.INCONCLUSIVE,
+            label="One or more timing probes returned no usable timing."),
+    titles={"prompt_cache.verdict": "Prompt-prefix caching"},
+)
 
 
 @register
@@ -42,7 +53,7 @@ class PromptCacheDetector(Detector):
     cost_hint = 3
 
     async def run(self, ctx: AuditContext) -> DetectorResult:
-        result = self.new_result()
+        result = self.new_result(scoring=SCALE.scoring())
         tok = ctx.tokenizer_hint()
         filler = build_filler(_PREFIX_TOKENS, tok)
         prefix_a = f"{stable_marker('cache-a')}\n{filler}"
@@ -57,11 +68,11 @@ class PromptCacheDetector(Detector):
 
         if cold is None or warm is None or control is None:
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "prompt_cache.verdict",
+                    "inconclusive",
                     id="prompt_cache.inconclusive",
                     title="Prefix-cache timing unavailable",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.INFO,
                     summary="One or more streamed probes returned no usable timing.",
                     evidence=times,
                 )
@@ -77,11 +88,11 @@ class PromptCacheDetector(Detector):
         )
         if cached:
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "prompt_cache.verdict",
+                    "detected",
                     id="prompt_cache.detected",
                     title="Relay caches by prompt prefix",
-                    status=Status.INFO,
-                    severity=Severity.INFO,
                     summary=(
                         f"A repeated prefix returned far faster (~{warm:.0f} ms vs cold "
                         f"~{cold:.0f} ms, control ~{control:.0f} ms) — prompt-prefix "
@@ -93,11 +104,11 @@ class PromptCacheDetector(Detector):
             )
         else:
             result.findings.append(
-                Finding(
+                SCALE.finding(
+                    "prompt_cache.verdict",
+                    "none",
                     id="prompt_cache.none",
                     title="No clear prompt-prefix caching",
-                    status=Status.INFO,
-                    severity=Severity.INFO,
                     summary=(
                         f"Repeated-prefix TTFT (~{warm:.0f} ms) was not distinctly faster "
                         f"than cold (~{cold:.0f} ms) / control (~{control:.0f} ms)."

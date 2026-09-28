@@ -32,7 +32,8 @@ from zing.clients import detect_api
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import contains_any
-from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
+from zing.detectors.scale import Scale, outcome
+from zing.models import DetectorResult, Dimension, RequestSpec, Severity, Status
 from zing.utils.redact import redact_text
 
 # The known-answer color. Orange (255,140,0) is intentionally non-primary: a
@@ -43,6 +44,18 @@ _COLOR_RGB = (255, 140, 0)
 _EXPECTED_COLORS = ("orange", "橙", "橘")  # 橙色 / 橘色 / 橘黄 all contain these
 
 _QUESTION = prompts.text("vision.question")
+
+# The detector score is its one check's points (the published scale).
+SCALE = Scale(
+    outcome("vision.color", "delivered", 100.0, Status.PASS,
+            label="The model named the color of the test image."),
+    outcome("vision.color", "not_delivered", 0.0, Status.WARN, Severity.MEDIUM,
+            label="Vision is claimed but the model did not name the image's color."),
+    outcome("vision.color", "inconclusive", None, Status.INCONCLUSIVE,
+            label="No usable response to judge by."),
+    outcome("vision.not_claimed", "skipped", None, Status.INFO,
+            label="Vision is not claimed, so no image was sent."),
+)
 
 # Hints that the model is admitting it cannot actually process the image. If the
 # answer carries one of these and no expected color, the claimed vision is a
@@ -121,7 +134,7 @@ class VisionDetector(Detector):
     cost_hint = 1
 
     async def run(self, ctx: AuditContext) -> DetectorResult:
-        result = self.new_result()
+        result = self.new_result(scoring=SCALE.scoring())
 
         modalities = list(ctx.profile.model.modalities) if ctx.profile else []
         claims_vision = bool(ctx.profile) and (
@@ -131,11 +144,10 @@ class VisionDetector(Detector):
         # Only meaningful when the claimed model is supposed to see images.
         if not claims_vision:
             result.findings.append(
-                Finding(
-                    id="vision.not_claimed",
+                SCALE.finding(
+                    "vision.not_claimed",
+                    "skipped",
                     title="Vision not claimed — skipped",
-                    status=Status.INFO,
-                    severity=Severity.INFO,
                     summary=(
                         "The resolved profile does not claim a vision/image modality; "
                         "no multimodal probe was sent."
@@ -164,11 +176,10 @@ class VisionDetector(Detector):
         # Transport failure or empty response: we learned nothing about vision.
         if not (outcome.ok and outcome.has_content()):
             result.findings.append(
-                Finding(
-                    id="vision.color",
+                SCALE.finding(
+                    "vision.color",
+                    "inconclusive",
                     title="Vision probe inconclusive",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.INFO,
                     summary=(
                         outcome.error_message
                         or f"No usable response (HTTP {outcome.status_code})."
@@ -194,11 +205,10 @@ class VisionDetector(Detector):
         if saw_color:
             # It named the color it could only know by looking — vision delivered.
             result.findings.append(
-                Finding(
-                    id="vision.color",
+                SCALE.finding(
+                    "vision.color",
+                    "delivered",
                     title="Vision delivered",
-                    status=Status.PASS,
-                    severity=Severity.INFO,
                     summary=(
                         "Model correctly identified the known image color "
                         f"({'/'.join(_EXPECTED_COLORS)}); claimed vision is delivered."
@@ -207,7 +217,7 @@ class VisionDetector(Detector):
                 )
             )
             result.status = Status.PASS
-            result.score = 100.0
+            result.score = Scale.mean(result.findings)
             return result
 
         # No expected color. Whether it refused, hallucinated, or named a wrong
@@ -224,11 +234,10 @@ class VisionDetector(Detector):
                 "so the claimed vision is not delivered (possible text-only substitute)."
             )
         result.findings.append(
-            Finding(
-                id="vision.color",
+            SCALE.finding(
+                "vision.color",
+                "not_delivered",
                 title="Claimed vision not delivered",
-                status=Status.WARN,
-                severity=Severity.MEDIUM,
                 summary=summary,
                 evidence=evidence,
                 recommendation=(
@@ -238,5 +247,5 @@ class VisionDetector(Detector):
             )
         )
         result.status = Status.WARN
-        result.score = 0.0
+        result.score = Scale.mean(result.findings)
         return result

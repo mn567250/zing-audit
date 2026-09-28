@@ -14,7 +14,8 @@ from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import contains_ci, stable_marker
-from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
+from zing.detectors.scale import DeductionScale, outcome
+from zing.models import DetectorResult, Dimension, RequestSpec, Severity, Status
 from zing.utils.redact import REDACTED_KEY
 
 # Response headers that reveal upstream/proxy identity. Presence is informational:
@@ -44,6 +45,28 @@ def _header_matches(name: str) -> bool:
     return False
 
 
+# Scoring follows the published scale (method "deductions"): the score starts
+# at 100 and each transport-security failure caps it; the lowest cap wins.
+SCALE = DeductionScale(
+    outcome("security.tls", "https", None, Status.PASS,
+            label="The endpoint uses HTTPS."),
+    outcome("security.tls", "plain_http", None, Status.FAIL, Severity.HIGH, cap=40.0,
+            label="The endpoint is not HTTPS; the API key travels in clear text."),
+    outcome("security.key_echo", "not_echoed", None, Status.PASS,
+            label="The API key does not appear in the response."),
+    outcome("security.key_echo", "echoed", None, Status.FAIL, Severity.HIGH, cap=30.0,
+            label="The API key appears verbatim in the response."),
+    outcome("security.headers", "clean", None, Status.PASS,
+            label="No response header reveals the upstream (informational)."),
+    outcome("security.headers", "revealing", None, Status.INFO, Severity.LOW,
+            label="Response headers reveal the upstream or proxy (informational)."),
+    outcome("security.headers", "unavailable", None, Status.INCONCLUSIVE,
+            label="No response headers to inspect."),
+    outcome("security.note", "limits", None, Status.INFO,
+            label="Prompt logging and shared upstream keys are not provable from outside."),
+)
+
+
 @register
 class SecurityDetector(Detector):
     id = "security"
@@ -53,29 +76,27 @@ class SecurityDetector(Detector):
     cost_hint = 1
 
     async def run(self, ctx: AuditContext) -> DetectorResult:
-        result = self.new_result()
+        result = self.new_result(scoring=SCALE.scoring())
         base_url = ctx.target.base_url or ""
         is_https = base_url.strip().lower().startswith("https://")
 
         # 1) TLS: an http endpoint sends the bearer token in clear text.
         if is_https:
             result.findings.append(
-                Finding(
-                    id="security.tls",
+                SCALE.finding(
+                    "security.tls",
+                    "https",
                     title="Endpoint uses HTTPS",
-                    status=Status.PASS,
-                    severity=Severity.INFO,
                     summary="Transport is encrypted; the API key is protected in transit.",
                     evidence={"scheme": "https"},
                 )
             )
         else:
             result.findings.append(
-                Finding(
-                    id="security.tls",
+                SCALE.finding(
+                    "security.tls",
+                    "plain_http",
                     title="Endpoint is not HTTPS",
-                    status=Status.FAIL,
-                    severity=Severity.HIGH,
                     summary="Endpoint is not HTTPS; the API key is sent in clear text.",
                     evidence={"scheme": base_url.split("://", 1)[0].lower() if "://" in base_url else ""},
                     recommendation="Use an https:// base_url so the bearer token is not exposed on the wire.",
@@ -99,11 +120,10 @@ class SecurityDetector(Detector):
             revealing = {k: v for k, v in chat.headers.items() if _header_matches(k)}
             if revealing:
                 result.findings.append(
-                    Finding(
-                        id="security.headers",
+                    SCALE.finding(
+                        "security.headers",
+                        "revealing",
                         title="Response leaks upstream/proxy headers",
-                        status=Status.INFO,
-                        severity=Severity.LOW,
                         summary=(
                             f"Found {len(revealing)} revealing header(s): "
                             f"{', '.join(sorted(revealing))}. "
@@ -114,22 +134,20 @@ class SecurityDetector(Detector):
                 )
             else:
                 result.findings.append(
-                    Finding(
-                        id="security.headers",
+                    SCALE.finding(
+                        "security.headers",
+                        "clean",
                         title="No revealing upstream headers",
-                        status=Status.PASS,
-                        severity=Severity.INFO,
                         summary=f"Inspected {len(chat.headers)} response headers; none expose upstream identity.",
                         evidence={"header_count": len(chat.headers)},
                     )
                 )
         else:
             result.findings.append(
-                Finding(
-                    id="security.headers",
+                SCALE.finding(
+                    "security.headers",
+                    "unavailable",
                     title="No response headers to inspect",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.INFO,
                     summary=chat.error_message or "Call returned no headers; header hygiene not assessed.",
                     evidence={"status_code": chat.status_code, "error_type": chat.error_type},
                 )
@@ -149,11 +167,10 @@ class SecurityDetector(Detector):
                 key_echoed = any(contains_ci(text, key) for text in haystacks if text)
             if key_echoed:
                 result.findings.append(
-                    Finding(
-                        id="security.key_echo",
+                    SCALE.finding(
+                        "security.key_echo",
+                        "echoed",
                         title="API key reflected in response",
-                        status=Status.FAIL,
-                        severity=Severity.HIGH,
                         summary="The API key appears verbatim in the relay's response; treat the key as exposed.",
                         evidence={"location": "content_or_error"},
                         recommendation="Rotate the key and avoid this relay echoing credentials.",
@@ -161,11 +178,10 @@ class SecurityDetector(Detector):
                 )
             else:
                 result.findings.append(
-                    Finding(
-                        id="security.key_echo",
+                    SCALE.finding(
+                        "security.key_echo",
+                        "not_echoed",
                         title="API key not reflected in response",
-                        status=Status.PASS,
-                        severity=Severity.INFO,
                         summary="The API key does not appear in the response content or error text.",
                         evidence={},
                     )
@@ -173,11 +189,10 @@ class SecurityDetector(Detector):
 
         # 4) Limits of black-box inspection — no score impact.
         result.findings.append(
-            Finding(
-                id="security.note",
+            SCALE.finding(
+                "security.note",
+                "limits",
                 title="Prompt logging & shared upstream keys are not black-box provable",
-                status=Status.INFO,
-                severity=Severity.INFO,
                 summary=(
                     "Whether a relay logs prompts or multiplexes a shared upstream key cannot be "
                     "verified from the client side. Treat the reliability and streaming-timing "
@@ -187,17 +202,11 @@ class SecurityDetector(Detector):
             )
         )
 
-        # SCORE: 100 healthy https with no key echo; 40 for http (key on the wire);
-        # a verbatim key echo is the dominant transport-security failure.
-        if not is_https:
-            result.score = 40.0
-            result.status = Status.FAIL
-        elif key_echoed:
-            result.score = 30.0
-            result.status = Status.FAIL
-        else:
-            result.score = 100.0
-            result.status = Status.PASS
+        # SCORE: 100 healthy https with no key echo; plain http caps at 40 (key on
+        # the wire); a verbatim key echo, the dominant transport-security failure,
+        # caps at 30 — the lowest cap wins.
+        result.score = SCALE.total(result.findings)
+        result.status = Status.FAIL if (not is_https or key_echoed) else Status.PASS
 
         result.evidence["https"] = is_https
         result.evidence["key_present"] = bool(key)

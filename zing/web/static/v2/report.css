@@ -77,15 +77,26 @@
 .zr-chk { padding: 8px 0; }
 .zr-find .dot.good { background: var(--good-fill); }
 .zr-chk .pts { font-weight: 600; font-size: 12px; color: var(--faint); white-space: nowrap; margin-left: 4px; font-variant-numeric: tabular-nums; }
-.zr-chk .oc { font-size: 13px; color: var(--ink); margin-top: 2px; }
-.zr-det .scl { margin-top: 4px; padding: 2px 0; }
-.zr-scale { margin: 6px 0 0; font-size: 12.5px; color: var(--ink2); }
-.zr-scale[hidden] { display: none; }
-.zr-scale h5 { margin: 8px 0 2px; font-size: 12.5px; color: var(--ink); }
-.zr-scale ul { list-style: none; margin: 0; padding: 0; }
-.zr-scale li { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; padding: 1px 0; }
-.zr-scale li.hit { color: var(--ink); font-weight: 600; }
-.zr-scale .p { font-variant-numeric: tabular-nums; }
+.zr-chk .body { position: relative; }
+/* scoring-scale toggletip next to a check's points */
+.zr-tip { display: inline; }
+.zr-tip .tipb {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; margin-left: 2px; padding: 0; vertical-align: -3px;
+  border: 0; border-radius: 50%; background: none; color: var(--faint); cursor: help;
+}
+.zr-tip .tipb:hover, .zr-tip .tipb:focus-visible, .zr-tip .tipb[aria-expanded="true"] { color: var(--teal); }
+.zr-tip .tipb .zicon { width: 14px; height: 14px; }
+.zr-tip .bubble {
+  /* top: auto = static position, i.e. just below the line holding the button,
+     however the title wraps; left: 0 = the check's own left edge */
+  display: none; position: absolute; z-index: 5; left: 0; margin-top: 4px; width: min(100%, 440px);
+  padding: 8px 11px; font-size: 12.5px; font-weight: 400; line-height: 1.45; color: var(--ink2);
+  background: var(--card); border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+}
+.zr-tip:hover .bubble, .zr-tip .tipb:focus-visible + .bubble, .zr-tip .tipb[aria-expanded="true"] + .bubble { display: block; }
+.zr-tip .row { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; padding: 1px 0; }
+.zr-tip .row.hit { color: var(--ink); font-weight: 600; }
+.zr-tip .p { font-variant-numeric: tabular-nums; }
 
 /* findings, grouped by severity */
 .zr-grp + .zr-grp { margin-top: 14px; }

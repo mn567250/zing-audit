@@ -296,15 +296,14 @@
   }
   function detDetails(det) {
     var sc = det.scoring;
-    var labels = {};
+    var scale = {}; // check id -> its outcomes, in scale order
     ((sc && sc.outcomes) || []).forEach(function (o) {
-      labels[o.check + "\n" + o.outcome] = o;
+      (scale[o.check] = scale[o.check] || []).push(o);
     });
     var hasScore = det.score != null && isFinite(det.score);
     var hid = "zr-dh-" + ++uid;
     var rows = (det.findings || []).map(function (f) {
-      var o = sc && f.outcome != null ? labels[f.id + "\n" + f.outcome] : null;
-      return checkRow(f, sc ? pts(f.score) : null, o && o.label ? srv(o.label) : "");
+      return checkRow(f, sc ? pts(f.score) : null, sc ? scale[f.id] : null);
     });
     return (
       '<div class="zr-det"><h4 class="zr-dh" id="' + hid + '">' + esc(srv(det.name)) +
@@ -316,12 +315,13 @@
       (rows.length
         ? '<ul class="zr-list" aria-labelledby="' + hid + '">' + rows.join("") + "</ul>"
         : '<p class="how">' + esc(T("没有发现。", "No findings.")) + "</p>") +
-      (sc && sc.outcomes && sc.outcomes.length ? scaleBlock(det) : "") +
       "</div>"
     );
   }
-  // One check: its status, what happened, and the points it scored.
-  function checkRow(f, points, outcome) {
+  // One check: its status, what happened, and the points it scored — with
+  // an info tip next to the points listing every outcome the check could
+  // have had (its published scale), this run's marked.
+  function checkRow(f, points, outcomes) {
     var s = STATG[f.status] || SEV_NONE;
     var ev = evText(f.evidence);
     var L = loc(f);
@@ -330,8 +330,8 @@
       '<li class="zr-find zr-chk"><span class="dot ' + s.c + '" aria-hidden="true">' + ico(s.g) + "</span>" +
       '<div class="body"><div class="ft"><span class="sr-only">' +
       esc(Tf("结果：{s}。", "Result: {s}.", { s: label("STATUS", f.status) })) + " </span>" + esc(L.title) +
-      (points != null ? ' <span class="pts">' + esc(points) + "</span>" : "") + "</div>" +
-      (outcome ? '<div class="oc">' + esc(outcome) + "</div>" : "") +
+      (points != null ? ' <span class="pts">' + esc(points) + "</span>" : "") +
+      (outcomes && outcomes.length ? scaleTip(f, outcomes) : "") + "</div>" +
       '<div class="fs">' + esc(L.summary) +
       (f.recommendation ? ' <span class="rec">· ' + esc(T("建议：", "Recommendation: ")) + esc(srv(f.recommendation)) + "</span>" : "") +
       "</div>" +
@@ -343,45 +343,21 @@
       "</div></li>"
     );
   }
-  function showScale(open) {
-    return open ? T("收起计分标准", "Hide scoring scale") : T("查看计分标准", "Show scoring scale");
-  }
-  // The published scale: every outcome each check could have had, with the
-  // one this run hit marked.
-  function scaleBlock(det) {
-    var hit = {};
-    var title = {};
-    (det.findings || []).forEach(function (f) {
-      if (f.outcome != null) hit[f.id + "\n" + f.outcome] = true;
-      if (!title[f.id]) title[f.id] = loc(f).title;
-    });
-    var groups = [];
-    var at = {};
-    det.scoring.outcomes.forEach(function (o) {
-      if (!(o.check in at)) {
-        at[o.check] = groups.length;
-        groups.push({ check: o.check, rows: [] });
-      }
-      groups[at[o.check]].rows.push(o);
-    });
-    var id = "zr-sc-" + ++uid;
+  // Toggletip: shown on hover/focus, pinned open by a click (touch).
+  function scaleTip(f, outcomes) {
+    var id = "zr-tip-" + ++uid;
     return (
-      '<button type="button" class="linkbtn scl" aria-expanded="false" aria-controls="' + id + '">' + esc(showScale(false)) + "</button>" +
-      '<div class="zr-scale" id="' + id + '" hidden>' +
-      groups.map(function (g) {
+      '<span class="zr-tip"><button type="button" class="tipb" aria-expanded="false" aria-describedby="' + id + '" aria-label="' +
+      esc(T("计分标准", "Scoring scale")) + '">' + ico("info") + "</button>" +
+      '<span class="bubble" role="tooltip" id="' + id + '">' +
+      outcomes.map(function (o) {
+        var on = o.outcome === f.outcome;
         return (
-          "<h5>" + esc(title[g.check] || g.check) + "</h5><ul>" +
-          g.rows.map(function (o) {
-            var on = hit[o.check + "\n" + o.outcome];
-            return (
-              "<li" + (on ? ' class="hit"' : "") + '><span class="p">' + esc(pts(o.score)) + "</span><span>" + esc(srv(o.label)) +
-              (on ? ' <span class="badge sky">' + esc(T("本次结果", "This run")) + "</span>" : "") + "</span></li>"
-            );
-          }).join("") +
-          "</ul>"
+          '<span class="row' + (on ? " hit" : "") + '"><span class="p">' + esc(pts(o.score)) + "</span><span>" + esc(srv(o.label)) +
+          (on ? ' <span class="badge sky">' + esc(T("本次结果", "This run")) + "</span>" : "") + "</span></span>"
         );
       }).join("") +
-      "</div>"
+      "</span></span>"
     );
   }
 
@@ -552,12 +528,24 @@
     // animate the bars on first show only; a language re-render keeps them still
     if (st.still || typeof requestAnimationFrame !== "function") fill();
     else requestAnimationFrame(fill);
-    // disclosure buttons: evidence, dimension details, scoring scale
+    // disclosure buttons: evidence, dimension details
     var toggles = el.querySelectorAll(TOGGLES);
     for (var j = 0; j < toggles.length; j++)
       toggles[j].onclick = function () {
         toggle(this, null);
       };
+    var tips = el.querySelectorAll(".zr-tip .tipb");
+    for (var t = 0; t < tips.length; t++) {
+      tips[t].onclick = function () {
+        this.setAttribute("aria-expanded", String(this.getAttribute("aria-expanded") !== "true"));
+      };
+      tips[t].onkeydown = function (e) {
+        if (e.key === "Escape") this.setAttribute("aria-expanded", "false");
+      };
+      tips[t].onblur = function () {
+        this.setAttribute("aria-expanded", "false");
+      };
+    }
     var acts = el.querySelectorAll("[data-action]");
     for (var k = 0; k < acts.length; k++)
       acts[k].onclick = function () {
@@ -568,7 +556,7 @@
     if (perf && window.ZingPerf && st.report && st.report.performance) window.ZingPerf.wireSection(perf, st.report.performance);
   }
 
-  var TOGGLES = ".zr-find .more, .zr-dim .dtog, .zr-det .scl";
+  var TOGGLES = ".zr-find .more, .zr-dim .dtog";
   // Open/close the panel a disclosure button controls (open: null = flip).
   function toggle(btn, open) {
     var panel = document.getElementById(btn.getAttribute("aria-controls"));
@@ -577,7 +565,6 @@
     panel.hidden = !open;
     btn.setAttribute("aria-expanded", String(open));
     if (/\bmore\b/.test(btn.className)) btn.textContent = showEvidence(open);
-    else if (/\bscl\b/.test(btn.className)) btn.textContent = showScale(open);
   }
 
   function mount(el, report, opts, still) {
@@ -591,7 +578,7 @@
   }
 
   // Re-render every mounted report in the new language, keeping open panels
-  // (evidence, dimension details, scoring scales) and the focused control.
+  // (evidence, dimension details) and the focused control.
   window.addEventListener("zing:lang", function () {
     var els = document.querySelectorAll(".zr");
     for (var i = 0; i < els.length; i++) {

@@ -623,6 +623,9 @@
       if (!lastReport) setIdle(() => `${esc(T("连接失败", "Connection failed"))} <span class="c-bad">${ic("x", { size: 16 })}</span>`);
     } finally {
       running = false;
+      /* stream closed without report/error/done: don't leave "in progress" behind */
+      if (!lastReport && !errFn && $("#verdict").classList.contains("idle"))
+        setIdle(() => T("未收到报告（已结束）", "No report received (stream ended)"));
       $("#logdot").classList.remove("live");
       $$("#log .ln.cursor").forEach((l) => l.classList.remove("cursor"));
       $("#run").disabled = false;

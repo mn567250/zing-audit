@@ -47,6 +47,8 @@
   .probe { margin: 2px 0 16px; }
   .probe .disclosure > span:first-child { display: inline-flex; align-items: center; gap: 8px; }
   .probe .adv-hint { font-size: 12.5px; color: var(--ink2); line-height: 1.55; margin: 0 0 12px; }
+  .probe .cv { width: 16px; height: 16px; flex: none; align-items: center; justify-content: center; }
+  .probe .cv .zicon, .probe .pico .zicon { width: 15px; height: 15px; }
   .probe textarea.in { min-height: 104px; resize: vertical; line-height: 1.5; }
   .narrow { max-width: 260px; }
 
@@ -77,11 +79,13 @@
   .chk .dot.warn { background: var(--warn-fill); }
   .chk .dot.bad { background: var(--bad-fill); }
   .chk .body { flex: 1; min-width: 0; }
-  .chk .top { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
-  .chk .ft { font-weight: 600; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+  .chk .top { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: flex-start; justify-content: space-between; }
+  .chk .top .badge { margin-top: 1px; }
+  .chk .ft { flex: 1 1 14em; min-width: 0; font-weight: 600; font-size: 14px; line-height: 1.4; overflow-wrap: break-word; hyphens: auto; }
   .chk .fs { color: var(--ink2); font-size: 13.5px; line-height: 1.55; margin-top: 3px; overflow-wrap: anywhere; }
   .chk .metrics { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; font-family: var(--mono); font-size: 12px; color: var(--ink); }
-  .chk .metrics > span { display: inline-flex; align-items: baseline; gap: 5px; overflow-wrap: anywhere; }
+  .chk .metrics > span { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+  .chk .metrics .key { white-space: nowrap; }
   .chk .more { margin-top: 7px; }
   .chk pre {
     margin: 7px 0 0; font-family: var(--mono); font-size: 11.5px; color: var(--ink2); background: var(--surface-2);

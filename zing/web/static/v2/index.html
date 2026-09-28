@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="/v2/static/zing.css" />
 <link rel="stylesheet" href="/v2/static/fields.css" />
 <link rel="stylesheet" href="/v2/static/report.css" />
+<link rel="stylesheet" href="/v2/static/perf.css" />
 <style>
   /* ---------- page: audit (tokens only; light + dark) ---------- */
   [tabindex="-1"]:focus { outline: none; }
@@ -129,16 +130,9 @@
   .fi .fe { font-family: var(--mono); font-size: 11px; color: var(--ink2); margin-top: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
   .fi .fe b { color: var(--bad); }
 
-  /* perf.js panels: re-point their hard-coded palette at the tokens (dark mode) */
-  #perf-live .zp-live, #report .zp-section {
-    --zp-surface: var(--card); --zp-grid: var(--line); --zp-ink: var(--ink); --zp-ink2: var(--ink2); --zp-faint: var(--faint);
-  }
-  #perf-live .zp-live { background: var(--card); max-width: 560px; }
-  #perf-live .zp-tile, #report .zp-tile { background: var(--surface-2); }
-  #perf-live .zp-bar, #report .zp-bar { background: var(--track); }
-  #perf-live .zp-tabs button, #report .zp-tabs button { background: var(--field); }
-  #perf-live .zp-tabs button.on, #report .zp-tabs button.on { color: var(--on-ink); background: var(--ink); border-color: var(--ink); }
-  #perf-live .zp-plot, #report .zp-scroll { max-width: 100%; overflow-x: auto; }
+  /* perf.js live panel: colours come from /v2/static/perf.css; fit it to the scan card */
+  #perf-live .zp-live { max-width: 560px; }
+  #perf-live .zp-plot { max-width: 100%; overflow-x: auto; }
 
   /* step 3 */
   #report { margin-top: 22px; }

@@ -253,7 +253,8 @@ async def test_full_suite_measures_both_modes_interleaved(knowledge_base):
     assert report is not None and report.mode == "stream" and report.probe_requests == 3
     assert [m.mode for m in report.modes] == ["non_stream"]
     ns = report.modes[0]
-    assert ns.target.requests == 3 and ns.target.ttft_ms.count == 0
+    # 3 probe + 3 burst requests in this mode count towards reliability.
+    assert ns.target.requests == 6 and ns.target.ttft_ms.count == 0
     assert ns.baseline is not None and ns.comparison
     assert report.target.ttft_ms.count == 3
     assert planned_probe_requests(AuditOptions(suite="full"), has_baseline=False) == 100

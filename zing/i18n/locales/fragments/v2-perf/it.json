@@ -1,0 +1,24 @@
+{
+ "strings": {
+  "probe": "sonda",
+  "audit": "audit",
+  "{metric} ({unit}) over time: {n} requests": "{metric} ({unit}) nel tempo: {n} richieste",
+  "target median {value}": "mediana obiettivo {value}",
+  "baseline median {value}": "mediana riferimento {value}",
+  "{n} failed": "{n} fallite",
+  "; ": "; ",
+  "Show data table": "Mostra tabella dati",
+  "Endpoint": "Endpoint",
+  "Phase": "Fase",
+  "Start": "Inizio",
+  "Status": "Stato",
+  "Performance metric": "Metrica delle prestazioni",
+  "{n} × {max} tokens": "{n} × {max} token",
+  "{input} + {output} tokens (usage)": "{input} + {output} token (usage)",
+  "count": "conteggio",
+  "min": "min",
+  "mean": "media",
+  "max": "max",
+  "stdev": "dev. std."
+ }
+}

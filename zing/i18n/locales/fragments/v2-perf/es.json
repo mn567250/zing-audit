@@ -1,0 +1,24 @@
+{
+ "strings": {
+  "probe": "sonda",
+  "audit": "auditoría",
+  "{metric} ({unit}) over time: {n} requests": "{metric} ({unit}) a lo largo del tiempo: {n} peticiones",
+  "target median {value}": "mediana del objetivo {value}",
+  "baseline median {value}": "mediana de referencia {value}",
+  "{n} failed": "{n} fallidas",
+  "; ": "; ",
+  "Show data table": "Mostrar tabla de datos",
+  "Endpoint": "Endpoint",
+  "Phase": "Fase",
+  "Start": "Inicio",
+  "Status": "Estado",
+  "Performance metric": "Métrica de rendimiento",
+  "{n} × {max} tokens": "{n} × {max} tokens",
+  "{input} + {output} tokens (usage)": "{input} + {output} tokens (usage)",
+  "count": "recuento",
+  "min": "mín",
+  "mean": "media",
+  "max": "máx",
+  "stdev": "desv. est."
+ }
+}

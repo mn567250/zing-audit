@@ -1,0 +1,24 @@
+{
+ "strings": {
+  "probe": "probe",
+  "audit": "audit",
+  "{metric} ({unit}) over time: {n} requests": "{metric} ({unit}) over time: {n} requests",
+  "target median {value}": "target median {value}",
+  "baseline median {value}": "baseline median {value}",
+  "{n} failed": "{n} failed",
+  "; ": "; ",
+  "Show data table": "Show data table",
+  "Endpoint": "Endpoint",
+  "Phase": "Phase",
+  "Start": "Start",
+  "Status": "Status",
+  "Performance metric": "Performance metric",
+  "{n} × {max} tokens": "{n} × {max} tokens",
+  "{input} + {output} tokens (usage)": "{input} + {output} tokens (usage)",
+  "count": "count",
+  "min": "min",
+  "mean": "mean",
+  "max": "max",
+  "stdev": "stdev"
+ }
+}

@@ -11,12 +11,15 @@ from __future__ import annotations
 from zing.models import (
     DetectorResult,
     Dimension,
+    DimensionBreakdown,
+    DimensionContribution,
     DimensionScore,
     Finding,
     ReliabilitySummary,
     RiskLevel,
     Severity,
     Status,
+    StatusOverride,
     Verdict,
 )
 
@@ -104,7 +107,7 @@ def build_dimensions(
 
         # Status reflects what the detectors themselves concluded — we do NOT
         # re-derive FAIL purely from a soft score, which would over-escalate.
-        status = _worst_status([d.status for d in members])
+        detector_status = status = _worst_status([d.status for d in members])
         # But a serious finding always pulls the dimension down.
         worst = Severity.INFO
         for det in members:
@@ -115,6 +118,24 @@ def build_dimensions(
             status = Status.FAIL
         elif worst == Severity.MEDIUM and status in (Status.PASS, Status.INFO):
             status = Status.WARN
+        override = None
+        if status != detector_status:
+            override = StatusOverride(
+                from_status=detector_status,
+                to_status=status,
+                severity=worst,
+                findings=[f.id for det in members for f in det.findings if f.severity == worst],
+            )
+        breakdown = DimensionBreakdown(
+            detectors=[
+                DimensionContribution(
+                    detector=d.id, score=d.score, status=d.status, counted=d.score is not None
+                )
+                for d in members
+            ],
+            detector_status=detector_status,
+            status_override=override,
+        )
 
         if not members:
             reason = "Not run in this suite."
@@ -126,7 +147,14 @@ def build_dimensions(
                 if f.status in (Status.FAIL, Status.WARN)
             )[:200] or "All checks passed."
         dimensions.append(
-            DimensionScore(dimension=dim, score=score, weight=weight, status=status, reason=reason)
+            DimensionScore(
+                dimension=dim,
+                score=score,
+                weight=weight,
+                status=status,
+                reason=reason,
+                breakdown=breakdown,
+            )
         )
     return dimensions
 

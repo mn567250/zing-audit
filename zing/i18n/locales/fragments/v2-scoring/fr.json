@@ -1,0 +1,33 @@
+{
+ "strings": {
+  "Not counted": "Non compté",
+  "{p} pts": "{p} pts",
+  "No detector produced a numeric score.": "Aucun détecteur n'a produit de score numérique.",
+  "Score from one detector.": "Score issu d'un seul détecteur.",
+  "Score: mean of {n} detectors, equal weight.": "Score : moyenne de {n} détecteurs, à poids égal.",
+  "Not counted (no numeric score): {list}.": "Non comptés (pas de score numérique) : {list}.",
+  "Status raised from {from} to {to} by findings of severity {sev}: {list}. A serious finding pulls a dimension down whatever its score.": "Statut relevé de {from} à {to} par des constats de gravité {sev} : {list}. Un constat grave fait baisser une dimension quel que soit son score.",
+  "Status: the worst status its detectors concluded.": "Statut : le pire statut conclu par ses détecteurs.",
+  "Score {s}": "Score {s}",
+  "Detector score: mean of the counted checks' points.": "Score du détecteur : moyenne des points des vérifications comptées.",
+  "No findings.": "Aucun constat.",
+  "Result: {s}.": "Résultat : {s}.",
+  "Show scoring scale": "Afficher le barème",
+  "Hide scoring scale": "Masquer le barème",
+  "This run": "Cette exécution",
+  "No usable response to judge by.": "Aucune réponse exploitable pour juger.",
+  "The color from an earlier turn was recalled.": "La couleur d'un tour précédent a été retrouvée.",
+  "The color from an earlier turn was not recalled.": "La couleur d'un tour précédent n'a pas été retrouvée.",
+  "Output stopped at the stop sequence.": "La sortie s'est arrêtée à la séquence d'arrêt.",
+  "Stop handling could not be confirmed from the text.": "La gestion de l'arrêt n'a pas pu être confirmée d'après le texte.",
+  "Text after the stop sequence was returned.": "Du texte après la séquence d'arrêt a été renvoyé.",
+  "finish_reason and an integer usage object are present.": "finish_reason et un objet usage en entiers sont présents.",
+  "finish_reason or a complete integer usage object is missing.": "finish_reason ou un objet usage complet en entiers est absent.",
+  "Rejected with a 4xx and an OpenAI-style error body.": "Rejetée avec un 4xx et un corps d'erreur de style OpenAI.",
+  "Rejected with a 4xx, but the body is not OpenAI-style.": "Rejetée avec un 4xx, mais le corps n'est pas de style OpenAI.",
+  "No HTTP response; client-error handling could not be confirmed.": "Pas de réponse HTTP ; la gestion des erreurs client n'a pas pu être confirmée.",
+  "Another HTTP status; client-error handling could not be confirmed.": "Un autre statut HTTP ; la gestion des erreurs client n'a pas pu être confirmée.",
+  "The invalid request caused a server error (5xx).": "La requête invalide a provoqué une erreur serveur (5xx).",
+  "The invalid request was accepted (2xx).": "La requête invalide a été acceptée (2xx)."
+ }
+}

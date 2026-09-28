@@ -21,6 +21,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Transparent dimension scoring.** Every report now explains each dimension:
+  how its score was computed (equal-weight mean of its detectors), where its
+  status came from (and which findings overrode it), and every check behind it,
+  passed and failed alike. Markdown/HTML reports gain a **Dimension details**
+  section; in the v2 web UI each dimension row expands into the same details.
+  New report fields: `DimensionScore.breakdown`, `DetectorResult.scoring` (a
+  detector's published scale of outcomes and points), and `Finding.outcome` /
+  `Finding.score`; the compact JSON carries each finding's `points`. The
+  `protocol` detector is the first with a published scale.
+
 - **Docker image for the web UI** (`Dockerfile`, [docs/DOCKER.md](docs/DOCKER.md)).
   Inside a container the server may listen on the container's interfaces when
   `ZING_CONTAINER=1` is set *and* a container runtime is detected; publish it
@@ -146,6 +156,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   measurement, and must say so. Reports gain `prompt_languages`, shown in the web UI.
 
 ### Changed
+
+- **`protocol`: inconclusive checks no longer count.** A check without a usable
+  response used to score 50 and pull the detector down; it is now left out of
+  the mean (the detector has no score when no check counted).
 
 - **Vision probe asks in English only.** It was bilingual
   ("仅用一个词回答：图片是什么颜色？/ In one word, what color is this image?"); Chinese

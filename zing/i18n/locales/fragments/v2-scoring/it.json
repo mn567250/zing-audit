@@ -1,0 +1,33 @@
+{
+ "strings": {
+  "Not counted": "Non conteggiato",
+  "{p} pts": "{p} pt",
+  "No detector produced a numeric score.": "Nessun rilevatore ha prodotto un punteggio numerico.",
+  "Score from one detector.": "Punteggio da un solo rilevatore.",
+  "Score: mean of {n} detectors, equal weight.": "Punteggio: media di {n} rilevatori, a pari peso.",
+  "Not counted (no numeric score): {list}.": "Non conteggiati (nessun punteggio numerico): {list}.",
+  "Status raised from {from} to {to} by findings of severity {sev}: {list}. A serious finding pulls a dimension down whatever its score.": "Stato innalzato da {from} a {to} da rilievi di gravità {sev}: {list}. Un rilievo grave abbassa una dimensione qualunque sia il punteggio.",
+  "Status: the worst status its detectors concluded.": "Stato: il peggiore stato concluso dai suoi rilevatori.",
+  "Score {s}": "Punteggio {s}",
+  "Detector score: mean of the counted checks' points.": "Punteggio del rilevatore: media dei punti dei controlli conteggiati.",
+  "No findings.": "Nessun rilievo.",
+  "Result: {s}.": "Esito: {s}.",
+  "Show scoring scale": "Mostra la scala dei punteggi",
+  "Hide scoring scale": "Nascondi la scala dei punteggi",
+  "This run": "Questa esecuzione",
+  "No usable response to judge by.": "Nessuna risposta utilizzabile per valutare.",
+  "The color from an earlier turn was recalled.": "Il colore di un turno precedente è stato ricordato.",
+  "The color from an earlier turn was not recalled.": "Il colore di un turno precedente non è stato ricordato.",
+  "Output stopped at the stop sequence.": "L'output si è fermato alla sequenza di stop.",
+  "Stop handling could not be confirmed from the text.": "Non è stato possibile confermare la gestione dello stop dal testo.",
+  "Text after the stop sequence was returned.": "È stato restituito testo dopo la sequenza di stop.",
+  "finish_reason and an integer usage object are present.": "finish_reason e un oggetto usage con interi sono presenti.",
+  "finish_reason or a complete integer usage object is missing.": "Manca finish_reason o un oggetto usage completo con interi.",
+  "Rejected with a 4xx and an OpenAI-style error body.": "Rifiutata con un 4xx e un corpo di errore in stile OpenAI.",
+  "Rejected with a 4xx, but the body is not OpenAI-style.": "Rifiutata con un 4xx, ma il corpo non è in stile OpenAI.",
+  "No HTTP response; client-error handling could not be confirmed.": "Nessuna risposta HTTP; non è stato possibile confermare la gestione degli errori client.",
+  "Another HTTP status; client-error handling could not be confirmed.": "Un altro stato HTTP; non è stato possibile confermare la gestione degli errori client.",
+  "The invalid request caused a server error (5xx).": "La richiesta non valida ha causato un errore del server (5xx).",
+  "The invalid request was accepted (2xx).": "La richiesta non valida è stata accettata (2xx)."
+ }
+}

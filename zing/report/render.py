@@ -18,6 +18,7 @@ import html
 import json
 
 from zing.models import AuditReport, KnowledgeUsage, RiskLevel, Severity, Status
+from zing.report import dimensions as dimension_details
 from zing.report.performance import (
     PERF_CSS,
     compact_performance,
@@ -126,6 +127,8 @@ def _compact_finding(dimension: str, finding) -> dict:
     }
     # Only the actionable findings carry their summary/recommendation; pass/info
     # findings stay one line so the payload stays small.
+    if finding.score is not None:
+        out["points"] = finding.score
     if finding.status in (Status.WARN, Status.FAIL, Status.ERROR):
         if finding.summary:
             out["summary"] = finding.summary
@@ -311,6 +314,7 @@ def render_markdown(report: AuditReport) -> str:
     else:
         lines.append("_No dimensions scored._")
     lines.append("")
+    lines.extend(dimension_details.markdown_section(report, _md))
 
     # Findings grouped per detector.
     lines.append("## Findings")
@@ -509,6 +513,7 @@ def render_html(report: AuditReport) -> str:
     else:
         out.append("<p class=\"muted\">No dimensions scored.</p>")
     out.append("</section>")
+    out.append(dimension_details.html_section(report))
 
     # Findings per detector.
     detector_groups = [("Target", report.detectors)]
@@ -689,4 +694,4 @@ td.ekey { color: #57606a; white-space: nowrap; font-weight: 500; }
   .pill.info { background: #0b2942; color: #58a6ff; }
   .pill.muted { background: #21262d; color: #8b949e; }
 }
-""" + PERF_CSS + """</style>"""
+""" + dimension_details.DIM_CSS + PERF_CSS + """</style>"""

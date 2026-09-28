@@ -1,0 +1,33 @@
+{
+ "strings": {
+  "Not counted": "Nicht gewertet",
+  "{p} pts": "{p} Pkt.",
+  "No detector produced a numeric score.": "Kein Detektor lieferte eine numerische Bewertung.",
+  "Score from one detector.": "Bewertung aus einem Detektor.",
+  "Score: mean of {n} detectors, equal weight.": "Bewertung: Mittelwert aus {n} Detektoren, gleich gewichtet.",
+  "Not counted (no numeric score): {list}.": "Nicht gewertet (keine numerische Bewertung): {list}.",
+  "Status raised from {from} to {to} by findings of severity {sev}: {list}. A serious finding pulls a dimension down whatever its score.": "Status von {from} auf {to} angehoben durch Befunde mit Schweregrad {sev}: {list}. Ein schwerwiegender Befund zieht eine Dimension unabhängig von ihrer Bewertung herunter.",
+  "Status: the worst status its detectors concluded.": "Status: der schlechteste Status, den ihre Detektoren ermittelt haben.",
+  "Score {s}": "Bewertung {s}",
+  "Detector score: mean of the counted checks' points.": "Detektorbewertung: Mittelwert der Punkte der gewerteten Prüfungen.",
+  "No findings.": "Keine Befunde.",
+  "Result: {s}.": "Ergebnis: {s}.",
+  "Show scoring scale": "Bewertungsskala anzeigen",
+  "Hide scoring scale": "Bewertungsskala ausblenden",
+  "This run": "Dieser Lauf",
+  "No usable response to judge by.": "Keine verwertbare Antwort zur Beurteilung.",
+  "The color from an earlier turn was recalled.": "Die Farbe aus einer früheren Runde wurde wiedergegeben.",
+  "The color from an earlier turn was not recalled.": "Die Farbe aus einer früheren Runde wurde nicht wiedergegeben.",
+  "Output stopped at the stop sequence.": "Die Ausgabe endete an der Stoppsequenz.",
+  "Stop handling could not be confirmed from the text.": "Die Stopp-Behandlung ließ sich anhand des Textes nicht bestätigen.",
+  "Text after the stop sequence was returned.": "Text nach der Stoppsequenz wurde zurückgegeben.",
+  "finish_reason and an integer usage object are present.": "finish_reason und ein usage-Objekt mit Ganzzahlen sind vorhanden.",
+  "finish_reason or a complete integer usage object is missing.": "finish_reason oder ein vollständiges usage-Objekt mit Ganzzahlen fehlt.",
+  "Rejected with a 4xx and an OpenAI-style error body.": "Mit einem 4xx und einem Fehlerobjekt im OpenAI-Stil abgelehnt.",
+  "Rejected with a 4xx, but the body is not OpenAI-style.": "Mit einem 4xx abgelehnt, aber der Body entspricht nicht dem OpenAI-Stil.",
+  "No HTTP response; client-error handling could not be confirmed.": "Keine HTTP-Antwort; die Behandlung von Client-Fehlern ließ sich nicht bestätigen.",
+  "Another HTTP status; client-error handling could not be confirmed.": "Ein anderer HTTP-Status; die Behandlung von Client-Fehlern ließ sich nicht bestätigen.",
+  "The invalid request caused a server error (5xx).": "Die ungültige Anfrage verursachte einen Serverfehler (5xx).",
+  "The invalid request was accepted (2xx).": "Die ungültige Anfrage wurde angenommen (2xx)."
+ }
+}

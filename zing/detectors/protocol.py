@@ -3,7 +3,9 @@
 A relay can return content yet still violate the OpenAI chat-completion contract:
 forget prior turns, ignore ``stop``, omit ``finish_reason``/``usage``, or reject
 malformed input with a non-standard error body. Each sub-check exercises one such
-contract and contributes a 0-100 sub-score; the detector score is their average.
+contract and scores points from the published scale ``SCALE`` (every possible
+outcome of every check); the detector score is the average of the counted checks.
+An inconclusive check (no usable response) is not counted.
 """
 
 from __future__ import annotations
@@ -12,7 +14,45 @@ from zing import prompts
 from zing.context import AuditContext
 from zing.detectors.base import Detector, register
 from zing.detectors.helpers import contains_ci, usage_field
+from zing.detectors.scale import Scale, outcome
 from zing.models import DetectorResult, Dimension, Finding, RequestSpec, Severity, Status
+
+_NO_RESPONSE = "No usable response to judge by."
+
+SCALE = Scale(
+    outcome("protocol.multi_turn", "recalled", 100.0, Status.PASS,
+            label="The color from an earlier turn was recalled."),
+    outcome("protocol.multi_turn", "forgotten", 55.0, Status.WARN, Severity.MEDIUM,
+            label="The color from an earlier turn was not recalled."),
+    outcome("protocol.multi_turn", "no_content", None, Status.INCONCLUSIVE, Severity.LOW,
+            label=_NO_RESPONSE),
+    outcome("protocol.stop", "truncated", 100.0, Status.PASS,
+            label="Output stopped at the stop sequence."),
+    outcome("protocol.stop", "unconfirmed", 70.0, Status.WARN, Severity.LOW,
+            label="Stop handling could not be confirmed from the text."),
+    outcome("protocol.stop", "ignored", 60.0, Status.WARN, Severity.LOW,
+            label="Text after the stop sequence was returned."),
+    outcome("protocol.stop", "no_content", None, Status.INCONCLUSIVE, Severity.LOW,
+            label=_NO_RESPONSE),
+    outcome("protocol.shape", "conformant", 100.0, Status.PASS,
+            label="finish_reason and an integer usage object are present."),
+    outcome("protocol.shape", "incomplete", 65.0, Status.WARN, Severity.LOW,
+            label="finish_reason or a complete integer usage object is missing."),
+    outcome("protocol.shape", "no_response", None, Status.INCONCLUSIVE, Severity.LOW,
+            label=_NO_RESPONSE),
+    outcome("protocol.error_schema", "rejected_openai_body", 100.0, Status.PASS,
+            label="Rejected with a 4xx and an OpenAI-style error body."),
+    outcome("protocol.error_schema", "rejected_other_body", 80.0, Status.WARN, Severity.LOW,
+            label="Rejected with a 4xx, but the body is not OpenAI-style."),
+    outcome("protocol.error_schema", "no_http_response", 55.0, Status.WARN, Severity.LOW,
+            label="No HTTP response; client-error handling could not be confirmed."),
+    outcome("protocol.error_schema", "unexpected_status", 55.0, Status.WARN, Severity.LOW,
+            label="Another HTTP status; client-error handling could not be confirmed."),
+    outcome("protocol.error_schema", "server_error", 35.0, Status.FAIL, Severity.MEDIUM,
+            label="The invalid request caused a server error (5xx)."),
+    outcome("protocol.error_schema", "accepted", 30.0, Status.FAIL, Severity.MEDIUM,
+            label="The invalid request was accepted (2xx)."),
+)
 
 
 @register
@@ -24,20 +64,19 @@ class ProtocolDetector(Detector):
     cost_hint = 4
 
     async def run(self, ctx: AuditContext) -> DetectorResult:
-        result = self.new_result()
-        score_parts: list[float] = []
+        result = self.new_result(scoring=SCALE.scoring())
 
-        score_parts.append(await self._check_multi_turn(ctx, result))
-        score_parts.append(await self._check_stop_sequence(ctx, result))
-        score_parts.append(await self._check_response_shape(ctx, result))
-        score_parts.append(await self._check_error_schema(ctx, result))
+        await self._check_multi_turn(ctx, result)
+        await self._check_stop_sequence(ctx, result)
+        await self._check_response_shape(ctx, result)
+        await self._check_error_schema(ctx, result)
 
-        result.score = round(sum(score_parts) / len(score_parts), 1) if score_parts else None
+        result.score = Scale.mean(result.findings)
         result.status = _roll_up_status(result.findings)
         return result
 
     # 1) Does the relay carry prior turns through to the model? ------------- #
-    async def _check_multi_turn(self, ctx: AuditContext, result: DetectorResult) -> float:
+    async def _check_multi_turn(self, ctx: AuditContext, result: DetectorResult) -> None:
         spec = RequestSpec(
             messages=prompts.get("protocol.multi_turn"),
             temperature=0.0,
@@ -46,24 +85,22 @@ class ProtocolDetector(Detector):
         outcome = await ctx.client.complete(spec)
         if not (outcome.ok and outcome.has_content()):
             result.findings.append(
-                Finding(
-                    id="protocol.multi_turn",
+                SCALE.finding(
+                    "protocol.multi_turn",
+                    "no_content",
                     title="Multi-turn memory check did not return content",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.LOW,
                     summary=outcome.error_message or f"HTTP {outcome.status_code}; no content.",
                     evidence={"status_code": outcome.status_code, "error_type": outcome.error_type},
                 )
             )
-            return 50.0
+            return
 
         recalled = contains_ci(outcome.content, "blue")
         result.findings.append(
-            Finding(
-                id="protocol.multi_turn",
+            SCALE.finding(
+                "protocol.multi_turn",
+                "recalled" if recalled else "forgotten",
                 title="Multi-turn conversation memory",
-                status=Status.PASS if recalled else Status.WARN,
-                severity=Severity.INFO if recalled else Severity.MEDIUM,
                 summary=(
                     "Prior turns were honored; the recalled color was returned."
                     if recalled
@@ -79,10 +116,9 @@ class ProtocolDetector(Detector):
                 else "Verify the relay forwards the full messages array to the model.",
             )
         )
-        return 100.0 if recalled else 55.0
 
     # 2) Is the ``stop`` sequence actually applied? ------------------------- #
-    async def _check_stop_sequence(self, ctx: AuditContext, result: DetectorResult) -> float:
+    async def _check_stop_sequence(self, ctx: AuditContext, result: DetectorResult) -> None:
         spec = RequestSpec(
             messages=[{"role": "user", "content": prompts.text("protocol.stop")}],
             stop="STOP",
@@ -92,34 +128,32 @@ class ProtocolDetector(Detector):
         outcome = await ctx.client.complete(spec)
         if not (outcome.ok and outcome.has_content()):
             result.findings.append(
-                Finding(
-                    id="protocol.stop",
+                SCALE.finding(
+                    "protocol.stop",
+                    "no_content",
                     title="Stop-sequence check did not return content",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.LOW,
                     summary=outcome.error_message or f"HTTP {outcome.status_code}; no content.",
                     evidence={"status_code": outcome.status_code, "error_type": outcome.error_type},
                 )
             )
-            return 50.0
+            return
 
         has_alpha = contains_ci(outcome.content, "alpha")
         has_beta = contains_ci(outcome.content, "beta")
         if has_alpha and not has_beta:
-            status, severity, score = Status.PASS, Severity.INFO, 100.0
+            key = "truncated"
             summary = "Output was truncated at the stop sequence as expected."
         elif has_beta:
-            status, severity, score = Status.WARN, Severity.LOW, 60.0
+            key = "ignored"
             summary = "Text after the stop sequence ('beta') was present; stop was ignored."
         else:
-            status, severity, score = Status.WARN, Severity.LOW, 70.0
+            key = "unconfirmed"
             summary = "Could not confirm stop handling from the response text."
         result.findings.append(
-            Finding(
-                id="protocol.stop",
+            SCALE.finding(
+                "protocol.stop",
+                key,
                 title="Stop-sequence handling",
-                status=status,
-                severity=severity,
                 summary=summary,
                 evidence={
                     "contains_alpha": has_alpha,
@@ -129,10 +163,9 @@ class ProtocolDetector(Detector):
                 },
             )
         )
-        return score
 
     # 3) Does a normal call carry finish_reason + a typed usage object? ----- #
-    async def _check_response_shape(self, ctx: AuditContext, result: DetectorResult) -> float:
+    async def _check_response_shape(self, ctx: AuditContext, result: DetectorResult) -> None:
         spec = RequestSpec(
             messages=[{"role": "user", "content": prompts.text("protocol.shape")}],
             temperature=0.0,
@@ -141,16 +174,15 @@ class ProtocolDetector(Detector):
         outcome = await ctx.client.complete(spec)
         if not outcome.ok:
             result.findings.append(
-                Finding(
-                    id="protocol.shape",
+                SCALE.finding(
+                    "protocol.shape",
+                    "no_response",
                     title="Response-shape check failed to return",
-                    status=Status.INCONCLUSIVE,
-                    severity=Severity.LOW,
                     summary=outcome.error_message or f"HTTP {outcome.status_code}.",
                     evidence={"status_code": outcome.status_code, "error_type": outcome.error_type},
                 )
             )
-            return 50.0
+            return
 
         has_finish = bool(outcome.finish_reason)
         prompt_tokens = usage_field(outcome.usage, "prompt_tokens", "input_tokens")
@@ -163,11 +195,10 @@ class ProtocolDetector(Detector):
         )
         conformant = has_finish and has_usage
         result.findings.append(
-            Finding(
-                id="protocol.shape",
+            SCALE.finding(
+                "protocol.shape",
+                "conformant" if conformant else "incomplete",
                 title="Response envelope shape",
-                status=Status.PASS if conformant else Status.WARN,
-                severity=Severity.INFO if conformant else Severity.LOW,
                 summary=(
                     "finish_reason and an integer usage object were present."
                     if conformant
@@ -182,10 +213,9 @@ class ProtocolDetector(Detector):
                 },
             )
         )
-        return 100.0 if conformant else 65.0
 
     # 4) Does a malformed request fail with an OpenAI-style error body? ----- #
-    async def _check_error_schema(self, ctx: AuditContext, result: DetectorResult) -> float:
+    async def _check_error_schema(self, ctx: AuditContext, result: DetectorResult) -> None:
         spec = RequestSpec(messages=[])  # empty messages — deliberately invalid
         outcome = await ctx.client.complete(spec)
 
@@ -199,40 +229,39 @@ class ProtocolDetector(Detector):
         accepted = outcome.ok or status_code == 200
 
         if is_4xx and conforming:
-            status, severity, score = Status.PASS, Severity.INFO, 100.0
+            key = "rejected_openai_body"
             summary = f"Invalid request rejected with HTTP {status_code} and an OpenAI-style error body."
         elif is_4xx:
-            status, severity, score = Status.WARN, Severity.LOW, 80.0
+            key = "rejected_other_body"
             summary = (
                 f"Invalid request was correctly rejected with HTTP {status_code}, but the "
                 "body is not an OpenAI-style {'error': {...}} object."
             )
         elif accepted:
-            status, severity, score = Status.FAIL, Severity.MEDIUM, 30.0
+            key = "accepted"
             summary = "Empty-messages request was accepted (2xx) instead of being rejected."
         elif is_5xx:
-            status, severity, score = Status.FAIL, Severity.MEDIUM, 35.0
+            key = "server_error"
             summary = (
                 f"Invalid request produced a server error (HTTP {status_code}) rather than a 4xx."
             )
         elif status_code is None:
-            status, severity, score = Status.WARN, Severity.LOW, 55.0
+            key = "no_http_response"
             summary = (
                 f"Invalid request got no HTTP response ({outcome.error_type or 'unknown'}); "
                 "could not confirm OpenAI-style client-error handling."
             )
         else:
-            status, severity, score = Status.WARN, Severity.LOW, 55.0
+            key = "unexpected_status"
             summary = (
                 f"Invalid request produced an unexpected outcome (HTTP {status_code}); could not "
                 "confirm OpenAI-style client-error handling."
             )
         result.findings.append(
-            Finding(
-                id="protocol.error_schema",
+            SCALE.finding(
+                "protocol.error_schema",
+                key,
                 title="Error response schema",
-                status=status,
-                severity=severity,
                 summary=summary,
                 evidence={
                     "status_code": status_code,
@@ -243,12 +272,11 @@ class ProtocolDetector(Detector):
                     "error_type": (outcome.error_type or "unknown") if status_code is None else None,
                 },
                 recommendation=None
-                if score >= 100.0
+                if key == "rejected_openai_body"
                 else "A conformant relay should reject invalid input with a 4xx and an "
                 "{'error': {...}} body.",
             )
         )
-        return score
 
 
 def _roll_up_status(findings: list[Finding]) -> Status:

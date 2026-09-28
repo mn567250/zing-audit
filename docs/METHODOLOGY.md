@@ -60,6 +60,34 @@ confidence rises to "high" only when all three ran *and* a baseline was used.
 三个**核心维度**（`model_identity`、`context_window`、`capability`）的失败最直接
 指向"货不对板"；只有这三者全部运行**且**使用了基线时，判定置信度才会达到 "high"。
 
+### How a dimension is scored / 维度如何计分
+
+A dimension's score is the **equal-weight mean of its detectors' scores** — a
+detector with many checks does not outweigh one with few; a detector without a
+numeric score is left out. Its status is the worst status its detectors
+concluded, except that a HIGH/CRITICAL finding forces FAIL and a MEDIUM finding
+lifts PASS to WARN whatever the score. Every report records this per dimension
+(`DimensionScore.breakdown`: each detector's score, whether it counted, and any
+status override with the findings that caused it) and shows it in the
+**Dimension details** (Markdown/HTML) and in the expandable dimension rows of
+the web UI.
+
+A detector may also **publish its scoring scale** (`DetectorResult.scoring`,
+built with `zing/detectors/scale.py`): every possible outcome of each check with
+its points, status and severity. Its findings then carry the `outcome` they hit
+and the `score` (points) they contributed; the detector score is the mean of the
+counted checks, and an inconclusive check is **not counted** (it neither raises
+nor lowers the score). `protocol` is the first detector with a published scale.
+
+维度得分为其各检测器得分的**等权平均**——检查项多的检测器不会压过检查项少的；
+没有数值分数的检测器不计入。维度状态取检测器得出的最差结论；但 HIGH/CRITICAL
+发现会强制判为 FAIL，MEDIUM 发现会把 PASS 提升为 WARN，与分数无关。每份报告都
+按维度记录这一过程（`DimensionScore.breakdown`），并在 Markdown/HTML 的
+**Dimension details** 与 Web 界面可展开的维度行中展示。检测器还可以**公开计分
+标准**（`DetectorResult.scoring`，由 `zing/detectors/scale.py` 构建）：列出每个
+检查项所有可能的结果及其分数；未能得出结论的检查项**不计分**。`protocol` 是第一个
+公开计分标准的检测器。
+
 ---
 
 ## connectivity — Connectivity & basic completion / 连通性与基础补全
@@ -118,6 +146,16 @@ Curl-recipe-style minimal probes for portability.
 **What counts as a finding / 何为发现.** Structurally invalid envelopes, illegal
 `finish_reason`, missing required fields, or a malformed SSE terminator → WARN/FAIL
 depending on severity. These are conformance defects, not (yet) fraud.
+
+**Scoring scale / 计分标准** (`SCALE` in `zing/detectors/protocol.py`; the
+detector score is the mean of the counted checks):
+
+| Check | Outcome → points |
+|---|---|
+| `protocol.multi_turn` | recalled 100 · forgotten 55 (MEDIUM) · no content: not counted |
+| `protocol.stop` | truncated 100 · unconfirmed 70 · ignored 60 · no content: not counted |
+| `protocol.shape` | conformant 100 · incomplete 65 · no response: not counted |
+| `protocol.error_schema` | 4xx + OpenAI error body 100 · 4xx other body 80 · no HTTP response 55 · other status 55 · 5xx 35 (MEDIUM) · accepted 30 (MEDIUM) |
 
 **False-positive caveats / 误报与确认.** Legitimate gateways may emit
 provider-specific extra fields (forbidding them would over-flag) — only flag

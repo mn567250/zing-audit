@@ -1,7 +1,7 @@
 {
  "meta": {
   "code": "pt",
-  "label": "🇵🇹 PT",
+  "label": "Português",
   "html": "pt",
   "locale": "pt-PT",
   "order": 4
@@ -359,6 +359,7 @@
   "POST /embeddings failed (HTTP {status_code}).": "POST /embeddings falhou (HTTP {status_code}).",
   "Expected 4 non-empty vectors, got {returned_vectors}.": "Esperavam-se 4 vetores não vazios e foram recebidos {returned_vectors}.",
   "POST /rerank failed (HTTP {status_code}).": "POST /rerank falhou (HTTP {status_code}).",
+  "Invalid request got no HTTP response ({error_type}); could not confirm OpenAI-style client-error handling.": "O pedido inválido não recebeu resposta HTTP ({error_type}); não foi possível confirmar o tratamento de erros de cliente ao estilo OpenAI.",
   "Request failed (HTTP {status_code}, type {error_type}).": "O pedido falhou (HTTP {status_code}, tipo {error_type}).",
   "Request failed (HTTP {status_code}).": "O pedido falhou (HTTP {status_code}).",
   "Request failed (type {error_type}).": "O pedido falhou (tipo {error_type}).",

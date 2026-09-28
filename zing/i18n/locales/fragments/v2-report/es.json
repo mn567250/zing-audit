@@ -1,0 +1,14 @@
+{
+ "strings": {
+  "Model to request": "Modelo a solicitar",
+  "Version": "Versión",
+  "Other": "Otro",
+  "Not scored": "Sin puntuación",
+  "Severity: {s}.": "Gravedad: {s}.",
+  "{n} finding": "{n} hallazgo",
+  "{n} findings": "{n} hallazgos",
+  "{n} dimension": "{n} dimensión",
+  "{n} dimensions": "{n} dimensiones",
+  "Rating {r}": "Calificación {r}"
+ }
+}

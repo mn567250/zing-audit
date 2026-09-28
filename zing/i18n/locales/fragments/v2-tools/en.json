@@ -1,0 +1,31 @@
+{
+ "strings": {
+  "<b>Vector dimension</b> vs. the claimed model: the #1 bait-and-switch signal.": "<b>Vector dimension</b> vs. the claimed model: the #1 bait-and-switch signal.",
+  "A <b>known-answer probe</b>: the obvious answer must rank first.": "A <b>known-answer probe</b>: the obvious answer must rank first.",
+  "API key": "API key",
+  "At least two lines, one document each": "At least two lines, one document each",
+  "Claimed dimension": "Claimed dimension",
+  "Declared provider": "Declared provider",
+  "Determinism and distinctness re-tests back it up.": "Determinism and distinctness re-tests back it up.",
+  "Embedding and rerank endpoints only speak the OpenAI-compatible API.": "Embedding and rerank endpoints only speak the OpenAI-compatible API.",
+  "Embedding and rerank endpoints return vectors or rankings, not chat, so they get dedicated probes instead of the chat audit.": "Embedding and rerank endpoints return vectors or rankings, not chat, so they get dedicated probes instead of the chat audit.",
+  "Empty = built-in probe": "Empty = built-in probe",
+  "Empty = first line (0)": "Empty = first line (0)",
+  "Empty = same as model to request": "Empty = same as model to request",
+  "Key signal": "Key signal",
+  "Model to request": "Model to request",
+  "OpenAI-compatible": "OpenAI-compatible",
+  "Please enter the relay URL and the model to request.": "Please enter the relay URL and the model to request.",
+  "Relay URL": "Relay URL",
+  "Rerank": "Rerank",
+  "Supporting": "Supporting",
+  "The custom probe needs a query and at least two documents.": "The custom probe needs a query and at least two documents.",
+  "The expected line must be between 0 and {n}.": "The expected line must be between 0 and {n}.",
+  "Verification result": "Verification result",
+  "Verification type": "Verification type",
+  "e.g. bge-reranker-v2-m3": "e.g. bge-reranker-v2-m3",
+  "e.g. https://relay.example.com/v1": "e.g. https://relay.example.com/v1",
+  "e.g. text-embedding-3-large": "e.g. text-embedding-3-large",
+  "optional": "optional"
+ }
+}

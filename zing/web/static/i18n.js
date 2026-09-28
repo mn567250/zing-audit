@@ -203,6 +203,11 @@
       ["error", "Expected 4 non-empty vectors, got {returned_vectors}."],
     ],
     "rerank.connectivity": [["error", "POST /rerank failed (HTTP {status_code})."]],
+    // error_type is only in the evidence when no HTTP response came back, so
+    // this never shadows the generic HTTP-status template.
+    "protocol.error_schema": [
+      ["warn", "Invalid request got no HTTP response ({error_type}); could not confirm OpenAI-style client-error handling."],
+    ],
   };
   var GENERIC = [
     "Request failed (HTTP {status_code}, type {error_type}).",

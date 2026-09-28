@@ -251,3 +251,51 @@ def test_api_key_fields_are_masked_and_paired_with_their_url(client):
             n = form.count('autocomplete="current-password"')
             assert n <= 1, path
             assert form.count('autocomplete="username"') == n, path
+
+
+# ----- v2 UI, served side by side with the classic one (A/B) ------------- #
+
+_V2_PAGES = {"/": "audit", "/console": "console", "/history": "history", "/watches": "monitors", "/tools": "tools"}
+
+
+def test_v2_pages_share_the_design_system(client):
+    for classic, page in _V2_PAGES.items():
+        r = client.get("/v2" + classic if classic != "/" else "/v2/")
+        assert r.status_code == 200 and "text/html" in r.headers["content-type"], classic
+        html = r.text
+        assert '<script src="/locales.js"></script>\n<script src="/lang.js"></script>' in html
+        assert '<link rel="stylesheet" href="/v2/static/zing.css" />' in html
+        assert f'<header class="znav" data-page="{page}"' in html
+        assert '<script src="/v2/static/nav.js"></script>' in html
+    for asset, kind in (("zing.css", "text/css"), ("nav.js", "javascript"), ("report.js", "javascript"), ("report.css", "text/css")):
+        r = client.get("/v2/static/" + asset)
+        assert r.status_code == 200 and kind in r.headers["content-type"], asset
+    assert client.get("/v2/static/missing.css").status_code == 404
+    assert client.get("/v2", follow_redirects=False).headers["location"] == "/v2/"
+
+
+def test_ui_switch_is_remembered_in_a_cookie(client):
+    # default: classic, no redirect
+    r = client.get("/history", follow_redirects=False)
+    assert r.status_code == 200 and "zing_ui" not in r.headers.get("set-cookie", "")
+    # ?ui=v2 on a classic page: go to its v2 counterpart and remember the choice
+    r = client.get("/history?ui=v2", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"] == "/v2/history"
+    assert "zing_ui=v2" in r.headers["set-cookie"]
+    # with the cookie, classic pages redirect to v2
+    client.cookies.set("zing_ui", "v2")
+    for classic in _V2_PAGES:
+        r = client.get(classic, follow_redirects=False)
+        assert r.status_code == 307, classic
+        assert r.headers["location"] == ("/v2/" if classic == "/" else "/v2" + classic)
+    # ?ui=v1 on a v2 page: back to classic and forget v2
+    r = client.get("/v2/watches?ui=v1", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"] == "/watches"
+    assert 'zing_ui=""' in r.headers["set-cookie"] or "Max-Age=0" in r.headers["set-cookie"]
+    client.cookies.clear()
+    assert client.get("/watches", follow_redirects=False).status_code == 200
+
+
+def test_classic_pages_link_to_the_v2_ui(client):
+    for classic in _V2_PAGES:
+        assert 'class="try-v2" href="?ui=v2"' in client.get(classic).text, classic

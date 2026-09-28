@@ -13,6 +13,15 @@
  * Colors follow the categorical order validated for the reports: target is
  * slot 1 (blue), baseline slot 2 (orange); a failed request is a red cross
  * with its own legend entry, so identity is never carried by color alone.
+ *
+ * Theming: every colour in the injected CSS is a --zp-* custom property whose
+ * default (declared with zero specificity, see CSS below) is the classic look.
+ * A page restyles the panel by setting those properties on .zp-section,
+ * .zp-live and .zp-tip (the tooltip lives on <body>), e.g. /v2/static/perf.css.
+ *
+ * Accessibility: the metric tabs are an ARIA tablist (arrow keys, Home, End);
+ * each chart has a summary as its accessible name, and a data table with what
+ * the hover tooltips show (visually hidden in the classic UI until focused).
  */
 (function () {
   "use strict";
@@ -20,23 +29,48 @@
   var T = function (zh, en) {
     return window.ZING_LANG ? window.ZING_LANG.t(zh, en) : en;
   };
+  // English-keyed lookup without a Chinese variant (CN keeps the English
+  // statistics shorthand, e.g. the "min / mean / max" column heads).
+  var tr = function (en) {
+    return window.ZING_LANG && window.ZING_LANG.tr ? window.ZING_LANG.tr(en) : en;
+  };
   // Backend notes are fixed English sentences with translations in every
-  // language, CN included (exportText translates in CN too; server() doesn't).
+  // language, CN included; server() translates backend text in every language.
   var note = function (s) {
-    return window.ZING_LANG ? window.ZING_LANG.exportText(s) : s;
+    return window.ZING_LANG ? window.ZING_LANG.server(s) : s;
   };
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
     });
   }
+  // Fill "{name}" placeholders of an already translated template.
+  function fill(s, vals) {
+    return String(s).replace(/\{(\w+)\}/g, function (m, k) {
+      return Object.prototype.hasOwnProperty.call(vals, k) ? vals[k] : m;
+    });
+  }
+  function loc() {
+    return window.ZING_LANG && window.ZING_LANG.locale ? window.ZING_LANG.locale() : undefined;
+  }
+  function fixed(v, digits) {
+    return v.toLocaleString(loc(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  }
   function num(v, unit) {
     if (v == null || isNaN(v)) return "—";
-    if (unit === "ratio") return (v * 100).toFixed(1) + "%";
+    if (unit === "ratio") return fixed(v * 100, 1) + "%";
     var a = Math.abs(v);
-    var loc = window.ZING_LANG && window.ZING_LANG.locale ? window.ZING_LANG.locale() : undefined;
-    if (v === 0 || a >= 100) return Math.round(v).toLocaleString(loc);
-    return a >= 10 ? v.toFixed(1) : v.toFixed(2);
+    if (v === 0 || a >= 100) return Math.round(v).toLocaleString(loc());
+    return fixed(v, a >= 10 ? 1 : 2);
+  }
+  function int(v) {
+    return v == null ? "—" : Number(v).toLocaleString(loc());
+  }
+  function endpointName(r) {
+    return r.endpoint === "baseline" ? T("基线", "baseline") : T("目标", "target");
+  }
+  function phaseName(p) {
+    return p === "probe" ? T("性能探测", "probe") : p === "passive" ? T("常规检测", "audit") : String(p || "—");
   }
 
   var METRICS = [
@@ -106,7 +140,8 @@
 
   // ---- timeline chart ------------------------------------------------- //
   var W = 720, H = 230, ML = 52, MR = 12, MT = 10, MB = 30;
-  function chart(records, metricId) {
+  // opts.open keeps the data-table toggle expanded across re-renders.
+  function chart(records, metricId, opts) {
     var m = metric(metricId);
     var calls = (records || []).filter(function (r) { return r.op === "complete"; });
     var pts = calls.filter(function (r) { return r.ok && m.get(r) != null; });
@@ -121,7 +156,7 @@
     var x = function (s) { return ML + (s / xMax) * pw; };
     var y = function (v) { return MT + ph - (v / yMax) * ph; };
     var o = ['<svg class="zp-chart" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' +
-      esc(T(m.zh, m.en)) + '">'];
+      esc(summary(m, pts, failed)) + '">'];
     for (var i = 0; i <= 4; i++) {
       var v = (yMax * i) / 4, yy = y(v).toFixed(1);
       o.push('<line class="zp-grid" x1="' + ML + '" x2="' + (W - MR) + '" y1="' + yy + '" y2="' + yy + '"/>');
@@ -143,11 +178,47 @@
         '" data-tip="' + esc(tip(r, null)) + '"/>');
     });
     o.push("</svg>");
+    o.push(dataTable(calls, m, opts && opts.open));
     return o.join("");
   }
+  // The chart's accessible name: what it plots, how many requests, the median
+  // per endpoint and the failures.
+  function summary(m, pts, failed) {
+    var parts = [fill(T("{metric}（{unit}）随时间变化：{n} 个请求", "{metric} ({unit}) over time: {n} requests"),
+      { metric: T(m.zh, m.en), unit: m.unit, n: int(pts.length + failed.length) })];
+    var med = [
+      [false, T("目标中位数 {value}", "target median {value}")],
+      [true, T("基线中位数 {value}", "baseline median {value}")],
+    ];
+    med.forEach(function (e) {
+      var vs = pts.filter(function (r) { return (r.endpoint === "baseline") === e[0] && !r.cached; }).map(m.get);
+      if (vs.length) parts.push(fill(e[1], { value: num(p50(vs)) + " " + m.unit }));
+    });
+    if (failed.length) parts.push(fill(T("{n} 个失败", "{n} failed"), { n: int(failed.length) }));
+    return parts.join(T("；", "; "));
+  }
+  // What the hover tooltips show, as a table behind a toggle.
+  function dataTable(calls, m, open) {
+    var rows = calls.filter(function (r) { return !r.ok || m.get(r) != null; });
+    if (!rows.length) return "";
+    return '<details class="zp-data"' + (open ? " open" : "") + "><summary>" + esc(T("查看数据表", "Show data table")) +
+      '</summary><div class="zp-data-scroll" tabindex="0"><table class="zp-table zp-small"><thead><tr><th class="r">#</th><th>' +
+      esc(T("端点", "Endpoint")) + "</th><th>" + esc(T("阶段", "Phase")) + '</th><th class="r">' +
+      esc(T("开始", "Start")) + ' <span class="zp-unit">s</span></th><th class="r">' + esc(T(m.zh, m.en)) +
+      ' <span class="zp-unit">' + m.unit + "</span></th><th>" + esc(T("状态", "Status")) + "</th></tr></thead><tbody>" +
+      rows.map(function (r) {
+        var status = !r.ok
+          ? T("失败", "failed") + " (" + (r.status_code || r.error_type || "?") + ")"
+          : r.cached ? T("缓存命中（不计入统计）", "cached (excluded)") : "OK";
+        return '<tr><td class="r">' + esc(r.seq) + "</td><td>" + esc(endpointName(r)) + "</td><td>" +
+          esc(phaseName(r.phase) + (r.stream ? "" : " · " + T("非流式", "non-streaming"))) + '</td><td class="r">' +
+          num((r.start_ms || 0) / 1000) + '</td><td class="r">' + (r.ok ? num(m.get(r)) : "—") + "</td><td>" +
+          esc(status) + "</td></tr>";
+      }).join("") + "</tbody></table></div></details>";
+  }
   function tip(r, m) {
-    var head = "#" + r.seq + " · " + (r.endpoint === "baseline" ? T("基线", "baseline") : T("目标", "target")) +
-      " · " + (r.detector || "—") + " · " + r.phase + (r.stream ? "" : " · " + T("非流式", "non-streaming"));
+    var head = "#" + r.seq + " · " + endpointName(r) + " · " + (r.detector || "—") + " · " + phaseName(r.phase) +
+      (r.stream ? "" : " · " + T("非流式", "non-streaming"));
     if (!m) return head + "\n" + T("失败", "failed") + " (" + (r.status_code || r.error_type || "?") + ")";
     var lines = [head, T(m.zh, m.en) + ": " + num(m.get(r)) + " " + m.unit];
     if (m.id !== "latency" && r.duration_ms != null) lines.push(T("延迟", "Latency") + ": " + num(r.duration_ms) + " ms");
@@ -166,15 +237,24 @@
     if (calls.some(function (r) { return r.phase !== "passive" && !r.stream; }))
       items.push('<span><i class="zp-key t hollow"></i>' + esc(T("非流式请求（空心）", "non-streaming request (hollow)")) + "</span>");
     if (calls.some(function (r) { return !r.ok; }))
-      items.push('<span><i class="zp-key x">×</i>' + esc(T("失败请求", "failed request")) + "</span>");
+      items.push('<span><i class="zp-key x" aria-hidden="true">×</i>' + esc(T("失败请求", "failed request")) + "</span>");
     return '<div class="zp-legend">' + items.join("") + "</div>";
   }
 
-  function tabs(active) {
-    return '<div class="zp-tabs" role="tablist">' + METRICS.map(function (m) {
-      return '<button type="button" role="tab" data-metric="' + m.id + '" aria-selected="' +
-        (m.id === active) + '"' + (m.id === active ? ' class="on"' : "") + ">" + esc(T(m.zh, m.en)) + "</button>";
-    }).join("") + "</div>";
+  // Metric tabs and the plot they control; `pid` keeps the ids unique per panel.
+  var seq = 0;
+  function tabs(active, pid) {
+    return '<div class="zp-tabs" role="tablist" aria-label="' + esc(T("性能指标", "Performance metric")) + '">' +
+      METRICS.map(function (m) {
+        var on = m.id === active;
+        return '<button type="button" role="tab" id="' + pid + "-tab-" + m.id + '" aria-controls="' + pid +
+          '-panel" data-metric="' + m.id + '" aria-selected="' + on + '" tabindex="' + (on ? 0 : -1) + '"' +
+          (on ? ' class="on"' : "") + ">" + esc(T(m.zh, m.en)) + "</button>";
+      }).join("") + "</div>";
+  }
+  function plot(records, active, pid, open) {
+    return '<div class="zp-plot" role="tabpanel" id="' + pid + '-panel" aria-labelledby="' + pid + "-tab-" + active +
+      '">' + chart(records, active, { open: open }) + "</div>";
   }
 
   // ---- tooltip + tabs wiring ------------------------------------------ //
@@ -183,6 +263,7 @@
     if (!tipEl) {
       tipEl = document.createElement("div");
       tipEl.className = "zp-tip";
+      tipEl.setAttribute("aria-hidden", "true"); // the data table carries the same text
       document.body.appendChild(tipEl);
     }
     tipEl.textContent = text;
@@ -191,20 +272,38 @@
     var left = evt.clientX + pad, top = evt.clientY + pad;
     if (left + w > window.innerWidth - 8) left = evt.clientX - w - pad;
     if (top + h > window.innerHeight - 8) top = evt.clientY - h - pad;
-    tipEl.style.left = left + "px";
-    tipEl.style.top = top + "px";
+    tipEl.style.left = Math.max(8, left) + "px";
+    tipEl.style.top = Math.max(8, top) + "px";
   }
   function hideTip() {
     if (tipEl) tipEl.style.display = "none";
   }
-  function wire(root, onMetric) {
+  var STEP = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+  // onMetric(id) re-renders with another metric; onToggle(open) remembers the
+  // data-table toggle's state for the next render.
+  function wire(root, onMetric, onToggle) {
     if (!root) return;
     root.querySelectorAll(".zp-tabs button").forEach(function (b) {
       b.onclick = function (e) {
         e.stopPropagation();
         onMetric(b.dataset.metric);
       };
+      b.onkeydown = function (e) {
+        var n = METRICS.length, i = METRICS.indexOf(metric(b.dataset.metric)), next;
+        if (STEP[e.key]) next = (i + STEP[e.key] + n) % n;
+        else if (e.key === "Home") next = 0;
+        else if (e.key === "End") next = n - 1;
+        else return;
+        e.preventDefault();
+        e.stopPropagation();
+        var id = METRICS[next].id;
+        onMetric(id);
+        var t = root.querySelector('.zp-tabs [data-metric="' + id + '"]');
+        if (t) t.focus();
+      };
     });
+    var det = root.querySelector(".zp-data");
+    if (det && onToggle) det.addEventListener("toggle", function () { onToggle(det.open); });
     root.querySelectorAll("[data-tip]").forEach(function (el) {
       el.addEventListener("mousemove", function (e) { showTip(e, el.getAttribute("data-tip")); });
       el.addEventListener("mouseleave", hideTip);
@@ -216,11 +315,11 @@
     var rows = ROWS.filter(function (r) { return ep[r[0]] && ep[r[0]].count; });
     if (!rows.length) return '<p class="zp-muted">' + esc(T("没有可统计的成功请求。", "No successful requests to summarize.")) + "</p>";
     return '<div class="zp-scroll"><table class="zp-table"><thead><tr><th>' + esc(T("指标", "Metric")) + "</th>" +
-      COLS.map(function (c) { return '<th class="r">' + c + "</th>"; }).join("") + "</tr></thead><tbody>" +
+      COLS.map(function (c) { return '<th class="r">' + esc(FLOOR[c] ? c : tr(c)) + "</th>"; }).join("") + "</tr></thead><tbody>" +
       rows.map(function (r) {
         var s = ep[r[0]];
         return "<tr><td>" + esc(T(r[1], r[2])) + ' <span class="zp-unit">' + r[3] + "</span></td>" +
-          COLS.map(function (c) { return '<td class="r">' + (c === "count" ? s.count : num(s[c])) + "</td>"; }).join("") +
+          COLS.map(function (c) { return '<td class="r">' + (c === "count" ? int(s.count) : num(s[c])) + "</td>"; }).join("") +
           "</tr>";
       }).join("") + "</tbody></table></div>";
   }
@@ -249,9 +348,9 @@
     var o = [];
     if (title) o.push('<h4 class="zp-h">' + esc(title) + "</h4>");
     o.push(tiles(ep));
-    var line = ep.successes + "/" + ep.requests + " " + T("成功", "succeeded") + " · " +
+    var line = int(ep.successes) + "/" + int(ep.requests) + " " + T("成功", "succeeded") + " · " +
       T("超时", "timeouts") + " " + num(ep.timeout_rate, "ratio") + " · 429 " + num(ep.rate_limited_rate, "ratio");
-    if (ep.cached_excluded) line += " · " + ep.cached_excluded + " " + T("缓存命中（不计入统计）", "cached (excluded)");
+    if (ep.cached_excluded) line += " · " + int(ep.cached_excluded) + " " + T("缓存命中（不计入统计）", "cached (excluded)");
     o.push('<p class="zp-muted">' + esc(line) + "</p>");
     var extra = [];
     if (ep.cold_start_ms != null)
@@ -259,18 +358,18 @@
         (ep.cold_start_ttft_ms != null ? ", TTFT " + num(ep.cold_start_ttft_ms) + " ms" : ""));
     var c = ep.concurrency;
     if (c)
-      extra.push(T("并发负载", "Under load") + " (" + c.requests + " × " + c.concurrency + "): " +
+      extra.push(T("并发负载", "Under load") + " (" + int(c.requests) + " × " + int(c.concurrency) + "): " +
         T("总吞吐", "aggregate") + " " + num(c.aggregate_tps_local) + " tok/s, " + T("延迟 p50", "Latency p50") + " " +
         num(c.latency_ms && c.latency_ms.p50) + " ms");
     if (extra.length) o.push('<ul class="zp-list">' + extra.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>");
     o.push(statTable(ep));
     if ((ep.ttft_by_input || []).length > 1) {
-      o.push('<table class="zp-table zp-small"><thead><tr><th>' + esc(T("提示词长度", "Prompt size")) + '</th><th class="r">n</th>' +
+      o.push('<div class="zp-wide"><table class="zp-table zp-small"><thead><tr><th>' + esc(T("提示词长度", "Prompt size")) + '</th><th class="r">n</th>' +
         '<th class="r">TTFT p50</th><th class="r">' + esc(T("延迟 p50", "Latency p50")) + "</th></tr></thead><tbody>" +
         ep.ttft_by_input.map(function (b) {
-          return "<tr><td>" + esc(b.label) + '</td><td class="r">' + b.count + '</td><td class="r">' + num(b.ttft_p50_ms) +
+          return "<tr><td>" + esc(b.label) + '</td><td class="r">' + int(b.count) + '</td><td class="r">' + num(b.ttft_p50_ms) +
             '</td><td class="r">' + num(b.latency_p50_ms) + "</td></tr>";
-        }).join("") + "</tbody></table>");
+        }).join("") + "</tbody></table></div>");
     }
     return o.join("");
   }
@@ -284,17 +383,18 @@
     return c.delta > 0 === !!c.higher_is_better;
   }
   function compareTable(rows) {
-    return '<table class="zp-table"><thead><tr><th>' + esc(T("指标", "Metric")) + '</th><th class="r">' +
+    return '<div class="zp-wide"><table class="zp-table"><thead><tr><th>' + esc(T("指标", "Metric")) + '</th><th class="r">' +
       esc(T("目标", "Target")) + '</th><th class="r">' + esc(T("基线", "Baseline")) + '</th><th class="r">Δ</th><th class="r">' +
       esc(T("比值", "Ratio")) + "</th></tr></thead><tbody>" + rows.map(function (c) {
         var lab = COMPARE[c.metric] ? T(COMPARE[c.metric][0], COMPARE[c.metric][1]) : c.metric;
-        var d = c.delta == null ? "—" : c.unit === "ratio" ? (c.delta > 0 ? "+" : "") + (c.delta * 100).toFixed(1) + " pp" : (c.delta > 0 ? "+" : "") + num(c.delta);
+        var sign = c.delta > 0 ? "+" : "";
+        var d = c.delta == null ? "—" : c.unit === "ratio" ? sign + fixed(c.delta * 100, 1) + " pp" : sign + num(c.delta);
         var b = targetBetter(c), cls = b === true ? " zp-better" : b === false ? " zp-worse" : "";
         var mark = b === true ? "✓ " : b === false ? "✗ " : "";
         return "<tr><td>" + esc(lab) + ' <span class="zp-unit">' + esc(c.unit) + '</span></td><td class="r">' +
           num(c.target, c.unit) + '</td><td class="r">' + num(c.baseline, c.unit) + '</td><td class="r' + cls + '">' + mark + d +
-          '</td><td class="r">' + (c.ratio == null ? "—" : c.ratio.toFixed(2) + "x") + "</td></tr>";
-      }).join("") + "</tbody></table>" +
+          '</td><td class="r">' + (c.ratio == null ? "—" : fixed(c.ratio, 2) + "x") + "</td></tr>";
+      }).join("") + "</tbody></table></div>" +
       '<p class="zp-muted"><span class="zp-better">✓ ' + esc(T("目标更好", "target better")) + '</span> · <span class="zp-worse">✗ ' +
       esc(T("目标更差", "target worse")) + "</span> " + esc(T("（相差 2% 以内视为持平）", "(within 2% counts as even)")) + "</p>";
   }
@@ -311,7 +411,7 @@
     return o.join("");
   }
 
-  var sectionState = { metric: "latency" };
+  var sectionState = { metric: "latency", open: false };
   function section(perf) {
     if (!perf || !perf.target) return "";
     var modes = perf.modes || [];
@@ -319,14 +419,18 @@
       .filter(function (m) { return MODE_TITLE[m]; })
       .map(function (m) { return T(MODE_TITLE[m][0], MODE_TITLE[m][1]); }).join(" + ");
     var src = perf.source === "probe"
-      ? T("来源：专用性能探测", "Source: dedicated probe") + " — " + perf.probe_requests + " × " +
-        (perf.probe_max_tokens || "?") + " tokens" + (kind ? " · " + kind : "")
+      ? T("来源：专用性能探测", "Source: dedicated probe") + " — " +
+        fill(T("{n} × {max} tokens", "{n} × {max} tokens"), {
+          n: int(perf.probe_requests),
+          max: perf.probe_max_tokens ? int(perf.probe_max_tokens) : "?",
+        }) + (kind ? " · " + kind : "")
       : T("来源：本次检测自身的请求", "Source: the audit's own requests");
     var hasB = !!perf.baseline;
-    var o = ['<div class="zp-section">'];
+    var pid = "zp" + ++seq;
+    var o = ['<div class="zp-section" data-zp="' + pid + '">'];
     o.push('<p class="zp-muted">' + esc(src) + " · " + esc(T("仅供参考，不计分", "Informational — not scored")) + "</p>");
-    o.push(tabs(sectionState.metric));
-    o.push('<div class="zp-plot">' + chart(perf.requests, sectionState.metric) + "</div>");
+    o.push(tabs(sectionState.metric, pid));
+    o.push(plot(perf.requests, sectionState.metric, pid, sectionState.open));
     o.push(legend(perf.requests, hasB));
     o.push(modeBlock(perf.mode, perf.target, perf.baseline, perf.comparison, modes.length > 0));
     modes.forEach(function (m) {
@@ -335,8 +439,8 @@
     if (perf.probe_cost) {
       var pc = perf.probe_cost;
       o.push('<p class="zp-muted">' + esc(T("探测成本", "Probe cost")) + ": " + esc(T("请求数", "Requests")) + " " +
-        pc.requests + " · " +
-        num(pc.input_tokens_reported) + " + " + num(pc.output_tokens_reported) + " tokens (usage)</p>");
+        int(pc.requests) + " · " + esc(fill(T("{input} + {output} tokens（usage）", "{input} + {output} tokens (usage)"),
+          { input: num(pc.input_tokens_reported), output: num(pc.output_tokens_reported) })) + "</p>");
     }
     if ((perf.notes || []).length)
       o.push('<ul class="zp-list zp-notes">' + perf.notes.map(function (n) { return "<li>" + esc(note(n)) + "</li>"; }).join("") + "</ul>");
@@ -345,12 +449,19 @@
   }
   // Re-draw only the chart of a rendered section when its metric tab changes.
   function wireSection(root, perf) {
+    if (!root) return;
+    var sec = root.querySelector(".zp-section");
+    var pid = sec && sec.getAttribute("data-zp");
+    if (!pid) return;
     wire(root, function (id) {
       sectionState.metric = id;
-      var plot = root.querySelector(".zp-plot"), tabsEl = root.querySelector(".zp-tabs");
-      if (plot) plot.innerHTML = chart(perf.requests, id);
-      if (tabsEl) tabsEl.outerHTML = tabs(id);
+      var plotEl = root.querySelector(".zp-plot"), tabsEl = root.querySelector(".zp-tabs");
+      hideTip();
+      if (plotEl) plotEl.outerHTML = plot(perf.requests, id, pid, sectionState.open);
+      if (tabsEl) tabsEl.outerHTML = tabs(id, pid);
       wireSection(root, perf);
+    }, function (open) {
+      sectionState.open = open;
     });
   }
 
@@ -358,6 +469,8 @@
   function Live(host) {
     this.host = host;
     this.metric = "latency";
+    this.open = false;
+    this.pid = "zpl" + ++seq;
     this.reset({});
   }
   Live.prototype.reset = function (opts) {
@@ -385,7 +498,7 @@
     var probeDone = calls.filter(function (r) { return r.endpoint !== "baseline" && r.phase === "probe"; }).length;
     var tps = target.map(function (r) { return r.decode_tps_local != null ? r.decode_tps_local : r.decode_tps_reported; });
     var head = [
-      [T("请求数", "Requests"), String(calls.length)],
+      [T("请求数", "Requests"), int(calls.length)],
       [T("延迟 p50", "Latency p50"), num(p50(target.map(function (r) { return r.duration_ms; }))) + " ms"],
       ["TTFT p50", num(p50(target.map(function (r) { return r.ttft_ms; }))) + " ms"],
       [T("解码速度 p50", "Decode speed p50"), num(p50(tps)) + " tok/s"],
@@ -396,46 +509,74 @@
     }).join("") + "</div>");
     if (this.probeTotal) {
       var pctDone = Math.min(100, Math.round((probeDone / this.probeTotal) * 100));
-      o.push('<div class="zp-probe"><span>' + esc(T("性能探测", "Performance probe")) + " " + probeDone + "/" +
-        this.probeTotal + '</span><div class="zp-bar"><i style="width:' + pctDone + '%"></i></div></div>');
+      var label = T("性能探测", "Performance probe");
+      o.push('<div class="zp-probe"><span>' + esc(label) + " " + int(probeDone) + "/" + int(this.probeTotal) +
+        '</span><div class="zp-bar" role="progressbar" aria-label="' + esc(label) + '" aria-valuemin="0" aria-valuemax="' +
+        this.probeTotal + '" aria-valuenow="' + Math.min(probeDone, this.probeTotal) + '"><i style="width:' + pctDone +
+        '%"></i></div></div>');
     }
-    o.push(tabs(this.metric));
-    o.push('<div class="zp-plot">' + chart(recs, this.metric) + "</div>");
+    o.push(tabs(this.metric, this.pid));
+    o.push(plot(recs, this.metric, this.pid, this.open));
     o.push(legend(recs, this.hasBaseline));
     o.push("</div>");
+    // Streamed re-renders must not take keyboard focus away from a tab or
+    // from the data-table toggle.
+    var act = document.activeElement, refocus = null;
+    if (act && act !== this.host && this.host.contains(act)) {
+      if (act.getAttribute("data-metric")) refocus = '.zp-tabs [data-metric="' + act.getAttribute("data-metric") + '"]';
+      else if (act.tagName === "SUMMARY") refocus = ".zp-data summary";
+    }
+    // ... nor jump an open data table back to its top.
+    var box = this.host.querySelector(".zp-data-scroll"), scrollTop = box ? box.scrollTop : 0;
+    if (act && box && box.contains(act)) refocus = ".zp-data-scroll";
     this.host.innerHTML = o.join("");
+    box = this.host.querySelector(".zp-data-scroll");
+    if (box && scrollTop) box.scrollTop = scrollTop;
+    if (refocus) {
+      var el = this.host.querySelector(refocus);
+      if (el) el.focus();
+    }
     wire(this.host, function (id) {
       self.metric = id;
       self.render();
+    }, function (open) {
+      self.open = open;
     });
   };
 
   // ---- styles (injected once) ------------------------------------------- //
+  // Every colour is a --zp-* property. The defaults (the classic palette) sit
+  // in :where(), i.e. zero specificity, so any page rule setting them wins.
   var CSS =
-    ".zp-section,.zp-live{--zp-t:#2a78d6;--zp-b:#eb6834;--zp-x:#d03b3b;--zp-surface:#fffefb;--zp-grid:#e7ece5;" +
-    "--zp-ink:#0c211e;--zp-ink2:#566460;--zp-faint:#93a09b;text-align:left}" +
-    ".zp-live{margin:18px auto 0;max-width:620px;background:#fff;border:1px solid var(--zp-grid);border-radius:14px;padding:12px 14px}" +
+    ":where(.zp-section,.zp-live,.zp-tip){--zp-t:#2a78d6;--zp-b:#eb6834;--zp-x:#d03b3b;--zp-surface:#fffefb;" +
+    "--zp-grid:#e7ece5;--zp-ink:#0c211e;--zp-ink2:#566460;--zp-faint:#93a09b;--zp-panel:#fff;--zp-tile:#f5f8f4;" +
+    "--zp-track:#e3ebe3;--zp-tab:#fbfdfa;--zp-tab-on:#0c211e;--zp-tab-on-ink:#fff;--zp-cached:#8c959f;" +
+    "--zp-better:#1a7f37;--zp-worse:#cb3b2e;--zp-focus:#2a78d6;--zp-tip-bg:#0c211e;--zp-tip-ink:#fff;" +
+    "--zp-tip-shadow:rgba(0,0,0,.5)}" +
+    ".zp-section,.zp-live{text-align:left}" +
+    ".zp-live{margin:18px auto 0;max-width:620px;background:var(--zp-panel);border:1px solid var(--zp-grid);border-radius:14px;padding:12px 14px}" +
     ".zp-live-h{font-weight:700;font-size:13px;color:var(--zp-ink);margin-bottom:8px}" +
     ".zp-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:4px 0 10px}" +
     "@media(max-width:520px){.zp-tiles{grid-template-columns:1fr 1fr}}" +
-    ".zp-tile{background:#f5f8f4;border:1px solid var(--zp-grid);border-radius:10px;padding:7px 9px}" +
+    ".zp-tile{background:var(--zp-tile);border:1px solid var(--zp-grid);border-radius:10px;padding:7px 9px}" +
     ".zp-tl{font-size:11px;color:var(--zp-faint);font-weight:600}" +
     ".zp-tv{font-weight:700;font-size:16px;color:var(--zp-ink);font-variant-numeric:tabular-nums}" +
     ".zp-tv small{font-size:11px;color:var(--zp-ink2);font-weight:600}" +
     ".zp-probe{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--zp-ink2);margin:0 0 8px;font-family:var(--mono,monospace)}" +
-    ".zp-bar{flex:1;height:5px;background:#e3ebe3;border-radius:3px;overflow:hidden}" +
+    ".zp-bar{flex:1;height:5px;background:var(--zp-track);border-radius:3px;overflow:hidden}" +
     ".zp-bar i{display:block;height:100%;background:var(--zp-t);transition:width .3s}" +
     ".zp-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px}" +
-    ".zp-tabs button{font:600 12px var(--sans,system-ui);color:var(--zp-ink2);background:#fbfdfa;border:1.5px solid var(--zp-grid);border-radius:999px;padding:4px 11px;cursor:pointer}" +
-    ".zp-tabs button.on{color:#fff;background:var(--zp-ink);border-color:var(--zp-ink)}" +
+    ".zp-tabs button{font:600 12px var(--sans,system-ui);color:var(--zp-ink2);background:var(--zp-tab);border:1.5px solid var(--zp-grid);border-radius:999px;padding:4px 11px;cursor:pointer}" +
+    ".zp-tabs button.on{color:var(--zp-tab-on-ink);background:var(--zp-tab-on);border-color:var(--zp-tab-on)}" +
+    ".zp-tabs button:focus-visible,.zp-data summary:focus-visible{outline:2px solid var(--zp-focus);outline-offset:2px}" +
     ".zp-chart{width:100%;height:auto;display:block}" +
     ".zp-grid{stroke:var(--zp-grid);stroke-width:1}" +
     ".zp-tick{fill:var(--zp-ink2);font-size:11px;font-variant-numeric:tabular-nums}" +
     ".zp-pt{stroke:var(--zp-surface);stroke-width:2}.zp-pt.t{fill:var(--zp-t)}.zp-pt.b{fill:var(--zp-b)}" +
-    ".zp-pt.passive{fill-opacity:.45}.zp-pt.cached{fill:#8c959f;fill-opacity:.6}.zp-pt:hover{stroke:var(--zp-ink)}" +
+    ".zp-pt.passive{fill-opacity:.45}.zp-pt.cached{fill:var(--zp-cached);fill-opacity:.6}.zp-pt:hover{stroke:var(--zp-ink)}" +
     ".zp-pt.hollow{fill:var(--zp-surface)}.zp-pt.hollow.t{stroke:var(--zp-t)}.zp-pt.hollow.b{stroke:var(--zp-b)}" +
     ".zp-legend .zp-key.hollow{background:transparent;border:2px solid var(--zp-t);box-sizing:border-box}" +
-    ".zp-better{color:#1a7f37;font-weight:700}.zp-worse{color:#cb3b2e;font-weight:700}" +
+    ".zp-better{color:var(--zp-better);font-weight:700}.zp-worse{color:var(--zp-worse);font-weight:700}" +
     ".zp-mode{border-top:1px solid var(--zp-grid);padding-top:14px;margin-top:20px;font-size:14.5px}" +
     ".zp-fail{stroke:var(--zp-x);stroke-width:2;stroke-linecap:round}" +
     ".zp-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--zp-ink2);margin:2px 0 8px}" +
@@ -445,15 +586,21 @@
     ".zp-empty{font-size:12.5px;color:var(--zp-faint);padding:18px 0;text-align:center}" +
     ".zp-muted{font-size:12.5px;color:var(--zp-ink2);margin:6px 0;line-height:1.5}" +
     ".zp-h{font-size:13.5px;margin:16px 0 6px;color:var(--zp-ink)}" +
-    ".zp-scroll{overflow-x:auto}" +
+    ".zp-scroll{overflow-x:auto}" +  // .zp-wide: a plain wrapper (pages may let it scroll)
     ".zp-table{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0 10px;font-variant-numeric:tabular-nums}" +
     ".zp-table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--zp-faint);text-align:left;padding:5px 7px;border-bottom:1px solid var(--zp-grid)}" +
     ".zp-table td{padding:5px 7px;border-bottom:1px dotted var(--zp-grid);color:var(--zp-ink2);white-space:nowrap}" +
     ".zp-table .r{text-align:right}.zp-table.zp-small{width:auto}" +
     ".zp-unit{color:var(--zp-faint);font-size:10.5px}" +
     ".zp-list{font-size:12.5px;color:var(--zp-ink2);margin:6px 0;padding-left:18px;line-height:1.55}" +
-    ".zp-tip{position:fixed;z-index:50;display:none;pointer-events:none;white-space:pre;background:#0c211e;color:#fff;" +
-    "font:500 11.5px/1.45 var(--mono,monospace);padding:7px 9px;border-radius:8px;box-shadow:0 8px 24px -10px rgba(0,0,0,.5)}";
+    // The data table is for screen readers until it takes focus or is opened
+    // (:where keeps this overridable: a page may always show the toggle).
+    ".zp-plot{position:relative}" +
+    ".zp-data:where(:not(:focus-within):not([open])){position:absolute;left:0;bottom:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}" +
+    ".zp-data summary{font-size:12px;color:var(--zp-ink2);cursor:pointer;margin:2px 0 4px}" +
+    ".zp-data-scroll{max-height:260px;overflow:auto}" +
+    ".zp-tip{position:fixed;z-index:50;display:none;pointer-events:none;white-space:pre;background:var(--zp-tip-bg);color:var(--zp-tip-ink);" +
+    "font:500 11.5px/1.45 var(--mono,monospace);padding:7px 9px;border-radius:8px;box-shadow:0 8px 24px -10px var(--zp-tip-shadow)}";
   (function inject() {
     if (typeof document === "undefined" || !document.head || document.getElementById("zp-css")) return;
     var st = document.createElement("style");
@@ -467,5 +614,6 @@
     section: section,
     wireSection: wireSection,
     chart: chart,
+    CSS: CSS,
   };
 })();

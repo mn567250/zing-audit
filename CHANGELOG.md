@@ -8,6 +8,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Web UI v2, served side by side with the classic UI for A/B comparison.**
+  `/v2/`, `/v2/history`, `/v2/watches`, `/v2/tools` and `/v2/console` rebuild
+  every page in the same design language on one shared stylesheet and header.
+  Colours meet WCAG AA contrast, the pages have a dark theme, respect reduced
+  motion and have no horizontal scroll on phones. Accessibility covers
+  segmented controls, disclosures, tabs, meters and the live log. Every page
+  uses the same vocabulary ("Model to request" / "Claimed model", which the
+  classic audit page had reversed), risk labels and localized dates. All pages
+  offer the Responses protocol and the `full` suite, except the tools page,
+  which has no embedding/rerank support for them. `?ui=v2` or `?ui=v1` on any
+  page picks a UI and a cookie remembers it. Classic pages have a "Try the new
+  UI" link and v2 pages a "Classic UI" link back.
+- **Locale fragments**: `zing/i18n/locales/fragments/<feature>/<code>.json` add
+  UI strings to a language without editing the main locale files.
 - **Masked API key fields in the web UI.** Every key input is now a password
   field with a show/hide eye toggle, so keys stay hidden on screen shares.
   `env:`/`file:` references start revealed, and a literal key is re-masked when a
@@ -90,9 +104,22 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Vision probe asks in English only.** It was bilingual
   ("仅用一个词回答：图片是什么颜色？/ In one word, what color is this image?"); Chinese
   answers are still accepted.
+- **Web UI language menu shows language names** (English, 中文, Français, …)
+  instead of flags, and the Chinese UI now translates backend text (verdict
+  summaries, recommendations, detector names) like the other languages.
+- **Performance panel**: every colour is themeable, tabs are keyboard- and
+  screen-reader-accessible, charts have a text summary and a data table, and
+  numbers use the UI language's format.
 
 ### Fixed
 
+- **Web UI: a page no longer stays blank if a script fails** while loading.
+- **"Error response schema" finding when the relay sends no HTTP response** read
+  "unexpected outcome (HTTP None)" and stayed in English in every other language.
+  It now names the error type (e.g. `ProxyError`) and is translated.
+- **Classic audit page: the "Insufficient signal" badge had no background**
+  (an invalid colour token).
+- **`zing serve --help` dropped `[web]`** from the install hint (Rich markup).
 - **Web UI: finding summaries that fell back to English.** Findings emitted by several
   detector branches (pass / warn / inconclusive, request failures) had no matching
   translation template, so their summary appeared in English even in the Chinese UI;

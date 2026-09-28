@@ -1,7 +1,10 @@
 """FastAPI app for `zing serve` — serves the SPA and streams live audits over SSE.
 
 Endpoints:
-  GET  /                     the single-page app
+  GET  /                     the single-page app (classic UI)
+  GET  /v2/…                 the v2 UI, served side by side for A/B comparison;
+                             ?ui=v1|v2 on any page picks one (remembered in the
+                             `zing_ui` cookie)
   GET  /api/health           {ok, version}
   POST /api/models           list a relay's /models (connection check + model ids)
   POST /api/audit/stream     run an audit; stream detector progress, batched
@@ -27,7 +30,13 @@ from typing import Any
 # fastapi is the optional [web] extra. This module is only imported when serving
 # (CLI `serve`) or by the web tests, both of which handle a missing dependency.
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 
 from zing import __version__, prompts
@@ -41,6 +50,19 @@ from zing.config import (
 from zing.runner import run_audit
 
 _STATIC = Path(__file__).parent / "static"
+_V2 = _STATIC / "v2"
+
+# The two UIs served side by side (A/B): classic path -> (classic file, v2 path).
+# `?ui=v1|v2` on any of these pages picks a UI and remembers it in a cookie;
+# with the cookie set to v2, classic paths redirect to their v2 counterpart.
+_UI_COOKIE = "zing_ui"
+_UI_PAGES: dict[str, tuple[str, str]] = {
+    "/": ("index.html", "/v2/"),
+    "/console": ("console.html", "/v2/console"),
+    "/history": ("history.html", "/v2/history"),
+    "/watches": ("watches.html", "/v2/watches"),
+    "/tools": ("tools.html", "/v2/tools"),
+}
 
 # How often the watch scheduler wakes to look for due re-audits. The interval an
 # individual watch runs on is its own (much larger) interval_sec; this is just
@@ -55,6 +77,38 @@ _REQUEST_BATCH_SEC = 0.25
 _RERANK_PROBE_QUERY = prompts.text("rerank.web.query")
 _RERANK_PROBE_DOCS: list[str] = prompts.get("rerank.web.documents")
 _RERANK_PROBE_TOP = 2
+
+
+def _remember_ui(resp: Response, choice: str | None) -> Response:
+    if choice == "v2":
+        resp.set_cookie(_UI_COOKIE, "v2", max_age=365 * 24 * 3600, samesite="lax")
+    elif choice == "v1":
+        resp.delete_cookie(_UI_COOKIE)
+    return resp
+
+
+def _classic_page(request: Request, path: str) -> Response:
+    """A classic page, or a redirect to its v2 counterpart when v2 is chosen."""
+    file, v2_path = _UI_PAGES[path]
+    ui = request.query_params.get("ui")
+    choice = ui if ui in ("v1", "v2") else request.cookies.get(_UI_COOKIE)
+    resp: Response
+    if choice == "v2":
+        resp = RedirectResponse(v2_path, status_code=307)
+    else:
+        resp = FileResponse(_STATIC / file)
+    return _remember_ui(resp, ui)
+
+
+def _v2_page(request: Request, path: str) -> Response:
+    """A v2 page; `?ui=v1` goes back to the classic page (and forgets v2)."""
+    ui = request.query_params.get("ui")
+    resp: Response
+    if ui == "v1":
+        resp = RedirectResponse(path, status_code=307)
+    else:
+        resp = FileResponse(_V2 / _UI_PAGES[path][0])
+    return _remember_ui(resp, ui)
 
 
 def _coerce_int(value: Any) -> int:
@@ -227,12 +281,40 @@ def create_app() -> FastAPI:
         return {"ok": True, "version": __version__, "name": "zing"}
 
     @app.get("/")
-    async def index() -> Any:
-        return FileResponse(_STATIC / "index.html")
+    async def index(request: Request) -> Any:
+        return _classic_page(request, "/")
 
     @app.get("/console")
-    async def console() -> Any:
-        return FileResponse(_STATIC / "console.html")
+    async def console(request: Request) -> Any:
+        return _classic_page(request, "/console")
+
+    # ----- v2 UI (side by side with the classic one, for A/B) ------------- #
+    @app.get("/v2")
+    async def v2_bare() -> Any:
+        return RedirectResponse("/v2/", status_code=307)
+
+    @app.get("/v2/")
+    async def v2_index(request: Request) -> Any:
+        return _v2_page(request, "/")
+
+    @app.get("/v2/console")
+    async def v2_console(request: Request) -> Any:
+        return _v2_page(request, "/console")
+
+    @app.get("/v2/history")
+    async def v2_history(request: Request) -> Any:
+        return _v2_page(request, "/history")
+
+    @app.get("/v2/watches")
+    async def v2_watches(request: Request) -> Any:
+        return _v2_page(request, "/watches")
+
+    @app.get("/v2/tools")
+    async def v2_tools(request: Request) -> Any:
+        return _v2_page(request, "/tools")
+
+    # v2 stylesheets / scripts, e.g. /v2/static/zing.css
+    app.mount("/v2/static", StaticFiles(directory=str(_V2)), name="v2-static")
 
     @app.get("/i18n.js")
     async def i18n_js() -> Any:
@@ -434,8 +516,8 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/history")
-    async def history_page() -> Any:
-        return FileResponse(_STATIC / "history.html")
+    async def history_page(request: Request) -> Any:
+        return _classic_page(request, "/history")
 
     @app.get("/api/history")
     async def history_list(limit: int = 50) -> Any:
@@ -474,8 +556,8 @@ def create_app() -> FastAPI:
 
     # ----- Scheduled watches (monitoring) -------------------------------- #
     @app.get("/watches")
-    async def watches_page() -> Any:
-        return FileResponse(_STATIC / "watches.html")
+    async def watches_page(request: Request) -> Any:
+        return _classic_page(request, "/watches")
 
     @app.get("/api/watches")
     async def watches_list() -> Any:
@@ -554,8 +636,8 @@ def create_app() -> FastAPI:
 
     # ----- Tools: embedding & rerank auditors (non-chat surface) ---------- #
     @app.get("/tools")
-    async def tools_page() -> Any:
-        return FileResponse(_STATIC / "tools.html")
+    async def tools_page(request: Request) -> Any:
+        return _classic_page(request, "/tools")
 
     @app.post("/api/embed")
     async def embed_audit(request: Request) -> Any:
@@ -636,6 +718,10 @@ def create_app() -> FastAPI:
     async def spa_fallback(request: Request, exc: Any) -> Any:  # noqa: ARG001
         if request.url.path.startswith("/api/"):
             return JSONResponse({"error": "not found"}, status_code=404)
+        if request.url.path.startswith("/v2/static/"):
+            return Response("not found", status_code=404, media_type="text/plain")
+        if request.url.path.startswith("/v2/"):
+            return FileResponse(_V2 / "index.html")
         return FileResponse(_STATIC / "index.html")
 
     return app

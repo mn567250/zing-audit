@@ -8,7 +8,9 @@ downloaded report that changes the JSON schema or leaves text untranslated.
 
 from __future__ import annotations
 
+import ast
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -143,3 +145,181 @@ def test_downloaded_report_is_translated_with_english_keys(tmp_path):
     for lang, res in result.items():
         assert res["problems"] == [], lang
         AuditReport.model_validate(res["report"])
+
+
+def test_locale_fragments_extend_every_language(tmp_path, monkeypatch):
+    # zing/i18n/locales/fragments/<feature>/<code>.json adds strings to a
+    # language; an en fragment extends the canonical key list.
+    import zing.i18n as i18n
+
+    base = Path(i18n.__file__).resolve().parent / "locales"
+    for f in base.glob("*.json"):
+        shutil.copy(f, tmp_path / f.name)
+    frag = tmp_path / "fragments" / "demo"
+    frag.mkdir(parents=True)
+    (frag / "en.json").write_text(json.dumps({"strings": {"Hello v2": "Hello v2"}}), encoding="utf-8")
+    (frag / "de.json").write_text(json.dumps({"strings": {"Hello v2": "Hallo v2"}}), encoding="utf-8")
+    monkeypatch.setattr(i18n, "_DIR", tmp_path)
+    i18n._load.cache_clear()
+    try:
+        assert i18n.ui("de", "Hello v2") == "Hallo v2"
+        assert "Hello v2" in i18n.bundle()["locales"]["en"]["strings"]
+        assert i18n.ui("de", "History") == i18n._load()["de"]["strings"]["History"]  # base kept
+        (frag / "xx.json").write_text("{}", encoding="utf-8")
+        i18n._load.cache_clear()
+        with pytest.raises(ValueError):
+            i18n._load()
+    finally:
+        i18n._load.cache_clear()
+
+
+def _backend_sentences() -> list[str]:
+    """Fixed English sentences the backend puts in a report: detector names,
+    recommendations, verdict headlines, report notes and performance notes."""
+    root = Path(__file__).resolve().parent.parent / "zing"
+    out: list[str] = []
+
+    def lit(node: ast.AST) -> str | None:
+        return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
+
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        rel = path.relative_to(root).as_posix()
+        for node in ast.walk(tree):
+            # recommendation="…" wherever a finding is built
+            if isinstance(node, ast.keyword) and node.arg == "recommendation" and lit(node.value):
+                out.append(lit(node.value))
+            if not (isinstance(node, ast.Assign) and len(node.targets) == 1
+                    and isinstance(node.targets[0], ast.Name)):
+                continue
+            target = node.targets[0].id
+            if rel.startswith("detectors/") and target == "name" and lit(node.value):
+                out.append(lit(node.value))  # a detector's display name
+            if rel == "perf/summary.py" and target.startswith("NOTE_") and lit(node.value):
+                out.append(lit(node.value))  # performance notes
+            if rel == "runner.py" and target == "notes" and isinstance(node.value, ast.List):
+                out += [s for s in map(lit, node.value.elts) if s]  # report notes
+            if rel == "scoring.py" and target == "table" and isinstance(node.value, ast.Dict):
+                out += [s for s in map(lit, node.value.values) if s]  # verdict headlines
+    return sorted(set(out))
+
+
+def test_zh_translates_every_backend_sentence():
+    # The UI shows backend text translated in CN too (ZING_LANG.server), so
+    # zh.json must carry every fixed backend sentence.
+    from zing import i18n
+
+    sentences = _backend_sentences()
+    assert len(sentences) > 40
+    assert [s for s in sentences if i18n.backend("zh", s) == s] == []
+
+
+_SERVER_ZH_JS = r"""
+const path = require("path"), fs = require("fs");
+const dir = process.argv[1], report = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+global.window = {};
+global.document = { documentElement: { style: {}, lang: "" }, readyState: "complete",
+                    querySelectorAll: () => [], addEventListener() {} };
+global.localStorage = { getItem: () => "zh", setItem() {} };
+for (const m of ["locales.js", "lang.js"]) require(path.join(dir, m));
+const texts = [report.verdict.headline, report.verdict.summary].concat(JSON.parse(process.argv[3]));
+for (const k of ["detectors", "baseline_detectors"])
+  for (const d of report[k] || []) {
+    texts.push(d.name);
+    for (const f of d.findings || []) if (f.recommendation) texts.push(f.recommendation);
+  }
+console.log(JSON.stringify(texts.map(t => [t, window.ZING_LANG.server(t)])));
+"""
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to evaluate the UI's JS")
+def test_server_text_is_chinese_in_zh(tmp_path):
+    # Recommendations, detector names and the verdict headline/summary come
+    # from the backend in English; in CN the UI must show them in Chinese.
+    here = Path(__file__).resolve().parent
+    fixture = here / "fixtures" / "web_report.json"
+    extra = _backend_sentences()
+    out = subprocess.run(
+        ["node", "-e", _SERVER_ZH_JS, str(_ui_js(tmp_path)), str(fixture), json.dumps(extra)],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    pairs = json.loads(out)
+    cjk = re.compile(r"[㐀-鿿]")
+    assert [en for en, zh in pairs if not cjk.search(zh or "")] == []
+    summary = dict(pairs)[json.loads(fixture.read_text(encoding="utf-8"))["verdict"]["summary"]]
+    # Chinese sentences are joined without spaces; no English sentence is left.
+    assert "。 " not in summary and "Findings" not in summary and "health score" not in summary
+
+
+def test_language_labels_are_endonyms():
+    # The switcher names languages, not countries (no flags).
+    from zing import i18n
+
+    labels = {m["code"]: m["label"] for m in i18n.languages()}
+    assert labels == {
+        "en": "English", "zh": "中文", "fr": "Français", "es": "Español",
+        "pt": "Português", "it": "Italiano", "de": "Deutsch",
+    }
+    assert i18n.codes()[:2] == ["en", "zh"]
+
+
+_VISIBILITY_JS = r"""
+const path = require("path");
+const dir = process.argv[1];
+const run = (lang, fire) => {
+  delete require.cache[require.resolve(path.join(dir, "lang.js"))];
+  const timers = [], handlers = {}, dcl = [];
+  global.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+  global.clearTimeout = id => { if (timers[id - 1]) timers[id - 1].fn = null; };
+  global.window = {
+    ZING_LOCALES: { languages: [{ code: "en", label: "English", html: "en", locale: "en-US" },
+                                { code: "zh", label: "中文", html: "zh-CN", locale: "zh-CN" },
+                                { code: "fr", label: "Français", html: "fr", locale: "fr-FR" }] },
+    addEventListener(t, fn) { handlers[t] = fn; },
+    removeEventListener(t, fn) { if (handlers[t] === fn) delete handlers[t]; },
+  };
+  // The document is still "loading"; lang.js's own boot (the last
+  // DOMContentLoaded listener) is never called, as if it had failed.
+  global.document = { documentElement: { style: {}, lang: "" }, readyState: "loading",
+                      querySelectorAll: () => [], addEventListener(t, fn) { if (t === "DOMContentLoaded") dcl.push(fn); } };
+  global.localStorage = { getItem: () => lang, setItem() {} };
+  require(path.join(dir, "lang.js"));
+  const st = document.documentElement.style, before = st.visibility || "";
+  const fireTimers = () => timers.slice().forEach(t => t.fn && t.fn());
+  if (fire === "cap") fireTimers();
+  if (fire === "parsed") { document.readyState = "interactive"; dcl.slice(0, -1).forEach(f => f()); }
+  const mid = st.visibility || "";
+  if (fire === "parsed") fireTimers();
+  if (fire === "error-loading") handlers.error({});
+  if (fire === "error-parsed") { document.readyState = "interactive"; handlers.error({}); }
+  return { before, mid, after: st.visibility || "", delays: timers.map(t => t.ms) };
+};
+const r = {};
+for (const f of ["cap", "parsed", "error-loading", "error-parsed"]) r[f] = run("fr", f);
+r.zh = run("zh", "none");
+console.log(JSON.stringify(r));
+"""
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to evaluate the UI's JS")
+def test_hidden_page_is_revealed_if_boot_never_runs(tmp_path):
+    # lang.js hides the page until the markup is translated; if boot never
+    # runs (e.g. a later script throws), a timer or the first error reveals it.
+    static = Path(__file__).resolve().parent.parent / "zing" / "web" / "static"
+    shutil.copy(static / "lang.js", tmp_path / "lang.js")
+    out = subprocess.run(
+        ["node", "-e", _VISIBILITY_JS, str(tmp_path)], capture_output=True, text=True, check=True,
+    ).stdout
+    r = json.loads(out)
+    for case in ("cap", "parsed", "error-loading", "error-parsed"):
+        assert r[case]["before"] == "hidden", case
+    # A cap reveals the page even if DOMContentLoaded never fires …
+    assert r["cap"]["after"] == "" and max(r["cap"]["delays"]) <= 10000
+    # … and ~1.5 s after the HTML is parsed if boot didn't reveal it.
+    assert r["parsed"]["mid"] == "hidden" and r["parsed"]["after"] == ""
+    assert 1000 <= min(r["parsed"]["delays"]) <= 2000
+    # A script error reveals it at once, but not while the HTML is still
+    # loading (boot is still to come; revealing would flash the Chinese).
+    assert r["error-loading"]["after"] == "hidden"
+    assert r["error-parsed"]["after"] == ""
+    assert r["zh"]["before"] == "" and r["zh"]["delays"] == []  # CN is the markup itself

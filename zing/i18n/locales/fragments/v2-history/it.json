@@ -1,0 +1,13 @@
+{
+ "strings": {
+  "Cancel": "Annulla",
+  "Could not delete: ": "Impossibile eliminare: ",
+  "Health score trend across {n} audits: from {first} to {last}, {dir}.": "Andamento del punteggio di salute in {n} audit: da {first} a {last}, {dir}.",
+  "History lives only in a local SQLite file under <code>~/.zing</code> — nothing is uploaded.": "La cronologia resta solo in un file SQLite locale in <code>~/.zing</code> — non viene inviato nulla.",
+  "Latest score": "Ultimo punteggio",
+  "Saved audits: {n}": "Audit salvati: {n}",
+  "falling": "in calo",
+  "rising": "in crescita",
+  "unchanged": "invariato"
+ }
+}

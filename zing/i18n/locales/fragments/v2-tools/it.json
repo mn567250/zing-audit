@@ -1,0 +1,31 @@
+{
+ "strings": {
+  "<b>Vector dimension</b> vs. the claimed model: the #1 bait-and-switch signal.": "<b>Dimensione dei vettori</b> rispetto al modello dichiarato: il segnale n. 1 di merce non conforme.",
+  "A <b>known-answer probe</b>: the obvious answer must rank first.": "Una <b>sonda a risposta nota</b>: la risposta ovvia deve risultare prima.",
+  "API key": "Chiave API",
+  "At least two lines, one document each": "Almeno due righe, un documento per riga",
+  "Claimed dimension": "Dimensione dichiarata",
+  "Declared provider": "Fornitore dichiarato",
+  "Determinism and distinctness re-tests back it up.": "Le ripetizioni di determinismo e distinzione lo confermano.",
+  "Embedding and rerank endpoints only speak the OpenAI-compatible API.": "Gli endpoint di embedding e rerank parlano solo l'API compatibile OpenAI.",
+  "Embedding and rerank endpoints return vectors or rankings, not chat, so they get dedicated probes instead of the chat audit.": "Gli endpoint di embedding e rerank restituiscono vettori o classifiche, non chat: per questo hanno sonde dedicate invece della verifica chat.",
+  "Empty = built-in probe": "Vuoto = sonda integrata",
+  "Empty = first line (0)": "Vuoto = prima riga (0)",
+  "Empty = same as model to request": "Vuoto = come il modello richiesto",
+  "Key signal": "Segnale chiave",
+  "Model to request": "Modello richiesto",
+  "OpenAI-compatible": "Compatibile OpenAI",
+  "Please enter the relay URL and the model to request.": "Inserisci l'URL dell'intermediario e il modello richiesto.",
+  "Relay URL": "URL dell'intermediario",
+  "Rerank": "Rerank",
+  "Supporting": "Supporto",
+  "The custom probe needs a query and at least two documents.": "La sonda personalizzata richiede una query e almeno due documenti.",
+  "The expected line must be between 0 and {n}.": "La riga attesa deve essere compresa tra 0 e {n}.",
+  "Verification result": "Risultato della verifica",
+  "Verification type": "Tipo di verifica",
+  "e.g. bge-reranker-v2-m3": "es. bge-reranker-v2-m3",
+  "e.g. https://relay.example.com/v1": "es. https://relay.example.com/v1",
+  "e.g. text-embedding-3-large": "es. text-embedding-3-large",
+  "optional": "facoltativo"
+ }
+}

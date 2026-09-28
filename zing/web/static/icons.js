@@ -27,6 +27,8 @@
   var PATHS = {
     // bolt — lightning logo / run energy
     bolt: '<path d="M13 2L4.5 13.5H11l-1 8.5L19.5 10H13l0-8z"/>',
+    // terminal — developer console
+    terminal: '<path d="M4 17l6-6-6-6"/><path d="M12 19h8"/>',
     // bell — monitoring / alerts
     bell:
       '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>' +

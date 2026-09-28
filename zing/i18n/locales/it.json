@@ -1,7 +1,7 @@
 {
  "meta": {
   "code": "it",
-  "label": "🇮🇹 IT",
+  "label": "Italiano",
   "html": "it",
   "locale": "it-IT",
   "order": 5
@@ -359,6 +359,7 @@
   "POST /embeddings failed (HTTP {status_code}).": "POST /embeddings non riuscito (HTTP {status_code}).",
   "Expected 4 non-empty vectors, got {returned_vectors}.": "Attesi 4 vettori non vuoti, ricevuti {returned_vectors}.",
   "POST /rerank failed (HTTP {status_code}).": "POST /rerank non riuscito (HTTP {status_code}).",
+  "Invalid request got no HTTP response ({error_type}); could not confirm OpenAI-style client-error handling.": "La richiesta non valida non ha ricevuto alcuna risposta HTTP ({error_type}); impossibile confermare la gestione degli errori client in stile OpenAI.",
   "Request failed (HTTP {status_code}, type {error_type}).": "Richiesta non riuscita (HTTP {status_code}, tipo {error_type}).",
   "Request failed (HTTP {status_code}).": "Richiesta non riuscita (HTTP {status_code}).",
   "Request failed (type {error_type}).": "Richiesta non riuscita (tipo {error_type}).",

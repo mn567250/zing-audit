@@ -215,6 +215,12 @@ class ProtocolDetector(Detector):
             summary = (
                 f"Invalid request produced a server error (HTTP {status_code}) rather than a 4xx."
             )
+        elif status_code is None:
+            status, severity, score = Status.WARN, Severity.LOW, 55.0
+            summary = (
+                f"Invalid request got no HTTP response ({outcome.error_type or 'unknown'}); "
+                "could not confirm OpenAI-style client-error handling."
+            )
         else:
             status, severity, score = Status.WARN, Severity.LOW, 55.0
             summary = (
@@ -233,6 +239,8 @@ class ProtocolDetector(Detector):
                     "conforming_error_body": conforming,
                     "raw_error_keys": sorted(raw_error.keys()) if isinstance(raw_error, dict) else None,
                     "accepted_invalid": accepted,
+                    # set only without an HTTP response (the UI picks its template by it)
+                    "error_type": (outcome.error_type or "unknown") if status_code is None else None,
                 },
                 recommendation=None
                 if score >= 100.0

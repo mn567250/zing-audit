@@ -1,0 +1,31 @@
+{
+ "strings": {
+  "<b>Vector dimension</b> vs. the claimed model: the #1 bait-and-switch signal.": "<b>Vektordimension</b> im Vergleich zum angegebenen Modell: das Signal Nr. 1 für Etikettenschwindel.",
+  "A <b>known-answer probe</b>: the obvious answer must rank first.": "Eine <b>Probe mit bekannter Antwort</b>: Die offensichtliche Antwort muss an erster Stelle stehen.",
+  "API key": "API-Schlüssel",
+  "At least two lines, one document each": "Mindestens zwei Zeilen, ein Dokument pro Zeile",
+  "Claimed dimension": "Angegebene Dimension",
+  "Declared provider": "Angegebener Anbieter",
+  "Determinism and distinctness re-tests back it up.": "Wiederholte Tests auf Determinismus und Unterscheidbarkeit untermauern es.",
+  "Embedding and rerank endpoints only speak the OpenAI-compatible API.": "Embedding- und Rerank-Endpunkte sprechen nur die OpenAI-kompatible API.",
+  "Embedding and rerank endpoints return vectors or rankings, not chat, so they get dedicated probes instead of the chat audit.": "Embedding- und Rerank-Endpunkte liefern Vektoren oder Rangfolgen, keinen Chat – daher eigene Proben statt der Chat-Prüfung.",
+  "Empty = built-in probe": "Leer = integrierte Probe",
+  "Empty = first line (0)": "Leer = erste Zeile (0)",
+  "Empty = same as model to request": "Leer = wie angefragtes Modell",
+  "Key signal": "Hauptsignal",
+  "Model to request": "Angefragtes Modell",
+  "OpenAI-compatible": "OpenAI-kompatibel",
+  "Please enter the relay URL and the model to request.": "Bitte Relay-URL und angefragtes Modell eingeben.",
+  "Relay URL": "Relay-URL",
+  "Rerank": "Rerank",
+  "Supporting": "Ergänzend",
+  "The custom probe needs a query and at least two documents.": "Die eigene Probe braucht eine Anfrage und mindestens zwei Dokumente.",
+  "The expected line must be between 0 and {n}.": "Die erwartete Zeile muss zwischen 0 und {n} liegen.",
+  "Verification result": "Prüfergebnis",
+  "Verification type": "Art der Prüfung",
+  "e.g. bge-reranker-v2-m3": "z. B. bge-reranker-v2-m3",
+  "e.g. https://relay.example.com/v1": "z. B. https://relay.example.com/v1",
+  "e.g. text-embedding-3-large": "z. B. text-embedding-3-large",
+  "optional": "optional"
+ }
+}

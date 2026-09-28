@@ -9,6 +9,12 @@
  * field per form: two would read as a change-password form, so a second key
  * (e.g. the baseline's) uses autocomplete="off" and is only stored explicitly.
  *
+ * Theming: the wrapper is .secret-wrap.zsf and the toggle .secret-eye.zsf-toggle
+ * (aria-pressed="true" while the key is shown); its colours come from the
+ * optional custom properties --zsf-color / --zsf-color-on / --zsf-focus,
+ * falling back to --faint / --ink / --teal (the v2 UI sets them in
+ * /v2/static/fields.css).
+ *
  * Exposes window.ZingSecret with:
  *   - enhance(root)       add the eye toggle to every input[data-secret] under root
  *                         (idempotent; runs on the document at load)
@@ -27,9 +33,9 @@
     "input[data-secret]::-ms-reveal,input[data-secret]::-ms-clear{display:none}" +
     ".secret-eye{position:absolute;top:0;right:4px;bottom:0;margin:auto 0;width:36px;height:32px;" +
     "display:flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:8px;" +
-    "background:none;color:var(--faint);font-size:18px;cursor:pointer;transition:color .15s}" +
-    ".secret-eye:hover,.secret-eye[aria-pressed=true]{color:var(--ink)}" +
-    ".secret-eye:focus-visible{outline:2px solid var(--teal,var(--grn,currentColor));outline-offset:-2px}";
+    "background:none;color:var(--zsf-color,var(--faint));font-size:18px;cursor:pointer;transition:color .15s}" +
+    ".secret-eye:hover,.secret-eye[aria-pressed=true]{color:var(--zsf-color-on,var(--ink))}" +
+    ".secret-eye:focus-visible{outline:2px solid var(--zsf-focus,var(--teal,var(--grn,currentColor)));outline-offset:-2px}";
 
   function isReference(value) {
     return /^\s*(env|file):/i.test(String(value == null ? "" : value));
@@ -63,14 +69,14 @@
       var input = inputs[i];
       if (input.__zingEye) continue;
       var wrap = document.createElement("span");
-      wrap.className = "secret-wrap";
+      wrap.className = "secret-wrap zsf";
       input.parentNode.insertBefore(wrap, input);
       wrap.appendChild(input);
       // A constant label plus aria-pressed is the standard toggle pattern, so
       // a language switch (lang.js re-translates data-en-*) is all it needs.
       var btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "secret-eye";
+      btn.className = "secret-eye zsf-toggle";
       btn.setAttribute("aria-label", "显示密钥");
       btn.setAttribute("title", "显示密钥");
       btn.setAttribute("data-en-aria-label", "Show key");

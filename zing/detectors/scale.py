@@ -9,6 +9,10 @@ have scored, positive and negative alike.
 Outcomes with ``score=None`` (typically an inconclusive check) are not counted:
 they neither raise nor lower the detector score.
 
+Two methods turn findings into the detector score: ``Scale`` averages the
+checks' points ("mean_of_checks"); ``DeductionScale`` starts at 100 and lets
+findings deduct points or cap the score ("deductions").
+
 A *parametrized* check applies one row set of the scale to many subjects — e.g.
 every attribute of a response envelope. Its findings carry ``check`` (the scale
 check) and ``subject`` (what was checked), so the scale stays small however many
@@ -30,9 +34,13 @@ def outcome(
     severity: Severity = Severity.INFO,
     *,
     label: str,
+    deduction: float | None = None,
+    max_deduction: float | None = None,
+    cap: float | None = None,
 ) -> ScoringOutcome:
     return ScoringOutcome(
-        check=check, outcome=key, score=score, status=status, severity=severity, label=label
+        check=check, outcome=key, score=score, status=status, severity=severity, label=label,
+        deduction=deduction, max_deduction=max_deduction, cap=cap,
     )
 
 
@@ -62,16 +70,22 @@ class Scale:
         evidence: dict[str, Any] | None = None,
         recommendation: str | None = None,
         subject: str | None = None,
+        id: str | None = None,
+        deduction: float | None = None,
     ) -> Finding:
         """A finding whose status, severity and points come from the scale.
 
         With ``subject`` the finding is one subject of a parametrized check: its
-        id is ``<check>.<subject>`` and it records both.
+        id is ``<check>.<subject>`` and it records both. ``id`` gives a finding of
+        the check an id of its own (e.g. one per knowledge-base probe) without
+        grouping it. ``deduction`` sets the variable deduction of an outcome with
+        ``max_deduction``.
         """
         o = self.get(check, key)
+        fid = id or (f"{check}.{subject}" if subject else check)
         return Finding(
-            id=f"{check}.{subject}" if subject else check,
-            check=check if subject else None,
+            id=fid,
+            check=check if fid != check else None,
             subject=subject,
             title=title,
             status=o.status,
@@ -81,6 +95,8 @@ class Scale:
             recommendation=recommendation,
             outcome=key,
             score=o.score,
+            deduction=o.deduction if deduction is None else deduction,
+            cap=o.cap,
         )
 
     def keys(self, check: str) -> list[str]:
@@ -109,3 +125,21 @@ class Scale:
             if finding.status in order and order.index(finding.status) > order.index(worst):
                 worst = finding.status
         return worst
+
+
+class DeductionScale(Scale):
+    """A scale for detectors that start at 100 and lose points per problem: each
+    outcome may deduct points (fixed, or up to ``max_deduction``) and/or cap the
+    score."""
+
+    method = "deductions"
+
+    @staticmethod
+    def total(findings: list[Finding], start: float = 100.0) -> float:
+        """``start`` minus every deduction, capped by the lowest cap, in 0-100."""
+        score = start - sum(f.deduction or 0.0 for f in findings)
+        score = max(0.0, min(100.0, score))
+        caps = [f.cap for f in findings if f.cap is not None]
+        if caps:
+            score = min(score, min(caps))
+        return round(score, 1)

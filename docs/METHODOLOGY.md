@@ -77,8 +77,14 @@ built with `zing/detectors/scale.py`): every possible outcome of each check with
 its points, status and severity. Its findings then carry the `outcome` they hit
 and the `score` (points) they contributed; the detector score is the mean of the
 counted checks, and an inconclusive check is **not counted** (it neither raises
-nor lowers the score). `protocol`, `connectivity` and `determinism` publish their
-scales; the other detectors show their findings without points.
+nor lowers the score). `protocol`, `connectivity` and `determinism` publish such
+scales.
+
+Detectors that judge by elimination use the **deductions** method instead
+(`DeductionScale`): the score starts at 100, each finding may deduct points
+(`Finding.deduction`) and/or cap the score (`Finding.cap`), and the lowest cap
+wins. The scale then lists each outcome's deduction or cap. `model_identity` and
+`billing` use it. The other detectors show their findings without points.
 
 维度得分为其各检测器得分的**等权平均**——检查项多的检测器不会压过检查项少的；
 没有数值分数的检测器不计入。维度状态取检测器得出的最差结论；但 HIGH/CRITICAL
@@ -87,7 +93,10 @@ scales; the other detectors show their findings without points.
 **Dimension details** 与 Web 界面可展开的维度行中展示。检测器还可以**公开计分
 标准**（`DetectorResult.scoring`，由 `zing/detectors/scale.py` 构建）：列出每个
 检查项所有可能的结果及其分数；未能得出结论的检查项**不计分**。目前 `protocol`、
-`connectivity` 和 `determinism` 已公开计分标准；其他检测器只列出发现，不显示分数。
+`connectivity` 和 `determinism` 采用这种平均分方式。`model_identity` 和 `billing`
+采用**扣分**方式（`DeductionScale`）：从 100 分开始，每项发现可扣分
+（`Finding.deduction`）和/或设定分数上限（`Finding.cap`），取最低上限。其他检测器
+只列出发现，不显示分数。
 
 ---
 
@@ -344,6 +353,18 @@ a two-sample test rejecting equality at α=0.05; near-constant reasoning-token c
 regardless of difficulty; or a clear multimodal split across requests. Self-ID alone
 (`"what model are you?"`) only corroborates — it never decides.
 
+**Scoring scale / 计分标准** (`SCALE` in `zing/detectors/model_identity.py`,
+method "deductions"): the score starts at 100.
+
+| Check | Outcome → effect |
+|---|---|
+| `model_identity.self_id` | genuine brand: none · rival brand, not the genuine one: cap 20 (HIGH) · both brands / evasive: none (LOW) |
+| `model_identity.fp.<probe>` | consistent: none · diverged: −(probe weight share of 100, at most 25) · rival brand: same deduction + cap 20 (HIGH) |
+| `model_identity.fp_aggregate` | ≥2 fingerprints diverged: none (MEDIUM; status only) |
+| `model_identity.model_field` | matches: none · different/smaller model: none (MEDIUM; status only) |
+
+Inconclusive checks (no usable response) have no effect.
+
 **False-positive caveats / 误报与确认.** Official APIs silently update / fine-tune
 snapshots, so divergence can be *benign drift*, not substitution — report
 "divergent / inconclusive", never "proven substitution". Temperature noise inflates
@@ -527,6 +548,21 @@ chunk arrives when `stream_options.include_usage=true`. `pure_code_detectable`.
 **What counts as a finding / 何为发现.** Reported systematically exceeds computed
 beyond a small tolerance and *scales with size* (slope > 1 or large intercept) →
 inflation risk. Absent/zero/internally inconsistent usage → unauditable-billing risk.
+
+**Scoring scale / 计分标准** (`SCALE` in `zing/detectors/billing.py`, method
+"deductions"): the score starts at 100 and each problem caps it; the lowest cap
+wins.
+
+| Check | Outcome → effect |
+|---|---|
+| `billing.usage-inflation` | prompt tokens far above the estimate: cap 55 (HIGH) |
+| `billing.usage-inflation-completion` | far above an exact estimate: cap 55 (HIGH) · far above a heuristic estimate: cap 70 (MEDIUM) |
+| `billing.missing-usage` | no usage at all: cap 75 (MEDIUM) |
+| `billing.partial-usage` | total without prompt/completion split: cap 80 (MEDIUM) |
+| `billing.total-mismatch` | total ≠ prompt + completion: cap 90 (LOW) |
+| `billing.usage-consistent`, `billing.reasoning-tokens`, `billing.usage-undercount-*` | informational: none |
+
+A failed probe request leaves the detector unscored.
 
 **False-positive caveats / 误报与确认.** Different models use different tokenizers,
 and chat framing/special tokens add a small **fixed** offset, so an exact match is

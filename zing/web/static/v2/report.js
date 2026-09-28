@@ -229,6 +229,23 @@
   function pts(p) {
     return p == null ? T("不计分", "Not counted") : Tf("{p} 分", "{p} pts", { p: num(p, 1) });
   }
+  // What a finding or scale outcome did to its detector's score: points for
+  // "mean_of_checks", a deduction and/or cap for "deductions".
+  function eff(x, sc) {
+    if (!sc || sc.method !== "deductions") return pts(x.score);
+    var parts = [];
+    if (x.deduction) parts.push(Tf("−{p} 分", "−{p} pts", { p: num(x.deduction, 1) }));
+    else if (x.max_deduction) parts.push(Tf("最多 −{p} 分", "up to −{p} pts", { p: num(x.max_deduction, 1) }));
+    if (x.cap != null) parts.push(Tf("上限 {p}", "cap {p}", { p: num(x.cap, 1) }));
+    return parts.length ? parts.join(" · ") : T("不扣分", "No deduction");
+  }
+  var METHOD_NOTE = {
+    mean_of_checks: ["检测器得分为计分检查项的平均分。", "Detector score: mean of the counted checks' points."],
+    deductions: [
+      "检测器得分从 100 开始；发现会扣分或设定上限（取最低上限）。",
+      "Detector score: starts at 100; findings deduct points or cap it (the lowest cap wins).",
+    ],
+  };
   function dimDetails(d, r) {
     var members = (r.detectors || []).filter(function (det) {
       return det.dimension === d.dimension;
@@ -313,14 +330,14 @@
     });
     var rows = items.map(function (x) {
       if (Array.isArray(x)) return groupRow(x[0], x.slice(1), sc, sc ? scale[x[0]] : null);
-      return checkRow(x, sc ? pts(x.score) : null, sc ? scale[x.check || x.id] : null);
+      return checkRow(x, sc ? eff(x, sc) : null, sc ? scale[x.check || x.id] : null, sc);
     });
     return (
       '<div class="zr-det"><h4 class="zr-dh" id="' + hid + '">' + esc(srv(det.name)) +
       ' <span class="badge ' + scoreC(det.score) + '">' +
       esc(hasScore ? Tf("{s} 分", "Score {s}", { s: num(det.score, 1) }) : T("未评分", "Not scored")) + "</span></h4>" +
-      (sc && sc.method === "mean_of_checks"
-        ? '<p class="how">' + esc(T("检测器得分为计分检查项的平均分。", "Detector score: mean of the counted checks' points.")) + "</p>"
+      (sc && METHOD_NOTE[sc.method]
+        ? '<p class="how">' + esc(T(METHOD_NOTE[sc.method][0], METHOD_NOTE[sc.method][1])) + "</p>"
         : "") +
       (rows.length
         ? '<ul class="zr-list" aria-labelledby="' + hid + '">' + rows.join("") + "</ul>"
@@ -331,7 +348,7 @@
   // One check: its status, what happened, and the points it scored — with
   // an info tip next to the points listing every outcome the check could
   // have had (its published scale), this run's marked.
-  function checkRow(f, points, outcomes) {
+  function checkRow(f, points, outcomes, sc) {
     var s = STATG[f.status] || SEV_NONE;
     var ev = evText(f.evidence);
     var L = loc(f);
@@ -341,7 +358,7 @@
       '<div class="body"><div class="ft"><span class="sr-only">' +
       esc(Tf("结果：{s}。", "Result: {s}.", { s: label("STATUS", f.status) })) + " </span>" + esc(L.title) +
       (points != null ? ' <span class="pts">' + esc(points) + "</span>" : "") +
-      (outcomes && outcomes.length ? scaleTip(hitsOf([f]), outcomes) : "") + "</div>" +
+      (outcomes && outcomes.length ? scaleTip(hitsOf([f]), outcomes, sc) : "") + "</div>" +
       '<div class="fs">' + esc(L.summary) +
       (f.recommendation ? ' <span class="rec">· ' + esc(T("建议：", "Recommendation: ")) + esc(srv(f.recommendation)) + "</span>" : "") +
       "</div>" +
@@ -413,13 +430,13 @@
       '<div class="body"><div class="ft"><span class="sr-only">' +
       esc(Tf("结果：{s}。", "Result: {s}.", { s: label("STATUS", worstStatus(fs)) })) + " </span>" + esc(srv(title)) +
       (sc && mean != null ? ' <span class="pts">' + esc(Tf("平均 {p} 分", "avg {p} pts", { p: num(mean, 1) })) + "</span>" : "") +
-      (outcomes && outcomes.length ? scaleTip(hitsOf(fs), outcomes) : "") + "</div>" +
+      (outcomes && outcomes.length ? scaleTip(hitsOf(fs), outcomes, sc) : "") + "</div>" +
       '<div class="fs">' + esc(Tf("{ok}/{n} 项正常", "{ok} of {n} OK", { ok: num(ok.length, 0), n: num(fs.length, 0) })) + "</div>" +
       (bad.length
         ? '<ul class="zr-sub">' +
           bad.map(function (f) {
             return "<li>" + subDot(f) + "<code>" + esc(f.subject) + "</code> — " + esc(what(f)) +
-              (sc ? ' <span class="pts">' + esc(pts(f.score)) + "</span>" : "") + "</li>";
+              (sc ? ' <span class="pts">' + esc(eff(f, sc)) + "</span>" : "") + "</li>";
           }).join("") + "</ul>"
         : "") +
       '<button type="button" class="linkbtn more" aria-expanded="false" aria-controls="' + id + '" data-l0="' +
@@ -429,14 +446,14 @@
       esc(T("结果", "Result")) + '</th><th class="num">' + esc(T("分数", "Points")) + "</th></tr></thead><tbody>" +
       fs.map(function (f) {
         return "<tr><td>" + subDot(f) + "<code>" + esc(f.subject) + "</code></td><td><code>" + esc(observed(f)) +
-          "</code></td><td>" + esc(what(f)) + '</td><td class="num">' + esc(sc ? pts(f.score) : "—") + "</td></tr>";
+          "</code></td><td>" + esc(what(f)) + '</td><td class="num">' + esc(sc ? eff(f, sc) : "—") + "</td></tr>";
       }).join("") +
       "</tbody></table></div></div></li>"
     );
   }
   // Toggletip: shown on hover/focus, pinned open by a click (touch). ``hits``
   // marks the outcomes this run had (with a count when several subjects did).
-  function scaleTip(hits, outcomes) {
+  function scaleTip(hits, outcomes, sc) {
     var id = "zr-tip-" + ++uid;
     return (
       '<span class="zr-tip"><button type="button" class="tipb" aria-expanded="false" aria-describedby="' + id + '" aria-label="' +
@@ -446,7 +463,7 @@
         var n = hits[o.outcome] || 0;
         var badge = n > 1 ? Tf("本次结果 ×{n}", "This run ×{n}", { n: num(n, 0) }) : T("本次结果", "This run");
         return (
-          '<span class="row' + (n ? " hit" : "") + '"><span class="p">' + esc(pts(o.score)) + "</span><span>" + esc(srv(o.label)) +
+          '<span class="row' + (n ? " hit" : "") + '"><span class="p">' + esc(eff(o, sc)) + "</span><span>" + esc(srv(o.label)) +
           (n ? ' <span class="badge sky">' + esc(badge) + "</span>" : "") + "</span></span>"
         );
       }).join("") +

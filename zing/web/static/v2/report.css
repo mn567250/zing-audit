@@ -93,8 +93,12 @@
   padding: 8px 11px; font-size: 12.5px; font-weight: 400; line-height: 1.45; color: var(--ink2);
   background: var(--card); border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
 }
-.zr-tip:hover .bubble, .zr-tip .tipb:focus-visible + .bubble, .zr-tip .tipb[aria-expanded="true"] + .bubble { display: block; }
-.zr-tip .row { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; padding: 1px 0; }
+/* one grid for all rows, so the effect column fits its widest entry ("up to
+   −25 pts · cap 20") and stays aligned; it never takes more than 45% */
+.zr-tip:hover .bubble, .zr-tip .tipb:focus-visible + .bubble, .zr-tip .tipb[aria-expanded="true"] + .bubble {
+  display: grid; grid-template-columns: fit-content(45%) minmax(0, 1fr); gap: 3px 12px;
+}
+.zr-tip .row { display: contents; }
 .zr-tip .row.hit { color: var(--ink); font-weight: 600; }
 .zr-tip .p { font-variant-numeric: tabular-nums; }
 

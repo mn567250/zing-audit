@@ -117,8 +117,41 @@ def _scale_by_check(det: DetectorResult) -> list[tuple[str, list[ScoringOutcome]
     return list(groups.items())
 
 
-def _points(f: Finding) -> str:
-    return _NOT_COUNTED if f.score is None else _num(f.score)
+def _effect(
+    method: str,
+    score: float | None,
+    deduction: float | None = None,
+    cap: float | None = None,
+    max_deduction: float | None = None,
+) -> str:
+    """What a finding (or a scale outcome) did to the detector score."""
+    if method != "deductions":
+        return _NOT_COUNTED if score is None else _num(score)
+    parts = []
+    if deduction:
+        parts.append(f"−{_num(round(deduction, 1))}")
+    elif max_deduction:
+        parts.append(f"up to −{_num(max_deduction)}")
+    if cap is not None:
+        parts.append(f"cap {_num(cap)}")
+    return " · ".join(parts) or "no deduction"
+
+
+def _points(f: Finding, method: str = "mean_of_checks") -> str:
+    return _effect(method, f.score, f.deduction, f.cap)
+
+
+def _scale_points(o: ScoringOutcome, method: str) -> str:
+    return _effect(method, o.score, o.deduction, o.cap, o.max_deduction)
+
+
+_METHOD_NOTE = {
+    "mean_of_checks": "Detector score: mean of the counted checks' points.",
+    "deductions": (
+        "Detector score: starts at 100; findings deduct points or cap it "
+        "(the lowest cap wins)."
+    ),
+}
 
 
 _WORST = [Status.PASS, Status.INFO, Status.NOT_RUN, Status.INCONCLUSIVE, Status.WARN,
@@ -146,7 +179,7 @@ class _Group:
         points = [f.score for f in self.findings if f.score is not None]
         return round(sum(points) / len(points), 1) if points else None
 
-    def summary(self, labels: dict[tuple[str, str], ScoringOutcome]) -> str:
+    def outline(self, labels: dict[tuple[str, str], ScoringOutcome]) -> str:
         """"8 of 9 OK; missing: usage.total_tokens" — the problems by name."""
         text = f"{self.ok} of {len(self.findings)} OK"
         issues = [
@@ -239,12 +272,12 @@ def _markdown_detector(det: DetectorResult, md) -> list[str]:
                 groups.append(row)
                 lines.append(
                     f"| {_STATUS_EMOJI.get(row.status, '')} | {md(row.title)} | "
-                    f"{md(row.summary(labels))} | avg {_num(row.mean)} |"
+                    f"{md(row.outline(labels))} | avg {_num(row.mean)} |"
                 )
                 continue
             lines.append(
                 f"| {_STATUS_EMOJI.get(row.status, '')} | {md(row.title)} | "
-                f"{md(_label(labels, row))} | {_points(row)} |"
+                f"{md(_label(labels, row))} | {_points(row, det.scoring.method)} |"
             )
         lines.append("")
         for g in groups:
@@ -255,13 +288,13 @@ def _markdown_detector(det: DetectorResult, md) -> list[str]:
             for f in g.findings:
                 lines.append(
                     f"| {_STATUS_EMOJI.get(f.status, '')} | `{md(f.subject or '')}` | "
-                    f"{md(_observed(f))} | {md(_label(labels, f))} | {_points(f)} |"
+                    f"{md(_observed(f))} | {md(_label(labels, f))} | {_points(f, det.scoring.method)} |"
                 )
             lines.append("")
             lines.append("</details>")
             lines.append("")
-        if det.scoring.method == "mean_of_checks":
-            lines.append("_Detector score: mean of the counted checks' points._")
+        if det.scoring.method in _METHOD_NOTE:
+            lines.append(f"_{_METHOD_NOTE[det.scoring.method]}_")
             lines.append("")
         titles = _check_titles(det)
         lines.append("<details><summary>Scoring scale</summary>")
@@ -269,7 +302,7 @@ def _markdown_detector(det: DetectorResult, md) -> list[str]:
         for check, outcomes in _scale_by_check(det):
             lines.append(f"- {md(titles.get(check, check))} (`{check}`)")
             for o in outcomes:
-                lines.append(f"  - {_num(o.score) if o.score is not None else _NOT_COUNTED}: {md(o.label)}")
+                lines.append(f"  - {_scale_points(o, det.scoring.method)}: {md(o.label)}")
         lines.append("")
         lines.append("</details>")
         lines.append("")
@@ -341,23 +374,24 @@ def _html_detector(det: DetectorResult) -> str:
             if isinstance(row, _Group):
                 out.append(
                     f"<tr><td>{_pill(row.status)}</td><td>{_esc(row.title)}</td>"
-                    f"<td>{_esc(row.summary(labels))}{_html_group(row, labels)}</td>"
+                    f"<td>{_esc(row.outline(labels))}{_html_group(row, labels)}</td>"
                     f'<td class="num">avg {_esc(_num(row.mean))}</td></tr>'
                 )
                 continue
             out.append(
                 f"<tr><td>{_pill(row.status)}</td><td>{_esc(row.title)}</td>"
-                f'<td>{_esc(_label(labels, row))}</td><td class="num">{_esc(_points(row))}</td></tr>'
+                f'<td>{_esc(_label(labels, row))}</td>'
+                f'<td class="num">{_esc(_points(row, det.scoring.method))}</td></tr>'
             )
         out.append("</tbody></table>")
-        if det.scoring.method == "mean_of_checks":
-            out.append('<p class="muted">Detector score: mean of the counted checks\' points.</p>')
+        if det.scoring.method in _METHOD_NOTE:
+            out.append(f'<p class="muted">{_esc(_METHOD_NOTE[det.scoring.method])}</p>')
         titles = _check_titles(det)
         out.append('<details class="scale"><summary>Scoring scale</summary><ul>')
         for check, outcomes in _scale_by_check(det):
             out.append(f"<li>{_esc(titles.get(check, check))} <code>{_esc(check)}</code><ul>")
             for o in outcomes:
-                pts = _num(o.score) if o.score is not None else _NOT_COUNTED
+                pts = _scale_points(o, det.scoring.method)
                 out.append(f"<li><strong>{_esc(pts)}</strong> — {_esc(o.label)}</li>")
             out.append("</ul></li>")
         out.append("</ul></details></div>")

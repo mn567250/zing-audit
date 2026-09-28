@@ -21,6 +21,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **History (v2): filters and a latency trend.** A filter bar (search, relay,
+  claimed model, suite, mode, risk, minimum score, period) narrows the history;
+  groups and their trends are rebuilt from the matching runs only, and the
+  filters are remembered in the browser. Each group shows a score and a
+  latency-p50 sparkline again; the duplicate "Latest score" block is gone.
+  `GET /api/history?perf=1` adds each run's p50 latency / TTFT / decode speed.
 - **Protocol: request- and response-attribute detectors.** Two new detectors in
   the protocol dimension check the wire contract attribute by attribute, for
   OpenAI Chat Completions, Anthropic Messages and OpenAI Responses:

@@ -228,6 +228,21 @@ def test_history_trend_carries_performance_headline(tmp_path, monkeypatch):
     assert new["decode_tps_p50"] == 55.0
 
 
+def test_history_list_carries_performance_headline_on_request(tmp_path, monkeypatch, client):
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    from zing.web import history
+
+    history.save({"target": {"base_url": "https://x/v1", "claimed_model": "m", "model": "m"},
+                  "verdict": {"overall_score": 90.0},
+                  "performance": {"target": {"latency_ms": {"p50": 812.5}, "decode_tps_local": {"p50": 61.0}}}})
+    plain = client.get("/api/history").json()[0]
+    assert "latency_p50_ms" not in plain and "report_json" not in plain
+    row = client.get("/api/history?perf=1").json()[0]
+    assert row["latency_p50_ms"] == 812.5 and row["decode_tps_p50"] == 61.0
+    assert row["ttft_p50_ms"] is None and row["score"] == 90.0
+    assert "report_json" not in row
+
+
 def test_api_key_fields_are_masked_and_paired_with_their_url(client):
     import re
 

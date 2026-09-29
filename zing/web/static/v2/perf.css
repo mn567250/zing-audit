@@ -4,7 +4,7 @@
  * classic default has zero specificity (:where), so these mappings win. The
  * tooltip is appended to <body>, hence .zp-tip here too. Theme switching comes
  * from zing.css: the tokens change under [data-theme=dark] and
- * prefers-color-scheme: dark; only the two series colours are set per theme.
+ * prefers-color-scheme: dark; only the baseline series colour is set per theme.
  */
 :root .zp-section,
 :root .zp-live,
@@ -28,16 +28,16 @@
   --zp-tip-bg: var(--ink);
   --zp-tip-ink: var(--on-ink);
   --zp-tip-shadow: rgba(0, 0, 0, 0.45);
-  /* series (categorical slot 1 blue = target, slot 2 orange = baseline);
-     >= 3:1 against --card as graphics */
-  --zp-t: #2a6fc9;
+  /* series: target = the v2 accent (--teal, flips with the theme), so the
+     live probe bar and target points match the audit progress bar; baseline
+     stays orange. Both >= 3:1 against --card as graphics */
+  --zp-t: var(--teal);
   --zp-b: #c8561c;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .zp-section,
   :root:not([data-theme="light"]) .zp-live,
   :root:not([data-theme="light"]) .zp-tip {
-    --zp-t: #62a8f5;
     --zp-b: #f39a5c;
     --zp-tip-shadow: rgba(0, 0, 0, 0.8);
   }
@@ -45,7 +45,6 @@
 :root[data-theme="dark"] .zp-section,
 :root[data-theme="dark"] .zp-live,
 :root[data-theme="dark"] .zp-tip {
-  --zp-t: #62a8f5;
   --zp-b: #f39a5c;
   --zp-tip-shadow: rgba(0, 0, 0, 0.8);
 }
@@ -60,6 +59,9 @@
 :root .zp-tabs button { font-family: var(--sans); transition: background 0.15s, color 0.15s, border-color 0.15s; }
 :root .zp-tabs button:not(.on):hover { color: var(--ink); border-color: var(--line-strong); }
 :root .zp-tl { letter-spacing: 0.3px; }
+/* the live probe bar has the audit progress bar's (.pbar) shape and motion */
+:root .zp-bar { height: 6px; }
+:root .zp-bar i { transition: width 0.4s ease; }
 /* the ten-column stat table fits the 760px card without scrolling */
 :root .zp-table th,
 :root .zp-table td { padding-left: 5px; padding-right: 5px; }

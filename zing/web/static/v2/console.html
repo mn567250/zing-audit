@@ -162,7 +162,8 @@
   .ev .kv .k { color: var(--warn); }
 
   /* ---- performance (perf.js injects a light palette; map it onto the tokens) ---- */
-  .console .zp-section, .console .zp-live { --zp-surface: var(--card); --zp-grid: var(--line); --zp-ink: var(--ink); --zp-ink2: var(--ink2); --zp-faint: var(--faint); }
+  /* target series = the console's progress fill (.lbar), which is --good-fill here, not --teal */
+  .console .zp-section, .console .zp-live { --zp-t: var(--good-fill); --zp-surface: var(--card); --zp-grid: var(--line); --zp-ink: var(--ink); --zp-ink2: var(--ink2); --zp-faint: var(--faint); }
   .console .zp-live { margin: 0; max-width: none; background: none; border: 0; border-radius: 0; padding: 0; }
   .console .zp-live-h { display: none; }
   .console .zp-tile { background: var(--surface-2); border-color: var(--line); }

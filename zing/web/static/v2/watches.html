@@ -344,6 +344,16 @@
     return out;
   }
 
+  // History link that pre-fills the relay / model / suite filters for this monitor.
+  function historyHref(w, reportId) {
+    var host = "";
+    try { host = new URL(w.base_url).host; } catch (e) { host = w.base_url || ""; }
+    var q = [["host", host], ["model", w.claimed_model || w.model || ""], ["suite", w.suite || ""]]
+      .filter(function (p) { return p[1]; })
+      .map(function (p) { return p[0] + "=" + encodeURIComponent(p[1]); }).join("&");
+    return "/v2/history" + (q ? "?" + q : "") + "#r-" + reportId;
+  }
+
   function card(w) {
     var s = st(w.id);
     var name = w.name || "watch";
@@ -359,10 +369,10 @@
       lastParts.push("<span>" + esc(T("评分", "Score")) + " <b>" + esc(fmtScore(w.last_score)) + "</b>/100</span>");
     }
     if (w.last_report_id != null) {
-      lastParts.push('<a href="/v2/history#r-' + esc(w.last_report_id) + '">' + esc(T("在检测历史中查看", "Open in history")) + " →</a>");
+      lastParts.push('<a href="' + esc(historyHref(w, w.last_report_id)) + '">' + esc(T("在检测历史中查看", "Open in history")) + " →</a>");
     }
     if (w.source_report_id != null) {
-      lastParts.push('<a href="/v2/history#r-' + esc(w.source_report_id) + '">' + esc(Tf("来自运行 #{n}", "From run #{n}", { n: w.source_report_id })) + " →</a>");
+      lastParts.push('<a href="' + esc(historyHref(w, w.source_report_id)) + '">' + esc(Tf("来自运行 #{n}", "From run #{n}", { n: w.source_report_id })) + " →</a>");
     }
     var actions;
     if (s.confirm) {

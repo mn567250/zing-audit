@@ -21,6 +21,19 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Declared provider on the v2 audit page.** The audit form takes an optional
+  `declared_provider` (as the console already did), sends it with the audit and
+  fills it in when a model is chosen from the model picker; the report's meta
+  strip shows it.
+- **Per-check timing and evidence while an audit runs (v2 audit page).** The
+  live checks list shows every check's score and wall-clock time, a running
+  clock on the check in progress and the audit's elapsed time; a check with
+  findings expands to show all of them with their evidence and recommendation.
+- **Execution log in the v2 report.** A collapsed section lists every detector
+  in run order with its outcome, score, time and error, the total time and the
+  slowest check. It appears wherever the v2 report is shown (audit, console,
+  history), including reports saved before this change.
+
 - **PDF reports.** `--format pdf` writes the HTML report typeset as PDF, and
   `--format all` (the default) adds it next to JSON, Markdown and HTML. PDF
   rendering uses WeasyPrint, the new optional `pdf` extra

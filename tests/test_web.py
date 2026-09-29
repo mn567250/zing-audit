@@ -314,3 +314,13 @@ def test_ui_switch_is_remembered_in_a_cookie(client):
 def test_classic_pages_link_to_the_v2_ui(client):
     for classic in _V2_PAGES:
         assert 'class="try-v2" href="?ui=v2"' in client.get(classic).text, classic
+
+
+def test_v2_audit_and_console_send_the_declared_provider(client):
+    # both audit forms take a declared provider, send it and let the model
+    # picker fill it in
+    for path in ("/v2/", "/v2/console"):
+        html = client.get(path).text
+        assert '<input class="in' in html and 'id="i-prov"' in html, path
+        assert 'declared_provider: $("#i-prov").value.trim()' in html, path
+        assert 'providerInput: "#i-prov"' in html, path

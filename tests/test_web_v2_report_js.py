@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import html as htmllib
 import json
 import re
 import shutil
@@ -363,3 +364,93 @@ def test_deduction_scales_are_translated(tmp_path):
     html = _render(tmp_path, "de", _deductions_report())["html"]
     assert '<span class="pts">Obergrenze 55</span>' in html and '<span class="pts">Kein Abzug</span>' in html
     assert "starts at 100" not in html and "The answer diverged" not in html
+
+
+def _timed_report() -> dict:
+    report = json.loads(_FIXTURE.read_text(encoding="utf-8"))
+    for i, det in enumerate(report["detectors"]):
+        det["duration_ms"] = 250.0 * (i + 1)
+    report["detectors"][2]["duration_ms"] = 12_345.0  # the slowest
+    report["detectors"][1]["error"] = "ReadTimeout"
+    report["target"]["declared_provider"] = "openai"
+    return report
+
+
+def _exec(html: str) -> str:
+    start = html.index('<section class="sect zr-exec">')
+    return html[start:html.index("</section>", start)]
+
+
+@needs_node
+def test_execution_log_lists_every_detector_with_its_time(tmp_path):
+    report = _timed_report()
+    dets = report["detectors"]
+    html = _render(tmp_path, "en", report)["html"]
+    ex = _exec(html)
+    # collapsed behind one toggle, rows in run order
+    tog = re.search(r'<button type="button" class="linkbtn xtog" aria-expanded="false" aria-controls="(zr-ex-\d+)" '
+                    r'data-l0="Show all (\d+)" data-l1="Show fewer">', ex)
+    assert tog and tog.group(2) == str(len(dets))
+    assert f'<ol class="zr-xl" id="{tog.group(1)}" hidden>' in ex
+    assert ex.count('<li class="zr-xr') == len(dets)
+    names = [htmllib.unescape(n) for n in re.findall(r'<span class="xn">([^<]+)<small>', ex)]
+    assert names == [d["name"] for d in dets]
+    # time per detector, the total and the slowest one called out
+    total = sum(d["duration_ms"] for d in dets)
+    text = htmllib.unescape(" ".join(_text(ex).split()))
+    assert f"{len(dets)} checks · {round(total / 1000)} s in total" in text
+    assert f"the slowest was {dets[2]['name']} (12 s)" in text
+    assert ex.count('class="zr-xr slow"') == 1
+    assert '<span class="xt">250 ms</span>' in ex and '<span class="xt">1.3 s</span>' in ex
+    assert "Error: ReadTimeout" in text
+    # the declared provider joins the meta strip
+    assert "<dt>Declared provider</dt><dd><code>openai</code></dd>" in html
+
+
+@needs_node
+def test_execution_log_is_translated_and_skipped_without_timings(tmp_path):
+    html = _render(tmp_path, "de", _timed_report())["html"]
+    text = _text(_exec(html))
+    assert "Ausführungsprotokoll" in text and "insgesamt" in text and "Alle " in text
+    assert "Execution log" not in text and "in total" not in text
+    untimed = json.loads(_FIXTURE.read_text(encoding="utf-8"))
+    for det in untimed["detectors"]:
+        det["duration_ms"] = None
+    assert "zr-exec" not in _render(tmp_path, "en", untimed)["html"]
+
+
+_DETAIL_JS = r"""
+const path = require("path");
+const [dir, findingJson] = process.argv.slice(1);
+global.window = { addEventListener() {} };
+global.document = { documentElement: { style: {}, lang: "" }, readyState: "complete",
+                    querySelectorAll: () => [], addEventListener() {} };
+global.localStorage = { getItem: () => "en", setItem() {} };
+require(path.join(dir, "locales.js"));
+require(path.join(dir, "lang.js"));
+require(path.join(dir, "i18n.js"));
+require(path.join(dir, "icons.js"));
+require(path.join(dir, "v2", "report.js"));
+const R = window.ZingReport;
+console.log(JSON.stringify({ html: R.findingDetail(JSON.parse(findingJson)),
+  d: [R.duration(0), R.duration(999.6), R.duration(1234), R.duration(73210), R.duration(null)] }));
+"""
+
+
+@needs_node
+def test_finding_detail_shows_all_evidence(tmp_path):
+    _render(tmp_path, "en", json.loads(_FIXTURE.read_text(encoding="utf-8")))  # stage the scripts
+    finding = {"id": "x.y", "title": "Usage looks inflated", "status": "fail", "severity": "high",
+               "summary": "Reported 900 prompt tokens.", "recommendation": "Check billing.",
+               "evidence": {f"k{i}": i for i in range(15)}}
+    out = json.loads(subprocess.run(
+        ["node", "-e", _DETAIL_JS, str(tmp_path), json.dumps(finding)],
+        capture_output=True, text=True, check=True,
+    ).stdout)
+    html = out["html"]
+    assert '<span class="dot sm bad"' in html and '<span class="tag bad">High</span>' in html
+    assert "Usage looks inflated" in html and "Reported 900 prompt tokens." in html
+    assert "Recommendation: Check billing." in html
+    ev = re.search(r'<pre class="ev">(.*?)</pre>', html, re.S).group(1).split("\n")
+    assert ev[0] == "k0: 0" and len(ev) == 12  # up to 12 evidence fields
+    assert out["d"] == ["0 ms", "1,000 ms", "1.2 s", "73 s", "—"]

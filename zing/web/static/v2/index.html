@@ -90,14 +90,34 @@
   .blk { text-align: left; max-width: 560px; margin: 18px auto 0; }
   .blk h3 { font-family: var(--disp); font-weight: 600; font-size: 14px; margin: 0 0 8px; color: var(--ink); }
   .blk[hidden] { display: none; }
-  .dets { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-  @media (max-width: 520px) { .dets { grid-template-columns: 1fr; } }
+  .blk .bh { font-size: 12px; color: var(--faint); margin: -4px 0 8px; }
+  .dets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   .det {
-    display: flex; align-items: center; gap: 9px; min-width: 0; font-size: 13px; color: var(--ink2);
-    background: var(--surface-2); border: 1px solid var(--line); border-radius: 11px; padding: 9px 11px;
+    min-width: 0; font-size: 13px; color: var(--ink2);
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 11px;
     transition: border-color 0.2s, color 0.2s;
   }
-  .det .dt { min-width: 0; overflow-wrap: anywhere; }
+  .det .dh { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 8px 11px; }
+  .det .dt { flex: 1; min-width: 0; overflow-wrap: anywhere; text-align: left; }
+  .det .dtg {
+    display: flex; align-items: flex-start; gap: 5px; padding: 0; margin: 0; border: 0; background: none;
+    font: inherit; color: inherit; cursor: pointer;
+  }
+  .det .dtg:hover .nm { text-decoration: underline; }
+  .det .dtg .chev { flex: none; display: inline-grid; margin-top: 2px; color: var(--faint); transition: transform 0.15s; }
+  .det .dtg .chev .zicon { width: 12px; height: 12px; }
+  .det .dtg[aria-expanded="true"] .chev { transform: rotate(180deg); }
+  .det .nf { font-size: 11.5px; font-weight: 500; color: var(--faint); white-space: nowrap; }
+  .det .dm { flex: none; display: inline-flex; align-items: baseline; gap: 10px; font-variant-numeric: tabular-nums; }
+  .det .sc { font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .det .sc.good { color: var(--good); }
+  .det .sc.warn { color: var(--warn); }
+  .det .sc.bad { color: var(--bad); }
+  .det .ms { min-width: 54px; text-align: right; font-family: var(--mono); font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+  .det.run .ms { color: var(--teal); }
+  .det .dev { border-top: 1px solid var(--line); padding: 2px 12px 6px 36px; }
+  .det .dev[hidden] { display: none; }
+  @media (max-width: 520px) { .det .dev { padding-left: 12px; } }
   .det .ic { flex: 0 0 16px; display: inline-flex; justify-content: center; }
   .det .ic .zicon { width: 14px; height: 14px; }
   .det.run { color: var(--ink); border-color: var(--line-strong); }
@@ -182,6 +202,11 @@
             </div>
           </div>
           <div class="grp">
+            <label class="lab" for="i-prov"><span data-en="Declared provider">声明的厂商</span> <span class="key">declared_provider</span> <span class="opt" data-en="Optional">可选</span></label>
+            <input class="in" id="i-prov" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="i-prov-hint" placeholder="如 openai / deepseek" data-en-placeholder="e.g. openai / deepseek">
+            <div class="hint" id="i-prov-hint" data-en="Helps zing pick the right model profile when the model name alone is ambiguous. Choosing a model from the list fills it in.">当仅凭模型名无法确定厂商时，帮助 zing 选对模型资料。从列表选择模型时会自动填写。</div>
+          </div>
+          <div class="grp">
             <span class="lab" id="lab-api" data-en="Protocol">协议</span>
             <div class="seg q" id="api" role="group" aria-labelledby="lab-api">
               <button type="button" aria-pressed="true" data-v="auto" data-en="Auto">自动</button><button type="button" aria-pressed="false" data-v="openai">OpenAI</button><button type="button" aria-pressed="false" data-v="anthropic">Anthropic</button><button type="button" aria-pressed="false" data-v="responses" data-en="Responses">Responses</button>
@@ -258,6 +283,7 @@
         <div class="scan-actions"><button type="button" class="btn sm" id="cancel"><span class="pico" data-icon="x"></span><span data-en="Cancel">取消</span></button></div>
         <div class="blk" id="dets-blk" hidden>
           <h3 data-en="Checks">检测项</h3>
+          <p class="bh" data-en="Each check shows its score and how long it took; checks with findings expand to show the evidence.">每项检测显示得分与耗时；有发现的检测项可展开查看证据。</p>
           <ul class="dets" id="dets"></ul>
         </div>
         <div class="blk" id="feed-blk" hidden>
@@ -387,8 +413,28 @@
   }
   function renderCount() {
     $("#cnt").textContent = progress.total
-      ? T("已完成 {n} / {total} 项检测", "{n} of {total} checks done").replace("{n}", progress.done).replace("{total}", progress.total)
+      ? T("已完成 {n} / {total} 项检测", "{n} of {total} checks done").replace("{n}", progress.done).replace("{total}", progress.total) +
+        (clock.t0 ? " · " + dur(performance.now() - clock.t0) : "")
       : "";
+  }
+  // Wall-clock of the audit and of the check in progress (display only: the
+  // times of finished checks come from the server).
+  var clock = { t0: 0, timer: null, li: null, start: 0 };
+  function dur(ms) { return window.ZingReport ? ZingReport.duration(ms) : Math.round(ms) + " ms"; }
+  function tick() {
+    renderCount();
+    var ms = clock.li && clock.li.querySelector(".ms");
+    if (ms) ms.textContent = dur(performance.now() - clock.start);
+  }
+  function startClock() {
+    stopClock();
+    clock.t0 = performance.now();
+    clock.timer = setInterval(tick, 250);
+  }
+  function stopClock() {
+    if (clock.timer) clearInterval(clock.timer);
+    clock.timer = null;
+    clock.li = null;
   }
 
   // ---------- step 1 -> 2: run the audit ----------
@@ -417,6 +463,7 @@
       api_key: $("#i-key").value.trim(),
       model: $("#i-model").value.trim(),
       claimed_model: $("#i-claimed").value.trim(),
+      declared_provider: $("#i-prov").value.trim(),
       api: segVal("api"),
       suite: segVal("suite"),
       performance_streaming: segVal("pmode") === "stream",
@@ -449,6 +496,7 @@
     $("#go").disabled = true;
     resetScan(payload);
     go(2);
+    startClock();
     controller = new AbortController();
     var state = { seen: {}, finished: false };
     try {
@@ -486,6 +534,7 @@
         setFormErr(function () { return esc(T("连接本地服务失败：", "Could not reach the local service: ")) + esc(msg); });
       }
     } finally {
+      stopClock();
       running = false;
       controller = null;
       $("#go").disabled = false;
@@ -500,6 +549,7 @@
     $("#radar").classList.remove("done");
     feedItems = [];
     progress = { done: 0, total: 0 };
+    clock.t0 = 0;
     renderCount();
     if (live) live.reset({});
     setProgress(0);
@@ -519,25 +569,18 @@
     } else if (ev.type === "requests") {
       if (live) live.add(ev.records);
     } else if (ev.type === "detector_start") {
-      if (!state.seen[ev.id]) {
-        var li = document.createElement("li");
-        li.className = "det run";
-        li.__ev = ev;
-        li.__status = "run";
-        li.innerHTML = detHTML(ev, "run");
-        $("#dets").appendChild(li);
-        $("#dets-blk").hidden = false;
-        state.seen[ev.id] = li;
-      }
+      if (!state.seen[ev.id]) state.seen[ev.id] = addDet(ev);
+      clock.li = state.seen[ev.id];
+      clock.start = performance.now();
       if (ev.total) { progress.total = ev.total; renderCount(); }
       setNow(function () { return detName(ev) + " …"; });
     } else if (ev.type === "detector_done") {
-      var d = state.seen[ev.id];
-      if (d) {
-        d.className = "det " + ev.status;
-        d.__status = ev.status;
-        d.innerHTML = detHTML(d.__ev, ev.status);
-      }
+      var d = state.seen[ev.id] || (state.seen[ev.id] = addDet(ev));
+      d.className = "det " + ev.status;
+      d.__status = ev.status;
+      d.__done = ev;
+      renderDet(d);
+      if (clock.li === d) clock.li = null;
       progress.total = ev.total || progress.total;
       progress.done = (ev.index || 0) + 1;
       renderCount();
@@ -555,12 +598,58 @@
     }
   }
 
-  function detHTML(ev, status) {
+  // One check of the live list: status, name, score and time; a check with
+  // findings is a disclosure over all of them with their evidence.
+  var detSeq = 0;
+  function addDet(ev) {
+    var li = document.createElement("li");
+    li.className = "det run";
+    li.__ev = ev;
+    li.__status = "run";
+    li.__pid = "det-ev-" + ++detSeq;
+    li.innerHTML = '<div class="dh"></div>';
+    renderDet(li);
+    $("#dets").appendChild(li);
+    $("#dets-blk").hidden = false;
+    return li;
+  }
+  function renderDet(li) {
+    var status = li.__status, done = li.__done, fs = (done && done.findings) || [];
     var icon = status === "run" ? ico("play") : ico(ICON_NAME[status] || "info");
     var st = status === "run" ? T("进行中", "Running") : statusLabel(status);
-    return '<span class="ic" aria-hidden="true">' + icon + '</span><span class="dt">' + esc(detName(ev)) +
-      '<span class="sr-only"> — ' + esc(st) + "</span></span>";
+    var name = '<span class="nm">' + esc(detName(li.__ev)) + '</span><span class="sr-only"> — ' + esc(st) + "</span>";
+    var head = fs.length
+      ? '<button type="button" class="dt dtg" aria-expanded="' + !!li.__open + '" aria-controls="' + li.__pid + '">' +
+        '<span class="chev" aria-hidden="true">' + ico("chevronDown") + "</span><span>" + name + ' <span class="nf">(' +
+        esc((fs.length === 1 ? T("{n} 项", "{n} finding") : T("{n} 项", "{n} findings")).replace("{n}", fs.length)) + ")</span></span></button>"
+      : '<span class="dt">' + name + "</span>";
+    var meta = done
+      ? (done.score != null
+          ? '<span class="sc ' + scoreC(done.score) + '">' + esc(T("{s} 分", "Score {s}").replace("{s}", Math.round(done.score * 10) / 10)) + "</span>"
+          : "") + '<span class="ms">' + esc(dur(done.duration_ms)) + "</span>"
+      : '<span class="ms" aria-hidden="true"></span>';
+    li.querySelector(".dh").innerHTML = '<span class="ic" aria-hidden="true">' + icon + "</span>" + head + '<span class="dm">' + meta + "</span>";
+    if (!fs.length || !window.ZingReport) return;
+    var p = li.querySelector(".dev");
+    if (!p) {
+      p = document.createElement("div");
+      p.className = "dev";
+      p.id = li.__pid;
+      p.hidden = !li.__open;
+      li.appendChild(p);
+    }
+    p.innerHTML = fs.map(ZingReport.findingDetail).join("");
   }
+  function scoreC(v) { return v >= 85 ? "good" : v >= 70 ? "warn" : "bad"; }
+  $("#dets").addEventListener("click", function (e) {
+    var b = e.target.closest("button.dtg");
+    if (!b) return;
+    var li = b.closest(".det");
+    li.__open = !li.__open;
+    b.setAttribute("aria-expanded", String(li.__open));
+    var p = document.getElementById(b.getAttribute("aria-controls"));
+    if (p) p.hidden = !li.__open;
+  });
 
   function loc(f) {
     if (window.ZING_I18N && ZING_I18N.localizeFinding) return ZING_I18N.localizeFinding(f.id, f.summary, f.evidence, f.title, f.status);
@@ -612,7 +701,9 @@
   window.addEventListener("zing:lang", function () {
     $("#now").textContent = nowText();
     renderCount();
-    $$("#dets .det").forEach(function (d) { if (d.__ev) d.innerHTML = detHTML(d.__ev, d.__status); });
+    var focused = document.activeElement && document.activeElement.closest ? document.activeElement.closest(".det") : null;
+    $$("#dets .det").forEach(function (d) { if (d.__ev) renderDet(d); });
+    if (focused && focused.querySelector(".dtg")) focused.querySelector(".dtg").focus();
     feedItems.forEach(function (x) { x.el.innerHTML = feedHTML(x.ev, x.f); });
     if (formErr) setFormErr(formErr);
     syncProbeMode();
@@ -627,7 +718,7 @@
   if (window.ZingModelPicker) {
     try {
       ZingModelPicker.enhance({
-        claimedInput: "#i-model", urlInput: "#i-url", keyInput: "#i-key",
+        claimedInput: "#i-model", providerInput: "#i-prov", urlInput: "#i-url", keyInput: "#i-key",
         api: function () { return segVal("api"); }, unstyled: true,
       });
     } catch (e) {}

@@ -156,7 +156,28 @@ def _kb_embedding_dimensions(model_id: str | None, provider_hint: str | None) ->
     return int(resolved.model.embedding_dimensions or 0)
 
 
+# Ids of watches whose audit is executing right now (scheduler or Run now), so
+# the UI can show which monitors are running and nothing runs twice at once.
+_running_watches: set[int] = set()
+
+
+class WatchAlreadyRunning(Exception):
+    """Raised when a watch is asked to run while its previous run is still going."""
+
+
 async def _run_one_watch(row: dict[str, Any]) -> None:
+    """Run a watch once, refusing to overlap with a run already in flight."""
+    wid = int(row["id"])
+    if wid in _running_watches:
+        raise WatchAlreadyRunning(wid)
+    _running_watches.add(wid)
+    try:
+        await _run_one_watch_inner(row)
+    finally:
+        _running_watches.discard(wid)
+
+
+async def _run_one_watch_inner(row: dict[str, Any]) -> None:
     """Run a single due watch once: audit, persist, alert on regression/threshold.
 
     Always best-effort — any exception is swallowed by the caller so one bad
@@ -266,6 +287,8 @@ async def _scheduler_loop() -> None:
         except Exception:
             due = []
         for row in due:
+            if int(row["id"]) in _running_watches:
+                continue
             try:
                 await _run_one_watch(row)
             except asyncio.CancelledError:
@@ -752,6 +775,7 @@ def create_app() -> FastAPI:
         except Exception:
             kb = None
         for row in rows:
+            row["running"] = int(row["id"]) in _running_watches
             row["kb_current_hash"] = None
             row["kb_changed"] = False
             if kb is None:
@@ -917,6 +941,8 @@ def create_app() -> FastAPI:
         # Run the same path the scheduler uses (audit + persist + alert + mark).
         try:
             await _run_one_watch(row)
+        except WatchAlreadyRunning:
+            return JSONResponse({"error": "already running"}, status_code=409)
         except Exception as exc:  # surface a clean error, not a 500 stack
             return JSONResponse(
                 {"error": f"{type(exc).__name__}: {exc}"}, status_code=500

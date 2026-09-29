@@ -313,3 +313,17 @@ def test_patch_validates_schedule_and_alert_settings(tmp_path, monkeypatch, clie
     # a form-created keyless watch (a relay without auth) can still be switched on
     keyless = client.post("/api/watches", json={"base_url": "https://open.test/v1", "model": "m", "enabled": False}).json()["id"]
     assert client.patch(f"/api/watches/{keyless}", json={"enabled": True}).status_code == 200
+
+
+def test_running_watch_is_flagged_and_rejects_run_now(tmp_path, monkeypatch, client):
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    from zing.web import server, watches
+
+    wid = watches.create({"base_url": "https://relay.test/v1", "api_key": "sk-x", "model": "gpt-4o"})
+    assert client.get("/api/watches").json()[0]["running"] is False
+    server._running_watches.add(wid)
+    try:
+        assert client.get("/api/watches").json()[0]["running"] is True
+        assert client.post(f"/api/watches/{wid}/run").status_code == 409
+    finally:
+        server._running_watches.discard(wid)

@@ -43,10 +43,10 @@
 .zr .none { color: var(--ink2); font-size: 14px; margin: 0; }
 
 /* dimension meters */
-.zr-dim { display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px dotted var(--line); font-size: 13.5px; }
+.zr-dim { display: grid; grid-template-columns: minmax(0, 250px) minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px dotted var(--line); font-size: 13.5px; }
 .zr-dim:last-child { border-bottom: 0; }
 .zr-dim .nm { font-weight: 600; min-width: 0; }
-.zr-dim .nm small { display: block; font-weight: 400; color: var(--faint); font-size: 11.5px; }
+.zr-dim .nm small { display: block; font-weight: 400; color: var(--faint); font-size: 11.5px; padding-left: 18px; } /* under the name, past the chevron */
 .zr-dim .bar { height: 7px; background: var(--track); border-radius: 5px; overflow: hidden; }
 .zr-dim .bar i { display: block; height: 100%; width: 0; border-radius: 5px; background: var(--grey-fill); transition: width 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .zr-dim .bar i.good { background: var(--good-fill); }
@@ -75,6 +75,12 @@
 /* a dimension that did not run: listed (and expandable, to say why) but muted */
 .zr-dimw.off .zr-dim .dtog, .zr-dimw.off .zr-dim .nm small { color: var(--faint); }
 .zr-dimw.off .zr-dim .badge { font-weight: 500; }
+/* its wide "Not run" label takes the (empty) bar's place, so every scored bar
+   keeps the same length */
+.zr-dimw.off .zr-dim .bar.none { /* out of the grid, still read by screen readers */
+  position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+.zr-dimw.off .zr-dim .badge { grid-column: 2 / -1; justify-self: end; }
 /* extra content a dimension carries past its checks (e.g. performance measurements) */
 .zr-extra { margin-top: 14px; padding-top: 10px; border-top: 1px dotted var(--line); }
 .zr-extra .zp-section { margin: 0; }

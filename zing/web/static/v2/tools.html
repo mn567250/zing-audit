@@ -14,10 +14,15 @@
 <link rel="stylesheet" href="/v2/static/fields.css" />
 <style>
   /* ---- hero: short, scannable intro ---- */
-  .intro { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; max-width: 62ch; }
-  .intro li { display: flex; gap: 10px; align-items: baseline; color: var(--ink2); font-size: 14.5px; line-height: 1.5; }
+  /* one grid for all rows: the tags share a column, so the texts start on one line */
+  .intro {
+    list-style: none; margin: 14px 0 0; padding: 0; max-width: 62ch;
+    display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 10px; align-items: baseline;
+  }
+  .intro li { display: contents; color: var(--ink2); font-size: 14.5px; line-height: 1.5; }
+  .intro li > span:last-child { color: var(--ink2); font-size: 14.5px; line-height: 1.5; }
   .intro li b { color: var(--ink); }
-  .intro .tag { flex: 0 0 auto; }
+  .intro .tag { justify-self: start; }
 
   /* ---- tabs ---- */
   .tool-card { margin-top: 20px; }
@@ -31,6 +36,16 @@
   .tabs [role="tab"]:hover { color: var(--ink); }
   .tabs [role="tab"][aria-selected="true"] { color: var(--on-ink); background: var(--ink); box-shadow: var(--shadow-pop); }
   .tabs [role="tab"] .zicon { width: 15px; height: 15px; flex: none; }
+  /* phones: two long tab labels (e.g. ES "Auditoría de embeddings") no longer fit
+     side by side, so the tabs stack instead of breaking mid-label */
+  @media (max-width: 480px) {
+    .tabs { flex-direction: column; gap: 4px; }
+    .tabs [role="tab"] { flex: none; padding: 10px; }
+    /* same for the two-option protocol switch (ES "Compatible con OpenAI") */
+    .seg[data-seg] { flex-direction: column; }
+    .seg[data-seg] button { flex: none; }
+    .cta { font-size: 16px; padding: 14px 12px; text-wrap: balance; }
+  }
   [role="tabpanel"][hidden] { display: none; }
   [role="tabpanel"] { animation: z-rise 0.35s cubic-bezier(0.2, 0.85, 0.25, 1); }
   [role="tabpanel"]:focus-visible { outline-offset: 6px; border-radius: 6px; }

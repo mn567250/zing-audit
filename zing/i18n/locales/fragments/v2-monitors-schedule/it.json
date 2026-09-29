@@ -26,6 +26,8 @@
   "Webhook URLs (one per line)": "URL dei webhook (uno per riga)",
   "Webhooks saved.": "Webhook salvati.",
   "(optional)": "(facoltativo)",
-  "History never stores the key. Leave it empty for a local or self-hosted model.": "La cronologia non salva mai la chiave. Lasciala vuota per un modello locale o self-hosted."
+  "History never stores the key. Leave it empty for a local or self-hosted model.": "La cronologia non salva mai la chiave. Lasciala vuota per un modello locale o self-hosted.",
+  "Running now": "In esecuzione",
+  "Waiting for next scheduled run": "In attesa della prossima esecuzione pianificata"
  }
 }

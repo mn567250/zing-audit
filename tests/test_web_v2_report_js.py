@@ -28,7 +28,7 @@ let clicked = null;
 window.ZingReport.render(el, JSON.parse(reportJson), { actions: [
   { zh: "再测一个", en: "Test another" },
   { zh: "下载报告 (JSON)", en: "Download report (JSON)", primary: true, onClick: r => { clicked = r.mode; } },
-] });
+], download: { name: "zing-report" } });
 console.log(JSON.stringify({ html: el.innerHTML, globals: Object.keys(window), icons: window.ZING_ICONS }));
 """
 
@@ -84,6 +84,10 @@ def test_report_severity_dots_meters_and_summary(tmp_path):
     assert 'aria-expanded="false" aria-controls="zr-ev-' in html
     foot = html[html.index('<footer class="zr-foot">'):]
     assert 'data-action="1"' in foot and "Download report (JSON)" in foot
+    # every report format can be downloaded from the footer
+    assert re.findall(r'data-dl="(\w+)">([^<]+)<', foot) == [
+        ("json", "JSON"), ("md", "Markdown"), ("html", "HTML"), ("pdf", "PDF")]
+    assert 'role="group" aria-label="Download report"' in foot and 'class="dl-msg" role="status"' in foot
     assert [g for g in out["globals"] if g.startswith("Zing")] == ["ZingReport"]
 
 
@@ -94,7 +98,7 @@ def test_report_is_translated(tmp_path, lang):
     html = _render(tmp_path, lang, report)["html"]
     text = _text(html)
     for en in ("Per-dimension checks", "Severity:", "Show evidence", "Bait-and-switch",
-               "Overall health score", "Claimed model", "Test another"):
+               "Overall health score", "Claimed model", "Test another", "Download report"):
         assert en not in text, (lang, en)
     summary = re.search(r'<p class="sum">(.*?)</p>', html).group(1)
     assert "52" not in summary  # no repeated score line
@@ -118,6 +122,62 @@ def test_report_clean_and_translated_summary(tmp_path):
     assert "Score de santé" not in summary and "boîte noire" not in summary
     assert "No warnings or failures" in html
     assert "Consistent (likely genuine)" in html
+
+
+_DOWNLOAD_JS = r"""
+const path = require("path");
+const [dir, reportJson] = process.argv.slice(1);
+global.window = { addEventListener() {} };
+global.document = { documentElement: { style: {}, lang: "" }, readyState: "complete",
+                    querySelectorAll: () => [], addEventListener() {},
+                    body: { appendChild() {} },
+                    createElement: () => ({ click() { saved.push(this.download); }, remove() {} }) };
+global.localStorage = { getItem: () => "de", setItem() {} };
+global.URL = { createObjectURL: () => "blob:x", revokeObjectURL() {} };
+global.Blob = class { constructor(parts, o) { this.text = parts.join(""); this.type = o.type; } };
+const saved = [], posted = [];
+global.fetch = (url, init) => {
+  posted.push({ url, method: init.method, type: init.headers["Content-Type"], body: JSON.parse(init.body) });
+  if (url.endsWith("pdf")) return Promise.resolve({ ok: false, status: 501,
+    json: () => Promise.resolve({ error: "PDF export needs WeasyPrint" }) });
+  return Promise.resolve({ ok: true, blob: () => Promise.resolve(new Blob(["x"], { type: "t" })) });
+};
+require(path.join(dir, "locales.js"));
+require(path.join(dir, "lang.js"));
+require(path.join(dir, "i18n.js"));
+require(path.join(dir, "icons.js"));
+require(path.join(dir, "v2", "report.js"));
+const rep = JSON.parse(reportJson), D = window.ZingReport.download;
+(async () => {
+  await D(rep, "json", "zing-report-7");
+  await D(rep, "md", "zing-report-7");
+  let err = null;
+  try { await D(rep, "pdf", "zing-report-7"); } catch (e) { err = e.message; }
+  console.log(JSON.stringify({ saved, posted: posted.map(p => ({ ...p, title: p.body.detectors[0].findings[0].title })), err }));
+})();
+"""
+
+
+@needs_node
+def test_download_saves_every_format_in_the_ui_language(tmp_path):
+    report = json.loads(_FIXTURE.read_text(encoding="utf-8"))
+    _render(tmp_path, "en", report)  # stage the scripts
+    out = json.loads(subprocess.run(
+        ["node", "-e", _DOWNLOAD_JS, str(tmp_path), json.dumps(report)],
+        capture_output=True, text=True, check=True,
+    ).stdout)
+    # JSON is built in the browser; Markdown/HTML/PDF are rendered by the server
+    assert out["saved"] == ["zing-report-7.de.json", "zing-report-7.de.md"]
+    assert [(p["url"], p["method"], p["type"]) for p in out["posted"]] == [
+        ("/api/report/export?format=md", "POST", "application/json"),
+        ("/api/report/export?format=pdf", "POST", "application/json"),
+    ]
+    # the server gets the report exported in the UI language, same schema
+    body = out["posted"][0]["body"]
+    assert body.keys() == report.keys()
+    assert out["posted"][0]["title"] != report["detectors"][0]["findings"][0]["title"]
+    # a server refusal (no PDF support) comes back as the error message
+    assert out["err"] == "PDF export needs WeasyPrint"
 
 
 async def _scored_report() -> dict:

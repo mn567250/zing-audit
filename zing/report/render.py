@@ -714,4 +714,12 @@ td.ekey { color: #57606a; white-space: nowrap; font-weight: 500; }
   .pill.info { background: #0b2942; color: #58a6ff; }
   .pill.muted { background: #21262d; color: #8b949e; }
 }
+@page { size: A4; margin: 14mm 12mm; }
+@media print {
+  body { padding: 0; background: #fff; font-size: 12px; }
+  main { max-width: none; }
+  .card { break-inside: auto; }
+  .finding, tr, .badge, h2, h3 { break-inside: avoid; }
+  h2, h3 { break-after: avoid; }
+}
 """ + dimension_details.DIM_CSS + PERF_CSS + """</style>"""

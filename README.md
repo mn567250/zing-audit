@@ -78,6 +78,9 @@ You can also install straight from the Git repository without cloning:
 
 - `tokenizers` — accurate OpenAI-family token counting in the billing audit.
 - `web` — the local web UI (`zing serve`).
+- `pdf` — PDF reports (`--format pdf`, and the PDF download in the web UI), rendered
+  from the HTML report by [WeasyPrint](https://weasyprint.org/), which needs the Pango
+  system library (preinstalled on most Linux desktops; `brew install pango` on macOS).
 
 ```bash
 pip install 'zing-audit[tokenizers,web]'          # pip, from PyPI
@@ -170,12 +173,13 @@ see [docs/DOCKER.md](docs/DOCKER.md) (`docker run -p 127.0.0.1:8000:8000 -v zing
 A language dropdown in the header of every page switches the UI between
 **🇬🇧 English** (default), **🇨🇳 Chinese** (the original UI), **🇫🇷 French**, **🇪🇸 Spanish**,
 **🇵🇹 Portuguese**, **🇮🇹 Italian** and **🇩🇪 German**; the choice is remembered per browser.
-Reports downloaded from the UI (**Download report (JSON)**) follow the selected language
-too: the JSON keys, enum values (`risk_level`, `status`, `severity`, …), ids and evidence
-stay exactly as in the CLI's report (it is still a valid zing report), while the
+Reports downloaded from the UI (**Download report**: JSON, Markdown, HTML or PDF) follow
+the selected language too: the JSON keys, enum values (`risk_level`, `status`, `severity`, …), ids and evidence
+stay exactly as in the CLI's report (the JSON is still a valid zing report), while the
 human-readable values (verdict headline/summary, finding titles/summaries,
 recommendations, detector names, notes) are translated, and the file name carries the
-language (`zing-report.de.json`). The CLI's own `--format json|md|html` reports stay
+language (`zing-report.de.json`, `zing-report.de.pdf`). The section headings of the
+Markdown/HTML/PDF files are English. The CLI's own `--format json|md|html|pdf` reports stay
 English.
 
 **Prompts sent to the audited endpoint do not follow the UI language.** Every text zing
@@ -431,7 +435,8 @@ without one, the verdict is *inconclusive*.
   • Reported prompt tokens far exceed independent estimate
 ```
 
-Reports are written to `reports/` as JSON, Markdown, and HTML.
+Reports are written to `reports/` as JSON, Markdown, and HTML — plus PDF when the `pdf`
+extra is installed (`--format all`, the default); `--format pdf` asks for PDF alone.
 
 ## Knowledge base
 

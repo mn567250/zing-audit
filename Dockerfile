@@ -18,10 +18,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     ZING_PORT=8000 \
     ZING_DATA_DIR=/data
 
+# Pango + fonts for PDF reports (WeasyPrint); the CJK font keeps Chinese
+# finding text readable in exported PDFs.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       libpango-1.0-0 libpangoft2-1.0-0 fonts-dejavu-core fonts-wqy-microhei \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /src
 COPY pyproject.toml README.md LICENSE NOTICE ./
 COPY zing ./zing
-RUN pip install '.[web]' && rm -rf /src
+RUN pip install '.[web,pdf]' && rm -rf /src
 
 RUN useradd --create-home --uid 10001 zing \
     && mkdir -p /data && chown zing:zing /data && chmod 700 /data

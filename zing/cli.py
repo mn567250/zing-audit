@@ -428,6 +428,10 @@ def _run_and_report(
     from zing.report import render_compact, write_reports
     from zing.runner import run_audit
 
+    if not (as_json or as_compact):
+        # Before the audit, so a bad --format (or missing PDF support) costs no requests.
+        fmt = validate_format(fmt)
+
     command = "zing " + " ".join(sys.argv[1:])
     report = asyncio.run(
         run_audit(
@@ -449,7 +453,7 @@ def _run_and_report(
         # Full machine-facing report.
         print(report.model_dump_json(indent=2))
     else:
-        written = write_reports(report, out_dir=out_dir, fmt=validate_format(fmt))
+        written = write_reports(report, out_dir=out_dir, fmt=fmt)
         _print_summary(report, written)
 
     raise typer.Exit(code=_exit_code(report, fail_under, fail_on_risk))
@@ -491,7 +495,7 @@ def check_command(
     only: Annotated[list[str] | None, typer.Option("--only", help="Run only these detector ids (repeatable).")] = None,
     skip: Annotated[list[str] | None, typer.Option("--skip", help="Skip these detector ids (repeatable).")] = None,
     out_dir: Annotated[Path | None, typer.Option("--out-dir", help="Report output directory.")] = None,
-    fmt: Annotated[str | None, typer.Option("--format", help="json | md | html | all.")] = None,
+    fmt: Annotated[str | None, typer.Option("--format", help="json | md | html | pdf | all (pdf needs the [pdf] extra).")] = None,
     timeout: Annotated[float | None, typer.Option("--timeout", help="HTTP timeout (seconds).")] = None,
     reliability_requests: Annotated[int | None, typer.Option("--reliability-requests", help="Reliability probe request count (0 disables).")] = None,
     concurrency: Annotated[int | None, typer.Option("--concurrency", help="Reliability probe concurrency.")] = None,
@@ -565,7 +569,7 @@ def compare_command(
     judge: Annotated[bool | None, typer.Option("--judge/--no-judge", help="Enable code+LLM hybrid judging.")] = None,
     judge_model: Annotated[str | None, typer.Option("--judge-model", help="Judge model id (defaults to baseline).")] = None,
     out_dir: Annotated[Path | None, typer.Option("--out-dir", help="Report output directory.")] = None,
-    fmt: Annotated[str | None, typer.Option("--format", help="json | md | html | all.")] = None,
+    fmt: Annotated[str | None, typer.Option("--format", help="json | md | html | pdf | all (pdf needs the [pdf] extra).")] = None,
     timeout: Annotated[float | None, typer.Option("--timeout", help="HTTP timeout (seconds).")] = None,
     max_context_tokens: Annotated[int | None, typer.Option("--max-context-tokens", help="Cap for the context-window probe.")] = None,
     performance_requests: Annotated[int | None, typer.Option("--performance-requests", help="Performance probe requests per endpoint (0 disables; standard suite uses 5).")] = None,

@@ -21,6 +21,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **PDF reports.** `--format pdf` writes the HTML report typeset as PDF, and
+  `--format all` (the default) adds it next to JSON, Markdown and HTML. PDF
+  rendering uses WeasyPrint, the new optional `pdf` extra
+  (`pip install 'zing-audit[pdf]'`); without it `--format pdf` fails before any
+  request is sent and `all` skips the PDF. Rendering never fetches external
+  resources. The Docker image includes it.
+- **Download every report format from the v2 UI.** The report on the audit,
+  console and History pages has a **Download report** row with JSON, Markdown,
+  HTML and PDF. Text is exported in the UI language as before; Markdown, HTML
+  and PDF are rendered by the new `POST /api/report/export?format=…` endpoint.
 - **Schedule a History run as a monitor (v2 UI).** Every run in v2 History has
   a **Schedule as monitor** action (a bell button on the row and a button in the
   report). It copies that run's configuration (relay, model, claimed model,
@@ -269,6 +279,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **PDF reports.** `--format pdf` writes the HTML report typeset as PDF, and
+  `--format all` (the default) adds it next to JSON, Markdown and HTML. PDF
+  rendering uses WeasyPrint, the new optional `pdf` extra
+  (`pip install 'zing-audit[pdf]'`); without it `--format pdf` fails before any
+  request is sent and `all` skips the PDF. Rendering never fetches external
+  resources. The Docker image includes it.
+- **Download every report format from the v2 UI.** The report on the audit,
+  console and History pages has a **Download report** row with JSON, Markdown,
+  HTML and PDF. Text is exported in the UI language as before; Markdown, HTML
+  and PDF are rendered by the new `POST /api/report/export?format=…` endpoint.
 - **Web UI: claimed-model picker.** The “claimed model” field is now a provider → model
   picker driven by the bundled knowledge base (pick e.g. *DeepSeek* then
   *deepseek-v4-flash*) instead of free typing, with a **自定义输入** toggle that falls back
@@ -287,6 +307,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **PDF reports.** `--format pdf` writes the HTML report typeset as PDF, and
+  `--format all` (the default) adds it next to JSON, Markdown and HTML. PDF
+  rendering uses WeasyPrint, the new optional `pdf` extra
+  (`pip install 'zing-audit[pdf]'`); without it `--format pdf` fails before any
+  request is sent and `all` skips the PDF. Rendering never fetches external
+  resources. The Docker image includes it.
+- **Download every report format from the v2 UI.** The report on the audit,
+  console and History pages has a **Download report** row with JSON, Markdown,
+  HTML and PDF. Text is exported in the UI language as before; Markdown, HTML
+  and PDF are rendered by the new `POST /api/report/export?format=…` endpoint.
 - **Image & audio (TTS) generation audits (`zing image` / `zing audio`).** Two more
   non-chat surfaces. `image` (POST `/v1/images/generations`) checks the returned bytes
   are a valid, decodable image and that the **decoded dimensions match the requested
@@ -319,6 +349,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **PDF reports.** `--format pdf` writes the HTML report typeset as PDF, and
+  `--format all` (the default) adds it next to JSON, Markdown and HTML. PDF
+  rendering uses WeasyPrint, the new optional `pdf` extra
+  (`pip install 'zing-audit[pdf]'`); without it `--format pdf` fails before any
+  request is sent and `all` skips the PDF. Rendering never fetches external
+  resources. The Docker image includes it.
+- **Download every report format from the v2 UI.** The report on the audit,
+  console and History pages has a **Download report** row with JSON, Markdown,
+  HTML and PDF. Text is exported in the UI language as before; Markdown, HTML
+  and PDF are rendered by the new `POST /api/report/export?format=…` endpoint.
 - **Embedding & rerank audits (`zing embed` / `zing rerank`).** A focused auditor for
   the non-chat surface, separate from the 9-dimension chat pipeline. `embed` checks
   connectivity, **dimension match** (returned vector length vs the claimed model's
@@ -347,6 +387,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **PDF reports.** `--format pdf` writes the HTML report typeset as PDF, and
+  `--format all` (the default) adds it next to JSON, Markdown and HTML. PDF
+  rendering uses WeasyPrint, the new optional `pdf` extra
+  (`pip install 'zing-audit[pdf]'`); without it `--format pdf` fails before any
+  request is sent and `all` skips the PDF. Rendering never fetches external
+  resources. The Docker image includes it.
+- **Download every report format from the v2 UI.** The report on the audit,
+  console and History pages has a **Download report** row with JSON, Markdown,
+  HTML and PDF. Text is exported in the UI language as before; Markdown, HTML
+  and PDF are rendered by the new `POST /api/report/export?format=…` endpoint.
 - **OpenAI Responses API (`/v1/responses`).** A third wire protocol behind the same
   detector interface: `--api responses` (auto-detected when the base_url path ends in
   `/responses`). Translates to/from `input`/`instructions`/`output` + `input_tokens`/
@@ -368,6 +418,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **PDF reports.** `--format pdf` writes the HTML report typeset as PDF, and
+  `--format all` (the default) adds it next to JSON, Markdown and HTML. PDF
+  rendering uses WeasyPrint, the new optional `pdf` extra
+  (`pip install 'zing-audit[pdf]'`); without it `--format pdf` fails before any
+  request is sent and `all` skips the PDF. Rendering never fetches external
+  resources. The Docker image includes it.
+- **Download every report format from the v2 UI.** The report on the audit,
+  console and History pages has a **Download report** row with JSON, Markdown,
+  HTML and PDF. Text is exported in the UI language as before; Markdown, HTML
+  and PDF are rendered by the new `POST /api/report/export?format=…` endpoint.
 - **Findings localized to Chinese (web UI).** A new `zing/web/static/i18n.js` catalog
   maps every finding `id` (~65) to a zh title + a zh summary template filled from the
   finding's evidence (falling back to the English summary when a key is absent). The
@@ -386,6 +446,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **PDF reports.** `--format pdf` writes the HTML report typeset as PDF, and
+  `--format all` (the default) adds it next to JSON, Markdown and HTML. PDF
+  rendering uses WeasyPrint, the new optional `pdf` extra
+  (`pip install 'zing-audit[pdf]'`); without it `--format pdf` fails before any
+  request is sent and `all` skips the PDF. Rendering never fetches external
+  resources. The Docker image includes it.
+- **Download every report format from the v2 UI.** The report on the audit,
+  console and History pages has a **Download report** row with JSON, Markdown,
+  HTML and PDF. Text is exported in the UI language as before; Markdown, HTML
+  and PDF are rendered by the new `POST /api/report/export?format=…` endpoint.
 - **Web UI: `compare` against a trusted baseline.** The form has an optional baseline
   section (base_url / key / model / protocol); when filled, the audit runs in
   **compare** mode so the verdict gets baseline corroboration (quality_judge and
@@ -400,6 +470,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **PDF reports.** `--format pdf` writes the HTML report typeset as PDF, and
+  `--format all` (the default) adds it next to JSON, Markdown and HTML. PDF
+  rendering uses WeasyPrint, the new optional `pdf` extra
+  (`pip install 'zing-audit[pdf]'`); without it `--format pdf` fails before any
+  request is sent and `all` skips the PDF. Rendering never fetches external
+  resources. The Docker image includes it.
+- **Download every report format from the v2 UI.** The report on the audit,
+  console and History pages has a **Download report** row with JSON, Markdown,
+  HTML and PDF. Text is exported in the UI language as before; Markdown, HTML
+  and PDF are rendered by the new `POST /api/report/export?format=…` endpoint.
 - **`zing serve` — a local web UI.** A point-and-click front end for `zing check`:
   enter a relay + the model it claims, watch the audit stream **live** (a radar scan
   with per-detector progress over SSE), then get a shareable verdict report (grade,
@@ -415,6 +495,16 @@ Make zing pleasant to drive from another program or model.
 
 ### Added
 
+- **PDF reports.** `--format pdf` writes the HTML report typeset as PDF, and
+  `--format all` (the default) adds it next to JSON, Markdown and HTML. PDF
+  rendering uses WeasyPrint, the new optional `pdf` extra
+  (`pip install 'zing-audit[pdf]'`); without it `--format pdf` fails before any
+  request is sent and `all` skips the PDF. Rendering never fetches external
+  resources. The Docker image includes it.
+- **Download every report format from the v2 UI.** The report on the audit,
+  console and History pages has a **Download report** row with JSON, Markdown,
+  HTML and PDF. Text is exported in the UI language as before; Markdown, HTML
+  and PDF are rendered by the new `POST /api/report/export?format=…` endpoint.
 - **`--compact`** (`check`/`compare`) — a lean, agent-facing JSON verdict on stdout:
   verdict + per-dimension status + a flat findings list, *without* the bulky
   per-finding evidence. ~66% smaller than `--json` (a standard report drops from
@@ -437,6 +527,16 @@ DeepSeek relays now read CLEAN, and Doubao models passed off as DeepSeek are cau
 
 ### Added
 
+- **PDF reports.** `--format pdf` writes the HTML report typeset as PDF, and
+  `--format all` (the default) adds it next to JSON, Markdown and HTML. PDF
+  rendering uses WeasyPrint, the new optional `pdf` extra
+  (`pip install 'zing-audit[pdf]'`); without it `--format pdf` fails before any
+  request is sent and `all` skips the PDF. Rendering never fetches external
+  resources. The Docker image includes it.
+- **Download every report format from the v2 UI.** The report on the audit,
+  console and History pages has a **Download report** row with JSON, Markdown,
+  HTML and PDF. Text is exported in the UI language as before; Markdown, HTML
+  and PDF are rendered by the new `POST /api/report/export?format=…` endpoint.
 - **`--claimed-model`** — audit an endpoint's *real* model id against a *different*
   claimed model's profile (e.g. request `doubao-seed-...` but verify it against the
   `deepseek-v4-flash` profile). Lets you confirm a suspected substitution end-to-end.
@@ -469,6 +569,16 @@ DeepSeek relays now read CLEAN, and Doubao models passed off as DeepSeek are cau
 
 ### Added
 
+- **PDF reports.** `--format pdf` writes the HTML report typeset as PDF, and
+  `--format all` (the default) adds it next to JSON, Markdown and HTML. PDF
+  rendering uses WeasyPrint, the new optional `pdf` extra
+  (`pip install 'zing-audit[pdf]'`); without it `--format pdf` fails before any
+  request is sent and `all` skips the PDF. Rendering never fetches external
+  resources. The Docker image includes it.
+- **Download every report format from the v2 UI.** The report on the audit,
+  console and History pages has a **Download report** row with JSON, Markdown,
+  HTML and PDF. Text is exported in the UI language as before; Markdown, HTML
+  and PDF are rendered by the new `POST /api/report/export?format=…` endpoint.
 - **Anthropic Messages API support.** zing now audits Anthropic-native relays
   (`/v1/messages`) as well as OpenAI Chat Completions, behind one detector
   interface. The protocol is auto-detected from the base_url/model or forced with
@@ -494,6 +604,16 @@ streaming, or inflates token billing (货不对板检测).
 
 ### Added
 
+- **PDF reports.** `--format pdf` writes the HTML report typeset as PDF, and
+  `--format all` (the default) adds it next to JSON, Markdown and HTML. PDF
+  rendering uses WeasyPrint, the new optional `pdf` extra
+  (`pip install 'zing-audit[pdf]'`); without it `--format pdf` fails before any
+  request is sent and `all` skips the PDF. Rendering never fetches external
+  resources. The Docker image includes it.
+- **Download every report format from the v2 UI.** The report on the audit,
+  console and History pages has a **Download report** row with JSON, Markdown,
+  HTML and PDF. Text is exported in the UI language as before; Markdown, HTML
+  and PDF are rendered by the new `POST /api/report/export?format=…` endpoint.
 - `zing check` — audit one relay endpoint against what it claims (model id +
   optional provider hint).
 - `zing compare` — audit a relay against a trusted baseline of the same declared

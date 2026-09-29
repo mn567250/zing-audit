@@ -194,6 +194,17 @@ def watch_of(rid: int) -> int | None:
     return int(row["watch_id"]) if row and row["watch_id"] is not None else None
 
 
+def run_duration_sec(report: dict[str, Any] | None) -> float | None:
+    """How long a saved run took, in seconds: detectors run one after another,
+    so their summed durations are the audit's execution time. None if unknown."""
+    total = 0.0
+    for det in (report or {}).get("detectors") or []:
+        ms = det.get("duration_ms") if isinstance(det, dict) else None
+        if isinstance(ms, (int, float)) and not isinstance(ms, bool):
+            total += float(ms)
+    return round(total / 1000, 1) if total > 0 else None
+
+
 def snapshot_for(rid: int) -> dict[str, Any] | None:
     """The knowledge-base profile snapshot a saved run used, if any."""
     with _connect() as conn:

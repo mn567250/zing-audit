@@ -78,6 +78,10 @@
   .mon-msg.bad { color: var(--bad); }
   .mon-act { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
   .mon-act .ask { font-size: 13px; font-weight: 600; color: var(--bad); margin-right: 4px; }
+  .mon-prog { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 13px; font-weight: 700; color: var(--sky); }
+  .mon-prog .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--skybg); overflow: hidden; }
+  .mon-prog .bar > span { display: block; height: 100%; background: var(--sky); border-radius: 3px; transition: width .4s ease; }
+  .mon-prog b { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; }
   .spin { display: inline-flex; animation: mon-spin 1s linear infinite; }
   @keyframes mon-spin { to { transform: rotate(360deg); } }
   #list-title:focus { outline: none; }
@@ -223,8 +227,18 @@
   }
   function checkInterval(raw) {
     return minutesOf(raw) == null
-      ? function () { return T("请输入不小于 1 的整数分钟数。", "Enter a whole number of minutes (1 or more)."); }
+      ? function () { return T("请选择运行间隔。", "Choose how often it runs."); }
       : null;
+  }
+  // The intervals offered (minutes). A monitor never runs more often than one
+  // run takes: the server rounds the measured run time up to one of these.
+  var STEPS = [5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 480, 720, 1440];
+  function minMinutes(w) { return Math.max(1, Math.round((w.min_interval_sec || 300) / 60)); }
+  function fmtDuration(sec) {
+    sec = Number(sec) || 0;
+    if (sec < 60) return Tf("{n} 秒", "{n} s", { n: Math.max(1, Math.round(sec)) });
+    if (sec < 3600) return Tf("{n} 分钟", "{n} min", { n: Math.round(sec / 6) / 10 });
+    return Tf("{n} 小时", "{n} h", { n: Math.round(sec / 360) / 10 });
   }
   function checkKey(raw) {
     return String(raw == null ? "" : raw).trim()
@@ -247,7 +261,7 @@
   // ---- card pieces -------------------------------------------------------- //
   function isRunning(w) { return !!(w.running || st(w.id).running); }
   function badge(w) {
-    if (isRunning(w)) return '<span class="badge sky" role="status"><span class="spin">' + icon("refresh") + "</span> " + esc(T("运行中", "Running")) + "</span>";
+    if (isRunning(w)) return '<span class="badge sky"><span class="spin">' + icon("refresh") + "</span> " + esc(T("运行中", "Running")) + "</span>";
     if (needsSetup(w)) return '<span class="badge warn">' + esc(T("待设置", "Needs setup")) + "</span>";
     if (w.last_risk) {
       return '<span class="badge ' + (RISK_CLASS[w.last_risk] || "grey") + '">' + esc(riskLabel(w.last_risk)) + "</span>";
@@ -274,15 +288,28 @@
       '<button type="button" class="btn sm pri" data-act="save-' + act + '" data-id="' + id + '">' + icon("check") + esc(T("保存", "Save")) + "</button>" +
       '<button type="button" class="btn sm" data-act="cancel" data-id="' + id + '">' + esc(T("取消", "Cancel")) + "</button></div>";
   }
-  // The number field: the draft's setup and the configured card's editor share it.
+  // The interval picker: the draft's setup and the configured card's editor share it.
   function intervalInput(w, s, small) {
-    var v = s.vals.interval != null ? s.vals.interval : (w.interval_sec ? String(w.interval_sec / 60) : "");
-    var hint = minutesOf(v) ? Tf("将{every}运行一次。", "Runs {every}.", { every: fmtEvery(minutesOf(v) * 60) }) : "";
-    return '<div class="unit-in"><input class="in" type="number" inputmode="numeric" min="1" step="1"' +
-      ' id="iv-' + w.id + '" data-act="f-interval" data-id="' + w.id + '" value="' + esc(v) + '"' +
+    var v = s.vals.interval != null ? s.vals.interval : (w.interval_sec ? String(Math.round(w.interval_sec / 60)) : "");
+    var floor = minMinutes(w);
+    var steps = STEPS.filter(function (m) { return m >= floor; });
+    if (!steps.length) steps = [STEPS[STEPS.length - 1]];
+    var opts = "";
+    if (!minutesOf(v)) opts += '<option value="" selected>' + esc(T("请选择…", "Choose…")) + "</option>";
+    // an interval set before (outside the steps, or now below the run time) stays selectable as is
+    if (minutesOf(v) && steps.indexOf(minutesOf(v)) < 0) {
+      opts += '<option value="' + esc(v) + '" selected>' + esc(fmtEvery(minutesOf(v) * 60)) + "</option>";
+    }
+    steps.forEach(function (m) {
+      opts += '<option value="' + m + '"' + (minutesOf(v) === m ? " selected" : "") + ">" + esc(fmtEvery(m * 60)) + "</option>";
+    });
+    var hint = w.run_duration_sec
+      ? Tf("上次完整运行耗时 {d}，因此最短间隔为{every}。", "One full run took {d}, so it runs at most {every}.",
+          { d: fmtDuration(w.run_duration_sec), every: fmtEvery(floor * 60) })
+      : "";
+    return '<select class="in" id="iv-' + w.id + '" data-act="f-interval" data-id="' + w.id + '"' +
       (small ? ' aria-label="' + esc(T("检测间隔", "Check interval")) + '"' : "") +
-      ' aria-describedby="ivu-' + w.id + " ivh-" + w.id + " ive-" + w.id + '"' + invalid(s.errs.interval) + ">" +
-      '<span class="unit" id="ivu-' + w.id + '">' + esc(T("分钟", "minutes")) + "</span></div>" +
+      ' aria-describedby="ivh-' + w.id + " ive-" + w.id + '"' + invalid(s.errs.interval) + ">" + opts + "</select>" +
       '<p class="hint" id="ivh-' + w.id + '">' + esc(hint) + "</p>" + err("ive-" + w.id, s.errs.interval);
   }
   // The key field, paired with the relay URL (a hidden username field) so the
@@ -382,6 +409,7 @@
       lastParts.push('<a href="' + esc(historyHref(w, w.source_report_id)) + '">' + esc(Tf("来自运行 #{n}", "From run #{n}", { n: w.source_report_id })) + " →</a>");
     }
     var running = isRunning(w);
+    if (!running) s.stopping = false;
     var waiting = !running && !draft && w.enabled;
     var actions;
     if (s.confirm) {
@@ -392,9 +420,11 @@
     } else {
       // A draft can run once right away; the interval is only for the schedule.
       var run =
-        '<button type="button" class="btn sm' + (draft ? "" : " pri") + '" data-act="run" data-id="' + w.id + '"' + (running ? ' disabled aria-busy="true"' : "") + ">" +
-        (running ? '<span class="spin">' + icon("refresh") + "</span>" + esc(T("运行中…", "Running…")) : icon("play") + esc(T("立即运行", "Run now"))) +
-        "</button>";
+        running
+          ? '<button type="button" class="btn sm danger" data-act="stop" data-id="' + w.id + '"' + (s.stopping ? ' disabled aria-busy="true"' : "") + ">" +
+            icon("x") + esc(s.stopping ? T("正在取消…", "Cancelling…") : T("取消运行", "Cancel run")) + "</button>"
+          : '<button type="button" class="btn sm' + (draft ? "" : " pri") + '" data-act="run" data-id="' + w.id + '">' +
+            icon("play") + esc(T("立即运行", "Run now")) + "</button>";
       actions = run +
         '<button type="button" class="btn sm danger" data-act="del" data-id="' + w.id + '"' + (running ? " disabled" : "") + ">" + icon("trash") + esc(T("删除", "Delete")) + "</button>";
     }
@@ -402,6 +432,12 @@
       ? '<span>' + esc(T("状态", "Status")) + ': <b>' + esc(T("正在运行", "Running now")) + "</b></span>"
       : waiting ? '<span>' + esc(T("状态", "Status")) + ': <b>' + esc(T("等待下次计划运行", "Waiting for next scheduled run")) + "</b></span>" : "";
     if (stateLine) lastParts.unshift(stateLine);
+    var pct = Math.max(0, Math.min(100, Number(w.progress) || 0));
+    var progress = running
+      ? '<div class="mon-prog"><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"' +
+        ' aria-label="' + esc(Tf("{name} 的运行进度", "Progress of {name}", { name: name })) + '"><span style="width:' + pct + '%"></span></div>' +
+        "<b>" + pct + "%</b></div>"
+      : "";
     var langLabel = T("告警语言", "Alert language");
     var thrLabel = T("告警阈值", "Alert threshold");
     var swText = draft ? T("待设置", "Needs setup") : w.enabled ? T("启用中", "Enabled") : T("已暂停", "Paused");
@@ -427,6 +463,7 @@
           "</dl>" +
           (lastParts.length ? '<div class="mon-last">' + lastParts.join("") + "</div>" : "") +
         "</div>" +
+        progress +
         (draft ? setupBox(w, s) : "") +
         '<div class="mon-msg ' + (s.msgKind || "") + '" role="status">' + (s.msg ? esc(s.msg()) : "") + "</div>" +
         '<div class="mon-act">' + actions + "</div>" +
@@ -461,7 +498,7 @@
     list.innerHTML = watches.map(card).join("");
     if (window.ZingSecret) window.ZingSecret.enhance(list);
     if (keep) {
-      var alt = { del: "del-no", "del-no": "del", "del-yes": "del", run: "run" }[keep[0]] || keep[0];
+      var alt = { del: "del-no", "del-no": "del", "del-yes": "del", run: "stop", stop: "run" }[keep[0]] || keep[0];
       var el = list.querySelector('[data-act="' + keep[0] + '"][data-id="' + keep[1] + '"]') ||
         list.querySelector('[data-act="' + alt + '"][data-id="' + keep[1] + '"]');
       if (el) {
@@ -489,7 +526,7 @@
   var pollTimer = null;
   function schedulePoll() {
     clearTimeout(pollTimer);
-    if ((watches || []).some(function (w) { return w.running; })) pollTimer = setTimeout(load, 3000);
+    if ((watches || []).some(isRunning)) pollTimer = setTimeout(load, 2000);
   }
 
   function load() {
@@ -540,6 +577,7 @@
   function focusAct(act, id) {
     var el = $("list").querySelector('[data-act="' + act + '"][data-id="' + id + '"]');
     if (el) el.focus();
+    return !!el;
   }
   function closeEdit(id, back) {
     var s = st(id);
@@ -625,10 +663,6 @@
     if (!id || !/^f-/.test(act || "")) return;
     var s = st(id), field = act.slice(2);
     s.vals[field] = t.value;
-    if (field === "interval") {
-      var m = minutesOf(t.value), h = $("ivh-" + id);
-      if (h) h.textContent = m ? Tf("将{every}运行一次。", "Runs {every}.", { every: fmtEvery(m * 60) }) : "";
-    }
     // re-check a flagged field as the user fixes it
     if (s.errs[field]) {
       var fn = { interval: checkInterval, key: checkKey, hooks: checkHooks }[field](t.value);
@@ -672,6 +706,9 @@
       s.running = true;
       s.msg = null;
       render();
+      focusAct("stop", id);
+      // pick up the server's progress soon; polling carries on from there
+      setTimeout(load, 500);
       fetch("/api/watches/" + id + "/run", { method: "POST" })
         .then(function (r) {
           return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
@@ -682,6 +719,11 @@
             if (res.status === 409) { s.msg = null; return; }
             s.msgKind = "bad";
             s.msg = function () { return e ? T("运行失败", "Run failed") + ": " + L.server(e) : T("运行失败", "Run failed"); };
+            return;
+          }
+          if (res.body && res.body.cancelled) {
+            s.msgKind = "";
+            s.msg = function () { return T("运行已取消。", "Run cancelled."); };
             return;
           }
           var rep = res.body && res.body.report;
@@ -703,10 +745,36 @@
         })
         .then(function () {
           s.running = false;
+          s.stopping = false;
           return load().then(function () {
-            // the disabled button dropped focus to <body>: put it back
+            // the Cancel button went away and dropped focus to <body>: put it back
             var a = document.activeElement;
             if (!a || a === document.body) focusAct("run", id);
+          });
+        });
+    } else if (act === "stop") {
+      s.stopping = true;
+      s.msg = null;
+      render();
+      fetch("/api/watches/" + id + "/cancel", { method: "POST" })
+        .then(function (r) {
+          // 409: it finished on its own meanwhile — nothing to report
+          if (r.ok) {
+            s.msgKind = "";
+            s.msg = function () { return T("运行已取消。", "Run cancelled."); };
+          } else if (r.status !== 409) {
+            throw new Error("HTTP " + r.status);
+          }
+        })
+        .catch(function () {
+          s.msgKind = "bad";
+          s.msg = function () { return T("无法取消运行，请重试。", "Could not cancel the run — please try again."); };
+        })
+        .then(function () {
+          // a run this tab started clears `running` when its request returns
+          return load().then(function () {
+            var a = document.activeElement;
+            if (!a || a === document.body) focusAct("run", id) || focusAct("stop", id);
           });
         });
     } else if (act === "repin") {

@@ -12,7 +12,6 @@
   "Every monitor re-runs an audit you already ran, on your machine, at the interval you set. To add one, open a run in <a href='/v2/history'>History</a> and choose <b>Schedule as monitor</b> — then set its interval here and switch it on. When the risk crosses your threshold or gets worse than last time, zing alerts your webhooks (Slack / Feishu / DingTalk / generic JSON).": "Jede Überwachung wiederholt ein bereits ausgeführtes Audit auf Ihrem Rechner im festgelegten Intervall. Zum Hinzufügen öffnen Sie einen Lauf im <a href='/v2/history'>Verlauf</a> und wählen <b>Als Überwachung einplanen</b> — legen Sie dann hier das Intervall fest und schalten Sie sie ein. Überschreitet das Risiko Ihre Schwelle oder wird es schlechter als beim letzten Mal, alarmiert zing Ihre Webhooks (Slack / Feishu / DingTalk / generisches JSON).",
   "Finish setup to switch it on": "Einrichtung abschließen, um sie einzuschalten",
   "From run #{n}": "Aus Lauf #{n}",
-  "History never stores the key, so enter it once more.": "Der Verlauf speichert den Schlüssel nie — geben Sie ihn bitte erneut ein.",
   "Monitor activated — it runs {every}.": "Überwachung aktiviert — sie wird {every} ausgeführt.",
   "Needs setup": "Einrichtung nötig",
   "No monitors yet.": "Noch keine Überwachungen.",
@@ -25,6 +24,8 @@
   "Stored": "Gespeichert",
   "The configuration comes from the run in History. Set how often it runs, then activate it.": "Die Konfiguration stammt aus dem Lauf im Verlauf. Legen Sie fest, wie oft sie läuft, und aktivieren Sie sie.",
   "Webhook URLs (one per line)": "Webhook-URLs (eine pro Zeile)",
-  "Webhooks saved.": "Webhooks gespeichert."
+  "Webhooks saved.": "Webhooks gespeichert.",
+  "(optional)": "(optional)",
+  "History never stores the key. Leave it empty for a local or self-hosted model.": "Der Verlauf speichert den Schlüssel nie. Für lokale oder selbst gehostete Modelle leer lassen."
  }
 }

@@ -12,7 +12,6 @@
   "Every monitor re-runs an audit you already ran, on your machine, at the interval you set. To add one, open a run in <a href='/v2/history'>History</a> and choose <b>Schedule as monitor</b> — then set its interval here and switch it on. When the risk crosses your threshold or gets worse than last time, zing alerts your webhooks (Slack / Feishu / DingTalk / generic JSON).": "Chaque surveillance relance un audit que vous avez déjà exécuté, sur votre machine, à l’intervalle choisi. Pour en ajouter une, ouvrez une exécution dans l’<a href='/v2/history'>Historique</a> et choisissez <b>Planifier comme surveillance</b>, puis définissez ici son intervalle et activez-la. Dès que le risque franchit votre seuil ou s’aggrave par rapport à la dernière fois, zing alerte vos webhooks (Slack / Feishu / DingTalk / JSON générique).",
   "Finish setup to switch it on": "Terminez la configuration pour l’activer",
   "From run #{n}": "Depuis l’exécution #{n}",
-  "History never stores the key, so enter it once more.": "L’historique ne conserve jamais la clé : saisissez-la une nouvelle fois.",
   "Monitor activated — it runs {every}.": "Surveillance activée — elle s’exécute {every}.",
   "Needs setup": "À configurer",
   "No monitors yet.": "Aucune surveillance pour l’instant.",
@@ -25,6 +24,8 @@
   "Stored": "Enregistrée",
   "The configuration comes from the run in History. Set how often it runs, then activate it.": "La configuration provient de l’exécution dans l’Historique. Définissez sa fréquence, puis activez-la.",
   "Webhook URLs (one per line)": "URL de webhooks (une par ligne)",
-  "Webhooks saved.": "Webhooks enregistrés."
+  "Webhooks saved.": "Webhooks enregistrés.",
+  "(optional)": "(facultatif)",
+  "History never stores the key. Leave it empty for a local or self-hosted model.": "L’historique ne conserve jamais la clé. Laissez vide pour un modèle local ou auto-hébergé."
  }
 }

@@ -203,11 +203,12 @@
   var ui = {};
   function st(id) { return ui[id] || (ui[id] = { vals: {}, errs: {} }); }
 
-  // A watch scheduled from a history run starts without an interval, and
-  // without a key (history never stores it): it needs both before it runs.
+  // A watch scheduled from a history run starts without an interval, so it
+  // needs one before it runs. The key is optional, exactly as on the audit page
+  // (self-hosted relays such as Ollama or LM Studio need none): history never
+  // stores it, so the setup box offers it once, but never requires it.
   function needsInterval(w) { return w.interval_sec == null; }
-  function needsKey(w) { return w.source_report_id != null && !w.has_key; }
-  function needsSetup(w) { return needsInterval(w) || needsKey(w); }
+  function needsSetup(w) { return needsInterval(w); }
 
   function minutesOf(raw) {
     raw = String(raw == null ? "" : raw).trim();
@@ -294,9 +295,9 @@
     if (needsInterval(w)) {
       fields += '<div><label class="lab" for="iv-' + w.id + '">' + esc(T("检测间隔", "Check interval")) + "</label>" + intervalInput(w, s) + "</div>";
     }
-    if (needsKey(w)) {
-      fields += '<div><label class="lab" for="k-' + w.id + '">' + esc(T("API 密钥", "API key")) + "</label>" + keyInput(w, s) +
-        '<p class="hint">' + esc(T("检测历史不保存密钥，请再填一次。", "History never stores the key, so enter it once more.")) + "</p></div>";
+    if (w.source_report_id != null && !w.has_key) {
+      fields += '<div><label class="lab" for="k-' + w.id + '">' + esc(T("API 密钥", "API key")) + ' <span class="opt">' + esc(T("（可选）", "(optional)")) + "</span></label>" + keyInput(w, s) +
+        '<p class="hint">' + esc(T("检测历史不保存密钥。本地或自托管模型可留空。", "History never stores the key. Leave it empty for a local or self-hosted model.")) + "</p></div>";
     }
     return '<form class="setup" data-id="' + w.id + '" novalidate aria-labelledby="su-' + w.id + '">' +
       '<h4 id="su-' + w.id + '">' + esc(T("设置后即可启用", "Finish setup to switch it on")) + "</h4>" +
@@ -312,7 +313,6 @@
     return esc(fmtEvery(w.interval_sec)) + linkBtn("edit-interval", w.id, T("修改", "Change"));
   }
   function keyCell(w, s) {
-    if (needsKey(w)) return esc(T("未设置", "Not set"));
     if (s.edit === "key") return '<form class="edit" data-id="' + w.id + '" novalidate>' + keyInput(w, s, true) + saveCancel("key", w.id) + "</form>";
     return esc(w.has_key ? T("已保存", "Stored") : T("无", "None")) + linkBtn("edit-key", w.id, T("更换", "Replace"));
   }
@@ -370,8 +370,8 @@
         '<button type="button" class="btn sm danger" data-act="del-yes" data-id="' + w.id + '" aria-describedby="ask-' + w.id + '">' + icon("trash") + esc(T("删除", "Delete")) + "</button>" +
         '<button type="button" class="btn sm" data-act="del-no" data-id="' + w.id + '">' + esc(T("取消", "Cancel")) + "</button>";
     } else {
-      // A draft can run once as soon as it has its key; the interval is only for the schedule.
-      var run = needsKey(w) ? "" :
+      // A draft can run once right away; the interval is only for the schedule.
+      var run =
         '<button type="button" class="btn sm' + (draft ? "" : " pri") + '" data-act="run" data-id="' + w.id + '"' + (s.running ? ' disabled aria-busy="true"' : "") + ">" +
         (s.running ? '<span class="spin">' + icon("refresh") + "</span>" + esc(T("运行中…", "Running…")) : icon("play") + esc(T("立即运行", "Run now"))) +
         "</button>";
@@ -528,11 +528,7 @@
       if (s.errs.interval) first = first || "f-interval";
       else body.interval_sec = minutesOf(s.vals.interval) * 60;
     }
-    if (needsKey(w)) {
-      s.errs.key = checkKey(s.vals.key);
-      if (s.errs.key) first = first || "f-key";
-      else body.api_key = s.vals.key.trim();
-    }
+    if (String(s.vals.key || "").trim()) body.api_key = s.vals.key.trim();
     s.msg = null;
     if (first) {
       render();

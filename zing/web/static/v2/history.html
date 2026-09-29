@@ -254,6 +254,16 @@
       var saved = JSON.parse(localStorage.getItem(FKEY) || "{}");
       Object.keys(FDEF).forEach(function (k) { if (typeof saved[k] === "string") f[k] = saved[k]; });
     } catch (e) { /* ignore */ }
+    // links such as the monitors' "Open in history" pass filters in the query
+    // string; these win over the remembered ones
+    try {
+      var qs = new URLSearchParams(location.search);
+      if (["host", "model", "suite"].some(function (k) { return qs.has(k); })) {
+        f = Object.assign({}, FDEF); // drop stale filters that could hide the monitor's runs
+        ["host", "model", "suite"].forEach(function (k) { if (qs.has(k)) f[k] = qs.get(k); });
+        localStorage.setItem(FKEY, JSON.stringify(f));
+      }
+    } catch (e) { /* ignore */ }
     return f;
   }
   function saveFilters() {

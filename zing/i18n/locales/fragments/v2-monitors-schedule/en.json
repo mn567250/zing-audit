@@ -28,6 +28,15 @@
   "(optional)": "(optional)",
   "History never stores the key. Leave it empty for a local or self-hosted model.": "History never stores the key. Leave it empty for a local or self-hosted model.",
   "Running now": "Running now",
-  "Waiting for next scheduled run": "Waiting for next scheduled run"
+  "Waiting for next scheduled run": "Waiting for next scheduled run",
+  "Cancel run": "Cancel run",
+  "Cancelling…": "Cancelling…",
+  "Choose how often it runs.": "Choose how often it runs.",
+  "Choose…": "Choose…",
+  "Could not cancel the run — please try again.": "Could not cancel the run — please try again.",
+  "One full run took {d}, so it runs at most {every}.": "One full run took {d}, so it runs at most {every}.",
+  "Progress of {name}": "Progress of {name}",
+  "Run cancelled.": "Run cancelled.",
+  "{n} min": "{n} min"
  }
 }

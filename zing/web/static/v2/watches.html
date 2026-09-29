@@ -96,7 +96,9 @@
   .mon-meta dd .edit .row { display: flex; gap: 6px; flex-wrap: wrap; }
   .mon-meta dd .edit .in { font-size: 13px; padding: 7px 10px; border-radius: 10px; }
   .mon-meta dd .link { margin-left: 6px; }
-  .mon-meta dd .link.icon-only { padding: 6px; line-height: 0; }
+  /* negative block margins: the pen button does not make its line taller, so
+     "Stored ✎" starts on the same line as the plain values beside it */
+  .mon-meta dd .link.icon-only { padding: 6px; line-height: 0; vertical-align: middle; margin-block: -6px; }
   .mon-meta dd .link.icon-only .zicon { width: 16px; height: 16px; }
   /* draft: a watch scheduled from a history run that still needs its interval / key */
   .setup {

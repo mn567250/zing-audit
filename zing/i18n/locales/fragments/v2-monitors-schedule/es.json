@@ -28,6 +28,15 @@
   "(optional)": "(opcional)",
   "History never stores the key. Leave it empty for a local or self-hosted model.": "El historial nunca guarda la clave. Déjala vacía para un modelo local o autoalojado.",
   "Running now": "En ejecución",
-  "Waiting for next scheduled run": "Esperando la próxima ejecución programada"
+  "Waiting for next scheduled run": "Esperando la próxima ejecución programada",
+  "Cancel run": "Cancelar ejecución",
+  "Cancelling…": "Cancelando…",
+  "Choose how often it runs.": "Elija con qué frecuencia se ejecuta.",
+  "Choose…": "Elegir…",
+  "Could not cancel the run — please try again.": "No se pudo cancelar la ejecución: inténtelo de nuevo.",
+  "One full run took {d}, so it runs at most {every}.": "Una ejecución completa tardó {d}, así que se ejecuta como máximo {every}.",
+  "Progress of {name}": "Progreso de {name}",
+  "Run cancelled.": "Ejecución cancelada.",
+  "{n} min": "{n} min"
  }
 }

@@ -1,0 +1,8 @@
+{
+ "strings": {
+  "Performance measurements": "Performance measurements",
+  "Not selected": "Not selected",
+  "No detector of this dimension ran in this audit.": "No detector of this dimension ran in this audit.",
+  "{n} of {total} dimensions run": "{n} of {total} dimensions run"
+ }
+}

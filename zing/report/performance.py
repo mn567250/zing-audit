@@ -209,17 +209,20 @@ def compact_performance(perf: PerformanceReport | None) -> dict | None:
 # --------------------------------------------------------------------------- #
 # Markdown
 # --------------------------------------------------------------------------- #
-def _markdown_block(perf: PerformanceReport, block: Block) -> list[str]:
+def _markdown_block(perf: PerformanceReport, block: Block, level: int = 2) -> list[str]:
+    """One mode's tables; ``level`` is the section heading's level, the
+    block's headings sit below it."""
     mode, _, _, comparison = block
+    h3, h4 = "#" * min(6, level + 1), "#" * min(6, level + 2)
     lines: list[str] = []
     title = _block_title(perf, mode)
     if title:
-        lines += [f"### {title}", ""]
+        lines += [f"{h3} {title}", ""]
     eps = _endpoints(block)
     visible = _visible_rows(eps)
     for e in eps:
         if len(eps) > 1:
-            lines += [f"#### {e.endpoint.capitalize()}" if title else f"### {e.endpoint.capitalize()}", ""]
+            lines += [f"{h4 if title else h3} {e.endpoint.capitalize()}", ""]
         lines.append(f"- Requests: {_reliability_line(e)}")
         lines += [f"- {x}" for x in _extras(e)]
         lines.append("")
@@ -241,7 +244,7 @@ def _markdown_block(perf: PerformanceReport, block: Block) -> list[str]:
                 )
             lines.append("")
     if comparison:
-        lines += ["#### Target vs baseline" if title else "### Target vs baseline", ""]
+        lines += [f"{h4 if title else h3} Target vs baseline", ""]
         lines.append("| Metric | Target | Baseline | Δ | Ratio |")
         lines.append("| --- | ---: | ---: | ---: | ---: |")
         for c in comparison:
@@ -265,12 +268,16 @@ def _scored_line(perf: PerformanceReport) -> str:
     return "Informational — not scored."
 
 
-def markdown_section(perf: PerformanceReport | None) -> list[str]:
+def markdown_section(
+    perf: PerformanceReport | None, *, title: str = "Performance", level: int = 2
+) -> list[str]:
+    """The measurements under a ``level`` heading (the report nests them in the
+    performance dimension's details)."""
     if perf is None:
         return []
-    lines = ["## Performance", "", f"_{_source_line(perf)} {_scored_line(perf)}_", ""]
+    lines = [f"{'#' * level} {title}", "", f"_{_source_line(perf)} {_scored_line(perf)}_", ""]
     for block in _blocks(perf):
-        lines += _markdown_block(perf, block)
+        lines += _markdown_block(perf, block, level)
     if perf.probe_cost is not None:
         pc = perf.probe_cost
         lines.append(
@@ -470,10 +477,16 @@ def _html_block(perf: PerformanceReport, block: Block) -> str:
     return "".join(out)
 
 
-def html_section(perf: PerformanceReport | None) -> str:
+def html_section(perf: PerformanceReport | None, *, nested: bool = False) -> str:
+    """The measurements as a card of their own, or ``nested`` in the
+    performance dimension's details."""
     if perf is None:
         return ""
-    out = ['<section class="card perf-card"><h2>Performance</h2>']
+    out = [
+        '<div class="perf-card perf-nested"><h4>Performance measurements</h4>'
+        if nested
+        else '<section class="card perf-card"><h2>Performance</h2>'
+    ]
     out.append(f'<p class="muted">{_esc(_source_line(perf))} {_esc(_scored_line(perf))}</p>')
 
     records = perf.requests
@@ -513,7 +526,7 @@ def html_section(perf: PerformanceReport | None) -> str:
         )
     if perf.notes:
         out.append("<ul class=\"perf-notes\">" + "".join(f"<li>{_esc(n)}</li>" for n in perf.notes) + "</ul>")
-    out.append("</section>")
+    out.append("</div>" if nested else "</section>")
     return "".join(out)
 
 
@@ -545,6 +558,8 @@ PERF_CSS = """
 .perf-card { --good: #1a7f37; --bad: #cf222e; }
 .delta.better { color: var(--good); font-weight: 600; }
 .delta.worse { color: var(--bad); font-weight: 600; }
+.perf-nested { margin: .75rem 0 .5rem 1rem; padding-top: .5rem; border-top: 1px solid #eaeef2; }
+.perf-nested > h4 { margin: .25rem 0; }
 h3.perf-mode { margin-top: 1.5rem; border-top: 1px solid #eaeef2; padding-top: 1rem; }
 .perf-chart .fail-mark { stroke: var(--status-critical); stroke-width: 2; stroke-linecap: round; }
 .perf-legend { display: flex; flex-wrap: wrap; gap: 1rem; font-size: .8rem; color: #57606a;
@@ -564,7 +579,7 @@ table.perf.small { width: auto; }
 @media (prefers-color-scheme: dark) {
   .perf-card { --series-target: #3987e5; --series-baseline: #d95926; --chart-surface: #161b22;
     --grid: #21262d; --good: #3fb950; --bad: #f85149; }
-  h3.perf-mode { border-color: #30363d; }
+  h3.perf-mode, .perf-nested { border-color: #30363d; }
   .perf-chart .tick, .perf-legend, .perf-notes { fill: #8b949e; color: #8b949e; }
   .perf-tabs label { border-color: #30363d; color: #8b949e; }
   .perf-tabs input:checked + label { background: #e6edf3; border-color: #e6edf3; color: #0d1117; }

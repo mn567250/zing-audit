@@ -72,10 +72,13 @@ def test_report_severity_dots_meters_and_summary(tmp_path):
     for colour, glyph in dots:
         assert glyph == out["icons"][glyph_for[colour]], colour
     assert "Severity: High." in html and "Severity: Medium." in html
-    # dimensions: meters with values, not-run dimensions skipped, counts translated
+    # dimensions: meters for those that ran; every dimension listed and
+    # expandable, the fixture's missing performance one included as not run
     assert html.count('role="meter"') == 8
     assert 'aria-valuenow="93"' in html or 'aria-valuenow="92"' in html
-    assert "8 dimensions" in html and "findings" in html
+    assert "8 of 10 dimensions run" in html and "findings" in html
+    assert html.count('class="dtog"') == 10 and html.count('<div class="zr-dimw off">') == 2
+    assert "Context window" in html and "Performance" in html
     # the risk pill uses the shared vocabulary; the summary drops score + disclaimer
     assert "Bait-and-switch" in html
     summary = re.search(r'<p class="sum">(.*?)</p>', html).group(1)
@@ -190,17 +193,20 @@ async def _scored_report() -> dict:
 
 
 def _panel(html: str) -> str:
-    start = html.index('<div class="zr-dd"')
-    return html[start:html.index('<div class="zr-dimw">', start) if '<div class="zr-dimw">' in html[start:] else None]
+    # the details panel of the first dimension that ran (rows of dimensions
+    # that did not run are listed too, as "zr-dimw off")
+    start = html.index('<div class="zr-dd"', html.index('<div class="zr-dimw">'))
+    end = html.find('<div class="zr-dimw', start)
+    return html[start:end if end >= 0 else None]
 
 
 @needs_node
 async def test_dimension_rows_expand_into_scoring_details(tmp_path):
     report = await _scored_report()
     html = _render(tmp_path, "en", report)["html"]
-    # one disclosure per scored dimension, collapsed, controlling its panel
+    # one disclosure per dimension (run or not), collapsed, controlling its panel
     toggles = re.findall(r'<button type="button" class="dtog" aria-expanded="false" aria-controls="(zr-dd-\d+)">', html)
-    assert len(toggles) == 1 and f'id="{toggles[0]}" role="region"' in html
+    assert len(toggles) == 10 and all(f'id="{t}" role="region"' in html for t in toggles)
     assert html.count('role="meter"') == 1
     panel = _text(_panel(html))
     assert "Score: mean of 2 detectors, equal weight." in panel
@@ -256,7 +262,7 @@ def test_old_reports_still_expand(tmp_path):
     # reports from before the breakdown/scale existed: detectors and findings
     report = json.loads(_FIXTURE.read_text(encoding="utf-8"))
     html = _render(tmp_path, "en", report)["html"]
-    assert html.count('class="dtog"') == 8
+    assert html.count('class="dtog"') == 10
     assert "Score: mean of" in html or "Score from one detector." in html
     assert "Status: the worst status" not in html  # needs the breakdown
     assert not re.search(r"\d pts\b", _text(html))  # no points without a published scale
@@ -454,3 +460,47 @@ def test_finding_detail_shows_all_evidence(tmp_path):
     ev = re.search(r'<pre class="ev">(.*?)</pre>', html, re.S).group(1).split("\n")
     assert ev[0] == "k0: 0" and len(ev) == 12  # up to 12 evidence fields
     assert out["d"] == ["0 ms", "1,000 ms", "1.2 s", "73 s", "—"]
+
+
+_PERF_JS = r"""
+const path = require("path");
+const [dir, reportJson] = process.argv.slice(1);
+global.window = { addEventListener() {} };
+global.document = undefined;  // perf.js skips its style injection without a DOM
+require(path.join(dir, "perf.js"));
+global.document = { documentElement: { style: {}, lang: "" }, readyState: "complete",
+                    querySelectorAll: () => [], addEventListener() {} };
+global.localStorage = { getItem: () => "en", setItem() {} };
+for (const m of ["locales.js", "lang.js", "i18n.js", "icons.js"]) require(path.join(dir, m));
+require(path.join(dir, "v2", "report.js"));
+const el = { querySelectorAll: () => [], querySelector: () => null };
+window.ZingReport.render(el, JSON.parse(reportJson), {});
+console.log(JSON.stringify({ html: el.innerHTML }));
+"""
+
+
+@needs_node
+def test_performance_measurements_sit_in_the_performance_dimension(tmp_path):
+    from zing.models import RequestRecord
+    from zing.perf import build_performance
+
+    report = json.loads(_FIXTURE.read_text(encoding="utf-8"))
+    recs = [RequestRecord(seq=i, endpoint="target", phase="probe", ok=True, stream=True,
+                          start_ms=i * 1000.0, duration_ms=900.0, ttft_ms=250.0,
+                          decode_tps_local=100.0) for i in range(4)]
+    report["performance"] = json.loads(build_performance(recs, has_baseline=False, probe_max_tokens=64)
+                                       .model_dump_json())
+    _render(tmp_path, "en", report)  # stage the scripts
+    shutil.copy(_STATIC / "perf.js", tmp_path / "perf.js")
+    html = json.loads(subprocess.run(
+        ["node", "-e", _PERF_JS, str(tmp_path), json.dumps(report)],
+        capture_output=True, text=True, check=True,
+    ).stdout)["html"]
+    # no separate performance section: the measurements are an extra of the
+    # performance dimension's details (listed although the fixture never ran it)
+    assert "perf-sect" not in html and html.count('class="zp-section"') == 1
+    rows = html.split('<div class="zr-dimw')
+    perf_row = next(r for r in rows if "Is its speed consistent?" in r)
+    assert perf_row.startswith(' off">')
+    assert '<div class="zr-extra" data-extra="performance">' in perf_row
+    assert "Performance measurements" in perf_row and 'class="zp-section"' in perf_row

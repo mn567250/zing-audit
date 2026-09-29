@@ -49,10 +49,14 @@ def _report(*, baseline: bool = True, perf: bool = True) -> AuditReport:
 
 def test_markdown_has_stats_and_comparison():
     md = render_markdown(_report())
-    assert "## Performance" in md
+    # the measurements sit in the performance dimension's details
+    details = md[md.index("## Dimension details"):md.index("## Findings")]
+    perf = details[details.index("### ➖ performance"):]
+    assert "#### Performance measurements" in perf
+    assert "## Performance" not in md.replace("#### Performance measurements", "")
     assert "dedicated probe — 7 uncacheable streaming requests per endpoint" in md
     assert "| Latency (ms) | 6 |" in md
-    assert "### Target vs baseline" in md
+    assert "##### Target vs baseline" in perf
     # higher tokens/s is better for the target, higher latency worse
     assert re.search(r"\| Decode speed p50 \(local\) \(tok/s\) \| 110 \| 60\.0 \| 🟢 ✓ \+50\.0 \| 1\.83x \|", md)
     assert "| Latency p50 (ms) | 1,202 | 1,002 | 🔴 ✗ +200 |" in md
@@ -60,7 +64,10 @@ def test_markdown_has_stats_and_comparison():
 
 def test_html_draws_inline_svg_without_scripts():
     page = render_html(_report())
-    section = page[page.index("<h2>Performance</h2>"):]
+    assert "<h2>Performance</h2>" not in page  # no separate card
+    details = page[page.index("<h2>Dimension details</h2>"):]
+    dim = details[details.index("<strong>performance</strong>"):]
+    section = dim[dim.index("<h4>Performance measurements</h4>"):]
     assert "<svg" in section and 'class="pt target"' in section and 'class="pt baseline"' in section
     assert 'class="fail-mark"' in section  # the failed request is marked
     assert "<script" not in page  # self-contained, no JS
@@ -72,8 +79,8 @@ def test_html_draws_inline_svg_without_scripts():
 
 def test_old_reports_without_performance_still_render():
     report = _report(perf=False)
-    assert "## Performance" not in render_markdown(report)
-    assert "<h2>Performance</h2>" not in render_html(report)
+    assert "Performance measurements" not in render_markdown(report)
+    assert "Performance measurements" not in render_html(report)
     assert compact_dict(report)["performance"] is None
     # A report saved before the field existed loads fine.
     raw = report.model_dump()
@@ -105,3 +112,15 @@ def test_helpers():
     assert fmt_num(None) == "—" and fmt_num(0.0) == "0" and fmt_num(1234.5) == "1,234"
     assert fmt_num(0.031, "ratio") == "3.1%"
     assert "No Latency samples" in timeline_svg([], ("latency", "Latency", "ms", lambda r: r.duration_ms))
+
+
+def test_every_dimension_is_listed_even_if_not_run():
+    md = render_markdown(_report())
+    details = md[md.index("## Dimension details"):md.index("## Findings")]
+    for dim in ("connectivity", "protocol", "context_window", "model_identity", "capability",
+                "streaming", "billing", "reliability", "security", "performance"):
+        assert f"### ➖ {dim} — — (not_run)" in details, dim
+        assert f"| {dim} | — |" in md, dim
+    assert "- Not recorded in this report." in details
+    page = render_html(_report())
+    assert page.count('<details class="dim">') == 10

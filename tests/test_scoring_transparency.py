@@ -159,13 +159,13 @@ async def test_markdown_explains_scores_status_and_scale():
     assert "  - 30: The invalid request was accepted (2xx)." in details
     # a detector without a scale still lists its findings
     assert "- ✅ Output varies at temperature=1.0" in details
-    # dimensions that did not run are skipped
-    assert "### ➖ billing" not in details
+    # dimensions that did not run are listed too, with the reason
+    assert "### ➖ billing — — (not_run)\n\n- Not run in this suite." in details
 
 
 async def test_html_has_expandable_dimension_details():
     page = render_html(await _report())
-    assert page.count('<details class="dim">') == 1
+    assert page.count('<details class="dim">') == 10  # every dimension, run or not
     assert "Scoring scale" in page and "not counted" in page
     assert "The invalid request was accepted (2xx)." in page
 

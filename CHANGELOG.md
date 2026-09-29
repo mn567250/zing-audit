@@ -21,6 +21,24 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Custom suite: run only the dimensions you pick.** `--suite custom` with
+  `--dimension/-D` (repeatable or comma-separated; `-D` alone implies custom, and
+  `run.dimensions` works in a config file) runs every detector of the selected
+  dimensions at deep depth, which saves time and tokens. The overall score is the weighted mean of the
+  selected dimensions only; the rest are reported as "Not selected in this custom
+  run.", and without a core dimension the risk is inconclusive. The web start
+  page, console and monitors have a `custom` suite button with a dimension
+  picker; monitors store their selection. Reports carry `dimensions_selected`,
+  and `--dry-run` lists the selection.
+- **Performance is its own scored dimension** (weight 6). The probe now scores
+  consistency: latency, TTFT and throughput tail ratios, the failure rate, the
+  slowdown under concurrent load, and cache hits. A slow but steady endpoint (e.g.
+  a local model) scores well. Speed counts only in the `performance.reference`
+  check, against the baseline or, new, a knowledge-base `performance.decode_tps`
+  range. A slower target is informational there, and only a ≥ 2x faster one
+  counts against it. Findings stay at most low severity, so they never move the
+  risk verdict.
+
 - **History (v2): filters and a latency trend.** A filter bar (search, relay,
   claimed model, suite, mode, risk, minimum score, period) narrows the history;
   groups and their trends are rebuilt from the matching runs only, and the
@@ -190,6 +208,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   measurement, and must say so. Reports gain `prompt_languages`, shown in the web UI.
 
 ### Changed
+
+- **Dimension weights rebalanced for performance** (still 100): model_identity
+  22→21, context_window 20→19, capability 14→13, reliability 8→6, connectivity
+  8→7, performance 6. The `performance.throughput_mismatch` finding became the
+  `faster` outcome of `performance.reference`.
 
 - **`capability`: inconclusive checks no longer count** (a probe that failed
   to complete scored 50), as in `protocol`.

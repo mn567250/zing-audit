@@ -258,10 +258,17 @@ def _markdown_block(perf: PerformanceReport, block: Block) -> list[str]:
     return lines
 
 
+def _scored_line(perf: PerformanceReport) -> str:
+    # The probe scores the performance dimension; passive stats never score.
+    if perf.source == "probe":
+        return "Consistency is scored in the performance dimension."
+    return "Informational — not scored."
+
+
 def markdown_section(perf: PerformanceReport | None) -> list[str]:
     if perf is None:
         return []
-    lines = ["## Performance", "", f"_{_source_line(perf)} Informational — not scored._", ""]
+    lines = ["## Performance", "", f"_{_source_line(perf)} {_scored_line(perf)}_", ""]
     for block in _blocks(perf):
         lines += _markdown_block(perf, block)
     if perf.probe_cost is not None:
@@ -467,7 +474,7 @@ def html_section(perf: PerformanceReport | None) -> str:
     if perf is None:
         return ""
     out = ['<section class="card perf-card"><h2>Performance</h2>']
-    out.append(f'<p class="muted">{_esc(_source_line(perf))} Informational — not scored.</p>')
+    out.append(f'<p class="muted">{_esc(_source_line(perf))} {_esc(_scored_line(perf))}</p>')
 
     records = perf.requests
     charts = [(m, timeline_svg(records, m)) for m in CHART_METRICS]

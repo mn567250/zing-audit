@@ -781,7 +781,7 @@
    "{successes}/{requests} peticiones de la sonda correctas; latencia p50 {latency_p50_ms} ms, TTFT p50 {ttft_p50_ms} ms, decodificación p50 {decode_tps_p50} tok/s."
   ],
   "performance.errors": [
-   "Fallaron peticiones de la sonda",
+   "Fallos de las peticiones de la sonda",
    "{errors} errores y {timeouts} tiempos agotados en {requests} peticiones de la sonda a {endpoint} ({rate_limited} limitadas)."
   ],
   "performance.cache_hit": [
@@ -796,13 +796,29 @@
    "Latencia frente a la referencia",
    "Latencia p50 del objetivo {target_latency_p50_ms} ms frente a la referencia {baseline_latency_p50_ms} ms (diferencia {latency_p50_delta_ms} ms)."
   ],
-  "performance.throughput_mismatch": [
-   "El objetivo genera mucho más rápido que la referencia",
-   "El objetivo decodifica a {target_decode_tps_p50} tok/s frente a {baseline_decode_tps_p50} tok/s de la referencia ({ratio}x): coherente con un modelo más pequeño."
-  ],
   "performance.skipped": [
    "Sonda de rendimiento desactivada",
    "performance_requests = {performance_requests}; no se enviaron peticiones de la sonda."
+  ],
+  "performance.latency_consistency": [
+   "Constancia de la latencia",
+   "Latencia p50 {p50} ms, p90 {p90} ms — ratio de cola {tail_ratio} en {samples} peticiones."
+  ],
+  "performance.ttft_consistency": [
+   "Constancia del tiempo hasta el primer token",
+   "TTFT p50 {p50} ms, p90 {p90} ms — ratio de cola {tail_ratio} en {samples} peticiones."
+  ],
+  "performance.throughput_consistency": [
+   "Constancia del rendimiento",
+   "Rendimiento p50 {p50} {unit}, p10 {p10} {unit} — ratio de cola {tail_ratio} en {samples} peticiones."
+  ],
+  "performance.load_stability": [
+   "Latencia bajo carga concurrente",
+   "Latencia p50 {burst_latency_p50_ms} ms con concurrencia {concurrency} frente a {sequential_latency_p50_ms} ms de una en una ({ratio}x)."
+  ],
+  "performance.reference": [
+   "Rendimiento frente a la referencia",
+   "Rendimiento del objetivo {target_tps_p50} tok/s, referencia {reference_range} tok/s."
   ]
  }
 }

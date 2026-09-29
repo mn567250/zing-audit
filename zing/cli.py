@@ -26,6 +26,7 @@ from zing import __version__, prompts
 from zing import i18n as _i18n
 from zing.clients import make_client
 from zing.config import (
+    DIMENSIONS,
     TEMPLATE,
     AuditOptions,
     ConfigError,
@@ -33,6 +34,7 @@ from zing.config import (
     load_config_file,
     merge_headers,
     section,
+    validate_dimensions,
     validate_format,
     validate_risk,
     validate_suite,
@@ -52,6 +54,12 @@ _WATCH_RISK_RANK = {
 
 # Webhook alert languages: one per zing/i18n/locales/<code>.json.
 _ALERT_LANGS = _i18n.codes()
+
+_DIMENSION_HELP = (
+    "Dimension to run (repeatable or comma-separated); implies --suite custom: "
+    + " | ".join(DIMENSIONS)
+    + "."
+)
 
 _NO_USER_KB_HELP = (
     "Ignore the knowledge-base entries you added in the web UI (kb.db); "
@@ -267,8 +275,22 @@ def _build_options(cfg: dict, **overrides) -> AuditOptions:
         val = overrides.get(key)
         return val if val is not None else run_cfg.get(cfg_key, default)
 
+    # A dimension selection without an explicit suite means the custom suite
+    # (a CLI --dimension overrides the config file's suite).
+    cli_dims = overrides.get("dimensions") or []
+    dims = cli_dims or run_cfg.get("dimensions") or []
+    if cli_dims and not overrides.get("suite"):
+        suite = "custom"
+    else:
+        suite = (
+            overrides.get("suite")
+            or run_cfg.get("suite")
+            or ("custom" if dims else overrides.get("default_suite") or "standard")
+        )
+    suite = validate_suite(suite)
     opts = AuditOptions(
-        suite=validate_suite(overrides.get("suite") or run_cfg.get("suite") or "standard"),
+        suite=suite,
+        dimensions=validate_dimensions(suite, dims),
         judge=bool(pick("judge", "judge", False)),
         only=overrides.get("only") or [],
         skip=overrides.get("skip") or [],
@@ -316,7 +338,8 @@ def _build_dry_run_plan(target, options, baseline, judge_target, mode: str) -> d
     has_judge = bool(options.judge and (judge_target or baseline))
     has_baseline = baseline is not None
     detectors = select_detectors(
-        options.suite, has_judge=has_judge, has_baseline=has_baseline, enabled=options.enabled
+        options.suite, has_judge=has_judge, has_baseline=has_baseline, enabled=options.enabled,
+        dimensions=options.dimensions,
     )
     rows: list[dict] = []
     total = 0
@@ -342,6 +365,7 @@ def _build_dry_run_plan(target, options, baseline, judge_target, mode: str) -> d
         "dry_run": True,
         "mode": mode,
         "suite": options.suite,
+        "dimensions": list(options.dimensions) if options.suite == "custom" else None,
         "target": {
             "model": target.model,
             "claimed_model": target.claimed_model,
@@ -458,7 +482,8 @@ def check_command(
     api: Annotated[str | None, typer.Option("--api", help="Wire protocol: auto | openai | anthropic.")] = None,
     declared_provider: Annotated[str | None, typer.Option("--declared-provider", help="Provider hint for KB lookup (openai, anthropic, deepseek, ...).")] = None,
     header: Annotated[list[str] | None, typer.Option("--header", "-H", help="Extra header 'Name: value' (repeatable).")] = None,
-    suite: Annotated[str | None, typer.Option("--suite", help="smoke | standard | deep | full.")] = None,
+    suite: Annotated[str | None, typer.Option("--suite", help="smoke | standard | deep | full | custom.")] = None,
+    dimension: Annotated[list[str] | None, typer.Option("--dimension", "-D", help=_DIMENSION_HELP)] = None,
     judge: Annotated[bool | None, typer.Option("--judge/--no-judge", help="Enable code+LLM hybrid judging.")] = None,
     judge_base_url: Annotated[str | None, typer.Option("--judge-base-url", help="Trusted judge endpoint base URL.")] = None,
     judge_api_key: Annotated[str | None, typer.Option("--judge-api-key", help="Judge API key (env:VAR ok).")] = None,
@@ -471,9 +496,9 @@ def check_command(
     reliability_requests: Annotated[int | None, typer.Option("--reliability-requests", help="Reliability probe request count (0 disables).")] = None,
     concurrency: Annotated[int | None, typer.Option("--concurrency", help="Reliability probe concurrency.")] = None,
     max_context_tokens: Annotated[int | None, typer.Option("--max-context-tokens", help="Cap for the real-context-window probe.")] = None,
-    performance_requests: Annotated[int | None, typer.Option("--performance-requests", help="Performance probe requests per endpoint (deep/full; 0 disables).")] = None,
+    performance_requests: Annotated[int | None, typer.Option("--performance-requests", help="Performance probe requests per endpoint (deep/full/custom; 0 disables).")] = None,
     performance_max_tokens: Annotated[int | None, typer.Option("--performance-max-tokens", help="Output tokens per performance probe request.")] = None,
-    performance_streaming: Annotated[bool | None, typer.Option("--performance-streaming/--performance-non-streaming", help="Probe with streaming or non-streaming requests (standard/deep; full measures both).")] = None,
+    performance_streaming: Annotated[bool | None, typer.Option("--performance-streaming/--performance-non-streaming", help="Probe with streaming or non-streaming requests (standard/deep/custom; full measures both).")] = None,
     kb_dir: Annotated[list[Path] | None, typer.Option("--kb-dir", help="Extra knowledge-base directory (repeatable).")] = None,
     no_user_kb: Annotated[bool, typer.Option("--no-user-kb", help=_NO_USER_KB_HELP)] = False,
     fail_under: Annotated[float | None, typer.Option("--fail-under", help="Exit 1 if overall score < this.")] = None,
@@ -491,7 +516,7 @@ def check_command(
             api=api, claimed_model=claimed_model,
         )
         options = _build_options(
-            cfg, suite=suite, judge=judge, only=only, skip=skip,
+            cfg, suite=suite, dimensions=dimension, judge=judge, only=only, skip=skip,
             reliability_requests=reliability_requests, concurrency=concurrency,
             max_context_tokens=max_context_tokens,
             performance_requests=performance_requests,
@@ -535,7 +560,8 @@ def compare_command(
     baseline_model: Annotated[str | None, typer.Option("--baseline-model", help="Baseline model id.")] = None,
     baseline_name: Annotated[str | None, typer.Option("--baseline-name", help="Baseline display name.")] = None,
     baseline_api: Annotated[str | None, typer.Option("--baseline-api", help="Baseline wire protocol: auto | openai | anthropic.")] = None,
-    suite: Annotated[str | None, typer.Option("--suite", help="smoke | standard | deep | full.")] = None,
+    suite: Annotated[str | None, typer.Option("--suite", help="smoke | standard | deep | full | custom.")] = None,
+    dimension: Annotated[list[str] | None, typer.Option("--dimension", "-D", help=_DIMENSION_HELP)] = None,
     judge: Annotated[bool | None, typer.Option("--judge/--no-judge", help="Enable code+LLM hybrid judging.")] = None,
     judge_model: Annotated[str | None, typer.Option("--judge-model", help="Judge model id (defaults to baseline).")] = None,
     out_dir: Annotated[Path | None, typer.Option("--out-dir", help="Report output directory.")] = None,
@@ -544,7 +570,7 @@ def compare_command(
     max_context_tokens: Annotated[int | None, typer.Option("--max-context-tokens", help="Cap for the context-window probe.")] = None,
     performance_requests: Annotated[int | None, typer.Option("--performance-requests", help="Performance probe requests per endpoint (0 disables; standard suite uses 5).")] = None,
     performance_max_tokens: Annotated[int | None, typer.Option("--performance-max-tokens", help="Output tokens per performance probe request.")] = None,
-    performance_streaming: Annotated[bool | None, typer.Option("--performance-streaming/--performance-non-streaming", help="Probe with streaming or non-streaming requests (standard/deep; full measures both).")] = None,
+    performance_streaming: Annotated[bool | None, typer.Option("--performance-streaming/--performance-non-streaming", help="Probe with streaming or non-streaming requests (standard/deep/custom; full measures both).")] = None,
     kb_dir: Annotated[list[Path] | None, typer.Option("--kb-dir", help="Extra knowledge-base directory (repeatable).")] = None,
     no_user_kb: Annotated[bool, typer.Option("--no-user-kb", help=_NO_USER_KB_HELP)] = False,
     fail_under: Annotated[float | None, typer.Option("--fail-under", help="Exit 1 if overall score < this.")] = None,
@@ -567,7 +593,8 @@ def compare_command(
             timeout=timeout, headers=None, api=baseline_api,
         )
         options = _build_options(
-            cfg, suite=suite or "deep", judge=judge, max_context_tokens=max_context_tokens,
+            cfg, suite=suite, default_suite="deep", dimensions=dimension, judge=judge,
+            max_context_tokens=max_context_tokens,
             performance_requests=performance_requests,
             performance_max_tokens=performance_max_tokens,
             performance_streaming=performance_streaming,
@@ -824,7 +851,8 @@ def watch_command(
     api: Annotated[str | None, typer.Option("--api", help="Wire protocol: auto | openai | anthropic.")] = None,
     declared_provider: Annotated[str | None, typer.Option("--declared-provider", help="Provider hint for KB lookup.")] = None,
     header: Annotated[list[str] | None, typer.Option("--header", "-H", help="Extra header 'Name: value' (repeatable).")] = None,
-    suite: Annotated[str | None, typer.Option("--suite", help="smoke | standard | deep | full.")] = None,
+    suite: Annotated[str | None, typer.Option("--suite", help="smoke | standard | deep | full | custom.")] = None,
+    dimension: Annotated[list[str] | None, typer.Option("--dimension", "-D", help=_DIMENSION_HELP)] = None,
     interval: Annotated[int, typer.Option("--interval", help="Seconds between re-audit cycles.")] = 3600,
     once: Annotated[bool, typer.Option("--once", help="Run a single cycle and exit (no loop).")] = False,
     webhook: Annotated[list[str] | None, typer.Option("--webhook", help="Alert webhook URL (repeatable).")] = None,
@@ -851,7 +879,7 @@ def watch_command(
             model=model, declared_provider=declared_provider, timeout=None, headers=header,
             api=api, claimed_model=claimed_model,
         )
-        options = _build_options(cfg, suite=suite)
+        options = _build_options(cfg, suite=suite, dimensions=dimension)
         # Validate --alert-on against the allowed risk levels (low|medium|high),
         # then map it to a RiskLevel for threshold comparison.
         validate_risk(alert_on)

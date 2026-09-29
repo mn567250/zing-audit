@@ -183,7 +183,7 @@ LLM 裁判的提示词、工具 schema、embedding / rerank / 图像 / 音频输
 
 ## 检测了什么
 
-zing 对九个维度评分。其中最直接揭示「货不对板」的三项（模型身份、真实上下文窗口、能力声明）权重最高。
+zing 对十个维度评分。其中最直接揭示「货不对板」的三项（模型身份、真实上下文窗口、能力声明）权重最高。
 
 | 维度 | 能抓到什么 |
 |---|---|
@@ -194,18 +194,19 @@ zing 对九个维度评分。其中最直接揭示「货不对板」的三项（
 | **streaming 流式** | 通过分片数量与分片间隔时序，识别伪流式（缓存后切片）|
 | **protocol 协议兼容** | OpenAI 兼容性一致性：多轮、停止序列、响应结构、错误结构；并含一项「确定性」子检查，识别忽略 temperature/seed 的响应缓存 |
 | **reliability 可靠性** | 并发成功率与延迟（HTTP 429 限流单独计列，不计入失败）|
+| **performance 性能表现** | 延迟、首 token 时间与吞吐是否*稳定*、探测失败率、并发负载下的变慢程度；速度本身只与参考值对比 |
 | **connectivity 连通性** | 端点可达性与声称的 `/v1/models` 列表 |
 | **security 安全** | 传输（HTTPS）、响应头卫生、密钥回显；隐藏注入的系统提示词（固定的输入 token 开销 + 泄露）、借助答案已知的金丝雀探测传输途中对响应/工具调用的篡改（URL/包名替换），以及提示词前缀缓存（时序）|
 
 每项检测背后的技术、对应的中转作弊手法、以及误报注意事项，详见
 [docs/METHODOLOGY.md](docs/METHODOLOGY.md)。
 
-### 性能（仅供参考）
+### 性能
 
 每份报告还包含一个 **performance（性能）** 部分：延迟、首 token 时间（TTFT）、解码与端到端
 tokens/s、分片间延迟与抖动、错误/超时/429 比率、网络拆解（TCP 连接、TLS、一次
 `GET /models` 往返、服务端耗时）以及冷启动，每项都给出
-count / min / mean / p50 / p75 / p90 / p95 / p99 / max / stdev。它从不影响评分或结论。
+count / min / mean / p50 / p75 / p90 / p95 / p99 / max / stdev。运行专用探测时，它为 **performance（性能表现）** 维度评分（权重 6）——依据的是延迟、TTFT 与吞吐的*稳定性*、失败率以及负载下的表现，而不是绝对速度：慢但稳定的模型（如本地部署）不会被扣分。速度本身只在与参考值（基线，或知识库中公布的区间）对比时计入。这些发现最高为低严重度，从不改变风险结论。
 
 - **standard** 从检测自身的请求中收集。
 - **deep / full** 额外运行一个专用探测：100 个不可缓存、输出 128 token 的请求
@@ -338,6 +339,9 @@ jobs:
 | `standard` | + protocol, model_identity, capability, streaming, billing, reliability | 低–中 |
 | `deep` | + context_window, determinism, injected_prompt, integrity, performance, prompt_cache, quality_judge（加 `--judge` 时）| 较高（长上下文与时序探测消耗 token）|
 | `full` | 全部 | 最高 |
+| `custom` | 仅所选维度，按 `deep` 深度 | 取决于所选 |
+
+**自定义套件：** `zing check ... -D protocol -D performance`（或 `--suite custom --dimension billing,streaming`；配置文件中为 `run.dimensions`）只运行所选维度。综合得分仅为这些维度的加权平均；若未选择任何核心维度（模型身份、上下文窗口、能力声明），风险结论为「无法判定」。Web 界面提供同样的选择。
 
 上下文窗口探测受 `--max-context-tokens`（默认 200K）约束，因此审计 1M 上下文的模型也能控制花费。
 

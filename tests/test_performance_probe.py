@@ -113,9 +113,13 @@ async def test_probe_sends_uncacheable_uniform_requests(knowledge_base):
                     "prompt_cache_key", "cache_control"):
             assert key not in b
 
-    assert result.status == Status.INFO and result.score is None
-    ids = [f.id for f in result.findings]
-    assert "performance.summary" in ids and "performance.cache_hit" not in ids
+    # 6 samples: too few to judge consistency; the error rate is still scored
+    assert result.dimension == Dimension.PERFORMANCE
+    assert result.status == Status.PASS and result.score == 100.0
+    by_id = {f.id: f for f in result.findings}
+    assert by_id["performance.latency_consistency"].outcome == "few_samples"
+    assert by_id["performance.errors"].outcome == "ok"
+    assert "performance.summary" in by_id and "performance.cache_hit" not in by_id
     assert not any(r.cached for r in rec.records)
 
 
@@ -169,29 +173,107 @@ async def test_disabled_probe_is_not_run(knowledge_base):
     assert result.status == Status.NOT_RUN and rec.records == []
 
 
-def _probe_rec(seq: int, endpoint: str, tps: float) -> RequestRecord:
+def _probe_rec(seq: int, endpoint: str, tps: float, *, latency: float = 1000.0,
+               ttft: float = 200.0, phase: str = "probe", ok: bool = True) -> RequestRecord:
     return RequestRecord(
-        seq=seq, endpoint=endpoint, phase="probe", ok=True, stream=True,
-        duration_ms=1000.0, ttft_ms=200.0, decode_tps_local=tps, decode_tps_reported=tps,
+        seq=seq, endpoint=endpoint, phase=phase, ok=ok, stream=True,
+        duration_ms=latency, ttft_ms=ttft, decode_tps_local=tps, decode_tps_reported=tps,
     )
 
 
-def test_throughput_mismatch_finding():
+def _score(recs, *, reference=None, concurrency=0):
+    summaries = {
+        ep: summarize_endpoint(recs, ep, concurrency=concurrency)
+        for ep in sorted({r.endpoint for r in recs})
+    }
+    result = DetectorResult(id="performance", name="p", dimension=Dimension.PERFORMANCE)
+    PerformanceDetector()._findings(result, recs, summaries, 6, reference=reference)
+    return result, {f.id: f for f in result.findings}
+
+
+def test_reference_check_against_the_baseline():
     recs = [_probe_rec(i, "target", 240.0) for i in range(6)]
     recs += [_probe_rec(10 + i, "baseline", 80.0) for i in range(6)]
-    summaries = {ep: summarize_endpoint(recs, ep) for ep in ("target", "baseline")}
-    result = DetectorResult(id="performance", name="p", dimension=Dimension.RELIABILITY)
-    PerformanceDetector()._findings(result, recs, summaries, 6)
-    mismatch = [f for f in result.findings if f.id == "performance.throughput_mismatch"]
-    assert mismatch and mismatch[0].evidence["ratio"] == 3.0
-    assert mismatch[0].severity.value == "low"  # evidence, never an accusation
+    _, by_id = _score(recs)
+    ref = by_id["performance.reference"]
+    assert ref.outcome == "faster" and ref.evidence["ratio"] == 3.0
+    assert ref.severity.value == "low"  # evidence, never an accusation
+    assert ref.score == 60
 
     even = [_probe_rec(i, "target", 90.0) for i in range(6)]
     even += [_probe_rec(10 + i, "baseline", 80.0) for i in range(6)]
-    summaries = {ep: summarize_endpoint(even, ep) for ep in ("target", "baseline")}
-    result = DetectorResult(id="performance", name="p", dimension=Dimension.RELIABILITY)
-    PerformanceDetector()._findings(result, even, summaries, 6)
-    assert not any(f.id == "performance.throughput_mismatch" for f in result.findings)
+    assert _score(even)[1]["performance.reference"].outcome == "matches"
+
+    slow = [_probe_rec(i, "target", 20.0) for i in range(6)]
+    slow += [_probe_rec(10 + i, "baseline", 80.0) for i in range(6)]
+    ref = _score(slow)[1]["performance.reference"]
+    assert ref.outcome == "slower" and ref.status == Status.INFO and ref.score == 80
+
+
+def test_reference_check_against_the_knowledge_base():
+    from zing.knowledge.schema import PerformanceReference
+
+    kb = PerformanceReference(decode_tps=(50, 120), source="test")
+    recs = [_probe_rec(i, "target", 100.0) for i in range(6)]
+    assert _score(recs, reference=kb)[1]["performance.reference"].outcome == "matches"
+    recs = [_probe_rec(i, "target", 300.0) for i in range(6)]
+    ref = _score(recs, reference=kb)[1]["performance.reference"]
+    assert ref.outcome == "faster" and ref.evidence["reference_range"] == "50–120"
+    recs = [_probe_rec(i, "target", 15.0) for i in range(6)]
+    assert _score(recs, reference=kb)[1]["performance.reference"].outcome == "slower"
+    # no reference at all: the check is left out rather than penalised
+    assert "performance.reference" not in _score(recs)[1]
+
+
+def test_slow_but_steady_endpoint_scores_well():
+    # A local model: 15 tok/s and 4 s per request, but every request alike.
+    recs = [
+        _probe_rec(i, "target", 15.0 + (i % 3) * 0.5, latency=4000.0 + i * 10, ttft=900.0 + i)
+        for i in range(20)
+    ]
+    result, by_id = _score(recs)
+    for check in ("latency_consistency", "ttft_consistency", "throughput_consistency"):
+        assert by_id[f"performance.{check}"].outcome == "steady", check
+    assert result.findings and max(f.severity.value == "low" for f in result.findings) is False
+    from zing.detectors.scale import Scale
+
+    assert Scale.mean(result.findings) == 100.0
+
+
+@pytest.mark.parametrize(
+    ("tail_ms", "outcome"),
+    [(1000.0, "steady"), (1500.0, "stable"), (2000.0, "variable"), (3000.0, "erratic")],
+)
+def test_latency_consistency_bands(tail_ms, outcome):
+    # 17 requests at 1 s and 3 in the tail: p90 is the tail latency.
+    recs = [_probe_rec(i, "target", 50.0, latency=1000.0) for i in range(17)]
+    recs += [_probe_rec(100 + i, "target", 50.0, latency=tail_ms) for i in range(3)]
+    finding = _score(recs)[1]["performance.latency_consistency"]
+    assert finding.outcome == outcome
+    assert finding.evidence["tail_ratio"] == tail_ms / 1000.0
+
+
+def test_tail_ratio_bands():
+    from zing.detectors.performance import _tail_key, _tail_ratio
+
+    assert [_tail_key(r) for r in (1.0, 1.3, 1.5, 2.0, 2.6)] == [
+        "steady", "steady", "stable", "variable", "erratic",
+    ]
+    assert _tail_ratio([1.0] * 9, higher_is_better=False) is None  # below the sample floor
+    assert _tail_ratio([10.0] * 9 + [5.0], higher_is_better=True) > 1
+
+
+def test_error_rate_and_load_stability():
+    recs = [_probe_rec(i, "target", 50.0) for i in range(18)]
+    recs += [_probe_rec(50 + i, "target", 0.0, ok=False) for i in range(2)]
+    recs += [
+        _probe_rec(100 + i, "target", 50.0, latency=4000.0, phase="probe_concurrent")
+        for i in range(8)
+    ]
+    by_id = _score(recs, concurrency=3)[1]
+    assert by_id["performance.errors"].outcome == "some"  # 2 of 28 failed
+    load = by_id["performance.load_stability"]
+    assert load.outcome == "degraded" and load.evidence["ratio"] == 4.0
 
 
 @pytest.fixture
@@ -219,9 +301,11 @@ async def test_compare_audit_on_standard_has_probe_and_comparison(patched_make_c
     assert perf.comparison and perf.probe_cost is not None
     start = next(e for e in events if e["type"] == "start")
     assert start["probe_requests"] == 5
-    # informational only: the probe never scores
+    # the probe scores its own dimension (5 samples: consistency not judged)
     det = next(d for d in report.detectors if d.id == "performance")
-    assert det.score is None
+    assert det.dimension == Dimension.PERFORMANCE and det.score is not None
+    dim = next(d for d in report.dimensions if d.dimension == Dimension.PERFORMANCE)
+    assert dim.score == det.score and dim.weight == 6.0
 
 
 async def test_non_streaming_probe(knowledge_base):

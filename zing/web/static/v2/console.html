@@ -230,8 +230,15 @@
           <div class="grp">
             <div class="lab" id="lab-suite"><span data-en="Test suite">检测套件</span><span class="key">suite</span></div>
             <div class="seg mono" id="suite" role="group" aria-labelledby="lab-suite">
-              <button type="button" aria-pressed="false" data-v="smoke">smoke</button><button type="button" aria-pressed="true" data-v="standard">standard</button><button type="button" aria-pressed="false" data-v="deep">deep</button><button type="button" aria-pressed="false" data-v="full">full</button>
+              <button type="button" aria-pressed="false" data-v="smoke">smoke</button><button type="button" aria-pressed="true" data-v="standard">standard</button><button type="button" aria-pressed="false" data-v="deep">deep</button><button type="button" aria-pressed="false" data-v="full">full</button><button type="button" aria-pressed="false" data-v="custom">custom</button>
             </div>
+          </div>
+          <div class="grp" id="dimsel-grp" hidden>
+            <div class="lab" id="lab-dimsel"><span data-en="Dimensions to run">检测维度</span><span class="key">dimensions</span></div>
+            <div class="chips" id="dimsel" role="group" aria-labelledby="lab-dimsel" aria-describedby="dimsel-hint">
+              <button type="button" aria-pressed="true" data-v="model_identity" data-en="Model identity">模型身份</button><button type="button" aria-pressed="true" data-v="context_window" data-en="Context window">上下文窗口</button><button type="button" aria-pressed="true" data-v="capability" data-en="Capability claims">能力声明</button><button type="button" aria-pressed="true" data-v="protocol" data-en="Protocol compliance">协议兼容</button><button type="button" aria-pressed="true" data-v="connectivity" data-en="Connectivity">连通性</button><button type="button" aria-pressed="true" data-v="streaming" data-en="Streaming authenticity">流式真实</button><button type="button" aria-pressed="true" data-v="billing" data-en="Billing &amp; usage">计费用量</button><button type="button" aria-pressed="true" data-v="reliability" data-en="Concurrency reliability">并发可靠</button><button type="button" aria-pressed="true" data-v="performance" data-en="Performance">性能表现</button><button type="button" aria-pressed="true" data-v="security" data-en="Transport security">传输安全</button>
+            </div>
+            <div class="hint" id="dimsel-hint" data-en="Only the selected dimensions run, at deep depth; the overall score is computed from them alone.">只运行所选维度（按 deep 深度）；综合得分只按这些维度计算。</div>
           </div>
           <div class="grp">
             <div class="lab" id="lab-pmode"><span data-en="Performance probe">性能探测</span></div>
@@ -314,6 +321,7 @@
 <script src="/modelpicker.js"></script>
 <script src="/v2/static/nav.js"></script>
 <script src="/v2/static/report.js"></script>
+<script src="/v2/static/dimpick.js"></script>
 <script>
 (function () {
   "use strict";
@@ -329,8 +337,8 @@
     : { title: srv(f.title), summary: srv(f.summary || "") });
 
   /* ---- vocabulary ---- */
-  const DIMS = [["model_identity", 22], ["context_window", 20], ["capability", 14], ["billing", 8], ["protocol", 8],
-    ["connectivity", 8], ["reliability", 8], ["streaming", 6], ["security", 6]];
+  const DIMS = [["model_identity", 21], ["context_window", 19], ["capability", 13], ["billing", 8], ["protocol", 8],
+    ["connectivity", 7], ["reliability", 6], ["streaming", 6], ["security", 6], ["performance", 6]];
   const dimName = (k) => {
     const I = window.ZING_I18N;
     if (!I) return k;
@@ -379,17 +387,22 @@
     [...b.parentElement.children].forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
     syncProbeMode();
   }));
-  /* probe request mode: chosen on standard/deep; full measures both; smoke has no probe */
+  /* custom suite: the dimensions to run */
+  const dimsel = ZING_DIMPICK.bind($("#dimsel"), () => syncProbeMode());
+  const noPerf = () => segVal("suite") === "custom" && !dimsel.value().includes("performance");
+  /* probe request mode: chosen on standard/deep/custom; full measures both; smoke has no probe */
   const pmodeHint = () => {
     const suite = segVal("suite");
     return suite === "smoke" ? T("smoke 套件不做性能探测。", "The smoke suite runs no performance probe.")
+      : noPerf() ? T("未选择性能表现维度，不做性能探测。", "Performance is not selected, so no probe runs.")
       : suite === "full" ? T("full 套件会同时测量流式与非流式。", "The full suite measures both streaming and non-streaming.")
       : suite === "standard" ? T("standard 套件只在对照基线时发送探测请求；否则使用检测自身的请求。", "On standard the probe runs only with a baseline; otherwise the audit's own requests are used.")
       : T("非流式用于测量不支持流式的中转站。", "Non-streaming measures relays that cannot stream.");
   };
   function syncProbeMode() {
     const suite = segVal("suite");
-    $$("#pmode button").forEach((b) => { b.disabled = suite === "full" || suite === "smoke"; });
+    $("#dimsel-grp").hidden = suite !== "custom";
+    $$("#pmode button").forEach((b) => { b.disabled = suite === "full" || suite === "smoke" || noPerf(); });
     $("#pmode-hint").textContent = pmodeHint();
   }
 
@@ -407,7 +420,8 @@
       const s = dimState[k];
       const has = s && s.score != null;
       const c = has ? scoreC(s.score) : "grey";
-      const sc = has ? s.score : s && s.status ? label("STATUS", s.status) : "—";
+      const sc = has ? s.score : s && s.unselected ? T("未选择", "not selected")
+        : s && s.status ? label("STATUS", s.status) : "—";
       const w = has ? Math.max(2, s.score) : 0;
       return `<div class="dim">
         <div class="nm">${esc(dimName(k))}</div><div class="sc c-${has ? c : "faint"}">${esc(sc)}</div>
@@ -584,9 +598,15 @@
       api: segVal("api"), suite: segVal("suite"),
       performance_streaming: segVal("pmode") === "stream",
     };
+    if (payload.suite === "custom") payload.dimensions = dimsel.value();
     if (!payload.base_url || !payload.model) {
       setErr(() => T("请填写中转站地址和请求的模型。", "Please enter the relay URL and the model to request."));
       $(payload.base_url ? "#i-model" : "#i-url").focus();
+      return;
+    }
+    if (payload.dimensions && !payload.dimensions.length) {
+      setErr(() => T("请至少选择一个检测维度。", "Select at least one dimension to run."));
+      $("#dimsel button").focus();
       return;
     }
     const bUrl = $("#b-url").value.trim(), bModel = $("#b-model").value.trim();
@@ -636,7 +656,7 @@
 
   function handle(ev) {
     if (ev.type === "start") {
-      sysLine(`${tx(() => T("开始检测", "Start audit"))} · suite=${esc(ev.suite || "")} · mode=${esc(ev.mode || "")} · claimed=${esc(ev.claimed_model || "")} · detectors=${esc(ev.total || "?")}` + (ev.has_baseline ? " · +baseline" : ""));
+      sysLine(`${tx(() => T("开始检测", "Start audit"))} · suite=${esc(ev.suite || "")}${ev.dimensions && ev.dimensions.length ? esc("[" + ev.dimensions.join(",") + "]") : ""} · mode=${esc(ev.mode || "")} · claimed=${esc(ev.claimed_model || "")} · detectors=${esc(ev.total || "?")}` + (ev.has_baseline ? " · +baseline" : ""));
       if (live) live.reset({ probeTotal: ev.probe_requests || 0, hasBaseline: !!ev.has_baseline });
     } else if (ev.type === "requests") {
       if (live && (ev.records || []).length) { $("#perf-card").hidden = false; live.add(ev.records); }
@@ -657,7 +677,11 @@
     } else if (ev.type === "report") {
       const r = ev.report;
       if (!r) return;
-      (r.dimensions || []).forEach((d) => { dimState[d.dimension] = { score: d.score == null ? null : d.score, status: d.status }; });
+      const sel = r.dimensions_selected;
+      (r.dimensions || []).forEach((d) => {
+        dimState[d.dimension] = { score: d.score == null ? null : d.score, status: d.status,
+          unselected: !!sel && !sel.includes(d.dimension) };
+      });
       renderDims();
       lastReport = r;
       showVerdict(r);

@@ -14,6 +14,7 @@ from zing.clients import Client
 from zing.config import AuditOptions
 from zing.judge import Judge
 from zing.knowledge import KnowledgeBase, ResolvedProfile
+from zing.knowledge.schema import PerformanceReference
 from zing.models import TargetConfig
 from zing.perf import RequestRecorder
 
@@ -53,6 +54,10 @@ class AuditContext:
         if self.profile and self.profile.model.max_output_tokens > 0:
             return self.profile.model.max_output_tokens
         return None
+
+    def performance_reference(self) -> PerformanceReference | None:
+        """Published native-API speed of the claimed model, if the KB has it."""
+        return self.profile.model.performance if self.profile else None
 
     def tokenizer_hint(self) -> str | None:
         if self.profile and self.profile.model.tokenizer:

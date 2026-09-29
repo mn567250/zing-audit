@@ -781,7 +781,7 @@
    "{successes}/{requests} requêtes de la sonde réussies ; latence p50 {latency_p50_ms} ms, TTFT p50 {ttft_p50_ms} ms, décodage p50 {decode_tps_p50} tok/s."
   ],
   "performance.errors": [
-   "Des requêtes de la sonde ont échoué",
+   "Échecs des requêtes de la sonde",
    "{errors} erreurs et {timeouts} délais dépassés sur {requests} requêtes de la sonde vers {endpoint} ({rate_limited} limitées)."
   ],
   "performance.cache_hit": [
@@ -796,13 +796,29 @@
    "Latence par rapport à la référence",
    "Latence p50 de la cible {target_latency_p50_ms} ms contre {baseline_latency_p50_ms} ms pour la référence (écart {latency_p50_delta_ms} ms)."
   ],
-  "performance.throughput_mismatch": [
-   "La cible génère bien plus vite que la référence",
-   "La cible décode à {target_decode_tps_p50} tok/s contre {baseline_decode_tps_p50} tok/s pour la référence ({ratio}x) — cohérent avec un modèle plus petit."
-  ],
   "performance.skipped": [
    "Sonde de performance désactivée",
    "performance_requests = {performance_requests} ; aucune requête de sonde n'a été envoyée."
+  ],
+  "performance.latency_consistency": [
+   "Régularité de la latence",
+   "Latence p50 {p50} ms, p90 {p90} ms — ratio de queue {tail_ratio} sur {samples} requêtes."
+  ],
+  "performance.ttft_consistency": [
+   "Régularité du délai du premier token",
+   "TTFT p50 {p50} ms, p90 {p90} ms — ratio de queue {tail_ratio} sur {samples} requêtes."
+  ],
+  "performance.throughput_consistency": [
+   "Régularité du débit",
+   "Débit p50 {p50} {unit}, p10 {p10} {unit} — ratio de queue {tail_ratio} sur {samples} requêtes."
+  ],
+  "performance.load_stability": [
+   "Latence sous charge concurrente",
+   "Latence p50 {burst_latency_p50_ms} ms en concurrence {concurrency} contre {sequential_latency_p50_ms} ms une à une ({ratio}x)."
+  ],
+  "performance.reference": [
+   "Débit par rapport à la référence",
+   "Débit de la cible {target_tps_p50} tok/s, référence {reference_range} tok/s."
   ]
  }
 }

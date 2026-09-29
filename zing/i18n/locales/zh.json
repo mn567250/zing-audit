@@ -441,7 +441,7 @@
    "{successes}/{requests} 个探测请求成功；延迟 p50 {latency_p50_ms} ms，TTFT p50 {ttft_p50_ms} ms，解码速度 p50 {decode_tps_p50} tok/s。"
   ],
   "performance.errors": [
-   "部分性能探测请求失败",
+   "探测请求失败率",
    "{endpoint} 的 {requests} 个探测请求中有 {errors} 个出错、{timeouts} 个超时（{rate_limited} 个被限流）。"
   ],
   "performance.cache_hit": [
@@ -456,13 +456,29 @@
    "与基线的延迟对比",
    "目标延迟 p50 {target_latency_p50_ms} ms，基线 {baseline_latency_p50_ms} ms（差值 {latency_p50_delta_ms} ms）。"
   ],
-  "performance.throughput_mismatch": [
-   "目标的生成速度远快于基线",
-   "目标解码速度 {target_decode_tps_p50} tok/s，基线 {baseline_decode_tps_p50} tok/s（{ratio} 倍）——与更小的模型相符。"
-  ],
   "performance.skipped": [
    "性能探测已关闭",
    "performance_requests = {performance_requests}；未发送探测请求。"
+  ],
+  "performance.latency_consistency": [
+   "延迟一致性",
+   "延迟 p50 {p50} ms，p90 {p90} ms——尾部比 {tail_ratio}（{samples} 个请求）。"
+  ],
+  "performance.ttft_consistency": [
+   "首字延迟一致性",
+   "首字延迟 p50 {p50} ms，p90 {p90} ms——尾部比 {tail_ratio}（{samples} 个请求）。"
+  ],
+  "performance.throughput_consistency": [
+   "吞吐一致性",
+   "吞吐 p50 {p50} {unit}，p10 {p10} {unit}——尾部比 {tail_ratio}（{samples} 个请求）。"
+  ],
+  "performance.load_stability": [
+   "并发负载下的延迟",
+   "并发 {concurrency} 时延迟 p50 {burst_latency_p50_ms} ms，逐个请求时 {sequential_latency_p50_ms} ms（{ratio} 倍）。"
+  ],
+  "performance.reference": [
+   "与参考值对比的吞吐",
+   "目标吞吐 {target_tps_p50} tok/s，参考值 {reference_range} tok/s。"
   ]
  }
 }

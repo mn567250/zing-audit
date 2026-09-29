@@ -781,7 +781,7 @@
    "{successes}/{requests} Messanfragen erfolgreich; Latenz p50 {latency_p50_ms} ms, TTFT p50 {ttft_p50_ms} ms, Dekodiertempo p50 {decode_tps_p50} tok/s."
   ],
   "performance.errors": [
-   "Messanfragen fehlgeschlagen",
+   "Fehlgeschlagene Messanfragen",
    "{errors} Fehler und {timeouts} Zeitüberschreitungen bei {requests} Messanfragen an {endpoint} ({rate_limited} gedrosselt)."
   ],
   "performance.cache_hit": [
@@ -796,13 +796,29 @@
    "Latenz im Vergleich zur Referenz",
    "Ziel-Latenz p50 {target_latency_p50_ms} ms vs. Referenz {baseline_latency_p50_ms} ms (Differenz {latency_p50_delta_ms} ms)."
   ],
-  "performance.throughput_mismatch": [
-   "Das Ziel generiert viel schneller als die Referenz",
-   "Ziel dekodiert mit {target_decode_tps_p50} tok/s, Referenz mit {baseline_decode_tps_p50} tok/s ({ratio}x) — passt zu einem kleineren Modell."
-  ],
   "performance.skipped": [
    "Leistungsmessung deaktiviert",
    "performance_requests = {performance_requests}; es wurden keine Messanfragen gesendet."
+  ],
+  "performance.latency_consistency": [
+   "Gleichmäßigkeit der Latenz",
+   "Latenz p50 {p50} ms, p90 {p90} ms — Tail-Verhältnis {tail_ratio} über {samples} Anfragen."
+  ],
+  "performance.ttft_consistency": [
+   "Gleichmäßigkeit der Zeit bis zum ersten Token",
+   "TTFT p50 {p50} ms, p90 {p90} ms — Tail-Verhältnis {tail_ratio} über {samples} Anfragen."
+  ],
+  "performance.throughput_consistency": [
+   "Gleichmäßigkeit des Durchsatzes",
+   "Durchsatz p50 {p50} {unit}, p10 {p10} {unit} — Tail-Verhältnis {tail_ratio} über {samples} Anfragen."
+  ],
+  "performance.load_stability": [
+   "Latenz unter paralleler Last",
+   "Latenz p50 {burst_latency_p50_ms} ms bei Parallelität {concurrency} gegenüber {sequential_latency_p50_ms} ms einzeln ({ratio}x)."
+  ],
+  "performance.reference": [
+   "Durchsatz im Vergleich zur Referenz",
+   "Ziel-Durchsatz {target_tps_p50} tok/s, Referenz {reference_range} tok/s."
   ]
  }
 }

@@ -158,11 +158,11 @@ const SEVC={info:"sky",low:"warn",medium:"warn",high:"bad",critical:"bad"};
 const DIMNAME={model_identity:["模型身份","它是不是它自称的那个？"],context_window:["上下文窗口","长文是否真能记住？"],
   capability:["能力声明","工具/JSON 是否真支持？"],billing:["计费用量","token 有没有虚报？"],
   protocol:["协议兼容","接口是否规范？"],connectivity:["连通性","稳定可达？"],reliability:["并发可靠","压力下稳不稳？"],
-  streaming:["流式真实","真流式还是假装？"],security:["传输安全","密钥是否安全？"]};
+  streaming:["流式真实","真流式还是假装？"],security:["传输安全","密钥是否安全？"],performance:["性能表现","快慢是否稳定？"]};
 const DIMNAME_EN={model_identity:["Model identity","Is it the model it claims to be?"],context_window:["Context window","Does it really remember long input?"],
   capability:["Capability claims","Are tools/JSON really supported?"],billing:["Billing & usage","Is token usage inflated?"],
   protocol:["Protocol compliance","Is the API spec-compliant?"],connectivity:["Connectivity","Reliably reachable?"],reliability:["Concurrency reliability","Stable under load?"],
-  streaming:["Streaming authenticity","Real streaming or faked?"],security:["Transport security","Are keys handled safely?"]};
+  streaming:["Streaming authenticity","Real streaming or faked?"],security:["Transport security","Are keys handled safely?"],performance:["Performance","Is its speed consistent?"]};
 const dimName=k=>ZING_LANG.isZh()?DIMNAME[k]:(DIMNAME_EN[k]&&DIMNAME_EN[k].map(ZING_LANG.tr));
 const srv=s=>ZING_LANG.server(s);
 /* finding text: CN keeps the backend original; other languages use the i18n catalog */

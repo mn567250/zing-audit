@@ -285,9 +285,9 @@ function paintStaticIcons(){
 }
 paintStaticIcons();
 
-/* 9 dimensions: id, zh name, weight (canonical weighting from prompt contract) */
+/* 10 dimensions: id, zh name, weight (canonical weighting, zing/scoring.py) */
 const DIM_EN = {model_identity:"Model identity",context_window:"Context window",capability:"Capabilities",billing:"Billing",
-  protocol:"Protocol",connectivity:"Connectivity",reliability:"Reliability",streaming:"Streaming",security:"Security"};
+  protocol:"Protocol",connectivity:"Connectivity",reliability:"Reliability",streaming:"Streaming",security:"Security",performance:"Performance"};
 const dimLabel=(k,nm)=>T(nm.split(" ")[0],DIM_EN[k]||k);
 const srv=s=>ZING_LANG.server(s);
 /* finding text: CN keeps the backend original; other languages use the i18n catalog */
@@ -299,10 +299,11 @@ function setRunLabel(fn){runLabel=fn;$("#run-label").textContent=fn();}
 function setIdle(fn,html){verdictIdle=fn;verdictIdleHtml=!!html;const ve=$("#verdict");if(html)ve.innerHTML=fn();else ve.textContent=fn();}
 function setErr(fn){errFn=fn;$("#formerr").innerHTML=fn?'<div class="errbox">'+fn()+'</div>':"";}
 const DIMS = [
-  ["model_identity","模型身份 model_identity",22],["context_window","上下文窗口 context_window",20],
-  ["capability","能力声明 capability",14],["billing","计费 billing",8],
-  ["protocol","协议兼容 protocol",8],["connectivity","连通性 connectivity",8],
-  ["reliability","可靠性 reliability",8],["streaming","流式 streaming",6],["security","安全 security",6],
+  ["model_identity","模型身份 model_identity",21],["context_window","上下文窗口 context_window",19],
+  ["capability","能力声明 capability",13],["billing","计费 billing",8],
+  ["protocol","协议兼容 protocol",8],["connectivity","连通性 connectivity",7],
+  ["reliability","可靠性 reliability",6],["streaming","流式 streaming",6],["security","安全 security",6],
+  ["performance","性能 performance",6],
 ];
 const RISK = {
   clean:{c:"grn",txt:"CLEAN"}, low:{c:"blu",txt:"LOW"}, medium:{c:"amb",txt:"MEDIUM"},

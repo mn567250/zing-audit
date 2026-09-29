@@ -160,6 +160,10 @@ models:
   - meta
   - deepseek
   - mistral
+  performance:
+    decode_tps: [45, 110]
+    source: https://benchlm.ai/llm-speed (Artificial Analysis output-speed medians)
+    measured: 2026-09
   notes: Launched ~Feb 17, 2026. Supports BOTH adaptive thinking and extended thinking. effort low|medium|high (NOT 'max' — Opus-tier only; defaults to 'high'). budget_tokens deprecated. Last-assistant-turn prefills 400. 1M context at standard pricing. Did NOT adopt the Opus 4.7 tokenizer (uses claude-bpe-v1). Pricing $3/$15.
 - id: claude-haiku-4-5
   aliases:

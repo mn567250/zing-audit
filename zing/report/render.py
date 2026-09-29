@@ -168,6 +168,7 @@ def compact_dict(report: AuditReport) -> dict:
         "generated_at": report.generated_at,
         "mode": report.mode,
         "suite": report.suite,
+        "dimensions_selected": report.dimensions_selected,
         "target": target,
         "baseline": (
             {"model": report.baseline.model, "base_url": report.baseline.base_url}
@@ -268,7 +269,8 @@ def render_markdown(report: AuditReport) -> str:
     # Metadata line.
     meta = [
         f"mode `{report.mode}`",
-        f"suite `{report.suite}`",
+        f"suite `{report.suite}`"
+        + (f" ({', '.join(report.dimensions_selected)})" if report.dimensions_selected else ""),
         f"target `{report.target.name}` → `{report.target.base_url}`",
     ]
     if report.target.declared_provider:
@@ -469,7 +471,12 @@ def render_html(report: AuditReport) -> str:
     # Metadata.
     meta_bits = [
         f"mode <code>{_esc(report.mode)}</code>",
-        f"suite <code>{_esc(report.suite)}</code>",
+        f"suite <code>{_esc(report.suite)}</code>"
+        + (
+            f" ({_esc(', '.join(report.dimensions_selected))})"
+            if report.dimensions_selected
+            else ""
+        ),
         f"target <code>{_esc(report.target.name)}</code> → <code>{_esc(report.target.base_url)}</code>",
     ]
     if report.target.declared_provider:

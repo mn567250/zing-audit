@@ -50,6 +50,7 @@ from zing.config import (
     ConfigError,
     build_target,
     validate_api,
+    validate_dimensions,
     validate_suite,
 )
 from zing.models import KnowledgeUsage
@@ -171,6 +172,7 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
     report_id: int | None = None
     try:
         suite = validate_suite(str(row.get("suite") or "standard"))
+        dimensions = validate_dimensions(suite, row.get("dimensions"))
         target = build_target(
             kind="target",
             name=row.get("name") or "watch",
@@ -181,7 +183,7 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
             declared_provider=row.get("declared_provider") or None,
             api=validate_api(row.get("api")),
         )
-        options = AuditOptions(suite=suite)
+        options = AuditOptions(suite=suite, dimensions=dimensions)
         # Audit against the profile pinned when the watch was created, so a
         # knowledge-base edit cannot silently change what the monitor measures.
         pinned_raw = watches.pinned_knowledge(wid)
@@ -557,6 +559,7 @@ def create_app() -> FastAPI:
         # Validate up front so bad input fails as a clean error event, not a 500.
         try:
             suite = validate_suite(str(body.get("suite") or "standard"))
+            dimensions = validate_dimensions(suite, body.get("dimensions"))
             target = build_target(
                 kind="target",
                 name=body.get("name") or "target",
@@ -579,6 +582,7 @@ def create_app() -> FastAPI:
                 )
             options = AuditOptions(
                 suite=suite,
+                dimensions=dimensions,
                 # probe request mode (standard/deep; the full suite measures both)
                 performance_streaming=body.get("performance_streaming") is not False,
             )
@@ -731,6 +735,7 @@ def create_app() -> FastAPI:
         # Validate the target + suite up front so bad input is a clean 400.
         try:
             suite = validate_suite(str(body.get("suite") or "standard"))
+            dimensions = validate_dimensions(suite, body.get("dimensions"))
             build_target(
                 kind="target",
                 name=body.get("name") or "watch",
@@ -744,7 +749,7 @@ def create_app() -> FastAPI:
         except ConfigError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
-        cfg = {**body, "suite": suite}
+        cfg = {**body, "suite": suite, "dimensions": dimensions}
         try:
             knowledge = _watch_knowledge(cfg)
         except Exception as exc:  # e.g. a broken ZING_KB_DIR file

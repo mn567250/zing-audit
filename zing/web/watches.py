@@ -65,6 +65,7 @@ _ALL_COLS = (
     "kb_snapshot_id",
     "kb_usage",
     "kb_pinned_ts",
+    "dimensions",
 )
 
 # Columns safe to return to the browser — everything except the API key.
@@ -118,6 +119,9 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(watches)")}
     if "language" not in cols:
         conn.execute("ALTER TABLE watches ADD COLUMN language TEXT")
+    # The custom suite's dimensions (JSON list); NULL for the fixed suites.
+    if "dimensions" not in cols:
+        conn.execute("ALTER TABLE watches ADD COLUMN dimensions TEXT")
     kb_snapshot.ensure_table(conn)
     kb_snapshot.add_link_columns(
         conn, "watches", {"kb_snapshot_id": "INTEGER", "kb_usage": "TEXT", "kb_pinned_ts": "REAL"}
@@ -149,6 +153,12 @@ def _row_to_dict(row: sqlite3.Row, *, include_key: bool) -> dict[str, Any]:
         d["webhooks"] = []
     d["enabled"] = bool(d.get("enabled"))
     d["language"] = i18n.normalize(d.get("language"))
+    raw_dims = d.get("dimensions")
+    try:
+        dims = json.loads(raw_dims) if isinstance(raw_dims, str) and raw_dims else []
+    except (ValueError, TypeError):
+        dims = []
+    d["dimensions"] = [str(x) for x in dims] if isinstance(dims, list) else []
     # kb_usage: the pinned profile's match/sources (the profile itself stays
     # in kb_snapshots); exposed as `kb`, None when nothing is pinned.
     raw_kb = d.pop("kb_usage", None)
@@ -209,8 +219,9 @@ def create(cfg: dict[str, Any], knowledge: dict[str, Any] | None = None) -> int:
     """Insert a new watch from a config dict; return its new id.
 
     Expected keys: name, base_url, api_key, model, claimed_model, api,
-    declared_provider, suite, interval_sec, alert_on, webhooks (list), language
-    (alert language code; unknown/missing -> English). Unknown keys are ignored;
+    declared_provider, suite, dimensions (list; the custom suite's), interval_sec,
+    alert_on, webhooks (list), language (alert language code; unknown/missing ->
+    English). Unknown keys are ignored;
     missing keys fall back to sensible defaults. ``knowledge`` (a
     KnowledgeUsage dict with its profile) pins the watch's profile.
     """
@@ -238,14 +249,15 @@ def create(cfg: dict[str, Any], knowledge: dict[str, Any] | None = None) -> int:
         1 if cfg.get("enabled", True) else 0,
         time.time(),
         i18n.normalize(cfg.get("language")),
+        json.dumps(list(cfg.get("dimensions") or [])) if cfg.get("dimensions") else None,
     )
     with _connect() as conn:
         cur = conn.execute(
             """INSERT INTO watches
                (name, base_url, api_key, model, claimed_model, api,
                 declared_provider, suite, interval_sec, alert_on, webhooks,
-                enabled, created_ts, language)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                enabled, created_ts, language, dimensions)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             row,
         )
         wid = int(cur.lastrowid or -1)

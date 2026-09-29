@@ -67,6 +67,7 @@
     billing: ["计费用量", "token 用量有没有虚报"],
     reliability: ["并发可靠", "压力下的成功率与延迟"],
     security: ["传输安全", "传输加密与密钥处理"],
+    performance: ["性能表现", "延迟、首字与吞吐是否稳定"],
   };
 
   // English counterparts, used when the UI language is EN.
@@ -99,6 +100,7 @@
       billing: ["Billing & usage", "Is token usage over-reported?"],
       reliability: ["Concurrency reliability", "Success rate and latency under load"],
       security: ["Transport security", "Transport encryption and key handling"],
+      performance: ["Performance", "Are latency, time to first token and throughput consistent?"],
     },
   };
   var ZH = {
@@ -195,6 +197,9 @@
       ["warn", "Self-id names neither the genuine brand nor a rival; treat as weak/evasive evidence."],
       ["pass", "Self-id names the genuine brand."],
     ],
+    "performance.latency_consistency": [["info", "{samples} clean samples; too few to judge consistency."]],
+    "performance.ttft_consistency": [["info", "{samples} clean samples; too few to judge consistency."]],
+    "performance.throughput_consistency": [["info", "{samples} clean samples; too few to judge consistency."]],
     "embed.dimension": [
       ["info", "Returned {returned}-d vectors; no known dimension for the claimed model to compare against."],
     ],

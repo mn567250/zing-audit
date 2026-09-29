@@ -19,6 +19,11 @@ from zing.models import DetectorResult, Dimension, Status
 # runs in standard, deep, and full but not smoke.
 SUITE_ORDER: tuple[str, ...] = ("smoke", "standard", "deep", "full")
 
+# The ``custom`` suite is not a tier: it runs the detectors of the selected
+# dimensions at this depth.
+CUSTOM_SUITE = "custom"
+CUSTOM_DEPTH = "deep"
+
 REGISTRY: dict[str, type[Detector]] = {}
 
 
@@ -60,6 +65,8 @@ class Detector(ABC):
 
 
 def _tier(suite: str) -> int:
+    if suite == CUSTOM_SUITE:
+        suite = CUSTOM_DEPTH
     try:
         return SUITE_ORDER.index(suite)
     except ValueError:
@@ -72,16 +79,22 @@ def select_detectors(
     has_judge: bool,
     has_baseline: bool,
     enabled,
+    dimensions: list[str] | None = None,
 ) -> list[Detector]:
     """Instantiate the detectors that should run for this configuration.
 
     ``enabled`` is a callable ``(detector_id) -> bool`` from :class:`AuditOptions`.
     Detectors requiring a judge/baseline are silently dropped when unavailable.
+    On the ``custom`` suite only the detectors of ``dimensions`` run.
     """
     suite_tier = _tier(suite)
+    custom = suite == CUSTOM_SUITE
+    selected = set(dimensions or [])
     chosen: list[Detector] = []
     for det_id, cls in sorted(REGISTRY.items()):
         if _tier(cls.min_suite) > suite_tier:
+            continue
+        if custom and cls.dimension.value not in selected:
             continue
         if not enabled(det_id):
             continue

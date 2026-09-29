@@ -51,6 +51,30 @@ class FingerprintProbe(BaseModel):
         return self
 
 
+class PerformanceReference(BaseModel):
+    """Typical speed of the model on its native (data-centre) API, as published
+    measurements. Deliberately wide ranges: the performance detector only flags a
+    target far outside them, and a slower one only mildly (it may be served
+    locally or on smaller hardware)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Output tokens per second after the first token, [low, high].
+    decode_tps: tuple[float, float] | None = None
+    # Time to first token for a short prompt, milliseconds, [low, high].
+    ttft_ms: tuple[float, float] | None = None
+    source: str = ""
+    measured: str | None = None  # when the figures were taken, e.g. "2026-09"
+
+    @model_validator(mode="after")
+    def _ranges(self) -> PerformanceReference:
+        for name in ("decode_tps", "ttft_ms"):
+            rng = getattr(self, name)
+            if rng is not None and not 0 < rng[0] <= rng[1]:
+                raise ValueError(f"performance.{name} must be [low, high] with 0 < low <= high")
+        return self
+
+
 class ModelProfile(BaseModel):
     """Native specifications for one model id."""
 
@@ -92,6 +116,8 @@ class ModelProfile(BaseModel):
     identity_forbidden: list[str] = Field(default_factory=list)
     # Model-specific fingerprints (added to the provider-level ones).
     fingerprints: list[FingerprintProbe] = Field(default_factory=list)
+    # Published native-API speed, for the performance detector's reference check.
+    performance: PerformanceReference | None = None
     notes: str = ""
 
 

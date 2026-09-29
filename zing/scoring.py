@@ -24,16 +24,19 @@ from zing.models import (
 )
 
 # Weights sum to 100. The substitution/truncation-revealing dimensions dominate.
+# The overall score is the weighted mean over the dimensions that produced a
+# score, so a dimension that did not run (or was not selected) drops out.
 DIMENSION_WEIGHTS: dict[Dimension, float] = {
-    Dimension.CONNECTIVITY: 8.0,
+    Dimension.CONNECTIVITY: 7.0,
     Dimension.PROTOCOL: 8.0,
-    Dimension.CONTEXT_WINDOW: 20.0,
-    Dimension.MODEL_IDENTITY: 22.0,
-    Dimension.CAPABILITY: 14.0,
+    Dimension.CONTEXT_WINDOW: 19.0,
+    Dimension.MODEL_IDENTITY: 21.0,
+    Dimension.CAPABILITY: 13.0,
     Dimension.STREAMING: 6.0,
     Dimension.BILLING: 8.0,
-    Dimension.RELIABILITY: 8.0,
+    Dimension.RELIABILITY: 6.0,
     Dimension.SECURITY: 6.0,
+    Dimension.PERFORMANCE: 6.0,
 }
 
 # Dimensions whose failure most directly indicates 货不对板.
@@ -114,8 +117,13 @@ def _worst_status(statuses: list[Status]) -> Status:
 
 
 def build_dimensions(
-    detectors: list[DetectorResult], reliability: ReliabilitySummary | None
+    detectors: list[DetectorResult],
+    reliability: ReliabilitySummary | None,
+    *,
+    selected: list[str] | None = None,
 ) -> list[DimensionScore]:
+    """Score every dimension. ``selected`` (a custom suite's dimensions) marks
+    the rest as not selected rather than not run."""
     dimensions: list[DimensionScore] = []
     for dim, weight in DIMENSION_WEIGHTS.items():
         members = [d for d in detectors if d.dimension == dim]
@@ -154,7 +162,9 @@ def build_dimensions(
             status_override=override,
         )
 
-        if not members:
+        if selected is not None and dim.value not in selected:
+            reason = "Not selected in this custom run."
+        elif not members:
             reason = "Not run in this suite."
         elif score is None:
             reason = "Ran but produced no numeric score (see findings)."
@@ -206,6 +216,7 @@ def build_verdict(
     profile_matched: bool,
     used_judge: bool,
     used_baseline: bool,
+    selected: list[str] | None = None,
 ) -> Verdict:
     score = overall_score(dimensions)
     pairs = _all_findings(detectors)
@@ -267,7 +278,11 @@ def build_verdict(
         confidence = "high"
 
     headline = _headline(risk, confidence)
-    summary = _summary(risk, score, critical, high, medium, profile_matched, used_baseline)
+    summary = _summary(
+        risk, score, critical, high, medium, profile_matched, used_baseline,
+        scored=sum(1 for d in dimensions if d.score is not None),
+        selected=selected,
+    )
     key = _titles(critical + high + medium)[:6]
 
     return Verdict(
@@ -300,10 +315,20 @@ def _summary(
     medium: list[Finding],
     profile_matched: bool,
     used_baseline: bool,
+    *,
+    scored: int = 0,
+    selected: list[str] | None = None,
 ) -> str:
     bits: list[str] = []
     if score is not None:
         bits.append(f"Overall health score {score}/100.")
+    if selected is not None:
+        bits.append(f"Custom run: {scored} of {len(selected)} selected dimensions scored.")
+        if not set(selected) & {d.value for d in _CORE_DIMENSIONS}:
+            bits.append(
+                "No core dimension (model identity, context window, capability) was "
+                "selected, so the substitution risk cannot be judged."
+            )
     counts = []
     if critical:
         counts.append(f"{len(critical)} critical")

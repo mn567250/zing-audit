@@ -22,8 +22,15 @@ cannot stream. The full suite measures both modes, interleaved.
 No reasoning-effort parameter is sent: the modes a relay accepts are unknown, so
 a reasoning model thinks at its default effort (the report says so).
 
-The probe is informational — its score is always None. Runs on deep/full, and
-with 5 requests on the standard suite in compare mode.
+The probe scores the performance dimension, mostly on *consistency* — steady
+latency, TTFT and throughput, few failures, little slowdown under load — so an
+endpoint that is slow but steady (a local or self-hosted model) is not marked
+down for not being a data centre. Speed itself is one check: compared with the
+trusted baseline, or else with the knowledge base's published reference range,
+where only a much faster target (consistent with a smaller model) counts
+against it. Findings are at most LOW severity: they move the score, never the
+risk verdict. Runs on deep/full/custom, and with 5 requests on the standard
+suite in compare mode (too few samples for the consistency checks).
 """
 
 from __future__ import annotations
@@ -37,8 +44,9 @@ from zing import prompts
 from zing.clients import Client
 from zing.config import AuditOptions
 from zing.context import AuditContext
-from zing.detectors.base import SUITE_ORDER, Detector, register
+from zing.detectors.base import CUSTOM_SUITE, SUITE_ORDER, Detector, register
 from zing.detectors.scale import Scale, outcome
+from zing.knowledge.schema import PerformanceReference
 from zing.models import (
     CompletionOutcome,
     DetectorResult,
@@ -52,6 +60,7 @@ from zing.models import (
 from zing.perf import RequestRecorder, phase_scope, summarize_endpoint
 from zing.perf.recorder import last_record
 from zing.perf.summary import hidden_reasoning
+from zing.utils.stats import percentile
 
 PINGS = 3
 # Probe size on the standard suite, where it only runs in compare mode.
@@ -59,11 +68,24 @@ STANDARD_COMPARE_REQUESTS = 5
 # Burst size: a few rounds at the configured concurrency.
 _BURST_ROUNDS = 4
 _MIN_BURST = 8
-# Decode throughput this far above the baseline suggests a smaller model.
+# Decode throughput this far above the reference suggests a smaller model.
 _FAST_RATIO = 2.0
 # Minimum clean samples per side before comparing throughput.
 _MIN_COMPARE_SAMPLES = 5
+# Consistency is judged by the tail ratio: p90 / p50 for latency and TTFT (slow
+# outliers), p50 / p10 for throughput (slow outliers). A percentile ratio is
+# robust to the odd stray request, unlike a standard deviation.
+_MIN_CONSISTENCY_SAMPLES = 10
+_TAIL_STEADY = 1.3
+_TAIL_STABLE = 1.75
+_TAIL_VARIABLE = 2.5
+# Share of probe requests that failed (rate limits excluded).
+_ERROR_RATE_OK = 0.02
 _ERROR_RATE_WARN = 0.1
+# Burst p50 latency / sequential p50 latency.
+_LOAD_STABLE = 1.5
+_LOAD_SLOWER = 3.0
+_MIN_BURST_SAMPLES = 5
 
 # 4xx texts meaning "this model wants max_completion_tokens" (reasoning models).
 _PARAM_REJECTION_HINTS = (
@@ -75,6 +97,9 @@ _PARAM_REJECTION_HINTS = (
 
 
 def _deep(suite: str) -> bool:
+    """Deep or deeper — the custom suite probes like deep."""
+    if suite == CUSTOM_SUITE:
+        return True
     return suite in SUITE_ORDER and SUITE_ORDER.index(suite) >= SUITE_ORDER.index("deep")
 
 
@@ -131,33 +156,85 @@ class _Endpoint:
         self.seen: set[str] = set()
 
 
-# Informational: no outcome is counted, so the probe never has a score.
+def _consistency(check: str, what: str) -> tuple:
+    return (
+        outcome(check, "steady", 100, Status.PASS, label=f"{what} is steady (tail ratio at most 1.3)."),
+        outcome(check, "stable", 85, Status.PASS, label=f"{what} is stable (tail ratio at most 1.75)."),
+        outcome(check, "variable", 65, Status.WARN, Severity.LOW,
+                label=f"{what} varies noticeably (tail ratio at most 2.5)."),
+        outcome(check, "erratic", 40, Status.FAIL, Severity.LOW,
+                label=f"{what} is erratic (tail ratio above 2.5)."),
+        outcome(check, "few_samples", None, Status.INFO,
+                label=f"Too few samples to judge how consistent {what.lower()} is."),
+    )
+
+
+# Consistency first: an endpoint that is slow but steady scores well.
 SCALE = Scale(
     outcome("performance.summary", "measured", None, Status.INFO,
-            label="Latency, TTFT and throughput were measured (informational)."),
+            label="Latency, TTFT and throughput were measured."),
     outcome("performance.summary", "no_success", None, Status.INCONCLUSIVE,
             label="None of the probe requests succeeded."),
-    outcome("performance.errors", "failed", None, Status.WARN, Severity.LOW,
-            label="Many probe requests failed or timed out (informational)."),
-    outcome("performance.cache_hit", "cached", None, Status.WARN, Severity.LOW,
+    *_consistency("performance.latency_consistency", "Latency"),
+    *_consistency("performance.ttft_consistency", "Time to first token"),
+    *_consistency("performance.throughput_consistency", "Throughput"),
+    outcome("performance.errors", "ok", 100, Status.PASS,
+            label="At most 2% of the probe requests failed."),
+    outcome("performance.errors", "some", 80, Status.WARN, Severity.LOW,
+            label="Up to 10% of the probe requests failed or timed out."),
+    outcome("performance.errors", "failed", 50, Status.FAIL, Severity.LOW,
+            label="Many probe requests failed or timed out."),
+    outcome("performance.load_stability", "stable", 100, Status.PASS,
+            label="Latency holds up under concurrent load (at most 1.5x)."),
+    outcome("performance.load_stability", "slower", 80, Status.WARN, Severity.LOW,
+            label="Latency rises under concurrent load (up to 3x)."),
+    outcome("performance.load_stability", "degraded", 55, Status.FAIL, Severity.LOW,
+            label="Latency degrades sharply under concurrent load (above 3x)."),
+    outcome("performance.cache_hit", "cached", 60, Status.WARN, Severity.LOW,
             label="Unique probe prompts came back from a cache (left out of the statistics)."),
+    outcome("performance.cache_hit", "baseline_cached", None, Status.INFO,
+            label="The baseline served unique probe prompts from a cache (not scored)."),
+    outcome("performance.reference", "matches", 100, Status.PASS,
+            label="Throughput is in line with the reference for this model."),
+    outcome("performance.reference", "slower", 80, Status.INFO,
+            label="Slower than the reference (e.g. local or smaller hardware); not a failure."),
+    outcome("performance.reference", "faster", 60, Status.WARN, Severity.LOW,
+            label="Much faster than the reference (consistent with a smaller model)."),
     outcome("performance.reasoning", "hidden_reasoning", None, Status.INFO,
             label="The model spends hidden reasoning tokens; TTFT includes thinking."),
     outcome("performance.relay_overhead", "compared", None, Status.INFO,
             label="Latency compared with the trusted baseline (informational)."),
-    outcome("performance.throughput_mismatch", "faster", None, Status.WARN, Severity.LOW,
-            label="The target decodes much faster than the baseline (consistent with a smaller model)."),
     outcome("performance.skipped", "disabled", None, Status.INFO,
             label="The performance probe was disabled."),
 )
+
+
+def _tail_key(ratio: float) -> str:
+    if ratio <= _TAIL_STEADY:
+        return "steady"
+    if ratio <= _TAIL_STABLE:
+        return "stable"
+    if ratio <= _TAIL_VARIABLE:
+        return "variable"
+    return "erratic"
+
+
+def _tail_ratio(values: Sequence[float], *, higher_is_better: bool) -> float | None:
+    """How far the slow tail sits from the median (>= 1; 1 = perfectly even)."""
+    if len(values) < _MIN_CONSISTENCY_SAMPLES:
+        return None
+    p50 = percentile(values, 50)
+    tail = percentile(values, 10 if higher_is_better else 90)
+    if not p50 or not tail:
+        return None
+    return p50 / tail if higher_is_better else tail / p50
+
 
 @register
 class PerformanceDetector(Detector):
     id = "performance"
     name = "Performance probe"
-    # Informational only (score None): it sits with reliability so it adds no
-    # scoring dimension and never moves the verdict.
-    dimension = Dimension.RELIABILITY
+    dimension = Dimension.PERFORMANCE
     min_suite = "standard"
     cost_hint = 120
 
@@ -299,11 +376,13 @@ class PerformanceDetector(Detector):
             "concurrency": conc,
             "max_completion_tokens": {ep.label: ep.use_completion_tokens for ep in endpoints},
         }
-        self._findings(result, records, summaries, n, stream=modes[0])
-
-        # Always INFO: the probe shares the reliability dimension but must never
-        # change its status (the summary finding says when nothing succeeded).
-        result.status = Status.INFO
+        self._findings(
+            result, records, summaries, n, stream=modes[0], reference=ctx.performance_reference()
+        )
+        result.score = Scale.mean(result.findings)
+        result.status = (
+            Scale.roll_up(result.findings) if summaries["target"].successes else Status.INCONCLUSIVE
+        )
         return result
 
     # -- findings ----------------------------------------------------------- #
@@ -327,6 +406,7 @@ class PerformanceDetector(Detector):
         n: int,
         *,
         stream: bool = True,
+        reference: PerformanceReference | None = None,
     ) -> None:
         target = summaries["target"]
         baseline = summaries.get("baseline")
@@ -357,24 +437,9 @@ class PerformanceDetector(Detector):
             )
         )
 
-        for ep in summaries.values():
-            if ep.error_rate is not None and ep.error_rate > _ERROR_RATE_WARN:
-                result.findings.append(
-                    SCALE.finding(
-                        "performance.errors",
-                        "failed",
-                        title="Performance probe requests failed",
-                        summary=f"{ep.errors + ep.timeouts} of {ep.requests} {ep.endpoint} probe "
-                        f"requests failed ({ep.timeouts} timed out, {ep.rate_limited} rate-limited).",
-                        evidence={
-                            "endpoint": ep.endpoint,
-                            "requests": ep.requests,
-                            "errors": ep.errors,
-                            "timeouts": ep.timeouts,
-                            "rate_limited": ep.rate_limited,
-                        },
-                    )
-                )
+        self._consistency_findings(result, records, stream=stream)
+        self._error_finding(result, target)
+        self._load_finding(result, target)
 
         for label in summaries:
             cached = [
@@ -385,7 +450,7 @@ class PerformanceDetector(Detector):
                 result.findings.append(
                     SCALE.finding(
                         "performance.cache_hit",
-                        "cached",
+                        "cached" if label == "target" else "baseline_cached",
                         title="Unique probe prompts were served from a cache",
                         summary=f"{len(cached)} {label} probe request(s) reported cached input "
                         "tokens or repeated an earlier answer verbatim, although every prompt "
@@ -412,70 +477,249 @@ class PerformanceDetector(Detector):
                 )
             )
 
-        if baseline is None:
-            return
-        lat_t, lat_b = target.latency_ms.p50, baseline.latency_ms.p50
-        ttft_t, ttft_b = target.ttft_ms.p50, baseline.ttft_ms.p50
-        if lat_t is not None and lat_b is not None:
+        if baseline is not None:
+            self._overhead_finding(result, target, baseline, head)
+            self._baseline_reference(result, target, baseline, stream=stream)
+        elif reference is not None:
+            self._kb_reference(result, target, reference, stream=stream)
+
+    # -- consistency ---------------------------------------------------------- #
+    @staticmethod
+    def _consistency_findings(
+        result: DetectorResult, records: Sequence[RequestRecord], *, stream: bool
+    ) -> None:
+        """Tail ratios of the target's sequential probe requests in the headline mode."""
+        good = [
+            r for r in records
+            if r.endpoint == "target" and r.phase == "probe" and r.op == "complete"
+            and r.ok and not r.cached and r.stream == stream
+        ]
+        metrics: list[tuple[str, str, str, list[float], bool]] = [
+            ("performance.latency_consistency", "Latency", "ms",
+             [r.duration_ms for r in good if r.duration_ms is not None], False),
+        ]
+        if stream:
+            metrics.append(("performance.ttft_consistency", "Time to first token", "ms",
+                            [r.ttft_ms for r in good if r.ttft_ms is not None], False))
+            metrics.append(("performance.throughput_consistency", "Decode throughput", "tok/s",
+                            [r.decode_tps_local for r in good if r.decode_tps_local], True))
+        else:
+            metrics.append(("performance.throughput_consistency", "End-to-end throughput",
+                            "tok/s", [r.e2e_tps_local for r in good if r.e2e_tps_local], True))
+        for check, what, unit, values, higher in metrics:
+            ratio = _tail_ratio(values, higher_is_better=higher)
+            tail = "p10" if higher else "p90"
+            p50 = _r(percentile(values, 50))
+            tail_value = _r(percentile(values, 10 if higher else 90))
+            evidence: dict[str, float | int | str | None] = {
+                "samples": len(values),
+                "p50": p50,
+                tail: tail_value,
+                "tail_ratio": round(ratio, 2) if ratio is not None else None,
+                "unit": unit,
+            }
+            if ratio is None:
+                result.findings.append(
+                    SCALE.finding(
+                        check, "few_samples",
+                        title=f"{what} consistency",
+                        summary=f"{len(values)} clean samples; at least "
+                        f"{_MIN_CONSISTENCY_SAMPLES} are needed to judge consistency.",
+                        evidence=evidence,
+                    )
+                )
+                continue
+            spread = f"{tail} / p50" if not higher else f"p50 / {tail}"
             result.findings.append(
                 SCALE.finding(
-                    "performance.relay_overhead",
-                    "compared",
-                    title="Latency versus the baseline",
-                    summary=f"Target p50 latency {_fmt(lat_t, 'ms')} vs baseline "
-                    f"{_fmt(lat_b, 'ms')} ({_signed(lat_t - lat_b)} ms)"
-                    + (
-                        f"; p50 TTFT {_fmt(ttft_t, 'ms')} vs {_fmt(ttft_b, 'ms')} "
-                        f"({_signed(ttft_t - ttft_b)} ms)."
-                        if ttft_t is not None and ttft_b is not None
-                        else "."
-                    ),
-                    evidence={
-                        "target_latency_p50_ms": _r(lat_t),
-                        "baseline_latency_p50_ms": _r(lat_b),
-                        "latency_p50_delta_ms": _r(lat_t - lat_b),
-                        "ttft_p50_delta_ms": _r(ttft_t - ttft_b)
-                        if ttft_t is not None and ttft_b is not None
-                        else None,
-                        "target": head,
-                        "baseline": self._headline(baseline),
-                    },
+                    check, _tail_key(ratio),
+                    title=f"{what} consistency",
+                    summary=f"{what}: p50 {_fmt(p50, unit)}, {tail} "
+                    f"{_fmt(tail_value, unit)} — tail ratio ({spread}) {ratio:.2f} over "
+                    f"{len(values)} requests.",
+                    evidence=evidence,
                 )
             )
 
+    @staticmethod
+    def _error_finding(result: DetectorResult, target: EndpointPerformance) -> None:
+        if target.error_rate is None:
+            return
+        rate = target.error_rate
+        key = "ok" if rate <= _ERROR_RATE_OK else "some" if rate <= _ERROR_RATE_WARN else "failed"
+        result.findings.append(
+            SCALE.finding(
+                "performance.errors",
+                key,
+                title="Probe request failures",
+                summary=f"{target.errors} of {target.requests} target probe requests failed "
+                f"({target.timeouts} timed out; {target.rate_limited} rate-limited, not counted).",
+                evidence={
+                    "endpoint": "target",
+                    "requests": target.requests,
+                    "errors": target.errors,
+                    "timeouts": target.timeouts,
+                    "rate_limited": target.rate_limited,
+                    "error_rate": round(rate, 3),
+                },
+            )
+        )
+
+    @staticmethod
+    def _load_finding(result: DetectorResult, target: EndpointPerformance) -> None:
+        conc = target.concurrency
+        seq = target.latency_ms.p50
+        if conc is None or conc.latency_ms.count < _MIN_BURST_SAMPLES or not seq:
+            return
+        burst = conc.latency_ms.p50
+        if burst is None:
+            return
+        ratio = burst / seq
+        key = "stable" if ratio <= _LOAD_STABLE else "slower" if ratio <= _LOAD_SLOWER else "degraded"
+        result.findings.append(
+            SCALE.finding(
+                "performance.load_stability",
+                key,
+                title="Latency under concurrent load",
+                summary=f"p50 latency {_fmt(burst, 'ms')} at concurrency {conc.concurrency} vs "
+                f"{_fmt(seq, 'ms')} one at a time ({ratio:.2f}x).",
+                evidence={
+                    "concurrency": conc.concurrency,
+                    "burst_latency_p50_ms": _r(burst),
+                    "sequential_latency_p50_ms": _r(seq),
+                    "ratio": round(ratio, 2),
+                },
+            )
+        )
+
+    # -- reference speed ---------------------------------------------------- #
+    @staticmethod
+    def _overhead_finding(
+        result: DetectorResult,
+        target: EndpointPerformance,
+        baseline: EndpointPerformance,
+        head: dict,
+    ) -> None:
+        lat_t, lat_b = target.latency_ms.p50, baseline.latency_ms.p50
+        ttft_t, ttft_b = target.ttft_ms.p50, baseline.ttft_ms.p50
+        if lat_t is None or lat_b is None:
+            return
+        result.findings.append(
+            SCALE.finding(
+                "performance.relay_overhead",
+                "compared",
+                title="Latency versus the baseline",
+                summary=f"Target p50 latency {_fmt(lat_t, 'ms')} vs baseline "
+                f"{_fmt(lat_b, 'ms')} ({_signed(lat_t - lat_b)} ms)"
+                + (
+                    f"; p50 TTFT {_fmt(ttft_t, 'ms')} vs {_fmt(ttft_b, 'ms')} "
+                    f"({_signed(ttft_t - ttft_b)} ms)."
+                    if ttft_t is not None and ttft_b is not None
+                    else "."
+                ),
+                evidence={
+                    "target_latency_p50_ms": _r(lat_t),
+                    "baseline_latency_p50_ms": _r(lat_b),
+                    "latency_p50_delta_ms": _r(lat_t - lat_b),
+                    "ttft_p50_delta_ms": _r(ttft_t - ttft_b)
+                    if ttft_t is not None and ttft_b is not None
+                    else None,
+                    "target": head,
+                    "baseline": PerformanceDetector._headline(baseline),
+                },
+            )
+        )
+
+    @staticmethod
+    def _baseline_reference(
+        result: DetectorResult,
+        target: EndpointPerformance,
+        baseline: EndpointPerformance,
+        *,
+        stream: bool,
+    ) -> None:
         # Non-streamed calls have no first token: compare end-to-end speed.
         if stream:
             tps_t, tps_b = target.decode_tps_local, baseline.decode_tps_local
         else:
             tps_t, tps_b = target.e2e_tps_local, baseline.e2e_tps_local
         if (
-            tps_t.count >= _MIN_COMPARE_SAMPLES
-            and tps_b.count >= _MIN_COMPARE_SAMPLES
-            and tps_t.p50
-            and tps_b.p50
-            and tps_t.p50 / tps_b.p50 >= _FAST_RATIO
+            tps_t.count < _MIN_COMPARE_SAMPLES
+            or tps_b.count < _MIN_COMPARE_SAMPLES
+            or not tps_t.p50
+            or not tps_b.p50
         ):
-            ratio = tps_t.p50 / tps_b.p50
-            result.findings.append(
-                SCALE.finding(
-                    "performance.throughput_mismatch",
-                    "faster",
-                    title="Target generates much faster than the baseline",
-                    summary=f"Target decodes at {_fmt(tps_t.p50, 'tok/s')} vs baseline "
-                    f"{_fmt(tps_b.p50, 'tok/s')} ({ratio:.1f}x). The same model normally "
-                    "decodes at a similar speed; a much faster target is consistent with a "
-                    "smaller model.",
-                    evidence={
-                        "target_decode_tps_p50": _r(tps_t.p50),
-                        "baseline_decode_tps_p50": _r(tps_b.p50),
-                        "ratio": round(ratio, 2),
-                        "metric": "decode" if stream else "end_to_end",
-                        "samples": min(tps_t.count, tps_b.count),
-                    },
-                    recommendation="Weigh this together with the model-identity findings; "
-                    "speed alone is not proof of substitution.",
-                )
+            return
+        ratio = tps_t.p50 / tps_b.p50
+        key = "faster" if ratio >= _FAST_RATIO else "slower" if ratio < 1 / _FAST_RATIO else "matches"
+        summary = (
+            f"Target decodes at {_fmt(tps_t.p50, 'tok/s')} vs baseline "
+            f"{_fmt(tps_b.p50, 'tok/s')} ({ratio:.1f}x)."
+        )
+        if key == "faster":
+            summary += (
+                " The same model normally decodes at a similar speed; a much faster "
+                "target is consistent with a smaller model."
             )
+        result.findings.append(
+            SCALE.finding(
+                "performance.reference",
+                key,
+                title="Throughput versus the reference",
+                summary=summary,
+                evidence={
+                    "reference": "baseline",
+                    "target_tps_p50": _r(tps_t.p50),
+                    "reference_range": f"{tps_b.p50:.0f}",
+                    "ratio": round(ratio, 2),
+                    "metric": "decode" if stream else "end_to_end",
+                    "samples": min(tps_t.count, tps_b.count),
+                },
+                recommendation="Weigh this together with the model-identity findings; "
+                "speed alone is not proof of substitution." if key == "faster" else None,
+            )
+        )
+
+    @staticmethod
+    def _kb_reference(
+        result: DetectorResult,
+        target: EndpointPerformance,
+        reference: PerformanceReference,
+        *,
+        stream: bool,
+    ) -> None:
+        # The published figures are decode speeds: only a streamed probe compares.
+        tps = target.decode_tps_local
+        if not stream or reference.decode_tps is None or tps.count < _MIN_COMPARE_SAMPLES or not tps.p50:
+            return
+        low, high = reference.decode_tps
+        key = "faster" if tps.p50 >= high * _FAST_RATIO else "slower" if tps.p50 < low else "matches"
+        summary = (
+            f"Target decodes at {_fmt(tps.p50, 'tok/s')}; the model's native API typically "
+            f"runs at {low:.0f}–{high:.0f} tok/s."
+        )
+        if key == "faster":
+            summary += " A much faster target is consistent with a smaller model."
+        result.findings.append(
+            SCALE.finding(
+                "performance.reference",
+                key,
+                title="Throughput versus the reference",
+                summary=summary,
+                evidence={
+                    "reference": "knowledge_base",
+                    "target_tps_p50": _r(tps.p50),
+                    "reference_range": f"{low:.0f}–{high:.0f}",
+                    "ratio": round(tps.p50 / high, 2),
+                    "metric": "decode",
+                    "samples": tps.count,
+                    "source": reference.source,
+                    "measured": reference.measured,
+                },
+                recommendation="Weigh this together with the model-identity findings; "
+                "speed alone is not proof of substitution." if key == "faster" else None,
+            )
+        )
 
 
 def _r(value: float | None) -> float | None:

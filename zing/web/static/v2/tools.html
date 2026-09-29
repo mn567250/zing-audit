@@ -136,30 +136,35 @@
         <form id="embed-form" novalidate>
           <div class="grp">
             <label class="lab" for="e-url"><span data-en="Relay URL">中转站地址</span> <span class="key">base_url</span></label>
-            <input class="in mono" id="e-url" type="url" inputmode="url" autocomplete="username" spellcheck="false" autocapitalize="off" placeholder="例如 https://relay.example.com/v1" data-en-placeholder="e.g. https://relay.example.com/v1">
+            <input class="in" id="e-url" type="text" inputmode="url" autocomplete="username" spellcheck="false" autocapitalize="off" placeholder="https://relay.example.com/v1">
           </div>
           <div class="grp">
-            <div class="lab-row"><label class="lab" for="e-key" data-en="API key">API 密钥</label><span class="aside" data-en="Supports env:VAR / file:/path">支持 env:VAR / file:/path</span></div>
-            <input class="in mono" id="e-key" type="password" data-secret="e-url" autocomplete="current-password" spellcheck="false" autocapitalize="off" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY">
+            <div class="lab-row">
+              <label class="lab" for="e-key" data-en="API key">API 密钥</label>
+              <span class="aside" id="e-key-aside" data-en="Supports env:VAR / file:/path">支持 env:VAR / file:/path</span>
+            </div>
+            <input class="in" id="e-key" type="password" data-secret="e-url" autocomplete="current-password" spellcheck="false" autocapitalize="off" aria-describedby="e-key-aside" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY" value="env:ZING_API_KEY">
           </div>
           <div class="two">
             <div class="grp">
-              <label class="lab" for="e-model" data-en="Model to request">请求的模型</label>
-              <input class="in" id="e-model" spellcheck="false" autocapitalize="off" placeholder="例如 text-embedding-3-large" data-en-placeholder="e.g. text-embedding-3-large">
+              <label class="lab" for="e-model"><span data-en="Model to request">请求的模型</span> <span class="key">model</span></label>
+              <input class="in" id="e-model" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="text-embedding-3-large">
             </div>
             <div class="grp">
-              <label class="lab" for="e-claimed"><span data-en="Claimed model">声称的模型</span> <span class="opt" data-en="optional">可选</span></label>
-              <input class="in" id="e-claimed" spellcheck="false" autocapitalize="off" placeholder="留空 = 与请求的模型相同" data-en-placeholder="Empty = same as model to request">
+              <label class="lab" for="e-claimed"><span data-en="Claimed model">声称的模型</span> <span class="key">claimed_model</span> <span class="opt" data-en="Optional">可选</span></label>
+              <input class="in" id="e-claimed" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="e-claimed-hint" placeholder="留空 = 同请求的模型" data-en-placeholder="Empty = same as model to request">
+              <div class="hint" id="e-claimed-hint" data-en="Only if the relay sells it under another name — zing checks the answers against this model.">仅当中转站以另一个名字售卖时填写 —— zing 会按这个模型核对回答。</div>
             </div>
           </div>
           <div class="two">
             <div class="grp">
-              <label class="lab" for="e-dims"><span data-en="Claimed dimension">声称维度</span> <span class="opt" data-en="optional">可选</span></label>
+              <label class="lab" for="e-dims"><span data-en="Claimed dimension">声称维度</span> <span class="key">claimed_dimensions</span> <span class="opt" data-en="Optional">可选</span></label>
               <input class="in" id="e-dims" type="number" min="1" step="1" inputmode="numeric" placeholder="留空 = 查知识库" data-en-placeholder="Empty = look up in knowledge base">
             </div>
             <div class="grp">
-              <label class="lab" for="e-provider"><span data-en="Declared provider">声明厂商</span> <span class="opt" data-en="optional">可选</span></label>
-              <input class="in" id="e-provider" spellcheck="false" autocapitalize="off" placeholder="例如 openai / deepseek" data-en-placeholder="e.g. openai / deepseek">
+              <label class="lab" for="e-provider"><span data-en="Declared provider">声明的厂商</span> <span class="key">declared_provider</span> <span class="opt" data-en="Optional">可选</span></label>
+              <input class="in" id="e-provider" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="e-provider-hint" placeholder="如 openai / deepseek" data-en-placeholder="e.g. openai / deepseek">
+              <div class="hint" id="e-provider-hint" data-en="Helps zing pick the right model profile when the model name alone is ambiguous. Choosing a model from the list fills it in.">当仅凭模型名无法确定厂商时，帮助 zing 选对模型资料。从列表选择模型时会自动填写。</div>
             </div>
           </div>
           <div class="grp">
@@ -181,15 +186,18 @@
         <form id="rerank-form" novalidate>
           <div class="grp">
             <label class="lab" for="r-url"><span data-en="Relay URL">中转站地址</span> <span class="key">base_url</span></label>
-            <input class="in mono" id="r-url" type="url" inputmode="url" autocomplete="username" spellcheck="false" autocapitalize="off" placeholder="例如 https://relay.example.com/v1" data-en-placeholder="e.g. https://relay.example.com/v1">
+            <input class="in" id="r-url" type="text" inputmode="url" autocomplete="username" spellcheck="false" autocapitalize="off" placeholder="https://relay.example.com/v1">
           </div>
           <div class="grp">
-            <div class="lab-row"><label class="lab" for="r-key" data-en="API key">API 密钥</label><span class="aside" data-en="Supports env:VAR / file:/path">支持 env:VAR / file:/path</span></div>
-            <input class="in mono" id="r-key" type="password" data-secret="r-url" autocomplete="current-password" spellcheck="false" autocapitalize="off" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY">
+            <div class="lab-row">
+              <label class="lab" for="r-key" data-en="API key">API 密钥</label>
+              <span class="aside" id="r-key-aside" data-en="Supports env:VAR / file:/path">支持 env:VAR / file:/path</span>
+            </div>
+            <input class="in" id="r-key" type="password" data-secret="r-url" autocomplete="current-password" spellcheck="false" autocapitalize="off" aria-describedby="r-key-aside" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY" value="env:ZING_API_KEY">
           </div>
           <div class="grp">
-            <label class="lab" for="r-model" data-en="Model to request">请求的模型</label>
-            <input class="in" id="r-model" spellcheck="false" autocapitalize="off" placeholder="例如 bge-reranker-v2-m3" data-en-placeholder="e.g. bge-reranker-v2-m3">
+            <label class="lab" for="r-model"><span data-en="Model to request">请求的模型</span> <span class="key">model</span></label>
+            <input class="in" id="r-model" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="bge-reranker-v2-m3">
           </div>
           <div class="grp">
             <div class="lab" id="r-api-lab" data-en="Protocol">协议</div>
@@ -470,12 +478,19 @@
     });
   });
 
-  // ---------- claimed-model picker ----------
+  // ---------- model pickers: the same relay config as the audit page ----------
+  // (knowledge-base providers + "Fetch models" from the relay's own /models)
   if (window.ZingModelPicker) {
-    ZingModelPicker.enhance({
-      claimedInput: "#e-claimed", providerInput: "#e-provider", urlInput: "#e-url", keyInput: "#e-key",
-      modelInput: "#e-model", api: function () { return segVal("e-api"); }, unstyled: true,
-    });
+    try {
+      ZingModelPicker.enhance({
+        claimedInput: "#e-model", providerInput: "#e-provider", urlInput: "#e-url", keyInput: "#e-key",
+        api: function () { return segVal("e-api"); }, unstyled: true,
+      });
+      ZingModelPicker.enhance({
+        claimedInput: "#r-model", urlInput: "#r-url", keyInput: "#r-key",
+        api: function () { return segVal("r-api"); }, unstyled: true,
+      });
+    } catch (e) {}
   }
 })();
 </script>

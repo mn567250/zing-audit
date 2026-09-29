@@ -46,7 +46,9 @@ class El {
   addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); }
   dispatchEvent(e) { (this.listeners[e.type] || []).forEach(f => f(e)); }
   focus() {}
-  get options() { return this.children.filter(c => c.tagName === "OPTION"); }
+  get options() {
+    return this.children.flatMap(c => (c.tagName === "OPTGROUP" ? c.children : [c])).filter(c => c.tagName === "OPTION");
+  }
   get selectedIndex() { return this.options.findIndex(o => o.value === this._value); }
   get value() {
     if (this.tagName !== "SELECT") return this._value;
@@ -71,7 +73,8 @@ const KB = { providers: [
   { provider: "moonshot", display_name: "Moonshot AI (月之暗面 / Kimi)", models: [{ id: "kimi-k2" }] },
   { provider: "alibaba", display_name: "Alibaba Cloud — Qwen / 通义千问, served via DashScope", models: [] },
 ]};
-global.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve(KB) });
+const RELAY = { ok: true, models: ["deepseek-chat", "deepseek-v9-preview"] };
+global.fetch = (url) => Promise.resolve({ ok: true, json: () => Promise.resolve(url === "/api/models" ? RELAY : KB) });
 require(path.join(process.argv[1], "modelpicker.js"));
 
 function mount(unstyled) {
@@ -179,3 +182,47 @@ def test_modelpicker_unstyled_labels_follow_the_language():
     assert provs[0]["attrs"]["aria-label"] == "供应商" and provs[1]["attrs"]["aria-label"] == "模型"
     opts = [n["text"] for n in _walk(provs[0]) if n["tag"] == "OPTION"]
     assert "Moonshot AI" in opts  # shortened in Chinese too; the title keeps 月之暗面
+
+
+# A model newer than the knowledge base: "Fetch models" works for every
+# provider, not only "Custom (from relay)", and adds the relay's unknown ids.
+_FETCH_JS = _JS.split("function mount")[0] + r"""
+const form = new El("form");
+const model = form.appendChild(new El("input"));
+const url = form.appendChild(new El("input"));
+const prov = form.appendChild(new El("input"));
+url.value = "https://relay.test/v1";
+window.ZingModelPicker.enhance({ claimedInput: model, providerInput: prov, urlInput: url, unstyled: true });
+const tick = () => new Promise(r => setTimeout(r, 0));
+(async () => {
+  await tick();
+  const [sels] = form.children[0].children;
+  const [provSel, fetchRow, modelSel] = sels.children;
+  provSel.value = "deepseek"; provSel.dispatchEvent(new Event("change"));
+  const shown = fetchRow.style.display, disabled = fetchRow.children[0].disabled;
+  fetchRow.children[0].dispatchEvent(new Event("click"));
+  await tick(); await tick(); await tick();
+  const groups = modelSel.children.filter(c => c.tagName === "OPTGROUP");
+  modelSel.value = "deepseek-v9-preview"; modelSel.dispatchEvent(new Event("change"));
+  console.log(JSON.stringify({
+    shown, disabled,
+    texts: modelSel.options.map(o => o.textContent),
+    group: groups.map(g => [g.label, g.children.map(o => o.value)]),
+    status: fetchRow.children[1].textContent,
+    value: model.value, provider: prov.value,
+  }));
+})();
+"""
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to evaluate the UI's JS")
+def test_modelpicker_fetches_relay_models_for_a_knowledge_base_provider():
+    out = json.loads(subprocess.run(
+        ["node", "-e", _FETCH_JS, str(_STATIC), "en"], capture_output=True, text=True, check=True,
+    ).stdout)
+    assert out["shown"] == "flex" and out["disabled"] is False
+    # the KB model the relay lists is marked; the unknown one is still offered
+    assert "deepseek-chat · DeepSeek-V3 ✓" in out["texts"]
+    assert out["group"] == [["Relay only (not in knowledge base)", ["deepseek-v9-preview"]]]
+    assert out["status"] == "✓ Models found: 2"
+    assert out["value"] == "deepseek-v9-preview" and out["provider"] == "deepseek"

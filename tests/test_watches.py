@@ -186,6 +186,7 @@ def test_watch_db_from_before_alert_languages_is_migrated(tmp_path, monkeypatch)
 
     [old] = watches.list_all()
     assert old["name"] == "old" and old["language"] == "en"
+    assert old["source_report_id"] is None and old["has_key"] is False
     watches.set_language(old["id"], "fr")
     assert watches.get(old["id"])["language"] == "fr"
 
@@ -220,3 +221,96 @@ async def test_scheduled_watch_alerts_in_its_language(tmp_path, monkeypatch):
     })
     await server._run_one_watch(watches.get(wid))
     assert [s["lang"] for s in sent] == ["it"]
+
+
+# ----- scheduling a history run as a monitor ------------------------------ #
+
+
+def _saved_report(**overrides):
+    import json
+    from pathlib import Path
+
+    from zing.web import history
+
+    report = json.loads((Path(__file__).parent / "fixtures" / "web_report.json").read_text("utf-8"))
+    report.update(overrides)
+    return history.save(report)
+
+
+def test_schedule_history_run_creates_a_paused_draft(tmp_path, monkeypatch, client):
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    rid = _saved_report()
+    r = client.post(f"/api/watches/from-history/{rid}", json={"language": "de"})
+    assert r.status_code == 201
+    wid = r.json()["id"]
+    [w] = client.get("/api/watches").json()
+    assert w["id"] == wid and w["source_report_id"] == rid
+    # the run's configuration, but no schedule, no key, and switched off
+    assert w["base_url"] == "http://127.0.0.1:9099/v1" and w["model"] == "gpt-4o"
+    assert w["name"] == "gpt-4o" and w["suite"] == "standard" and w["api"] == "auto"
+    assert w["interval_sec"] is None and w["enabled"] is False and w["has_key"] is False
+    assert w["language"] == "de" and w["alert_on"] == "medium" and w["webhooks"] == []
+
+    assert client.post("/api/watches/from-history/999999").status_code == 404
+
+
+def test_schedule_keeps_a_custom_suites_dimensions(tmp_path, monkeypatch, client):
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    rid = _saved_report(suite="custom", dimensions_selected=["security", "protocol"])
+    client.post(f"/api/watches/from-history/{rid}")
+    [w] = client.get("/api/watches").json()
+    assert w["suite"] == "custom" and sorted(w["dimensions"]) == ["protocol", "security"]
+
+
+def test_draft_needs_interval_and_key_before_it_runs(tmp_path, monkeypatch, client):
+    import time
+
+    from zing.web import watches
+
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    wid = client.post(f"/api/watches/from-history/{_saved_report()}").json()["id"]
+
+    # never picked up by the scheduler, even if switched on behind the API's back
+    watches.set_enabled(wid, True)
+    assert watches.due(time.time()) == []
+    watches.set_enabled(wid, False)
+
+    r = client.patch(f"/api/watches/{wid}", json={"enabled": True})
+    assert r.status_code == 400 and "interval" in r.json()["error"]
+    r = client.patch(f"/api/watches/{wid}", json={"enabled": True, "interval_sec": 600})
+    assert r.status_code == 400 and "API key" in r.json()["error"]
+    # the refused PATCH changed nothing
+    assert client.get("/api/watches").json()[0]["interval_sec"] is None
+    assert client.post(f"/api/watches/{wid}/run").status_code == 400
+
+    r = client.patch(
+        f"/api/watches/{wid}", json={"enabled": True, "interval_sec": 600, "api_key": "sk-draft-secret"}
+    )
+    assert r.status_code == 200
+    [w] = client.get("/api/watches").json()
+    assert w["enabled"] is True and w["interval_sec"] == 600 and w["has_key"] is True
+    assert "sk-draft-secret" not in client.get("/api/watches").text
+    assert watches.get(wid)["api_key"] == "sk-draft-secret"
+    assert [d["id"] for d in watches.due(time.time())] == [wid]
+
+
+def test_patch_validates_schedule_and_alert_settings(tmp_path, monkeypatch, client):
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    wid = client.post(
+        "/api/watches", json={"base_url": "https://relay.test/v1", "model": "gpt-4o", "api_key": "sk-a"}
+    ).json()["id"]
+    url = f"/api/watches/{wid}"
+    for bad in ({"interval_sec": 10}, {"interval_sec": "600"}, {"interval_sec": True},
+                {"alert_on": "extreme"}, {"webhooks": "https://x"}, {"webhooks": ["ftp://x"]}):
+        assert client.patch(url, json=bad).status_code == 400, bad
+    assert client.patch(url, json={
+        "interval_sec": 900, "alert_on": "high", "webhooks": [" https://hooks.test/a ", ""], "api_key": "  ",
+    }).status_code == 200
+    [w] = client.get("/api/watches").json()
+    assert w["interval_sec"] == 900 and w["alert_on"] == "high" and w["webhooks"] == ["https://hooks.test/a"]
+    from zing.web import watches
+
+    assert watches.get(wid)["api_key"] == "sk-a"  # a blank key leaves the stored one alone
+    # a form-created keyless watch (a relay without auth) can still be switched on
+    keyless = client.post("/api/watches", json={"base_url": "https://open.test/v1", "model": "m", "enabled": False}).json()["id"]
+    assert client.patch(f"/api/watches/{keyless}", json={"enabled": True}).status_code == 200

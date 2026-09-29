@@ -14,9 +14,6 @@
 <link rel="stylesheet" href="/v2/static/fields.css" />
 <style>
   /* ---- monitors page (v2) — page-only rules; colours via zing.css tokens ---- */
-  .form-title { font-family: var(--disp); font-weight: 600; font-size: 18px; margin: 0 0 16px; }
-  .form-title .pico { color: var(--teal); margin-right: 6px; }
-  .sw-t { font-style: normal; }
   /* inline field errors */
   .in[aria-invalid="true"] { border-color: var(--bad); }
   .in[aria-invalid="true"]:focus { box-shadow: 0 0 0 4px var(--badbg); }
@@ -30,23 +27,14 @@
     font-size: 13px; font-weight: 600; color: var(--ink2); pointer-events: none;
     max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  /* segmented controls keep technical values lowercase + mono */
-  .seg button.tech { font-family: var(--mono); font-size: 12.5px; font-weight: 500; }
-  .seg button { min-width: 0; }
-  /* bottom of the form: the enable switch sits next to the Add button */
-  .form-foot {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap;
-    margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line);
-  }
-  .form-foot .btn.pri { font-size: 15px; padding: 12px 20px; }
-  @media (max-width: 520px) { .form-foot .btn.pri { flex: 1 1 100%; } }
-  .form-msg { margin-top: 14px; }
-  .okbox {
-    display: flex; align-items: flex-start; gap: 8px; background: var(--goodbg); border: 1px solid var(--good);
-    color: var(--good); border-radius: 14px; padding: 12px 14px; font-size: 14px; line-height: 1.5; font-weight: 600;
-  }
-  .okbox .zicon { flex: 0 0 auto; margin-top: 3px; }
-  .errbox[hidden], .okbox[hidden] { display: none; }
+  .sw-t { font-style: normal; }
+  /* the unit suffix sits where the native spinner would */
+  .unit-in input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+  .unit-in input[type="number"]::-webkit-inner-spin-button,
+  .unit-in input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .edit .unit-in .in { padding-right: 76px; }
+  .edit .unit-in .unit { right: 10px; font-size: 12px; }
+  .switch:has(input:disabled) { cursor: not-allowed; opacity: 0.55; }
 
   /* monitor cards */
   .mons { display: flex; flex-direction: column; gap: 12px; }
@@ -93,11 +81,23 @@
   .spin { display: inline-flex; animation: mon-spin 1s linear infinite; }
   @keyframes mon-spin { to { transform: rotate(360deg); } }
   #list-title:focus { outline: none; }
-  /* until the shared picker styles (fields.css + unstyled) land: keep its selects on the tokens */
-  .zmp select { background-color: var(--field) !important; color: var(--ink) !important; border-color: var(--line) !important; }
-  .zmp select:disabled { opacity: 0.6; }
+  .mon-meta dd .edit { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+  .mon-meta dd .edit .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mon-meta dd .edit .in { font-size: 13px; padding: 7px 10px; border-radius: 10px; }
+  .mon-meta dd .link { margin-left: 6px; }
+  /* draft: a watch scheduled from a history run that still needs its interval / key */
+  .setup {
+    margin-top: 14px; padding: 14px 16px; border-radius: 14px;
+    background: var(--warnbg); border: 1px solid var(--warn);
+  }
+  .setup h4 { margin: 0 0 4px; font-size: 14px; font-weight: 700; color: var(--ink); }
+  .setup > p { margin: 0 0 12px; font-size: 13px; color: var(--ink2); line-height: 1.5; }
+  .setup .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 16px; align-items: start; }
+  .setup .lab { font-size: 12.5px; }
+  .setup .go { margin-top: 12px; }
   .empty.boxed { border: 1.5px dashed var(--line-strong); border-radius: 18px; }
   .empty p { margin: 8px 0 0; }
+  .empty a { font-weight: 700; }
 </style>
 </head>
 <body>
@@ -106,134 +106,20 @@
   <main>
     <div class="hero">
       <h1 data-en="Put a <span class='u'>scheduled sentinel</span> on your relay">给中转站设个<span class="u">定时哨兵</span></h1>
-      <p data-en="Add a monitor: zing re-runs the black-box audit on your machine at the interval you set. As soon as the risk crosses your threshold or gets worse than last time, it pushes an alert in the language you choose to the webhooks you configured (Slack / Feishu / DingTalk / generic JSON).">添加一个监控：zing 会在你本地按设定的间隔自动重跑黑盒检测。一旦风险越线或较上次恶化，就以你选择的语言向你配置的 Webhook（Slack / 飞书 / 钉钉 / 通用 JSON）推送告警。</p>
+      <p data-en="Every monitor re-runs an audit you already ran, on your machine, at the interval you set. To add one, open a run in <a href='/v2/history'>History</a> and choose <b>Schedule as monitor</b> — then set its interval here and switch it on. When the risk crosses your threshold or gets worse than last time, zing alerts your webhooks (Slack / Feishu / DingTalk / generic JSON).">每个监控都会在你本地、按设定的间隔重跑一次你已经跑过的检测。添加方式：在<a href="/v2/history">检测历史</a>中打开一次运行，选择<b>设为监控</b>，然后在这里设置间隔并启用。一旦风险越线或较上次恶化，zing 就向你配置的 Webhook（Slack / 飞书 / 钉钉 / 通用 JSON）推送告警。</p>
     </div>
 
-    <!-- create form -->
-    <section class="card card-pad" style="margin-top:20px" aria-labelledby="form-title">
-      <form id="form" novalidate>
-        <h2 class="form-title" id="form-title"><span class="pico" id="new-icon"></span><span data-en="New monitor">新建监控</span></h2>
-
-        <div class="grp">
-          <label class="lab" for="f-name" data-en="Name">名称</label>
-          <input class="in" id="f-name" autocomplete="off" placeholder="例如：生产中转站 deepseek" data-en-placeholder="e.g. production relay deepseek">
-        </div>
-
-        <div class="grp">
-          <label class="lab" for="f-url"><span data-en="Relay URL">中转站地址</span> <span class="key">base_url</span></label>
-          <input class="in mono" id="f-url" type="url" inputmode="url" autocomplete="username" spellcheck="false" autocapitalize="off" placeholder="https://relay.example.com/v1" aria-describedby="e-url">
-          <p class="ferr" id="e-url" hidden></p>
-        </div>
-
-        <div class="two">
-          <div class="grp">
-            <label class="lab" for="f-key" data-en="API key">API 密钥</label>
-            <input class="in mono" id="f-key" type="password" data-secret="f-url" autocomplete="current-password" spellcheck="false" autocapitalize="off" placeholder="sk-... 或 env:ZING_API_KEY" data-en-placeholder="sk-... or env:ZING_API_KEY">
-          </div>
-          <div class="grp">
-            <label class="lab" for="f-model"><span data-en="Model to request">请求的模型</span> <span class="key">model</span></label>
-            <input class="in mono" id="f-model" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="例如 deepseek-chat" data-en-placeholder="e.g. deepseek-chat" aria-describedby="e-model">
-            <p class="ferr" id="e-model" hidden></p>
-          </div>
-        </div>
-
-        <div class="two">
-          <div class="grp">
-            <label class="lab" for="f-claimed"><span data-en="Claimed model">声称的模型</span> <span class="opt" data-en="Optional">可选</span></label>
-            <input class="in mono" id="f-claimed" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="留空 = 与请求的模型相同" data-en-placeholder="Empty = same as model to request">
-          </div>
-          <div class="grp">
-            <label class="lab" for="f-prov"><span data-en="Declared provider">声明厂商</span> <span class="opt" data-en="Optional">可选</span></label>
-            <input class="in" id="f-prov" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="例如 openai / deepseek" data-en-placeholder="e.g. openai / deepseek">
-          </div>
-        </div>
-
-        <div class="grp">
-          <div class="lab" id="l-api"><span data-en="Protocol">协议</span> <span class="key">api</span></div>
-          <div class="seg" id="f-api" role="group" aria-labelledby="l-api">
-            <button type="button" data-v="auto" aria-pressed="true" data-en="Auto">自动</button>
-            <button type="button" data-v="openai" aria-pressed="false">OpenAI</button>
-            <button type="button" data-v="anthropic" aria-pressed="false">Anthropic</button>
-            <button type="button" data-v="responses" aria-pressed="false">Responses</button>
-          </div>
-        </div>
-
-        <div class="grp">
-          <div class="lab" id="l-suite"><span data-en="Test suite">测试套件</span> <span class="key">suite</span></div>
-          <div class="seg" id="f-suite" role="group" aria-labelledby="l-suite" aria-describedby="h-suite">
-            <button type="button" class="tech" data-v="smoke" aria-pressed="false">smoke</button>
-            <button type="button" class="tech" data-v="standard" aria-pressed="true">standard</button>
-            <button type="button" class="tech" data-v="deep" aria-pressed="false">deep</button>
-            <button type="button" class="tech" data-v="full" aria-pressed="false">full</button>
-            <button type="button" class="tech" data-v="custom" aria-pressed="false">custom</button>
-          </div>
-          <p class="hint" id="h-suite" data-en="Heavier suites send more requests on every run.">套件越重，每次运行发出的请求越多。</p>
-        </div>
-        <div class="grp" id="f-dims-grp" hidden>
-          <div class="lab" id="lab-f-dims"><span data-en="Dimensions to run">检测维度</span> <span class="key">dimensions</span></div>
-          <div class="chips" id="f-dims" role="group" aria-labelledby="lab-f-dims" aria-describedby="f-dims-hint">
-            <button type="button" aria-pressed="true" data-v="model_identity" data-en="Model identity">模型身份</button><button type="button" aria-pressed="true" data-v="context_window" data-en="Context window">上下文窗口</button><button type="button" aria-pressed="true" data-v="capability" data-en="Capability claims">能力声明</button><button type="button" aria-pressed="true" data-v="protocol" data-en="Protocol compliance">协议兼容</button><button type="button" aria-pressed="true" data-v="connectivity" data-en="Connectivity">连通性</button><button type="button" aria-pressed="true" data-v="streaming" data-en="Streaming authenticity">流式真实</button><button type="button" aria-pressed="true" data-v="billing" data-en="Billing &amp; usage">计费用量</button><button type="button" aria-pressed="true" data-v="reliability" data-en="Concurrency reliability">并发可靠</button><button type="button" aria-pressed="true" data-v="performance" data-en="Performance">性能表现</button><button type="button" aria-pressed="true" data-v="security" data-en="Transport security">传输安全</button>
-          </div>
-          <div class="hint" id="f-dims-hint" data-en="Only the selected dimensions run, at deep depth; the overall score is computed from them alone.">只运行所选维度（按 deep 深度）；综合得分只按这些维度计算。</div>
-        </div>
-
-        <div class="grp">
-          <div class="lab" id="l-alert"><span data-en="Alert threshold">告警阈值</span> <span class="key">alert_on</span></div>
-          <div class="seg" id="f-alert" role="group" aria-labelledby="l-alert" aria-describedby="h-alert">
-            <button type="button" data-v="low" aria-pressed="false" data-en="Low and above">低及以上</button>
-            <button type="button" data-v="medium" aria-pressed="true" data-en="Medium and above">中及以上</button>
-            <button type="button" data-v="high" aria-pressed="false" data-en="High only">仅高</button>
-          </div>
-          <p class="hint" id="h-alert"></p>
-        </div>
-
-        <div class="two">
-          <div class="grp">
-            <label class="lab" for="f-interval" data-en="Check interval">检测间隔</label>
-            <div class="unit-in">
-              <input class="in" id="f-interval" type="number" inputmode="numeric" min="1" step="1" value="60" aria-describedby="u-interval h-interval e-interval">
-              <span class="unit" id="u-interval" data-en="minutes">分钟</span>
-            </div>
-            <p class="hint" id="h-interval"></p>
-            <p class="ferr" id="e-interval" hidden></p>
-          </div>
-          <div class="grp">
-            <label class="lab" for="f-lang" data-en="Alert language">告警语言</label>
-            <select class="in" id="f-lang"></select>
-          </div>
-        </div>
-
-        <div class="grp">
-          <label class="lab" for="f-hooks"><span data-en="Webhook URLs">Webhook 地址</span> <span class="opt" data-en="one per line · optional">每行一个 · 可选</span></label>
-          <textarea class="in" id="f-hooks" rows="3" spellcheck="false" autocapitalize="off" placeholder="https://hooks.slack.com/services/…" aria-describedby="h-hooks e-hooks"></textarea>
-          <p class="hint" id="h-hooks" data-en="Slack, Feishu, DingTalk or any endpoint that accepts a JSON POST. Leave empty to only record the runs.">支持 Slack、飞书、钉钉，或任何接收 JSON POST 的地址。留空则只记录运行结果。</p>
-          <p class="ferr" id="e-hooks" hidden></p>
-        </div>
-
-        <div class="form-foot">
-          <label class="switch"><input type="checkbox" role="switch" id="f-enabled" checked><span></span> <em class="sw-t" data-en="Enable right after creating">创建后立即启用</em></label>
-          <button class="btn pri" id="add" type="submit"><span class="pico" id="add-icon"></span> <span id="add-label" data-en="Add monitor">添加监控</span></button>
-        </div>
-        <div class="form-msg" aria-live="polite">
-          <div class="errbox" id="formerr" role="alert" hidden></div>
-          <div class="okbox" id="formok" hidden></div>
-        </div>
-        <p class="reassure"><span class="pico" id="lock-icon"></span> <span data-en="Everything <b>runs locally</b>. The API key is stored only in the local database under <b>~/.zing</b> on this machine; it <b>never</b> appears in the monitor list and is never sent to the browser.">全程<b>本地运行</b>。API Key 仅保存在本机 <b>~/.zing</b> 的本地数据库里，<b>绝不</b>出现在监控列表里、也不会发给浏览器。</span></p>
-      </form>
-    </section>
-
     <!-- list -->
-    <h2 class="section-title" id="list-title" tabindex="-1"><span data-en="Configured monitors">已配置的监控</span> <span class="count" id="count"></span></h2>
+    <h2 class="section-title" id="list-title" tabindex="-1" style="margin-top:24px"><span data-en="Configured monitors">已配置的监控</span> <span class="count" id="count"></span></h2>
     <div class="mons" id="list" aria-live="polite"><p class="empty" data-en="Loading…">加载中…</p></div>
+    <p class="reassure"><span class="pico" id="lock-icon"></span> <span data-en="Everything <b>runs locally</b>. The API key is stored only in the local database under <b>~/.zing</b> on this machine; it <b>never</b> appears in the monitor list and is never sent to the browser.">全程<b>本地运行</b>。API Key 仅保存在本机 <b>~/.zing</b> 的本地数据库里，<b>绝不</b>出现在监控列表里、也不会发给浏览器。</span></p>
   </main>
   <p class="foot" data-en="zing · relay reality check · monitors are scheduled in the background by the <code>zing serve</code> process">zing · 中转站验真 · 监控由 <code>zing serve</code> 进程在后台调度</p>
 </div>
 <script src="/i18n.js"></script>
 <script src="/icons.js"></script>
 <script src="/secretfield.js"></script>
-<script src="/modelpicker.js"></script>
 <script src="/v2/static/nav.js"></script>
-<script src="/v2/static/dimpick.js"></script>
 <script>
 (function () {
   "use strict";
@@ -266,10 +152,6 @@
   };
   var RISK_CLASS = { clean: "good", low: "sky", medium: "warn", high: "bad", inconclusive: "grey" };
 
-  function thresholdLabel(v) {
-    var p = THRESHOLD[v];
-    return p ? T(p[0], p[1]) : String(v || "");
-  }
   function riskLabel(v) {
     return window.ZING_I18N ? window.ZING_I18N.label("RISK_LEVEL", v) : v;
   }
@@ -296,235 +178,153 @@
       return '<option value="' + esc(l.code) + '"' + (l.code === selected ? " selected" : "") + ">" + esc(l.label) + "</option>";
     }).join("");
   }
+  function thresholdOptions(selected) {
+    return ["low", "medium", "high"].map(function (v) {
+      return '<option value="' + v + '"' + (v === selected ? " selected" : "") + ">" + esc(T(THRESHOLD[v][0], THRESHOLD[v][1])) + "</option>";
+    }).join("");
+  }
   function isHttpUrl(s) {
     return /^https?:\/\/\S+$/i.test(s);
   }
-
-  // ---- static icons ----------------------------------------------------- //
-  function paintIcons() {
-    $("new-icon").innerHTML = icon("bell");
-    $("add-icon").innerHTML = icon("plus");
-    $("lock-icon").innerHTML = icon("lock");
+  function hooksText(n) {
+    if (!n) return T("无 Webhook", "No webhooks");
+    if (n === 1) return T("1 个 Webhook", "1 webhook");
+    return Tf("{n} 个 Webhook", "{n} webhooks", { n: n });
   }
 
-  // ---- segmented controls ---------------------------------------------- //
-  function segValue(id) {
-    var b = $(id).querySelector('button[aria-pressed="true"]');
-    return b ? b.getAttribute("data-v") : null;
-  }
-  function segSet(id, v) {
-    Array.prototype.forEach.call($(id).querySelectorAll("button"), function (b) {
-      b.setAttribute("aria-pressed", b.getAttribute("data-v") === v ? "true" : "false");
-    });
-  }
-  ["f-api", "f-suite", "f-alert"].forEach(function (id) {
-    $(id).addEventListener("click", function (ev) {
-      var b = ev.target.closest("button[data-v]");
-      if (!b) return;
-      segSet(id, b.getAttribute("data-v"));
-      if (id === "f-alert") paintAlertHint();
-      if (id === "f-suite") $("f-dims-grp").hidden = b.getAttribute("data-v") !== "custom";
-    });
-  });
-  // Custom suite: the dimensions each run audits.
-  var dimsPick = ZING_DIMPICK.bind($("f-dims"));
+  // ---- list state --------------------------------------------------------- //
+  var watches = null; // last list from the server
+  var loadErr = false;
+  // per-monitor transient UI state:
+  //   running, confirm, busy, msg (fn), msgKind,
+  //   edit: null | "interval" | "key" | "hooks"   (an open inline editor)
+  //   vals: {interval, key, hooks}                 (typed values, kept across re-renders)
+  //   errs: {interval, key, hooks}                 (fn → message)
+  var ui = {};
+  function st(id) { return ui[id] || (ui[id] = { vals: {}, errs: {} }); }
 
-  // ---- live hints -------------------------------------------------------- //
-  function paintAlertHint() {
-    var v = segValue("f-alert") || "medium";
-    $("h-alert").textContent = Tf(
-      "风险达到“{level}”或更糟、或比上次运行更差时告警。",
-      "Alerts when the risk reaches “{level}” or worse, or gets worse than on the previous run.",
-      { level: riskLabel(v) }
-    );
-  }
-  function intervalMinutes() {
-    var raw = $("f-interval").value.trim();
+  // A watch scheduled from a history run starts without an interval, and
+  // without a key (history never stores it): it needs both before it runs.
+  function needsInterval(w) { return w.interval_sec == null; }
+  function needsKey(w) { return w.source_report_id != null && !w.has_key; }
+  function needsSetup(w) { return needsInterval(w) || needsKey(w); }
+
+  function minutesOf(raw) {
+    raw = String(raw == null ? "" : raw).trim();
     if (!/^\d+$/.test(raw)) return null;
     var n = parseInt(raw, 10);
     return n >= 1 ? n : null;
   }
-  function paintIntervalHint() {
-    var m = intervalMinutes();
-    $("h-interval").textContent = m ? Tf("将{every}运行一次。", "Runs {every}.", { every: fmtEvery(m * 60) }) : "";
+  function hooksOf(raw) {
+    return String(raw == null ? "" : raw).split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
   }
-  $("f-interval").addEventListener("input", function () {
-    paintIntervalHint();
-    if (errs.interval) validate(["interval"]);
-  });
-
-  // Alert language follows the UI language until the user picks one.
-  var langTouched = false;
-  function fillFormLang() {
-    var sel = $("f-lang");
-    var keep = langTouched ? sel.value : L.get();
-    sel.innerHTML = langOptions(keep);
+  function checkInterval(raw) {
+    return minutesOf(raw) == null
+      ? function () { return T("请输入不小于 1 的整数分钟数。", "Enter a whole number of minutes (1 or more)."); }
+      : null;
   }
-  $("f-lang").addEventListener("change", function () { langTouched = true; });
-
-  // ---- validation (messages kept as functions so a language switch re-renders them)
-  var FIELDS = {
-    url: { input: "f-url", err: "e-url" },
-    model: { input: "f-model", err: "e-model" },
-    interval: { input: "f-interval", err: "e-interval" },
-    hooks: { input: "f-hooks", err: "e-hooks" },
-  };
-  var errs = {};
-  function hooksList() {
-    return $("f-hooks").value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
+  function checkKey(raw) {
+    return String(raw == null ? "" : raw).trim()
+      ? null
+      : function () { return T("请填写 API 密钥（或 env:变量名）。", "Enter the API key (or env:VAR)."); };
   }
-  function check(name) {
-    if (name === "url") {
-      var u = $("f-url").value.trim();
-      if (!u) return function () { return T("请填写中转站地址。", "Enter the relay URL."); };
-      if (!isHttpUrl(u)) return function () { return T("中转站地址必须以 http:// 或 https:// 开头。", "The relay URL must start with http:// or https://."); };
-    } else if (name === "model") {
-      if (!$("f-model").value.trim()) return function () { return T("请填写请求的模型。", "Enter the model to request."); };
-    } else if (name === "interval") {
-      if (intervalMinutes() == null) return function () { return T("请输入不小于 1 的整数分钟数。", "Enter a whole number of minutes (1 or more)."); };
-    } else if (name === "hooks") {
-      var lines = hooksList();
-      for (var i = 0; i < lines.length; i++) {
-        if (!isHttpUrl(lines[i])) {
-          var line = i + 1;
-          return function () {
-            return Tf("第 {n} 行不是以 http:// 或 https:// 开头的地址。", "Line {n} is not a URL starting with http:// or https://.", { n: line });
-          };
-        }
+  function checkHooks(raw) {
+    var lines = hooksOf(raw);
+    for (var i = 0; i < lines.length; i++) {
+      if (!isHttpUrl(lines[i])) {
+        var line = i + 1;
+        return function () {
+          return Tf("第 {n} 行不是以 http:// 或 https:// 开头的地址。", "Line {n} is not a URL starting with http:// or https://.", { n: line });
+        };
       }
     }
     return null;
   }
-  function paintFieldErr(name) {
-    var f = FIELDS[name], fn = errs[name], box = $(f.err), input = $(f.input);
-    if (fn) {
-      box.textContent = fn();
-      box.hidden = false;
-      input.setAttribute("aria-invalid", "true");
-    } else {
-      box.textContent = "";
-      box.hidden = true;
-      input.removeAttribute("aria-invalid");
-    }
-  }
-  function validate(names) {
-    var first = null;
-    names.forEach(function (n) {
-      errs[n] = check(n);
-      paintFieldErr(n);
-      if (errs[n] && !first) first = n;
-    });
-    return first;
-  }
-  // re-check a flagged field as the user fixes it
-  Object.keys(FIELDS).forEach(function (n) {
-    if (n === "interval") return;
-    $(FIELDS[n].input).addEventListener("input", function () { if (errs[n]) validate([n]); });
-  });
 
-  var formErr = null, formOk = null;
-  function paintFormMsg() {
-    var e = $("formerr"), o = $("formok");
-    e.hidden = !formErr;
-    e.textContent = formErr ? formErr() : "";
-    o.hidden = !formOk;
-    o.innerHTML = formOk ? icon("check") + "<span>" + esc(formOk()) + "</span>" : "";
-  }
-
-  // ---- create ------------------------------------------------------------ //
-  var flashId = null;
-  $("form").addEventListener("submit", function (ev) {
-    ev.preventDefault();
-    formErr = null;
-    formOk = null;
-    paintFormMsg();
-    var bad = validate(["url", "model", "interval", "hooks"]);
-    if (bad) {
-      $(FIELDS[bad].input).focus();
-      return;
-    }
-    if (segValue("f-suite") === "custom" && !dimsPick.value().length) {
-      formErr = function () { return T("请至少选择一个检测维度。", "Select at least one dimension to run."); };
-      paintFormMsg();
-      $("f-dims").querySelector("button").focus();
-      return;
-    }
-    var name = $("f-name").value.trim() || "watch";
-    var enabled = $("f-enabled").checked;
-    var minutes = intervalMinutes();
-    var body = {
-      name: name,
-      base_url: $("f-url").value.trim(),
-      api_key: $("f-key").value.trim(),
-      model: $("f-model").value.trim(),
-      claimed_model: $("f-claimed").value.trim() || null,
-      declared_provider: $("f-prov").value.trim() || null,
-      api: segValue("f-api") || "auto",
-      suite: segValue("f-suite") || "standard",
-      dimensions: segValue("f-suite") === "custom" ? dimsPick.value() : [],
-      alert_on: segValue("f-alert") || "medium",
-      interval_sec: minutes * 60,
-      enabled: enabled,
-      webhooks: hooksList(),
-      language: $("f-lang").value,
-    };
-    var btn = $("add");
-    btn.disabled = true;
-    btn.setAttribute("aria-busy", "true");
-    fetch("/api/watches", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-      .then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, body: j }; });
-      })
-      .then(function (res) {
-        if (!res.ok) {
-          var msg = res.body && res.body.error;
-          formErr = function () { return (msg && L.server(msg)) || T("创建失败", "Failed to create monitor"); };
-          paintFormMsg();
-          return;
-        }
-        if (window.ZingSecret) window.ZingSecret.remember($("form"));
-        $("f-name").value = "";
-        $("f-key").value = "";
-        var every = minutes * 60;
-        formOk = enabled
-          ? function () { return Tf("已添加监控“{name}”，将{every}运行一次。", "Monitor “{name}” added — it runs {every}.", { name: name, every: fmtEvery(every) }); }
-          : function () { return Tf("已添加监控“{name}”（已暂停，可在下方列表中启用）。", "Monitor “{name}” added (paused — switch it on in the list below).", { name: name }); };
-        paintFormMsg();
-        flashId = res.body && res.body.id;
-        load();
-      })
-      .catch(function () {
-        formErr = function () { return T("网络错误，创建失败", "Network error — failed to create monitor"); };
-        paintFormMsg();
-      })
-      .then(function () {
-        btn.disabled = false;
-        btn.removeAttribute("aria-busy");
-      });
-  });
-
-  // ---- list -------------------------------------------------------------- //
-  var watches = null; // last list from the server
-  var loadErr = false;
-  // per-monitor transient UI state: {running, confirm, msg: fn, msgKind}
-  var ui = {};
-  function st(id) { return ui[id] || (ui[id] = {}); }
-
+  // ---- card pieces -------------------------------------------------------- //
   function badge(w) {
+    if (needsSetup(w)) return '<span class="badge warn">' + esc(T("待设置", "Needs setup")) + "</span>";
     if (w.last_risk) {
       return '<span class="badge ' + (RISK_CLASS[w.last_risk] || "grey") + '">' + esc(riskLabel(w.last_risk)) + "</span>";
     }
     if (w.last_run_ts) return '<span class="badge grey">' + esc(T("无结果", "No result")) + "</span>";
     return '<span class="badge grey">' + esc(T("尚未运行", "Not run yet")) + "</span>";
   }
-  function hooksText(n) {
-    if (!n) return T("无 Webhook", "No webhooks");
-    if (n === 1) return T("1 个 Webhook", "1 webhook");
-    return Tf("{n} 个 Webhook", "{n} webhooks", { n: n });
+  function meta(dt, dd) {
+    return "<div><dt>" + esc(dt) + "</dt><dd>" + dd + "</dd></div>";
+  }
+  function err(id, fn) {
+    return '<p class="ferr" id="' + id + '"' + (fn ? "" : " hidden") + ">" + (fn ? esc(fn()) : "") + "</p>";
+  }
+  function invalid(fn) { return fn ? ' aria-invalid="true"' : ""; }
+  function linkBtn(act, id, label) {
+    return '<button type="button" class="btn sm link" data-act="' + act + '" data-id="' + id + '">' + esc(label) + "</button>";
+  }
+  function saveCancel(act, id) {
+    return '<div class="row">' +
+      '<button type="button" class="btn sm pri" data-act="save-' + act + '" data-id="' + id + '">' + icon("check") + esc(T("保存", "Save")) + "</button>" +
+      '<button type="button" class="btn sm" data-act="cancel" data-id="' + id + '">' + esc(T("取消", "Cancel")) + "</button></div>";
+  }
+  // The number field: the draft's setup and the configured card's editor share it.
+  function intervalInput(w, s, small) {
+    var v = s.vals.interval != null ? s.vals.interval : (w.interval_sec ? String(w.interval_sec / 60) : "");
+    var hint = minutesOf(v) ? Tf("将{every}运行一次。", "Runs {every}.", { every: fmtEvery(minutesOf(v) * 60) }) : "";
+    return '<div class="unit-in"><input class="in" type="number" inputmode="numeric" min="1" step="1"' +
+      ' id="iv-' + w.id + '" data-act="f-interval" data-id="' + w.id + '" value="' + esc(v) + '"' +
+      (small ? ' aria-label="' + esc(T("检测间隔", "Check interval")) + '"' : "") +
+      ' aria-describedby="ivu-' + w.id + " ivh-" + w.id + " ive-" + w.id + '"' + invalid(s.errs.interval) + ">" +
+      '<span class="unit" id="ivu-' + w.id + '">' + esc(T("分钟", "minutes")) + "</span></div>" +
+      '<p class="hint" id="ivh-' + w.id + '">' + esc(hint) + "</p>" + err("ive-" + w.id, s.errs.interval);
+  }
+  // The key field, paired with the relay URL (a hidden username field) so the
+  // browser's password manager can fill the key saved from the audit page.
+  function keyInput(w, s, small) {
+    return '<input class="sr-only" type="text" tabindex="-1" aria-hidden="true" readonly autocomplete="username"' +
+      ' id="ku-' + w.id + '" value="' + esc(w.base_url || "") + '">' +
+      '<input class="in mono" type="password" id="k-' + w.id + '" data-secret="ku-' + w.id + '" data-act="f-key" data-id="' + w.id + '"' +
+      ' autocomplete="current-password" spellcheck="false" autocapitalize="off"' +
+      ' placeholder="' + esc(T("sk-... 或 env:ZING_API_KEY", "sk-... or env:ZING_API_KEY")) + '"' +
+      (small ? ' aria-label="' + esc(T("API 密钥", "API key")) + '"' : "") +
+      ' value="' + esc(s.vals.key || "") + '" aria-describedby="ke-' + w.id + '"' + invalid(s.errs.key) + ">" +
+      err("ke-" + w.id, s.errs.key);
+  }
+
+  function setupBox(w, s) {
+    var fields = "";
+    if (needsInterval(w)) {
+      fields += '<div><label class="lab" for="iv-' + w.id + '">' + esc(T("检测间隔", "Check interval")) + "</label>" + intervalInput(w, s) + "</div>";
+    }
+    if (needsKey(w)) {
+      fields += '<div><label class="lab" for="k-' + w.id + '">' + esc(T("API 密钥", "API key")) + "</label>" + keyInput(w, s) +
+        '<p class="hint">' + esc(T("检测历史不保存密钥，请再填一次。", "History never stores the key, so enter it once more.")) + "</p></div>";
+    }
+    return '<form class="setup" data-id="' + w.id + '" novalidate aria-labelledby="su-' + w.id + '">' +
+      '<h4 id="su-' + w.id + '">' + esc(T("设置后即可启用", "Finish setup to switch it on")) + "</h4>" +
+      "<p>" + esc(T("配置取自检测历史中的那次运行。设置运行间隔后启用即可。", "The configuration comes from the run in History. Set how often it runs, then activate it.")) + "</p>" +
+      '<div class="fields">' + fields + "</div>" +
+      '<button type="submit" class="btn pri go" data-act="activate" data-id="' + w.id + '"' + (s.busy ? ' disabled aria-busy="true"' : "") + ">" +
+      icon("play") + esc(T("启用监控", "Activate monitor")) + "</button></form>";
+  }
+
+  function intervalCell(w, s) {
+    if (needsInterval(w)) return esc(T("未设置", "Not set"));
+    if (s.edit === "interval") return '<form class="edit" data-id="' + w.id + '" novalidate>' + intervalInput(w, s, true) + saveCancel("interval", w.id) + "</form>";
+    return esc(fmtEvery(w.interval_sec)) + linkBtn("edit-interval", w.id, T("修改", "Change"));
+  }
+  function keyCell(w, s) {
+    if (needsKey(w)) return esc(T("未设置", "Not set"));
+    if (s.edit === "key") return '<form class="edit" data-id="' + w.id + '" novalidate>' + keyInput(w, s, true) + saveCancel("key", w.id) + "</form>";
+    return esc(w.has_key ? T("已保存", "Stored") : T("无", "None")) + linkBtn("edit-key", w.id, T("更换", "Replace"));
+  }
+  function hooksCell(w, s) {
+    if (s.edit === "hooks") {
+      var v = s.vals.hooks != null ? s.vals.hooks : (w.webhooks || []).join("\n");
+      return '<form class="edit" data-id="' + w.id + '" novalidate><textarea class="in" rows="3" spellcheck="false" autocapitalize="off"' +
+        ' id="hk-' + w.id + '" data-act="f-hooks" data-id="' + w.id + '" placeholder="https://hooks.slack.com/services/…"' +
+        ' aria-label="' + esc(T("Webhook 地址（每行一个）", "Webhook URLs (one per line)")) + '" aria-describedby="hke-' + w.id + '"' + invalid(s.errs.hooks) + ">" +
+        esc(v) + "</textarea>" + err("hke-" + w.id, s.errs.hooks) + saveCancel("hooks", w.id) + "</form>";
+    }
+    return esc(hooksText((w.webhooks || []).length)) + linkBtn("edit-hooks", w.id, T("编辑", "Edit"));
   }
   // The profile pinned when the monitor was created: every run audits against
   // this fixed snapshot until the user re-pins it.
@@ -542,24 +342,26 @@
     }
     return out;
   }
-  function meta(dt, dd) {
-    return "<div><dt>" + esc(dt) + "</dt><dd>" + dd + "</dd></div>";
-  }
 
   function card(w) {
     var s = st(w.id);
     var name = w.name || "watch";
+    var draft = needsSetup(w);
     var claimed = w.claimed_model && w.claimed_model !== w.model
       ? '<span class="aside">' + esc(T("声称的模型", "Claimed model")) + " <code>" + esc(w.claimed_model) + "</code></span>"
       : "";
-    var lastParts = [
-      "<span>" + esc(T("上次运行", "Last run")) + ": <b>" + esc(fmtTime(w.last_run_ts)) + "</b></span>",
-    ];
+    var lastParts = [];
+    if (!draft || w.last_run_ts) {
+      lastParts.push("<span>" + esc(T("上次运行", "Last run")) + ": <b>" + esc(fmtTime(w.last_run_ts)) + "</b></span>");
+    }
     if (w.last_score != null) {
       lastParts.push("<span>" + esc(T("评分", "Score")) + " <b>" + esc(fmtScore(w.last_score)) + "</b>/100</span>");
     }
     if (w.last_report_id != null) {
       lastParts.push('<a href="/v2/history#r-' + esc(w.last_report_id) + '">' + esc(T("在检测历史中查看", "Open in history")) + " →</a>");
+    }
+    if (w.source_report_id != null) {
+      lastParts.push('<a href="/v2/history#r-' + esc(w.source_report_id) + '">' + esc(Tf("来自运行 #{n}", "From run #{n}", { n: w.source_report_id })) + " →</a>");
     }
     var actions;
     if (s.confirm) {
@@ -568,19 +370,23 @@
         '<button type="button" class="btn sm danger" data-act="del-yes" data-id="' + w.id + '" aria-describedby="ask-' + w.id + '">' + icon("trash") + esc(T("删除", "Delete")) + "</button>" +
         '<button type="button" class="btn sm" data-act="del-no" data-id="' + w.id + '">' + esc(T("取消", "Cancel")) + "</button>";
     } else {
-      actions =
-        '<button type="button" class="btn sm pri" data-act="run" data-id="' + w.id + '"' + (s.running ? ' disabled aria-busy="true"' : "") + ">" +
+      // A draft can run once as soon as it has its key; the interval is only for the schedule.
+      var run = needsKey(w) ? "" :
+        '<button type="button" class="btn sm' + (draft ? "" : " pri") + '" data-act="run" data-id="' + w.id + '"' + (s.running ? ' disabled aria-busy="true"' : "") + ">" +
         (s.running ? '<span class="spin">' + icon("refresh") + "</span>" + esc(T("运行中…", "Running…")) : icon("play") + esc(T("立即运行", "Run now"))) +
-        "</button>" +
+        "</button>";
+      actions = run +
         '<button type="button" class="btn sm danger" data-act="del" data-id="' + w.id + '"' + (s.running ? " disabled" : "") + ">" + icon("trash") + esc(T("删除", "Delete")) + "</button>";
     }
     var langLabel = T("告警语言", "Alert language");
+    var thrLabel = T("告警阈值", "Alert threshold");
+    var swText = draft ? T("待设置", "Needs setup") : w.enabled ? T("启用中", "Enabled") : T("已暂停", "Paused");
     return (
-      '<article class="card mon' + (w.enabled ? "" : " off") + '" data-id="' + w.id + '" aria-labelledby="mn-' + w.id + '">' +
+      '<article class="card mon' + (w.enabled ? "" : " off") + '" id="w-' + w.id + '" data-id="' + w.id + '" aria-labelledby="mn-' + w.id + '">' +
         '<div class="mon-top">' +
           '<div class="mon-title"><h3 class="mon-name" id="mn-' + w.id + '">' + esc(name) + "</h3>" + badge(w) + "</div>" +
           '<label class="switch"><input type="checkbox" role="switch" data-act="enabled" data-id="' + w.id + '"' + (w.enabled ? " checked" : "") +
-            ' aria-describedby="mn-' + w.id + '"><span></span> <em class="sw-t">' + esc(w.enabled ? T("启用中", "Enabled") : T("已暂停", "Paused")) + "</em></label>" +
+            (draft ? " disabled" : "") + ' aria-describedby="mn-' + w.id + '"><span></span> <em class="sw-t">' + esc(swText) + "</em></label>" +
         "</div>" +
         '<div class="mon-body">' +
           '<div class="mon-url">' + esc(w.base_url || "") + "</div>" +
@@ -588,20 +394,23 @@
             meta(T("请求的模型", "Model to request"), "<code>" + esc(w.model || "?") + "</code>" + claimed) +
             meta(T("测试套件", "Test suite"), "<code>" + esc(w.suite || "standard") + "</code>" +
               (w.suite === "custom" && (w.dimensions || []).length ? " <code>" + esc(w.dimensions.join(", ")) + "</code>" : "")) +
-            meta(T("检测间隔", "Check interval"), esc(fmtEvery(w.interval_sec))) +
-            meta(T("告警阈值", "Alert threshold"), esc(thresholdLabel(w.alert_on || "medium"))) +
-            meta(T("Webhook", "Webhooks"), esc(hooksText((w.webhooks || []).length))) +
+            meta(T("检测间隔", "Check interval"), intervalCell(w, s)) +
+            meta(T("API 密钥", "API key"), keyCell(w, s)) +
+            meta(thrLabel, '<select class="in" data-act="alert" data-id="' + w.id + '" aria-label="' + esc(thrLabel + " — " + name) + '">' + thresholdOptions(w.alert_on || "medium") + "</select>") +
+            meta(T("Webhook", "Webhooks"), hooksCell(w, s)) +
             meta(langLabel, '<select class="in" data-act="lang" data-id="' + w.id + '" aria-label="' + esc(langLabel + " — " + name) + '">' + langOptions(w.language) + "</select>") +
             meta(T("知识库资料", "Knowledge profile"), kbCell(w)) +
           "</dl>" +
-          '<div class="mon-last">' + lastParts.join("") + "</div>" +
+          (lastParts.length ? '<div class="mon-last">' + lastParts.join("") + "</div>" : "") +
         "</div>" +
+        (draft ? setupBox(w, s) : "") +
         '<div class="mon-msg ' + (s.msgKind || "") + '" role="status">' + (s.msg ? esc(s.msg()) : "") + "</div>" +
         '<div class="mon-act">' + actions + "</div>" +
       "</article>"
     );
   }
 
+  var flashId = null, focusSetup = false;
   function render() {
     var list = $("list");
     if (loadErr && !watches) {
@@ -615,23 +424,39 @@
     if (!n) {
       list.innerHTML =
         '<div class="empty boxed">' + icon("bell") +
-        "<p>" + esc(T("还没有任何监控。用上面的表单添加第一个吧。", "No monitors yet. Use the form above to add your first one.")) + "</p></div>";
+        "<p>" + esc(T("还没有任何监控。", "No monitors yet.")) + "</p>" +
+        '<p><a href="/v2/history">' + esc(T("在检测历史中选择一次运行，设为监控 →", "Pick a run in History and schedule it as a monitor →")) + "</a></p></div>";
       return;
     }
     // keep focus on the same control across a re-render
-    var a = document.activeElement, keep = null;
-    if (a && list.contains(a) && a.getAttribute("data-act")) keep = [a.getAttribute("data-act"), a.getAttribute("data-id")];
+    var a = document.activeElement, keep = null, caret = null;
+    if (a && list.contains(a) && a.getAttribute("data-act")) {
+      keep = [a.getAttribute("data-act"), a.getAttribute("data-id")];
+      try { caret = a.selectionStart; } catch (e) { caret = null; }
+    }
     list.innerHTML = watches.map(card).join("");
+    if (window.ZingSecret) window.ZingSecret.enhance(list);
     if (keep) {
       var alt = { del: "del-no", "del-no": "del", "del-yes": "del", run: "run" }[keep[0]] || keep[0];
       var el = list.querySelector('[data-act="' + keep[0] + '"][data-id="' + keep[1] + '"]') ||
         list.querySelector('[data-act="' + alt + '"][data-id="' + keep[1] + '"]');
-      if (el) el.focus();
+      if (el) {
+        el.focus();
+        if (caret != null) { try { el.setSelectionRange(caret, caret); } catch (e) { /* number inputs */ } }
+      }
     }
     if (flashId != null) {
       var c = list.querySelector('.mon[data-id="' + flashId + '"]');
-      if (c) c.classList.add("flash");
+      if (c) {
+        c.classList.add("flash");
+        if (focusSetup) {
+          c.scrollIntoView({ block: "center" });
+          var first = c.querySelector(".setup .in:not(.sr-only)");
+          if (first) first.focus({ preventScroll: true });
+        }
+      }
       flashId = null;
+      focusSetup = false;
     }
   }
 
@@ -658,20 +483,163 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }).then(function (r) {
-      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) {
+          var e = new Error((j && j.error) || "HTTP " + r.status);
+          e.server = j && j.error;
+          throw e;
+        }
+        return j;
+      });
     });
   }
-  function failMsg(id) {
-    var s = st(id);
+  function failMsg(id, e) {
+    var s = st(id), text = e && e.server;
     s.msgKind = "bad";
-    s.msg = function () { return T("无法更新这个监控，请重试。", "Could not update the monitor — please try again."); };
+    s.msg = function () {
+      return text ? T("无法更新这个监控", "Could not update the monitor") + ": " + L.server(text)
+        : T("无法更新这个监控，请重试。", "Could not update the monitor — please try again.");
+    };
   }
+  function byId(id) {
+    return (watches || []).filter(function (w) { return String(w.id) === String(id); })[0];
+  }
+  function focusAct(act, id) {
+    var el = $("list").querySelector('[data-act="' + act + '"][data-id="' + id + '"]');
+    if (el) el.focus();
+  }
+  function closeEdit(id, back) {
+    var s = st(id);
+    s.edit = null;
+    s.vals = {};
+    s.errs = {};
+    render();
+    if (back) focusAct(back, id);
+  }
+
+  // Draft: validate the missing fields, then set them and switch it on in one PATCH.
+  function activate(id) {
+    var w = byId(id), s = st(id);
+    if (!w) return;
+    var body = { enabled: true }, first = null;
+    s.errs = {};
+    if (needsInterval(w)) {
+      s.errs.interval = checkInterval(s.vals.interval);
+      if (s.errs.interval) first = first || "f-interval";
+      else body.interval_sec = minutesOf(s.vals.interval) * 60;
+    }
+    if (needsKey(w)) {
+      s.errs.key = checkKey(s.vals.key);
+      if (s.errs.key) first = first || "f-key";
+      else body.api_key = s.vals.key.trim();
+    }
+    s.msg = null;
+    if (first) {
+      render();
+      focusAct(first, id);
+      return;
+    }
+    s.busy = true;
+    render();
+    patch(id, body).then(function () {
+      var every = body.interval_sec || w.interval_sec;
+      s.vals = {};
+      s.msgKind = "ok";
+      s.msg = function () { return Tf("监控已启用，将{every}运行一次。", "Monitor activated — it runs {every}.", { every: fmtEvery(every) }); };
+      return load();
+    }, function (e) {
+      failMsg(id, e);
+      render();
+    }).then(function () {
+      s.busy = false;
+      render();
+      focusAct("enabled", id);
+    });
+  }
+
+  function saveEdit(id, what) {
+    var s = st(id), body = {}, fieldAct = "f-" + what;
+    s.errs = {};
+    if (what === "interval") {
+      s.errs.interval = checkInterval(s.vals.interval != null ? s.vals.interval : ($("iv-" + id) || {}).value);
+      if (!s.errs.interval) body.interval_sec = minutesOf(s.vals.interval != null ? s.vals.interval : $("iv-" + id).value) * 60;
+    } else if (what === "key") {
+      s.errs.key = checkKey(s.vals.key);
+      if (!s.errs.key) body.api_key = s.vals.key.trim();
+    } else if (what === "hooks") {
+      var raw = s.vals.hooks != null ? s.vals.hooks : ($("hk-" + id) || {}).value;
+      s.errs.hooks = checkHooks(raw);
+      if (!s.errs.hooks) body.webhooks = hooksOf(raw);
+    }
+    if (s.errs[what]) {
+      render();
+      focusAct(fieldAct, id);
+      return;
+    }
+    patch(id, body).then(function () {
+      s.msgKind = "ok";
+      s.msg = { interval: function () { return T("检测间隔已保存。", "Check interval saved."); },
+        key: function () { return T("API 密钥已更换。", "API key replaced."); },
+        hooks: function () { return T("Webhook 已保存。", "Webhooks saved."); } }[what];
+      s.edit = null;
+      s.vals = {};
+      return load().then(function () { focusAct("edit-" + what, id); });
+    }, function (e) {
+      failMsg(id, e);
+      render();
+    });
+  }
+
+  // typed values survive re-renders (another card's load() repaints the whole list)
+  $("list").addEventListener("input", function (ev) {
+    var t = ev.target, act = t.getAttribute("data-act"), id = t.getAttribute("data-id");
+    if (!id || !/^f-/.test(act || "")) return;
+    var s = st(id), field = act.slice(2);
+    s.vals[field] = t.value;
+    if (field === "interval") {
+      var m = minutesOf(t.value), h = $("ivh-" + id);
+      if (h) h.textContent = m ? Tf("将{every}运行一次。", "Runs {every}.", { every: fmtEvery(m * 60) }) : "";
+    }
+    // re-check a flagged field as the user fixes it
+    if (s.errs[field]) {
+      var fn = { interval: checkInterval, key: checkKey, hooks: checkHooks }[field](t.value);
+      if (!fn) {
+        s.errs[field] = null;
+        t.removeAttribute("aria-invalid");
+        var box = $({ interval: "ive-", key: "ke-", hooks: "hke-" }[field] + id);
+        if (box) { box.hidden = true; box.textContent = ""; }
+      }
+    }
+  });
+
+  $("list").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var f = ev.target, id = f.getAttribute("data-id");
+    if (f.classList.contains("setup")) return activate(id);
+    var s = st(id);
+    if (s.edit) saveEdit(id, s.edit);
+  });
 
   $("list").addEventListener("click", function (ev) {
     var t = ev.target.closest("button[data-act]");
     if (!t) return;
     var id = t.getAttribute("data-id"), act = t.getAttribute("data-act"), s = st(id);
-    if (act === "run") {
+    if (act === "activate") {
+      ev.preventDefault();
+      activate(id);
+    } else if (/^edit-/.test(act)) {
+      s.edit = act.slice(5);
+      s.vals = {};
+      s.errs = {};
+      s.msg = null;
+      render();
+      focusAct("f-" + s.edit, id);
+    } else if (/^save-/.test(act)) {
+      ev.preventDefault();
+      saveEdit(id, act.slice(5));
+    } else if (act === "cancel") {
+      closeEdit(id, "edit-" + s.edit);
+    } else if (act === "run") {
       s.running = true;
       s.msg = null;
       render();
@@ -681,9 +649,9 @@
         })
         .then(function (res) {
           if (!res.ok) {
-            var err = res.body && res.body.error;
+            var e = res.body && res.body.error;
             s.msgKind = "bad";
-            s.msg = function () { return err ? T("运行失败", "Run failed") + ": " + L.server(err) : T("运行失败", "Run failed"); };
+            s.msg = function () { return e ? T("运行失败", "Run failed") + ": " + L.server(e) : T("运行失败", "Run failed"); };
             return;
           }
           var rep = res.body && res.body.report;
@@ -708,10 +676,7 @@
           return load().then(function () {
             // the disabled button dropped focus to <body>: put it back
             var a = document.activeElement;
-            if (!a || a === document.body) {
-              var b = $("list").querySelector('[data-act="run"][data-id="' + id + '"]');
-              if (b) b.focus();
-            }
+            if (!a || a === document.body) focusAct("run", id);
           });
         });
     } else if (act === "repin") {
@@ -720,20 +685,18 @@
         s.msgKind = "ok";
         s.msg = function () { return T("已固定为当前资料。", "Pinned to the current profile."); };
         return load();
-      }, function () {
-        failMsg(id);
+      }, function (e) {
+        failMsg(id, e);
         render();
       });
     } else if (act === "del") {
       s.confirm = true;
       render();
-      var cancel = $("list").querySelector('[data-act="del-no"][data-id="' + id + '"]');
-      if (cancel) cancel.focus();
+      focusAct("del-no", id);
     } else if (act === "del-no") {
       s.confirm = false;
       render();
-      var del = $("list").querySelector('[data-act="del"][data-id="' + id + '"]');
-      if (del) del.focus();
+      focusAct("del", id);
     } else if (act === "del-yes") {
       t.disabled = true;
       fetch("/api/watches/" + id, { method: "DELETE" })
@@ -754,12 +717,14 @@
     if (ev.key !== "Escape") return;
     var t = ev.target.closest("[data-id]");
     if (!t) return;
-    var id = t.getAttribute("data-id");
-    if (ui[id] && ui[id].confirm) {
-      ui[id].confirm = false;
+    var id = t.getAttribute("data-id"), s = ui[id];
+    if (!s) return;
+    if (s.confirm) {
+      s.confirm = false;
       render();
-      var del = $("list").querySelector('[data-act="del"][data-id="' + id + '"]');
-      if (del) del.focus();
+      focusAct("del", id);
+    } else if (s.edit) {
+      closeEdit(id, "edit-" + s.edit);
     }
   });
 
@@ -770,50 +735,36 @@
     s.msg = null;
     if (act === "enabled") {
       var on = t.checked;
-      patch(id, { enabled: on }).then(load, function () {
+      patch(id, { enabled: on }).then(load, function (e) {
         t.checked = !on;
-        failMsg(id);
+        failMsg(id, e);
         render();
       });
-    } else if (act === "lang") {
-      patch(id, { language: t.value }).then(function () {
+    } else if (act === "lang" || act === "alert") {
+      var body = act === "lang" ? { language: t.value } : { alert_on: t.value };
+      patch(id, body).then(function () {
         s.msgKind = "ok";
-        s.msg = function () { return T("告警语言已保存。", "Alert language saved."); };
+        s.msg = act === "lang"
+          ? function () { return T("告警语言已保存。", "Alert language saved."); }
+          : function () { return T("告警阈值已保存。", "Alert threshold saved."); };
         return load();
-      }, function () {
-        failMsg(id);
+      }, function (e) {
+        failMsg(id, e);
         load();
       });
     }
   });
 
-  // ---- model picker on the claimed-model field --------------------------- //
-  if (window.ZingModelPicker && typeof window.ZingModelPicker.enhance === "function") {
-    window.ZingModelPicker.enhance({
-      claimedInput: "#f-claimed",
-      providerInput: "#f-prov",
-      urlInput: "#f-url",
-      keyInput: "#f-key",
-      modelInput: "#f-model",
-      api: function () { return segValue("f-api") || "auto"; },
-      label: function () { return T("声称的模型", "Claimed model"); },
-      unstyled: true,
-    });
+  // /v2/watches#w-<id>: arriving from History's "Schedule as monitor"
+  var m = /^#w-(\d+)$/.exec(location.hash || "");
+  if (m) {
+    flashId = m[1];
+    focusSetup = true;
   }
 
-  // ---- language switch: re-render everything in place --------------------- //
-  function paintAll() {
-    fillFormLang();
-    paintAlertHint();
-    paintIntervalHint();
-    Object.keys(FIELDS).forEach(paintFieldErr);
-    paintFormMsg();
-    render();
-  }
-  window.addEventListener("zing:lang", paintAll);
-
-  paintIcons();
-  paintAll();
+  $("lock-icon").innerHTML = icon("lock");
+  // language switch: re-render everything in place
+  window.addEventListener("zing:lang", render);
   load();
 })();
 </script>

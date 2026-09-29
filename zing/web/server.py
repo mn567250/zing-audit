@@ -757,6 +757,60 @@ def create_app() -> FastAPI:
         wid = watches.create(cfg, knowledge=knowledge)
         return JSONResponse({"ok": True, "id": wid}, status_code=201)
 
+    @app.post("/api/watches/from-history/{rid}")
+    async def watches_from_history(rid: int, request: Request) -> Any:
+        """Schedule a history run: a paused draft watch with the run's config.
+
+        History never stores the API key (only a fingerprint) nor a forced
+        protocol, so the draft has no key, ``api="auto"`` and no interval; the
+        user sets the interval and key on the monitors page, then enables it.
+        A compare run's baseline is dropped: watches run check-only.
+        """
+        from zing.web import history, watches
+
+        report = history.get(rid)
+        if report is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        try:
+            body = await request.json()
+        except ValueError:
+            body = {}
+        tgt = report.get("target") or {}
+        try:
+            suite = validate_suite(str(report.get("suite") or "standard"))
+            dimensions = validate_dimensions(suite, report.get("dimensions_selected"))
+            build_target(
+                kind="target",
+                name=tgt.get("name") or "watch",
+                base_url=tgt.get("base_url"),
+                api_key="",
+                model=tgt.get("model"),
+                claimed_model=tgt.get("claimed_model") or None,
+                declared_provider=tgt.get("declared_provider") or None,
+                api="auto",
+            )
+        except ConfigError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        name = tgt.get("name")
+        cfg = {
+            "name": name if name and name != "target" else (tgt.get("claimed_model") or tgt.get("model")),
+            "base_url": tgt.get("base_url"),
+            "model": tgt.get("model"),
+            "claimed_model": tgt.get("claimed_model") or None,
+            "declared_provider": tgt.get("declared_provider") or None,
+            "api": "auto",
+            "suite": suite,
+            "dimensions": dimensions,
+            "language": (body or {}).get("language") if isinstance(body, dict) else None,
+            "source_report_id": rid,
+        }
+        try:
+            knowledge = _watch_knowledge(cfg)
+        except Exception as exc:  # e.g. a broken ZING_KB_DIR file
+            return JSONResponse({"error": f"knowledge base: {exc}"}, status_code=400)
+        wid = watches.create(cfg, knowledge=knowledge, draft=True)
+        return JSONResponse({"ok": True, "id": wid}, status_code=201)
+
     @app.delete("/api/watches/{wid}")
     async def watches_delete(wid: int) -> Any:
         from zing.web import watches
@@ -772,6 +826,40 @@ def create_app() -> FastAPI:
         if row is None:
             return JSONResponse({"error": "not found"}, status_code=404)
         body = await request.json()
+        # Validate every field before storing any, so a bad PATCH changes nothing.
+        interval = None
+        if body.get("interval_sec") is not None:
+            raw = body.get("interval_sec")
+            if isinstance(raw, bool) or not isinstance(raw, int) or raw < 60:
+                return JSONResponse(
+                    {"error": "interval_sec must be a whole number of seconds (60 or more)"},
+                    status_code=400,
+                )
+            interval = raw
+        key = body.get("api_key")
+        key = key.strip() if isinstance(key, str) and key.strip() else None
+        alert_on = body.get("alert_on")
+        if alert_on is not None and alert_on not in ("low", "medium", "high"):
+            return JSONResponse({"error": "alert_on must be low, medium or high"}, status_code=400)
+        hooks = body.get("webhooks")
+        if hooks is not None:
+            if not isinstance(hooks, list) or not all(isinstance(h, str) for h in hooks):
+                return JSONResponse({"error": "webhooks must be a list of URLs"}, status_code=400)
+            hooks = [h.strip() for h in hooks if h.strip()]
+            bad = next((h for h in hooks if not h.lower().startswith(("http://", "https://"))), None)
+            if bad is not None:
+                return JSONResponse(
+                    {"error": f"webhook is not an http(s) URL: {bad}"}, status_code=400
+                )
+        if body.get("enabled"):
+            # A draft needs its schedule and key before it may run on its own.
+            if (interval or row.get("interval_sec")) is None:
+                return JSONResponse({"error": "set an interval first"}, status_code=400)
+            # Only a watch scheduled from history never had its key collected;
+            # form-created watches may target a keyless relay.
+            if row.get("source_report_id") is not None and not (key or row.get("api_key")):
+                return JSONResponse({"error": "set an API key first"}, status_code=400)
+        watches.update(wid, interval_sec=interval, api_key=key, alert_on=alert_on, webhooks=hooks)
         if "enabled" in body:
             watches.set_enabled(wid, bool(body.get("enabled")))
         if "language" in body:
@@ -791,6 +879,8 @@ def create_app() -> FastAPI:
         row = watches.get(wid)
         if row is None:
             return JSONResponse({"error": "not found"}, status_code=404)
+        if row.get("source_report_id") is not None and not row.get("api_key"):
+            return JSONResponse({"error": "set an API key first"}, status_code=400)
         # Run the same path the scheduler uses (audit + persist + alert + mark).
         try:
             await _run_one_watch(row)

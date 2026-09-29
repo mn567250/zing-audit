@@ -21,6 +21,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Schedule a History run as a monitor (v2 UI).** Every run in v2 History has
+  a **Schedule as monitor** action (a bell button on the row and a button in the
+  report). It copies that run's configuration (relay, model, claimed model,
+  provider, suite, custom dimensions) into a paused monitor that has no interval
+  yet. The v2 monitors page now lists only the configured monitors; the
+  duplicate audit form is gone. A newly scheduled monitor shows a setup box for
+  the interval and the API key (History never stores keys). Interval, key,
+  alert threshold and webhooks can now be edited in place on each card.
+  API: `POST /api/watches/from-history/{id}`; `PATCH /api/watches/{id}` also
+  takes `interval_sec`, `api_key`, `alert_on` and `webhooks`. The scheduler
+  skips a monitor that has no interval yet, and such a monitor can't be
+  switched on until its interval is set.
 - **Custom suite: run only the dimensions you pick.** `--suite custom` with
   `--dimension/-D` (repeatable or comma-separated; `-D` alone implies custom, and
   `run.dimensions` works in a config file) runs every detector of the selected

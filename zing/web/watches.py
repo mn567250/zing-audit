@@ -66,6 +66,7 @@ _ALL_COLS = (
     "kb_usage",
     "kb_pinned_ts",
     "dimensions",
+    "source_report_id",
 )
 
 # Columns safe to return to the browser — everything except the API key.
@@ -122,6 +123,9 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
     # The custom suite's dimensions (JSON list); NULL for the fixed suites.
     if "dimensions" not in cols:
         conn.execute("ALTER TABLE watches ADD COLUMN dimensions TEXT")
+    # The history run a watch was scheduled from (NULL for form-created ones).
+    if "source_report_id" not in cols:
+        conn.execute("ALTER TABLE watches ADD COLUMN source_report_id INTEGER")
     kb_snapshot.ensure_table(conn)
     kb_snapshot.add_link_columns(
         conn, "watches", {"kb_snapshot_id": "INTEGER", "kb_usage": "TEXT", "kb_pinned_ts": "REAL"}
@@ -215,7 +219,9 @@ def pinned_knowledge(wid: int) -> dict[str, Any] | None:
     return {**usage, "profile": snap, "pinned_at": row["kb_pinned_ts"]}
 
 
-def create(cfg: dict[str, Any], knowledge: dict[str, Any] | None = None) -> int:
+def create(
+    cfg: dict[str, Any], knowledge: dict[str, Any] | None = None, *, draft: bool = False
+) -> int:
     """Insert a new watch from a config dict; return its new id.
 
     Expected keys: name, base_url, api_key, model, claimed_model, api,
@@ -224,16 +230,23 @@ def create(cfg: dict[str, Any], knowledge: dict[str, Any] | None = None) -> int:
     English). Unknown keys are ignored;
     missing keys fall back to sensible defaults. ``knowledge`` (a
     KnowledgeUsage dict with its profile) pins the watch's profile.
+
+    ``draft=True`` stores a watch scheduled from a history run: paused and with
+    no interval (NULL) until the user sets one, linked to ``source_report_id``.
     """
     cfg = cfg or {}
     webhooks = cfg.get("webhooks") or []
     if not isinstance(webhooks, list):
         webhooks = [webhooks]
     webhooks = [str(w).strip() for w in webhooks if str(w).strip()]
-    try:
-        interval = max(30, int(cfg.get("interval_sec") or 3600))
-    except (TypeError, ValueError):
-        interval = 3600
+    interval: int | None
+    if draft:
+        interval = None
+    else:
+        try:
+            interval = max(30, int(cfg.get("interval_sec") or 3600))
+        except (TypeError, ValueError):
+            interval = 3600
     row = (
         cfg.get("name") or "watch",
         cfg.get("base_url"),
@@ -246,18 +259,19 @@ def create(cfg: dict[str, Any], knowledge: dict[str, Any] | None = None) -> int:
         interval,
         cfg.get("alert_on") or "medium",
         json.dumps(webhooks, ensure_ascii=False),
-        1 if cfg.get("enabled", True) else 0,
+        0 if draft or not cfg.get("enabled", True) else 1,
         time.time(),
         i18n.normalize(cfg.get("language")),
         json.dumps(list(cfg.get("dimensions") or [])) if cfg.get("dimensions") else None,
+        cfg.get("source_report_id") if draft else None,
     )
     with _connect() as conn:
         cur = conn.execute(
             """INSERT INTO watches
                (name, base_url, api_key, model, claimed_model, api,
                 declared_provider, suite, interval_sec, alert_on, webhooks,
-                enabled, created_ts, language, dimensions)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                enabled, created_ts, language, dimensions, source_report_id)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             row,
         )
         wid = int(cur.lastrowid or -1)
@@ -267,13 +281,21 @@ def create(cfg: dict[str, Any], knowledge: dict[str, Any] | None = None) -> int:
 
 
 def list_all() -> list[dict[str, Any]]:
-    """All watches, newest first, WITHOUT api_key (safe for the browser)."""
+    """All watches, newest first, WITHOUT api_key (safe for the browser).
+
+    ``has_key`` says whether a key is stored, without revealing it.
+    """
     cols = ", ".join(_LIST_COLS)
     with _connect() as conn:
         rows = conn.execute(
-            f"SELECT {cols} FROM watches ORDER BY id DESC"
+            f"SELECT {cols}, COALESCE(api_key, '') != '' AS has_key FROM watches ORDER BY id DESC"
         ).fetchall()
-    return [_row_to_dict(r, include_key=False) for r in rows]
+    out = []
+    for r in rows:
+        d = _row_to_dict(r, include_key=False)
+        d["has_key"] = bool(d.get("has_key"))
+        out.append(d)
+    return out
 
 
 def get(wid: int) -> dict[str, Any] | None:
@@ -305,6 +327,38 @@ def set_language(wid: int, language: str | None) -> None:
             "UPDATE watches SET language = ? WHERE id = ?",
             (i18n.normalize(language), int(wid)),
         )
+
+
+def update(
+    wid: int,
+    *,
+    interval_sec: int | None = None,
+    api_key: str | None = None,
+    alert_on: str | None = None,
+    webhooks: list[str] | None = None,
+) -> None:
+    """Change a watch's schedule, key or alert settings; ``None`` leaves a field as is.
+
+    Callers validate the values (see the PATCH endpoint); this only stores them.
+    """
+    sets: list[str] = []
+    vals: list[Any] = []
+    if interval_sec is not None:
+        sets.append("interval_sec = ?")
+        vals.append(int(interval_sec))
+    if api_key is not None:
+        sets.append("api_key = ?")
+        vals.append(api_key)
+    if alert_on is not None:
+        sets.append("alert_on = ?")
+        vals.append(alert_on)
+    if webhooks is not None:
+        sets.append("webhooks = ?")
+        vals.append(json.dumps(list(webhooks), ensure_ascii=False))
+    if not sets:
+        return
+    with _connect() as conn:
+        conn.execute(f"UPDATE watches SET {', '.join(sets)} WHERE id = ?", (*vals, int(wid)))
 
 
 def delete(wid: int) -> None:
@@ -341,11 +395,14 @@ def due(now_ts: float) -> list[dict[str, Any]]:
     """Enabled watches whose interval has elapsed — full rows incl. api_key.
 
     A watch is due when it has never run, or when ``now - last_run >= interval``.
-    Used by the scheduler, so the api_key is included to actually run the audit.
+    A draft (no interval yet) is never due. Used by the scheduler, so the
+    api_key is included to actually run the audit.
     """
     out: list[dict[str, Any]] = []
     with _connect() as conn:
-        rows = conn.execute("SELECT * FROM watches WHERE enabled = 1").fetchall()
+        rows = conn.execute(
+            "SELECT * FROM watches WHERE enabled = 1 AND interval_sec IS NOT NULL"
+        ).fetchall()
     for r in rows:
         d = _row_to_dict(r, include_key=True)
         last = d.get("last_run_ts")

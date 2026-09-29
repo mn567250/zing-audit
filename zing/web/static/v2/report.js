@@ -179,10 +179,10 @@
     if (typeof x === "object") return JSON.stringify(x).slice(0, 200);
     return String(x).slice(0, 240);
   }
-  function evText(e) {
+  function evText(e, n) {
     if (!e || typeof e !== "object") return "";
     return Object.keys(e)
-      .slice(0, 6)
+      .slice(0, n || 6)
       .map(function (k) {
         return k + ": " + fmt(e[k]);
       })
@@ -499,6 +499,74 @@
     );
   }
 
+  // A detector's wall-clock time: "850 ms", "4.2 s", "73 s".
+  function duration(ms) {
+    if (ms == null || !isFinite(ms)) return "—";
+    return ms < 1000 ? num(ms, 0) + " ms" : num(ms / 1000, ms < 10000 ? 1 : 0) + " s";
+  }
+
+  // One finding in full: outcome, summary, recommendation and up to 12
+  // evidence fields. Used by the audit page's live checks list.
+  function findingDetail(f) {
+    var bad = ["fail", "warn", "error"].indexOf(f.status) >= 0;
+    var s = bad ? SEV[f.severity] || SEV_NONE : STATG[f.status] || SEV_NONE;
+    var L = loc(f);
+    var ev = evText(f.evidence, 12);
+    var tag = bad && f.severity ? label("SEVERITY", f.severity) : label("STATUS", f.status || "");
+    return (
+      '<div class="zr-fd"><div class="fh"><span class="dot sm ' + s.c + '" aria-hidden="true">' + ico(s.g) + "</span>" +
+      "<b>" + esc(L.title || f.id || "") + '</b> <span class="tag ' + s.c + '">' + esc(tag) + "</span></div>" +
+      (L.summary ? '<div class="fs">' + esc(L.summary) + "</div>" : "") +
+      (f.recommendation ? '<div class="fs rec">' + esc(T("建议：", "Recommendation: ")) + esc(srv(f.recommendation)) + "</div>" : "") +
+      (ev ? '<pre class="ev">' + esc(ev) + "</pre>" : "") +
+      "</div>"
+    );
+  }
+
+  // Execution log: every detector in run order with its outcome and wall-clock
+  // time (detectors run one after another, so the times add up to the audit).
+  // Collapsed; skipped for reports without timings.
+  function execSection(r) {
+    var dets = (r.detectors || []).filter(function (d) {
+      return d.duration_ms != null && isFinite(d.duration_ms);
+    });
+    if (!dets.length) return "";
+    var total = 0, max = 0, slow = dets[0];
+    dets.forEach(function (d) {
+      total += d.duration_ms;
+      if (d.duration_ms > max) { max = d.duration_ms; slow = d; }
+    });
+    var id = "zr-ex-" + ++uid;
+    var rows = dets.map(function (d) {
+      var s = STATG[d.status] || SEV_NONE;
+      var dn = dimName(d.dimension);
+      var hasScore = d.score != null && isFinite(d.score);
+      var w = max > 0 ? Math.max(1, Math.round((d.duration_ms / max) * 100)) : 0;
+      return (
+        '<li class="zr-xr' + (d === slow && dets.length > 1 ? " slow" : "") + '">' +
+        '<span class="dot sm ' + s.c + '" aria-hidden="true">' + ico(s.g) + "</span>" +
+        '<span class="xn">' + esc(srv(d.name || d.id)) + "<small>" + esc(dn ? dn[0] : d.dimension || "") + "</small>" +
+        (d.error ? '<small class="xe">' + esc(T("错误：", "Error: ")) + esc(srv(d.error)) + "</small>" : "") + "</span>" +
+        '<span class="xs ' + (hasScore ? scoreC(d.score) : s.c) + '">' +
+        '<span class="sr-only">' + esc(label("STATUS", d.status || "")) + " · </span>" +
+        esc(hasScore ? Tf("{s} 分", "Score {s}", { s: num(d.score, 1) }) : label("STATUS", d.status || "")) + "</span>" +
+        '<span class="xbar" aria-hidden="true"><i style="width:' + w + '%"></i></span>' +
+        '<span class="xt">' + esc(duration(d.duration_ms)) + "</span></li>"
+      );
+    }).join("");
+    return (
+      '<section class="sect zr-exec"><h3>' + esc(T("执行记录", "Execution log")) +
+      ' <span class="count">' + esc(count(dets.length, ["{n} 项检测", "{n} check"], ["{n} 项检测", "{n} checks"])) +
+      " · " + esc(Tf("共 {t}", "{t} in total", { t: duration(total) })) + "</span></h3>" +
+      '<p class="how">' + esc(Tf("各项检测依次运行；最慢的是 {name}（{t}）。", "Checks run one after another; the slowest was {name} ({t}).",
+        { name: srv(slow.name || slow.id), t: duration(slow.duration_ms) })) + "</p>" +
+      '<button type="button" class="linkbtn xtog" aria-expanded="false" aria-controls="' + id + '" data-l0="' +
+      esc(Tf("显示全部 {n} 项", "Show all {n}", { n: num(dets.length, 0) })) + '" data-l1="' + esc(T("收起", "Show fewer")) + '">' +
+      esc(Tf("显示全部 {n} 项", "Show all {n}", { n: num(dets.length, 0) })) + "</button>" +
+      '<ol class="zr-xl" id="' + id + '" hidden>' + rows + "</ol></section>"
+    );
+  }
+
   function findingGroups(findings) {
     var order = ["critical", "high", "medium", "low", "info"];
     var by = {};
@@ -570,6 +638,7 @@
       item(T("声称的模型", "Claimed model"), code(t.claimed_model || t.model || "—")),
     ];
     if (t.claimed_model && t.model && t.claimed_model !== t.model) meta.push(item(T("请求的模型", "Model to request"), code(t.model)));
+    if (t.declared_provider) meta.push(item(T("声明的厂商", "Declared provider"), code(t.declared_provider)));
     if (r.baseline)
       meta.push(item(T("对照基线", "Baseline"), code(r.baseline.model || "—") + " @ " + code(r.baseline.base_url || "—")));
     meta.push(item(T("模式", "Mode"), code(r.mode || "check")));
@@ -641,6 +710,7 @@
       (r.performance && window.ZingPerf
         ? '<section class="sect perf-sect"><h3>' + esc(T("性能", "Performance")) + "</h3>" + window.ZingPerf.section(r.performance) + "</section>"
         : "") +
+      execSection(r) +
       '<footer class="zr-foot"><p class="disc">' +
       T(
         "zing 出具的是<strong>行为偏离与风险的可复现证据</strong>，不是欺诈的法律/密码学证明。中转站可能按概率路由；请结合样本量、计费设置与当地法律自行判断，切勿仅凭单次结果公开指控厂商。",
@@ -704,7 +774,7 @@
     if (perf && window.ZingPerf && st.report && st.report.performance) window.ZingPerf.wireSection(perf, st.report.performance);
   }
 
-  var TOGGLES = ".zr-find .more, .zr-dim .dtog";
+  var TOGGLES = ".zr-find .more, .zr-dim .dtog, .zr-exec .xtog";
 
   // [format, button label]: file formats are named the same in every language
   var DL_FORMATS = [["json", "JSON"], ["md", "Markdown"], ["html", "HTML"], ["pdf", "PDF"]];
@@ -787,5 +857,5 @@
     }
   });
 
-  window.ZingReport = { render: render, wire: wire, download: download };
+  window.ZingReport = { render: render, wire: wire, download: download, duration: duration, findingDetail: findingDetail };
 })();

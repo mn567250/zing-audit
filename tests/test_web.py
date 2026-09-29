@@ -317,7 +317,9 @@ def test_classic_pages_link_to_the_v2_ui(client):
 
 
 def test_console_is_classic_only(client):
-    assert client.get("/v2/console").status_code == 404
+    # unknown /v2/ paths fall back to the v2 audit page, never a console page
+    html = client.get("/v2/console").text
+    assert 'data-page="audit"' in html and 'data-page="console"' not in html
     assert "/v2/console" not in client.get("/v2/static/nav.js").text
     client.cookies.set("zing_ui", "v2")
     assert client.get("/console", follow_redirects=False).status_code == 200

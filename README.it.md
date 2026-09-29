@@ -85,10 +85,10 @@ Puoi anche installarlo direttamente dal repository Git senza clonarlo:
   libreria di sistema Pango (su macOS `brew install pango`).
 
 ```bash
-pip install 'zing-audit[tokenizers,web]'          # pip, da PyPI
-pip install -e '.[tokenizers,web]'                # pip, dai sorgenti
-uv tool install 'zing-audit[tokenizers,web]'      # uv, da PyPI
-uv pip install -e '.[tokenizers,web]'             # uv, dai sorgenti
+pip install 'zing-audit[tokenizers,web,pdf]'      # pip, da PyPI
+pip install -e '.[tokenizers,web,pdf]'            # pip, dai sorgenti
+uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, da PyPI
+uv pip install -e '.[tokenizers,web,pdf]'         # uv, dai sorgenti
 ```
 
 ## Avvio rapido
@@ -176,12 +176,13 @@ Un menu a tendina della lingua nell'intestazione di ogni pagina passa l'interfac
 **🇬🇧 inglese** (predefinito), **🇨🇳 cinese** (l'interfaccia originale), **🇫🇷 francese**,
 **🇪🇸 spagnolo**, **🇵🇹 portoghese**, **🇮🇹 italiano** e **🇩🇪 tedesco**; la scelta viene
 ricordata per browser. Anche i rapporti scaricati dall'interfaccia (**Scarica il
-rapporto (JSON)**) seguono la lingua scelta: le chiavi JSON, i valori enumerati
+rapporto**: JSON, Markdown, HTML o PDF) seguono la lingua scelta: le chiavi JSON, i valori enumerati
 (`risk_level`, `status`, `severity`, …), gli id e le prove restano esattamente come nel
-rapporto della CLI (è sempre un rapporto zing valido), mentre i valori leggibili da una
+rapporto della CLI (il JSON è sempre un rapporto zing valido), mentre i valori leggibili da una
 persona (titolo/sintesi del verdetto, titoli/sintesi dei rilievi, raccomandazioni, nomi
 dei rilevatori, note) vengono tradotti, e il nome del file riporta la lingua
-(`zing-report.it.json`). I rapporti `--format json|md|html|pdf` della CLI restano in
+(`zing-report.it.json`, `zing-report.it.pdf`). I titoli delle sezioni dei file
+Markdown/HTML/PDF sono in inglese. I rapporti `--format json|md|html|pdf` della CLI restano in
 inglese.
 
 **I prompt inviati all'endpoint verificato non seguono la lingua dell'interfaccia.** Ogni

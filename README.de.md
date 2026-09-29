@@ -86,10 +86,10 @@ Sie können auch direkt aus dem Git-Repository installieren, ohne es zu klonen:
   Systembibliothek Pango (unter macOS `brew install pango`).
 
 ```bash
-pip install 'zing-audit[tokenizers,web]'          # pip, von PyPI
-pip install -e '.[tokenizers,web]'                # pip, aus dem Quellcode
-uv tool install 'zing-audit[tokenizers,web]'      # uv, von PyPI
-uv pip install -e '.[tokenizers,web]'             # uv, aus dem Quellcode
+pip install 'zing-audit[tokenizers,web,pdf]'      # pip, von PyPI
+pip install -e '.[tokenizers,web,pdf]'            # pip, aus dem Quellcode
+uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, von PyPI
+uv pip install -e '.[tokenizers,web,pdf]'         # uv, aus dem Quellcode
 ```
 
 ## Schnellstart
@@ -177,12 +177,13 @@ Ein Sprachmenü in der Kopfzeile jeder Seite schaltet die Oberfläche zwischen
 **🇬🇧 Englisch** (Standard), **🇨🇳 Chinesisch** (die ursprüngliche Oberfläche),
 **🇫🇷 Französisch**, **🇪🇸 Spanisch**, **🇵🇹 Portugiesisch**, **🇮🇹 Italienisch** und
 **🇩🇪 Deutsch** um; die Wahl wird pro Browser gespeichert. Aus der Oberfläche
-heruntergeladene Berichte (**Bericht herunterladen (JSON)**) folgen ebenfalls der
+heruntergeladene Berichte (**Bericht herunterladen**: JSON, Markdown, HTML oder PDF) folgen ebenfalls der
 gewählten Sprache: JSON-Schlüssel, Enum-Werte (`risk_level`, `status`, `severity`, …),
-IDs und Belege bleiben exakt wie im Bericht der CLI (es ist weiterhin ein gültiger
+IDs und Belege bleiben exakt wie im Bericht der CLI (das JSON ist weiterhin ein gültiger
 zing-Bericht), während die für Menschen lesbaren Werte (Überschrift/Zusammenfassung des
 Urteils, Titel/Zusammenfassungen der Befunde, Empfehlungen, Detektornamen, Hinweise)
-übersetzt werden und der Dateiname die Sprache trägt (`zing-report.de.json`). Die
+übersetzt werden und der Dateiname die Sprache trägt (`zing-report.de.json`, `zing-report.de.pdf`). Die Abschnittsüberschriften der
+Markdown-/HTML-/PDF-Dateien sind englisch. Die
 Berichte der CLI mit `--format json|md|html|pdf` bleiben englisch.
 
 **An den geprüften Endpunkt gesendete Prompts folgen nicht der Sprache der

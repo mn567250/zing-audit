@@ -85,10 +85,10 @@ Também pode instalar diretamente a partir do repositório Git sem o clonar:
   biblioteca de sistema Pango (no macOS `brew install pango`).
 
 ```bash
-pip install 'zing-audit[tokenizers,web]'          # pip, a partir do PyPI
-pip install -e '.[tokenizers,web]'                # pip, a partir do código-fonte
-uv tool install 'zing-audit[tokenizers,web]'      # uv, a partir do PyPI
-uv pip install -e '.[tokenizers,web]'             # uv, a partir do código-fonte
+pip install 'zing-audit[tokenizers,web,pdf]'      # pip, a partir do PyPI
+pip install -e '.[tokenizers,web,pdf]'            # pip, a partir do código-fonte
+uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, a partir do PyPI
+uv pip install -e '.[tokenizers,web,pdf]'         # uv, a partir do código-fonte
 ```
 
 ## Início rápido
@@ -175,12 +175,13 @@ Um menu de idioma no cabeçalho de cada página alterna a interface entre
 **🇬🇧 inglês** (por omissão), **🇨🇳 chinês** (a interface original), **🇫🇷 francês**,
 **🇪🇸 espanhol**, **🇵🇹 português**, **🇮🇹 italiano** e **🇩🇪 alemão**; a escolha é
 memorizada por navegador. Os relatórios transferidos a partir da interface
-(**Transferir relatório (JSON)**) também seguem o idioma escolhido: as chaves JSON, os
+(**Transferir relatório**: JSON, Markdown, HTML ou PDF) também seguem o idioma escolhido: as chaves JSON, os
 valores de enumeração (`risk_level`, `status`, `severity`, …), os identificadores e as
-evidências mantêm-se exatamente como no relatório da CLI (continua a ser um relatório
+evidências mantêm-se exatamente como no relatório da CLI (o JSON continua a ser um relatório
 zing válido), enquanto os valores legíveis por pessoas (título/resumo do veredicto,
 títulos/resumos das constatações, recomendações, nomes dos detetores, notas) são
-traduzidos, e o nome do ficheiro inclui o idioma (`zing-report.pt.json`). Os relatórios
+traduzidos, e o nome do ficheiro inclui o idioma (`zing-report.pt.json`, `zing-report.pt.pdf`). Os títulos das secções dos
+ficheiros Markdown/HTML/PDF estão em inglês. Os relatórios
 `--format json|md|html|pdf` da CLI permanecem em inglês.
 
 **Os prompts enviados ao endpoint auditado não seguem o idioma da interface.** Todo o

@@ -86,10 +86,10 @@ Vous pouvez aussi installer directement depuis le dépôt Git sans le cloner :
   la bibliothèque système Pango (sous macOS `brew install pango`).
 
 ```bash
-pip install 'zing-audit[tokenizers,web]'          # pip, depuis PyPI
-pip install -e '.[tokenizers,web]'                # pip, depuis les sources
-uv tool install 'zing-audit[tokenizers,web]'      # uv, depuis PyPI
-uv pip install -e '.[tokenizers,web]'             # uv, depuis les sources
+pip install 'zing-audit[tokenizers,web,pdf]'      # pip, depuis PyPI
+pip install -e '.[tokenizers,web,pdf]'            # pip, depuis les sources
+uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, depuis PyPI
+uv pip install -e '.[tokenizers,web,pdf]'         # uv, depuis les sources
 ```
 
 ## Démarrage rapide
@@ -176,12 +176,13 @@ Un menu déroulant de langue dans l'en-tête de chaque page bascule l'interface 
 **🇬🇧 anglais** (par défaut), **🇨🇳 chinois** (l'interface d'origine), **🇫🇷 français**,
 **🇪🇸 espagnol**, **🇵🇹 portugais**, **🇮🇹 italien** et **🇩🇪 allemand** ; le choix est
 mémorisé par navigateur. Les rapports téléchargés depuis l'interface (**Télécharger le
-rapport (JSON)**) suivent aussi la langue choisie : les clés JSON, les valeurs
+rapport** : JSON, Markdown, HTML ou PDF) suivent aussi la langue choisie : les clés JSON, les valeurs
 d'énumération (`risk_level`, `status`, `severity`, …), les identifiants et les preuves
-restent exactement comme dans le rapport de la CLI (c'est toujours un rapport zing
+restent exactement comme dans le rapport de la CLI (le JSON reste un rapport zing
 valide), tandis que les valeurs lisibles par un humain (titre/résumé du verdict,
 titres/résumés des constats, recommandations, noms des détecteurs, notes) sont
-traduites, et le nom du fichier porte la langue (`zing-report.fr.json`). Les rapports
+traduites, et le nom du fichier porte la langue (`zing-report.fr.json`, `zing-report.fr.pdf`). Les titres de section des
+fichiers Markdown/HTML/PDF sont en anglais. Les rapports
 `--format json|md|html|pdf` de la CLI restent en anglais.
 
 **Les prompts envoyés à l'endpoint audité ne suivent pas la langue de l'interface.**

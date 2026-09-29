@@ -86,10 +86,10 @@ También puedes instalar directamente desde el repositorio Git sin clonarlo:
   la biblioteca del sistema Pango (en macOS `brew install pango`).
 
 ```bash
-pip install 'zing-audit[tokenizers,web]'          # pip, desde PyPI
-pip install -e '.[tokenizers,web]'                # pip, desde el código fuente
-uv tool install 'zing-audit[tokenizers,web]'      # uv, desde PyPI
-uv pip install -e '.[tokenizers,web]'             # uv, desde el código fuente
+pip install 'zing-audit[tokenizers,web,pdf]'      # pip, desde PyPI
+pip install -e '.[tokenizers,web,pdf]'            # pip, desde el código fuente
+uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, desde PyPI
+uv pip install -e '.[tokenizers,web,pdf]'         # uv, desde el código fuente
 ```
 
 ## Inicio rápido
@@ -175,13 +175,14 @@ y al relay auditado, nunca a un tercero. Por defecto escucha solo en `127.0.0.1`
 Un desplegable de idioma en la cabecera de cada página cambia la interfaz entre
 **🇬🇧 inglés** (por defecto), **🇨🇳 chino** (la interfaz original), **🇫🇷 francés**,
 **🇪🇸 español**, **🇵🇹 portugués**, **🇮🇹 italiano** y **🇩🇪 alemán**; la elección se
-recuerda por navegador. Los informes descargados desde la interfaz (**Descargar informe
-(JSON)**) también siguen el idioma elegido: las claves JSON, los valores de enumeración
+recuerda por navegador. Los informes descargados desde la interfaz (**Descargar informe**:
+JSON, Markdown, HTML o PDF) también siguen el idioma elegido: las claves JSON, los valores de enumeración
 (`risk_level`, `status`, `severity`, …), los identificadores y la evidencia se mantienen
-exactamente como en el informe de la CLI (sigue siendo un informe zing válido), mientras
+exactamente como en el informe de la CLI (el JSON sigue siendo un informe zing válido), mientras
 que los valores legibles por personas (titular/resumen del veredicto, títulos/resúmenes
 de hallazgos, recomendaciones, nombres de detectores, notas) se traducen, y el nombre
-del archivo lleva el idioma (`zing-report.es.json`). Los informes
+del archivo lleva el idioma (`zing-report.es.json`, `zing-report.es.pdf`). Los encabezados de sección de
+los archivos Markdown/HTML/PDF están en inglés. Los informes
 `--format json|md|html|pdf` de la CLI siguen en inglés.
 
 **Los prompts enviados al endpoint auditado no siguen el idioma de la interfaz.** Todo

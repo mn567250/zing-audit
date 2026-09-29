@@ -244,7 +244,9 @@
   }
 
   // ---- card pieces -------------------------------------------------------- //
+  function isRunning(w) { return !!(w.running || st(w.id).running); }
   function badge(w) {
+    if (isRunning(w)) return '<span class="badge sky" role="status"><span class="spin">' + icon("refresh") + "</span> " + esc(T("运行中", "Running")) + "</span>";
     if (needsSetup(w)) return '<span class="badge warn">' + esc(T("待设置", "Needs setup")) + "</span>";
     if (w.last_risk) {
       return '<span class="badge ' + (RISK_CLASS[w.last_risk] || "grey") + '">' + esc(riskLabel(w.last_risk)) + "</span>";
@@ -374,6 +376,8 @@
     if (w.source_report_id != null) {
       lastParts.push('<a href="' + esc(historyHref(w, w.source_report_id)) + '">' + esc(Tf("来自运行 #{n}", "From run #{n}", { n: w.source_report_id })) + " →</a>");
     }
+    var running = isRunning(w);
+    var waiting = !running && !draft && w.enabled;
     var actions;
     if (s.confirm) {
       actions =
@@ -383,12 +387,16 @@
     } else {
       // A draft can run once right away; the interval is only for the schedule.
       var run =
-        '<button type="button" class="btn sm' + (draft ? "" : " pri") + '" data-act="run" data-id="' + w.id + '"' + (s.running ? ' disabled aria-busy="true"' : "") + ">" +
-        (s.running ? '<span class="spin">' + icon("refresh") + "</span>" + esc(T("运行中…", "Running…")) : icon("play") + esc(T("立即运行", "Run now"))) +
+        '<button type="button" class="btn sm' + (draft ? "" : " pri") + '" data-act="run" data-id="' + w.id + '"' + (running ? ' disabled aria-busy="true"' : "") + ">" +
+        (running ? '<span class="spin">' + icon("refresh") + "</span>" + esc(T("运行中…", "Running…")) : icon("play") + esc(T("立即运行", "Run now"))) +
         "</button>";
       actions = run +
-        '<button type="button" class="btn sm danger" data-act="del" data-id="' + w.id + '"' + (s.running ? " disabled" : "") + ">" + icon("trash") + esc(T("删除", "Delete")) + "</button>";
+        '<button type="button" class="btn sm danger" data-act="del" data-id="' + w.id + '"' + (running ? " disabled" : "") + ">" + icon("trash") + esc(T("删除", "Delete")) + "</button>";
     }
+    var stateLine = running
+      ? '<span>' + esc(T("状态", "Status")) + ': <b>' + esc(T("正在运行", "Running now")) + "</b></span>"
+      : waiting ? '<span>' + esc(T("状态", "Status")) + ': <b>' + esc(T("等待下次计划运行", "Waiting for next scheduled run")) + "</b></span>" : "";
+    if (stateLine) lastParts.unshift(stateLine);
     var langLabel = T("告警语言", "Alert language");
     var thrLabel = T("告警阈值", "Alert threshold");
     var swText = draft ? T("待设置", "Needs setup") : w.enabled ? T("启用中", "Enabled") : T("已暂停", "Paused");
@@ -471,6 +479,14 @@
     }
   }
 
+  // Runs started by the scheduler (or another tab) finish without the page
+  // knowing, so refresh while any monitor is running.
+  var pollTimer = null;
+  function schedulePoll() {
+    clearTimeout(pollTimer);
+    if ((watches || []).some(function (w) { return w.running; })) pollTimer = setTimeout(load, 3000);
+  }
+
   function load() {
     return fetch("/api/watches")
       .then(function (r) {
@@ -481,6 +497,7 @@
         watches = Array.isArray(rows) ? rows : [];
         loadErr = false;
         render();
+        schedulePoll();
       })
       .catch(function () {
         loadErr = true;
@@ -652,11 +669,12 @@
       render();
       fetch("/api/watches/" + id + "/run", { method: "POST" })
         .then(function (r) {
-          return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, body: j }; });
+          return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
         })
         .then(function (res) {
           if (!res.ok) {
             var e = res.body && res.body.error;
+            if (res.status === 409) { s.msg = null; return; }
             s.msgKind = "bad";
             s.msg = function () { return e ? T("运行失败", "Run failed") + ": " + L.server(e) : T("运行失败", "Run failed"); };
             return;

@@ -893,11 +893,10 @@ def create_app() -> FastAPI:
                 return JSONResponse(
                     {"error": f"webhook is not an http(s) URL: {bad}"}, status_code=400
                 )
-        if body.get("enabled"):
-            # A draft needs its schedule before it may run on its own. The key
-            # stays optional, as in the audit: local relays need none.
-            if (interval or row.get("interval_sec")) is None:
-                return JSONResponse({"error": "set an interval first"}, status_code=400)
+        # A draft needs its schedule before it may run on its own. The key
+        # stays optional, as in the audit: local relays need none.
+        if body.get("enabled") and (interval or row.get("interval_sec")) is None:
+            return JSONResponse({"error": "set an interval first"}, status_code=400)
         watches.update(wid, interval_sec=interval, api_key=key, alert_on=alert_on, webhooks=hooks)
         if "enabled" in body:
             watches.set_enabled(wid, bool(body.get("enabled")))

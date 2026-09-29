@@ -301,6 +301,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   translation template, so their summary appeared in English even in the Chinese UI;
   `embed.dimension` without a known claimed dimension read "should produce 0-d".
   Branch-specific and generic "request failed" templates now cover them.
+- **v2 UI: buttons, fields and texts line up in every language.** Checked on all
+  v2 pages and their interactive states (tabs, disclosures, custom suite, scan,
+  report, history rows, monitor editors) in all seven languages, desktop and phone:
+  the header no longer overflows phones in German / French; audit suite and
+  protocol buttons never clip their label (DE "benutzerdefiniert"); scan rows keep
+  the check name readable on phones; report dimension bars share one length (a
+  "Not run" label takes the empty bar's place) and their subtitles align with the
+  name; history rows show mode / suite under the date so every date and risk label
+  fits on one line; monitor card values stay in line when a label wraps and an open
+  editor gets the full row; Tools tabs, protocol switch and intro tags align;
+  Models table headers no longer break. Two monitor status texts were untranslated,
+  and French text now keeps `? ! : ;` on the line of the word before them.
 
 ## [0.11.0] — web UI: claimed-model picker + all-SVG icons
 

@@ -3,9 +3,9 @@
   "(no suite)": "(aucune suite)",
   "All": "Tous",
   "Cancel": "Annuler",
-  "Could not delete: ": "Suppression impossible : ",
+  "Could not delete: ": "Suppression impossible : ",
   "Filters": "Filtres",
-  "Health score trend across {n} audits: from {first} to {last}, {dir}.": "Évolution du score de santé sur {n} audits : de {first} à {last}, {dir}.",
+  "Health score trend across {n} audits: from {first} to {last}, {dir}.": "Évolution du score de santé sur {n} audits : de {first} à {last}, {dir}.",
   "History lives only in a local SQLite file under <code>~/.zing</code> — nothing is uploaded.": "L'historique reste uniquement dans un fichier SQLite local sous <code>~/.zing</code> — rien n'est transmis.",
   "Last 30 days": "30 derniers jours",
   "Last 7 days": "7 derniers jours",
@@ -16,7 +16,7 @@
   "Relay / provider": "Relais / fournisseur",
   "Relay, model, suite…": "Relais, modèle, suite…",
   "Reset filters": "Réinitialiser les filtres",
-  "Saved audits: {n}": "Audits enregistrés : {n}",
+  "Saved audits: {n}": "Audits enregistrés : {n}",
   "Search": "Rechercher",
   "Showing {shown} of {n} audits": "{shown} audits affichés sur {n}",
   "This run was produced by a monitor": "Cette exécution provient d’une surveillance",
@@ -24,6 +24,6 @@
   "falling": "en baisse",
   "rising": "en hausse",
   "unchanged": "stable",
-  "{metric} trend across {n} audits: from {first} to {last}.": "Tendance {metric} sur {n} audits : de {first} à {last}."
+  "{metric} trend across {n} audits: from {first} to {last}.": "Tendance {metric} sur {n} audits : de {first} à {last}."
  }
 }

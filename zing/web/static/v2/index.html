@@ -37,10 +37,11 @@
   /* form */
   .form-card { margin-top: 20px; }
   /* four-option segments: one row, 2 × 2 on phones (no mid-word breaks) */
-  .seg.q { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  /* columns are never narrower than their label (e.g. DE "benutzerdefiniert") */
+  .seg.q { display: grid; grid-template-columns: repeat(4, minmax(min-content, 1fr)); }
   .seg.q button { min-width: 0; }
-  #suite.seg.q { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  @media (max-width: 440px) { .seg.q, #suite.seg.q { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  #suite.seg.q { grid-template-columns: repeat(5, minmax(min-content, 1fr)); }
+  @media (max-width: 560px) { .seg.q, #suite.seg.q { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .cmp { margin: 4px 0 16px; }
   .cmp .disclosure { justify-content: flex-start; }
   .cmp .disclosure > .pico { flex: none; }
@@ -97,8 +98,10 @@
     background: var(--surface-2); border: 1px solid var(--line); border-radius: 11px;
     transition: border-color 0.2s, color 0.2s;
   }
-  .det .dh { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 8px 11px; }
-  .det .dt { flex: 1; min-width: 0; overflow-wrap: anywhere; text-align: left; }
+  .det .dh { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 9px; min-width: 0; padding: 8px 11px; }
+  /* the name takes the row; score + time wrap under it (right-aligned) when it
+     would otherwise be squeezed to a few characters per line */
+  .det .dt { flex: 1 1 14em; min-width: 0; overflow-wrap: break-word; hyphens: auto; text-align: left; }
   .det .dtg {
     display: flex; align-items: flex-start; gap: 5px; padding: 0; margin: 0; border: 0; background: none;
     font: inherit; color: inherit; cursor: pointer;
@@ -108,7 +111,7 @@
   .det .dtg .chev .zicon { width: 12px; height: 12px; }
   .det .dtg[aria-expanded="true"] .chev { transform: rotate(180deg); }
   .det .nf { font-size: 11.5px; font-weight: 500; color: var(--faint); white-space: nowrap; }
-  .det .dm { flex: none; display: inline-flex; align-items: baseline; gap: 10px; font-variant-numeric: tabular-nums; }
+  .det .dm { flex: none; margin-left: auto; display: inline-flex; align-items: baseline; gap: 10px; font-variant-numeric: tabular-nums; }
   .det .sc { font-size: 12px; font-weight: 600; white-space: nowrap; }
   .det .sc.good { color: var(--good); }
   .det .sc.warn { color: var(--warn); }

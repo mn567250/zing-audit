@@ -23,7 +23,11 @@
    *   A, B -> good · C -> sky · D -> warn · E, F -> bad · none -> grey.
    * Scores (row score, trend value, sparkline) use the same families through
    * the grade thresholds of zing/scoring.py (>=80 good, >=70 sky, >=60 warn). */
-  .hist { --cols: minmax(0, 1.3fr) minmax(0, 1.55fr) 3.2em 2.6em minmax(0, 1.25fr) 18px; --del: 36px; }
+  /* Columns: time (with mode / suite under it) · risk · score · grade · chevron.
+     Mode sits under the date instead of in its own column so the longest date
+     ("Sep 29, 2026, 3:40 PM") and risk label (DE "Abweichungen gefunden", FR
+     "Tromperie sur la marchandise") of every language stay on one line. */
+  .hist { --cols: minmax(0, 1.1fr) minmax(0, 1.5fr) 2.8em 2.6em 18px; --cgap: 12px; --del: 36px; }
   .local-note { display: flex; align-items: center; gap: 7px; margin: 12px 0 0; font-size: 12.5px; color: var(--faint); line-height: 1.5; }
   .local-note .zicon { width: 13px; height: 13px; flex: none; }
   .local-note code { font-size: 11.5px; color: var(--ink2); background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
@@ -36,7 +40,7 @@
 
   /* shared column header */
   .colhead { display: grid; grid-template-columns: 1fr calc(var(--del) * 2 + 6px); gap: 6px; padding: 12px 18px 8px; border-bottom: 1px solid var(--line); }
-  .colhead .cells { display: grid; grid-template-columns: var(--cols); gap: 12px; padding: 0 10px; }
+  .colhead .cells { display: grid; grid-template-columns: var(--cols); gap: var(--cgap); padding: 0 10px; }
   .colhead span { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .colhead .n { text-align: right; }
 
@@ -106,13 +110,18 @@
   .row + .row { border-top: 1px dotted var(--line); }
   .rline { display: grid; grid-template-columns: 1fr var(--del) var(--del); gap: 6px; align-items: center; }
   .rmain {
-    display: grid; grid-template-columns: var(--cols); gap: 12px; align-items: center; width: 100%; min-width: 0;
+    display: grid; grid-template-columns: var(--cols); gap: var(--cgap); align-items: center; width: 100%; min-width: 0;
     text-align: left; background: none; border: 0; border-radius: 12px; padding: 11px 10px; cursor: pointer;
     font-size: 13px; color: var(--ink2); transition: background 0.12s;
   }
   .rmain:hover { background: var(--surface-2); }
   .rmain[aria-expanded="true"] { background: var(--surface-2); color: var(--ink); }
+  .rmain {
+    grid-template-areas: "date risk score grade cv" "mode risk score grade cv"; row-gap: 3px;
+  }
   .rmain > span { min-width: 0; }
+  .c-date { grid-area: date; align-self: end; } .c-score { grid-area: score; } .c-grade { grid-area: grade; }
+  .c-risk { grid-area: risk; } .c-mode { grid-area: mode; align-self: start; } .c-cv { grid-area: cv; }
   .c-date { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 500; }
   .c-risk .badge { white-space: normal; text-align: left; line-height: 1.25; max-width: 100%; }
   .c-risk .badge .zicon { flex: none; }
@@ -176,8 +185,7 @@
       grid-template-columns: minmax(0, 1fr) auto auto 18px; gap: 6px 10px; padding: 11px 8px;
       grid-template-areas: "date score grade cv" "risk risk risk risk" "mode mode mode mode";
     }
-    .c-date { grid-area: date; } .c-score { grid-area: score; } .c-grade { grid-area: grade; }
-    .c-risk { grid-area: risk; } .c-mode { grid-area: mode; } .c-cv { grid-area: cv; }
+    .c-date, .c-mode { align-self: auto; }
     .c-mode .perf { display: inline; margin: 0; }
     .c-mode .perf::before { content: " · "; }
     .rline { align-items: start; }
@@ -477,7 +485,7 @@
       "<span>" + esc(T("风险", "Risk")) + "</span>" +
       '<span class="n">' + esc(T("健康分", "Score")) + "</span>" +
       '<span class="n">' + esc(T("评级", "Grade")) + "</span>" +
-      "<span>" + esc(T("模式 / 套件", "Mode / suite")) + "</span><span></span></div><span></span></div>" +
+      "<span></span></div><span></span></div>" +
       groups.map(groupHTML).join("") +
       '<div class="lfoot">' +
       '<span class="aside">' + esc(isFiltered()

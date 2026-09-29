@@ -26,6 +26,17 @@
   "Webhook URLs (one per line)": "URLs de webhook (uma por linha)",
   "Webhooks saved.": "Webhooks salvos.",
   "(optional)": "(opcional)",
-  "History never stores the key. Leave it empty for a local or self-hosted model.": "O histórico nunca guarda a chave. Deixe vazio para um modelo local ou auto-hospedado."
+  "History never stores the key. Leave it empty for a local or self-hosted model.": "O histórico nunca guarda a chave. Deixe vazio para um modelo local ou auto-hospedado.",
+  "Running now": "Em execução",
+  "Waiting for next scheduled run": "A aguardar a próxima execução agendada",
+  "Cancel run": "Cancelar execução",
+  "Cancelling…": "A cancelar…",
+  "Choose how often it runs.": "Escolha com que frequência é executada.",
+  "Choose…": "Escolher…",
+  "Could not cancel the run — please try again.": "Não foi possível cancelar a execução — tente novamente.",
+  "One full run took {d}, so it runs at most {every}.": "Uma execução completa demorou {d}, por isso é executada no máximo {every}.",
+  "Progress of {name}": "Progresso de {name}",
+  "Run cancelled.": "Execução cancelada.",
+  "{n} min": "{n} min"
  }
 }

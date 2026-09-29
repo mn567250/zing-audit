@@ -262,7 +262,7 @@ def test_schedule_keeps_a_custom_suites_dimensions(tmp_path, monkeypatch, client
     assert w["suite"] == "custom" and sorted(w["dimensions"]) == ["protocol", "security"]
 
 
-def test_draft_needs_interval_and_key_before_it_runs(tmp_path, monkeypatch, client):
+def test_draft_needs_interval_but_not_a_key_before_it_runs(tmp_path, monkeypatch, client):
     import time
 
     from zing.web import watches
@@ -277,21 +277,20 @@ def test_draft_needs_interval_and_key_before_it_runs(tmp_path, monkeypatch, clie
 
     r = client.patch(f"/api/watches/{wid}", json={"enabled": True})
     assert r.status_code == 400 and "interval" in r.json()["error"]
-    r = client.patch(f"/api/watches/{wid}", json={"enabled": True, "interval_sec": 600})
-    assert r.status_code == 400 and "API key" in r.json()["error"]
-    # the refused PATCH changed nothing
-    assert client.get("/api/watches").json()[0]["interval_sec"] is None
-    assert client.post(f"/api/watches/{wid}/run").status_code == 400
 
-    r = client.patch(
-        f"/api/watches/{wid}", json={"enabled": True, "interval_sec": 600, "api_key": "sk-draft-secret"}
-    )
+    # the key is optional, as in the audit: a local relay needs none
+    r = client.patch(f"/api/watches/{wid}", json={"enabled": True, "interval_sec": 600})
     assert r.status_code == 200
     [w] = client.get("/api/watches").json()
-    assert w["enabled"] is True and w["interval_sec"] == 600 and w["has_key"] is True
+    assert w["enabled"] is True and w["interval_sec"] == 600 and w["has_key"] is False
+    assert [d["id"] for d in watches.due(time.time())] == [wid]
+
+    # a key can still be added later
+    r = client.patch(f"/api/watches/{wid}", json={"api_key": "sk-draft-secret"})
+    assert r.status_code == 200
+    assert client.get("/api/watches").json()[0]["has_key"] is True
     assert "sk-draft-secret" not in client.get("/api/watches").text
     assert watches.get(wid)["api_key"] == "sk-draft-secret"
-    assert [d["id"] for d in watches.due(time.time())] == [wid]
 
 
 def test_patch_validates_schedule_and_alert_settings(tmp_path, monkeypatch, client):

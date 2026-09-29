@@ -804,7 +804,8 @@ def create_app() -> FastAPI:
 
         History never stores the API key (only a fingerprint) nor a forced
         protocol, so the draft has no key, ``api="auto"`` and no interval; the
-        user sets the interval and key on the monitors page, then enables it.
+        user sets the interval (and, if the endpoint needs one, the key) on the
+        monitors page, then enables it.
         A compare run's baseline is dropped: watches run check-only.
         """
         from zing.web import history, watches
@@ -893,13 +894,10 @@ def create_app() -> FastAPI:
                     {"error": f"webhook is not an http(s) URL: {bad}"}, status_code=400
                 )
         if body.get("enabled"):
-            # A draft needs its schedule and key before it may run on its own.
+            # A draft needs its schedule before it may run on its own. The key
+            # stays optional, as in the audit: local relays need none.
             if (interval or row.get("interval_sec")) is None:
                 return JSONResponse({"error": "set an interval first"}, status_code=400)
-            # Only a watch scheduled from history never had its key collected;
-            # form-created watches may target a keyless relay.
-            if row.get("source_report_id") is not None and not (key or row.get("api_key")):
-                return JSONResponse({"error": "set an API key first"}, status_code=400)
         watches.update(wid, interval_sec=interval, api_key=key, alert_on=alert_on, webhooks=hooks)
         if "enabled" in body:
             watches.set_enabled(wid, bool(body.get("enabled")))
@@ -920,8 +918,6 @@ def create_app() -> FastAPI:
         row = watches.get(wid)
         if row is None:
             return JSONResponse({"error": "not found"}, status_code=404)
-        if row.get("source_report_id") is not None and not row.get("api_key"):
-            return JSONResponse({"error": "set an API key first"}, status_code=400)
         # Run the same path the scheduler uses (audit + persist + alert + mark).
         try:
             await _run_one_watch(row)

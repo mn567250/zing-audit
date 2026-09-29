@@ -254,6 +254,36 @@ def test_schedule_history_run_creates_a_paused_draft(tmp_path, monkeypatch, clie
     assert client.post("/api/watches/from-history/999999").status_code == 404
 
 
+async def test_monitor_runs_are_tagged_and_cannot_be_rescheduled(tmp_path, monkeypatch, client):
+    import json
+    from pathlib import Path
+
+    from zing.models import AuditReport
+    from zing.web import history, server, watches
+
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    report = AuditReport.model_validate(
+        json.loads((Path(__file__).parent / "fixtures" / "web_report.json").read_text("utf-8"))
+    )
+
+    async def fake_run_audit(*_a, **_k):
+        return report
+
+    monkeypatch.setattr(server, "run_audit", fake_run_audit)
+    wid = watches.create({"base_url": "https://relay.test/v1", "api_key": "sk-x", "model": "gpt-4o"})
+    await server._run_one_watch(watches.get(wid))
+    manual = _saved_report()
+
+    by_id = {r["id"]: r for r in client.get("/api/history").json()}
+    mon = watches.get(wid)["last_report_id"]
+    assert by_id[mon]["watch_id"] == wid and by_id[manual]["watch_id"] is None
+    assert history.watch_of(mon) == wid and history.watch_of(manual) is None
+
+    r = client.post(f"/api/watches/from-history/{mon}")
+    assert r.status_code == 409 and "monitor" in r.json()["error"]
+    assert client.post(f"/api/watches/from-history/{manual}").status_code == 201
+
+
 def test_schedule_keeps_a_custom_suites_dimensions(tmp_path, monkeypatch, client):
     monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
     rid = _saved_report(suite="custom", dimensions_selected=["security", "protocol"])

@@ -19,6 +19,7 @@
   "Saved audits: {n}": "Auditorías guardadas: {n}",
   "Search": "Buscar",
   "Showing {shown} of {n} audits": "Mostrando {shown} de {n} auditorías",
+  "This run was produced by a monitor": "Esta ejecución la generó un monitor",
   "Trends": "Tendencias",
   "falling": "a la baja",
   "rising": "al alza",

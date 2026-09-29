@@ -41,6 +41,7 @@ _SUMMARY_COLS = (
     "score",
     "rating",
     "kb_match",
+    "watch_id",
 )
 
 _DB_NAME = "history.db"
@@ -76,6 +77,8 @@ def _ensure(conn: sqlite3.Connection) -> None:
     kb_snapshot.ensure_table(conn)
     # Databases from before knowledge snapshots lack the link columns.
     kb_snapshot.add_link_columns(conn, "history", {"kb_snapshot_id": "INTEGER", "kb_match": "TEXT"})
+    # The monitor (watch) that produced a run; NULL for runs started by hand.
+    kb_snapshot.add_link_columns(conn, "history", {"watch_id": "INTEGER"})
 
 
 @contextmanager
@@ -92,8 +95,11 @@ def init() -> None:
         pass
 
 
-def save(report: dict[str, Any]) -> int:
+def save(report: dict[str, Any], watch_id: int | None = None) -> int:
     """Persist one AuditReport dict; return the new row id (``-1`` on failure).
+
+    ``watch_id`` marks a run produced by that monitor, so the UI does not offer
+    to schedule it as a monitor again.
 
     Best-effort by contract: this is called from inside the SSE stream, so any
     extraction or DB error is swallowed rather than allowed to abort the audit.
@@ -115,8 +121,8 @@ def save(report: dict[str, Any]) -> int:
             cur = conn.execute(
                 """INSERT INTO history
                    (ts, base_url, claimed_model, model, mode, suite,
-                    risk_level, score, rating, report_json, kb_snapshot_id, kb_match)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    risk_level, score, rating, report_json, kb_snapshot_id, kb_match, watch_id)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     report.get("generated_at"),
                     target.get("base_url"),
@@ -132,6 +138,7 @@ def save(report: dict[str, Any]) -> int:
                     json.dumps(report, ensure_ascii=False, default=str),
                     snapshot_id,
                     knowledge.get("match_confidence"),
+                    int(watch_id) if watch_id is not None else None,
                 ),
             )
             return int(cur.lastrowid or -1)
@@ -178,6 +185,24 @@ def get(rid: int) -> dict[str, Any] | None:
     if snap is not None and isinstance(report, dict) and isinstance(report.get("knowledge"), dict):
         report["knowledge"]["profile"] = snap
     return report
+
+
+def watch_of(rid: int) -> int | None:
+    """The id of the monitor that produced a saved run (``None`` for manual runs)."""
+    with _connect() as conn:
+        row = conn.execute("SELECT watch_id FROM history WHERE id = ?", (int(rid),)).fetchone()
+    return int(row["watch_id"]) if row and row["watch_id"] is not None else None
+
+
+def run_duration_sec(report: dict[str, Any] | None) -> float | None:
+    """How long a saved run took, in seconds: detectors run one after another,
+    so their summed durations are the audit's execution time. None if unknown."""
+    total = 0.0
+    for det in (report or {}).get("detectors") or []:
+        ms = det.get("duration_ms") if isinstance(det, dict) else None
+        if isinstance(ms, (int, float)) and not isinstance(ms, bool):
+            total += float(ms)
+    return round(total / 1000, 1) if total > 0 else None
 
 
 def snapshot_for(rid: int) -> dict[str, Any] | None:

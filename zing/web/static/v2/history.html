@@ -656,8 +656,8 @@
     ZingReport.render(el, report, {
       actions: [
         { zh: "设为监控", en: "Schedule as monitor", primary: true, onClick: function () { schedule(panel.getAttribute("data-id")); } },
-        { zh: "下载 JSON", en: "Download JSON", onClick: function (rep) { download(rep, panel.getAttribute("data-id")); } },
       ],
+      download: { name: "zing-report-" + panel.getAttribute("data-id") },
     });
   }
 
@@ -700,18 +700,6 @@
         if (btn) btn.disabled = false;
         if (msg) msg.textContent = T("无法设为监控：", "Could not schedule this run: ") + ZING_LANG.server(String((e && e.message) || e));
       });
-  }
-
-  function download(raw, id) {
-    var rep = window.ZING_I18N && ZING_I18N.exportReport ? ZING_I18N.exportReport(raw) : raw;
-    var blob = new Blob([JSON.stringify(rep, null, 2)], { type: "application/json" });
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "zing-report-" + id + "." + ZING_LANG.get() + ".json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
   }
 
   function toggle(id) {

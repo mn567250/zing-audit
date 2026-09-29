@@ -1,13 +1,15 @@
 """Report renderers and writers.
 
 The :class:`~zing.models.AuditReport` is the single source of truth; this package
-turns it into the three artifacts users consume: machine-readable JSON (the
-LLM-facing API), human Markdown, and a self-contained HTML page. ``write_reports``
+turns it into the artifacts users consume: machine-readable JSON (the
+LLM-facing API), human Markdown, a self-contained HTML page, and that page as a
+PDF (optional ``pdf`` extra). ``write_reports``
 persists the chosen format(s) to disk.
 """
 
 from __future__ import annotations
 
+from zing.report.pdf import PdfUnavailableError, pdf_available, render_pdf
 from zing.report.render import (
     compact_dict,
     render_compact,
@@ -15,7 +17,7 @@ from zing.report.render import (
     render_json,
     render_markdown,
 )
-from zing.report.writer import write_reports
+from zing.report.writer import report_stem, write_reports
 
 __all__ = [
     "write_reports",
@@ -24,4 +26,8 @@ __all__ = [
     "compact_dict",
     "render_markdown",
     "render_html",
+    "render_pdf",
+    "pdf_available",
+    "PdfUnavailableError",
+    "report_stem",
 ]

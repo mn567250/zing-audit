@@ -48,6 +48,9 @@ web = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
 ]
+# PDF reports (`--format pdf`, PDF download in the web UI): the HTML report
+# typeset by WeasyPrint, which needs the Pango system library.
+pdf = ["weasyprint>=60"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",

@@ -95,6 +95,9 @@
   .vact { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 20px 18px; }
   @media (max-width: 520px) { .vact { padding: 0 16px 16px; } }
   .vact .btn .cv { display: inline-flex; transition: transform 0.25s; }
+  .vact .dl-l { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink2); }
+  .vact .dl-msg { flex-basis: 100%; order: 2; margin: 0; font-size: 12.5px; color: var(--bad); }
+  .vact .dl-msg:empty { display: none; }
   .vact .btn[aria-expanded="true"] .cv { transform: rotate(180deg); }
 
   /* semantic text colours (tokens) */
@@ -284,7 +287,9 @@
           <div class="phd"><span class="dot" aria-hidden="true"></span><span id="h-verdict" data-en="verdict">结论</span></div>
           <div id="verdict" aria-live="polite"></div>
           <div class="vact" id="vact" hidden>
-            <button type="button" class="btn sm" id="dl"><span id="dl-ic" aria-hidden="true"></span><span data-en="Download JSON">下载 JSON</span></button>
+            <span class="dl-l" id="dl" role="group" aria-labelledby="dl-t"><span id="dl-ic" aria-hidden="true"></span><span id="dl-t" data-en="Download report">下载报告</span>
+              <button type="button" class="btn sm" data-dl="json">JSON</button><button type="button" class="btn sm" data-dl="md">Markdown</button><button type="button" class="btn sm" data-dl="html">HTML</button><button type="button" class="btn sm" data-dl="pdf">PDF</button></span>
+            <p class="dl-msg" id="dl-msg" role="status"></p>
             <button type="button" class="btn sm" id="full-t" aria-expanded="false" aria-controls="full"><span id="full-label"></span><span class="cv" id="full-caret" aria-hidden="true"></span></button>
           </div>
         </section>
@@ -552,22 +557,21 @@
     $("#full").hidden = !open;
     if (open && lastReport && window.ZingReport) {
       const host = $("#full-report");
-      if (!host.__zingReport || host.__zingReport.report !== lastReport) ZingReport.render(host, lastReport, {});
+      if (!host.__zingReport || host.__zingReport.report !== lastReport) ZingReport.render(host, lastReport, { download: { name: "zing-report" } });
     }
     fullLabel();
   }
   $("#full-t").addEventListener("click", () => setFull($("#full-t").getAttribute("aria-expanded") !== "true"));
-  /* download: same JSON keys/schema, human-readable values in the UI language */
-  $("#dl").addEventListener("click", () => {
+  /* download: human-readable values in the UI language; JSON keeps the schema,
+     Markdown / HTML / PDF are rendered by the server (ZingReport.download) */
+  document.querySelectorAll("#dl [data-dl]").forEach((btn) => btn.addEventListener("click", () => {
     if (!lastReport) return;
-    const rep = window.ZING_I18N && ZING_I18N.exportReport ? ZING_I18N.exportReport(lastReport) : lastReport;
-    const blob = new Blob([JSON.stringify(rep, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "zing-report." + ZING_LANG.get() + ".json";
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  });
+    btn.disabled = true;
+    $("#dl-msg").textContent = "";
+    ZingReport.download(lastReport, btn.getAttribute("data-dl"), "zing-report")
+      .catch((e) => { $("#dl-msg").textContent = T("无法导出报告：", "Could not export the report: ") + ZING_LANG.server(String((e && e.message) || e)); })
+      .then(() => { btn.disabled = false; });
+  }));
 
   /* ---- performance (live) ---- */
   const live = window.ZingPerf ? new ZingPerf.Live($("#perf-live")) : null;

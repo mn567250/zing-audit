@@ -15,6 +15,8 @@ Endpoints:
   POST /api/audit/stream     run an audit; stream detector progress, batched
                              per-request timing records and the final report
                              as Server-Sent Events (text/event-stream)
+  POST /api/report/export    a report (JSON body) rendered as a download
+                             (?format=json|md|html|pdf)
 
 The audit runs in-process with the same `run_audit` the CLI uses; a progress
 callback pushes per-detector events into a queue the SSE generator drains. The
@@ -655,6 +657,45 @@ def create_app() -> FastAPI:
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+    @app.post("/api/report/export")
+    async def report_export(request: Request, format: str = "json") -> Any:
+        # Render a report the browser already holds (a fresh run, a history entry,
+        # possibly with its text localized) into a downloadable file.
+        from pydantic import ValidationError
+
+        from zing.models import AuditReport
+        from zing.report import PdfUnavailableError, render_pdf, report_stem
+        from zing.report.render import render_html, render_json, render_markdown
+
+        media = {
+            "json": "application/json",
+            "md": "text/markdown; charset=utf-8",
+            "html": "text/html; charset=utf-8",
+            "pdf": "application/pdf",
+        }
+        if format not in media:
+            return JSONResponse(
+                {"error": f"unknown format {format!r}; choose from: {', '.join(media)}"},
+                status_code=400,
+            )
+        try:
+            report = AuditReport.model_validate(await request.json())
+        except (ValueError, ValidationError) as exc:
+            return JSONResponse({"error": f"not a zing report: {exc}"[:500]}, status_code=400)
+
+        body: str | bytes
+        if format == "pdf":
+            try:
+                # CPU-bound typesetting: keep the event loop (and live audits) responsive.
+                body = await asyncio.to_thread(render_pdf, report)
+            except PdfUnavailableError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=501)
+        else:
+            body = {"json": render_json, "md": render_markdown, "html": render_html}[format](report)
+        fname = f"{report_stem(report)}.{format}"
+        return Response(body, media_type=media[format],
+                        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
     @app.get("/history")
     async def history_page(request: Request) -> Any:

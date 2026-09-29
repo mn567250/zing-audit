@@ -19,7 +19,7 @@ from zing.models import Dimension, TargetConfig
 # deep depth; the others are cumulative tiers.
 SUITES = ("smoke", "standard", "deep", "full", "custom")
 DIMENSIONS = tuple(d.value for d in Dimension)
-FORMATS = ("json", "md", "html", "all")
+FORMATS = ("json", "md", "html", "pdf", "all")
 RISK_LEVELS = ("low", "medium", "high")
 APIS = ("auto", "openai", "anthropic", "responses")
 
@@ -193,6 +193,11 @@ def validate_dimensions(suite: str, value: str | list[str] | tuple[str, ...] | N
 def validate_format(value: str) -> str:
     if value not in FORMATS:
         raise ConfigError(f"Unknown format {value!r}. Choose from: {', '.join(FORMATS)}")
+    if value == "pdf":
+        from zing.report.pdf import PDF_INSTALL_HINT, pdf_available
+
+        if not pdf_available():
+            raise ConfigError(PDF_INSTALL_HINT)
     return value
 
 
@@ -247,7 +252,7 @@ run:
   # dimensions: [protocol, performance]  # custom suite only: the dimensions to run
   judge: false                     # enable code+LLM hybrid judging
   output_dir: reports
-  format: all                      # json | md | html | all
+  format: all                      # json | md | html | pdf | all
   reliability_requests: 8
   concurrency: 3
   max_context_probe_tokens: 200000 # cap for the real-context-window probe

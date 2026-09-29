@@ -22,7 +22,7 @@ run:
   suite: standard                    # smoke | standard | deep | full
   judge: false                       # set true to enable code+LLM hybrid judging
   output_dir: reports
-  format: all                        # json | md | html | all
+  format: all                        # json | md | html | pdf | all
   reliability_requests: 8
   concurrency: 3
   max_context_probe_tokens: 200000   # cap so probing a 1M model stays affordable

@@ -80,6 +80,9 @@ Também pode instalar diretamente a partir do repositório Git sem o clonar:
 
 - `tokenizers` — contagem precisa de tokens da família OpenAI na auditoria de faturação.
 - `web` — a interface web local (`zing serve`).
+- `pdf` — relatórios PDF (`--format pdf` e a transferência em PDF na interface web),
+  gerados a partir do relatório HTML pelo [WeasyPrint](https://weasyprint.org/); requer a
+  biblioteca de sistema Pango (no macOS `brew install pango`).
 
 ```bash
 pip install 'zing-audit[tokenizers,web]'          # pip, a partir do PyPI
@@ -178,7 +181,7 @@ evidências mantêm-se exatamente como no relatório da CLI (continua a ser um r
 zing válido), enquanto os valores legíveis por pessoas (título/resumo do veredicto,
 títulos/resumos das constatações, recomendações, nomes dos detetores, notas) são
 traduzidos, e o nome do ficheiro inclui o idioma (`zing-report.pt.json`). Os relatórios
-`--format json|md|html` da CLI permanecem em inglês.
+`--format json|md|html|pdf` da CLI permanecem em inglês.
 
 **Os prompts enviados ao endpoint auditado não seguem o idioma da interface.** Todo o
 texto que o zing envia a uma API de LLM — sondas de chat, o prompt do juiz LLM, esquemas
@@ -408,7 +411,7 @@ para que auditar um modelo de 1M de tokens continue a ser acessível.
   • Os tokens de prompt reportados excedem largamente a estimativa independente
 ```
 
-Os relatórios são escritos em `reports/` como JSON, Markdown e HTML.
+Os relatórios são escritos em `reports/` como JSON, Markdown e HTML, e também em PDF com o extra `pdf`.
 
 ## Base de conhecimento
 

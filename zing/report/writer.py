@@ -9,17 +9,20 @@ them. Rendering never touches the network and never mutates the report.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
 from zing.models import AuditReport
+from zing.report.pdf import PdfUnavailableError, pdf_available, render_pdf
 from zing.report.render import render_html, render_json, render_markdown
 
-# format selector -> (extension, renderer)
-_RENDERERS = {
+# format selector -> (extension, renderer); text renderers return str, PDF bytes
+_RENDERERS: dict[str, tuple[str, Callable[[AuditReport], str | bytes]]] = {
     "json": ("json", render_json),
     "md": ("md", render_markdown),
     "html": ("html", render_html),
+    "pdf": ("pdf", render_pdf),
 }
 
 
@@ -42,19 +45,29 @@ def _compact_timestamp(generated_at: str | None) -> str:
     return dt.strftime("%Y%m%dT%H%M%S")
 
 
+def report_stem(report: AuditReport) -> str:
+    """``zing-<sanitized target.name>-<YYYYmmddTHHMMSS>`` (file name without extension)."""
+    return f"zing-{_sanitize(report.target.name)}-{_compact_timestamp(report.generated_at)}"
+
+
 def write_reports(report: AuditReport, out_dir: Path, fmt: str) -> list[Path]:
     """Write the report in ``fmt`` to ``out_dir`` and return the written paths.
 
-    ``fmt`` is one of ``json``, ``md``, ``html``, or ``all``. The directory is
-    created if missing. Filenames are
+    ``fmt`` is one of ``json``, ``md``, ``html``, ``pdf`` or ``all``. ``all``
+    includes PDF only when WeasyPrint (the ``pdf`` extra) is installed and
+    loads; ``pdf`` alone raises :class:`PdfUnavailableError` without it. The
+    directory is created if missing. Filenames are
     ``zing-<sanitized target.name>-<YYYYmmddTHHMMSS>.<ext>``.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    formats = ("json", "md", "html") if fmt == "all" else (fmt,)
+    if fmt == "all":
+        formats: tuple[str, ...] = ("json", "md", "html") + (("pdf",) if pdf_available() else ())
+    else:
+        formats = (fmt,)
 
-    stem = f"zing-{_sanitize(report.target.name)}-{_compact_timestamp(report.generated_at)}"
+    stem = report_stem(report)
 
     written: list[Path] = []
     for key in formats:
@@ -63,6 +76,15 @@ def write_reports(report: AuditReport, out_dir: Path, fmt: str) -> list[Path]:
             continue
         ext, renderer = spec
         path = out_dir / f"{stem}.{ext}"
-        path.write_text(renderer(report), encoding="utf-8")
+        try:
+            content = renderer(report)
+        except PdfUnavailableError:
+            if fmt == "all":  # best-effort extra; an explicit --format pdf still fails
+                continue
+            raise
+        if isinstance(content, bytes):
+            path.write_bytes(content)
+        else:
+            path.write_text(content, encoding="utf-8")
         written.append(path)
     return written

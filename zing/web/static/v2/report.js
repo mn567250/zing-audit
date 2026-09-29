@@ -6,12 +6,17 @@
  *
  *   ZingReport.render(el, report, {
  *     actions: [{ zh: "再测一个", en: "Test another", primary: false, onClick: fn }, …],
+ *     download: { name: "zing-report" },   // optional: JSON / Markdown / HTML / PDF buttons
  *   })
  *     renders `report` (the /api/audit/stream "report" event, or a history row's
  *     report) into `el`, wires its interactions, and re-renders it in place when
  *     the UI language changes (expanded dimensions, evidence and keyboard focus
  *     are kept).
  *   ZingReport.wire(el)    (re)attach the interactions after external re-rendering.
+ *   ZingReport.download(report, fmt, name) -> Promise
+ *     saves `report` as <name>.<lang>.<ext>, fmt one of json | md | html | pdf.
+ *     Text is exported in the UI language first (ZING_I18N.exportReport); JSON is
+ *     built here, the other formats are rendered by POST /api/report/export.
  *
  * All text goes through T(zh, en) / ZING_LANG.server() / ZING_I18N like the
  * rest of the UI; colours only through the tokens of zing.css.
@@ -592,6 +597,15 @@
       })
       .join("");
 
+    var dl = opts.download
+      ? '<div class="zr-dl" role="group" aria-label="' + esc(T("下载报告", "Download report")) + '">' +
+        '<span class="dl-l">' + ico("download") + " " + esc(T("下载报告", "Download report")) + "</span>" +
+        DL_FORMATS.map(function (f) {
+          return '<button type="button" class="btn sm" data-dl="' + f[0] + '">' + esc(f[1]) + "</button>";
+        }).join("") +
+        '<p class="dl-msg" role="status"></p></div>'
+      : "";
+
     var rest = srv(summaryRest(v.summary));
     var hid = "zr-h-" + ++uid;
     var scoreTxt = sc == null || !isFinite(sc) ? "—" : num(sc, 1);
@@ -634,6 +648,7 @@
       ) +
       "</p>" +
       (actions ? '<div class="actions">' + actions + "</div>" : "") +
+      dl +
       "</footer></article>"
     );
   }
@@ -671,11 +686,62 @@
         var a = ((st.opts || {}).actions || [])[+this.getAttribute("data-action")];
         if (a && a.onClick) a.onClick(st.report);
       };
+    var dls = el.querySelectorAll("[data-dl]");
+    for (var m = 0; m < dls.length; m++)
+      dls[m].onclick = function () {
+        var btn = this, msg = el.querySelector(".dl-msg");
+        btn.disabled = true;
+        if (msg) msg.textContent = "";
+        download(st.report, btn.getAttribute("data-dl"), ((st.opts || {}).download || {}).name)
+          .catch(function (e) {
+            if (msg) msg.textContent = T("无法导出报告：", "Could not export the report: ") + srv(String((e && e.message) || e));
+          })
+          .then(function () {
+            btn.disabled = false;
+          });
+      };
     var perf = el.querySelector(".perf-sect");
     if (perf && window.ZingPerf && st.report && st.report.performance) window.ZingPerf.wireSection(perf, st.report.performance);
   }
 
   var TOGGLES = ".zr-find .more, .zr-dim .dtog";
+
+  // [format, button label]: file formats are named the same in every language
+  var DL_FORMATS = [["json", "JSON"], ["md", "Markdown"], ["html", "HTML"], ["pdf", "PDF"]];
+
+  function save(blob, filename) {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  function download(report, fmt, name) {
+    if (!report) return Promise.resolve();
+    var I = window.ZING_I18N, L = window.ZING_LANG;
+    var rep = I && I.exportReport ? I.exportReport(report) : report;
+    var filename = (name || "zing-report") + "." + (L ? L.get() : "en") + "." + fmt;
+    if (fmt === "json") {
+      save(new Blob([JSON.stringify(rep, null, 2)], { type: "application/json" }), filename);
+      return Promise.resolve();
+    }
+    return fetch("/api/report/export?format=" + encodeURIComponent(fmt), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(rep),
+    }).then(function (r) {
+      if (!r.ok)
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          throw new Error((j && j.error) || "HTTP " + r.status);
+        });
+      return r.blob().then(function (b) {
+        save(b, filename);
+      });
+    });
+  }
   // Open/close the panel a disclosure button controls (open: null = flip).
   function toggle(btn, open) {
     var panel = document.getElementById(btn.getAttribute("aria-controls"));
@@ -721,5 +787,5 @@
     }
   });
 
-  window.ZingReport = { render: render, wire: wire };
+  window.ZingReport = { render: render, wire: wire, download: download };
 })();

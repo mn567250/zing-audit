@@ -81,6 +81,9 @@ Sie können auch direkt aus dem Git-Repository installieren, ohne es zu klonen:
 
 - `tokenizers` — genaue Token-Zählung für die OpenAI-Familie in der Abrechnungsprüfung.
 - `web` — die lokale Weboberfläche (`zing serve`).
+- `pdf` — PDF-Berichte (`--format pdf` und der PDF-Download in der Weboberfläche),
+  aus dem HTML-Bericht mit [WeasyPrint](https://weasyprint.org/) erzeugt; benötigt die
+  Systembibliothek Pango (unter macOS `brew install pango`).
 
 ```bash
 pip install 'zing-audit[tokenizers,web]'          # pip, von PyPI
@@ -180,7 +183,7 @@ IDs und Belege bleiben exakt wie im Bericht der CLI (es ist weiterhin ein gülti
 zing-Bericht), während die für Menschen lesbaren Werte (Überschrift/Zusammenfassung des
 Urteils, Titel/Zusammenfassungen der Befunde, Empfehlungen, Detektornamen, Hinweise)
 übersetzt werden und der Dateiname die Sprache trägt (`zing-report.de.json`). Die
-Berichte der CLI mit `--format json|md|html` bleiben englisch.
+Berichte der CLI mit `--format json|md|html|pdf` bleiben englisch.
 
 **An den geprüften Endpunkt gesendete Prompts folgen nicht der Sprache der
 Oberfläche.** Jeder Text, den zing an eine LLM-API sendet — Chat-Tests, der Prompt des
@@ -412,7 +415,7 @@ sodass die Prüfung eines Modells mit 1M Token bezahlbar bleibt.
   • Gemeldete Prompt-Token übersteigen die unabhängige Schätzung deutlich
 ```
 
-Berichte werden als JSON, Markdown und HTML nach `reports/` geschrieben.
+Berichte werden als JSON, Markdown und HTML nach `reports/` geschrieben – mit dem Extra `pdf` zusätzlich als PDF.
 
 ## Wissensbasis
 

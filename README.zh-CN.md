@@ -75,6 +75,8 @@ source .venv/bin/activate       # Windows：.venv\Scripts\activate
 
 - `tokenizers`——让账单审计对 OpenAI 系模型做精确 token 计数。
 - `web`——本地 Web 界面（`zing serve`）。
+- `pdf`——PDF 报告（`--format pdf` 以及 Web 界面中的 PDF 下载），由
+  [WeasyPrint](https://weasyprint.org/) 从 HTML 报告渲染，需要系统库 Pango（多数 Linux 桌面已预装；macOS 上 `brew install pango`）。
 
 ```bash
 pip install 'zing-audit[tokenizers,web]'          # pip，从 PyPI
@@ -162,11 +164,11 @@ zing serve            # 打开 http://localhost:8000
 
 每个页面顶部的语言下拉框可在 **🇬🇧 英语**（默认）、**🇨🇳 中文**（界面原始语言）、
 **🇫🇷 法语**、**🇪🇸 西班牙语**、**🇵🇹 葡萄牙语**、**🇮🇹 意大利语** 和 **🇩🇪 德语**
-之间切换界面；选择按浏览器记住。从界面下载的报告（**下载报告 (JSON)**）同样跟随所选语言：
+之间切换界面；选择按浏览器记住。从界面下载的报告（**下载报告**：JSON、Markdown、HTML 或 PDF）同样跟随所选语言：
 JSON 键、枚举值（`risk_level`、`status`、`severity` 等）、id 和证据与命令行报告完全一致
 （仍是合法的 zing 报告），而面向人阅读的值（结论标题/摘要、发现标题/摘要、建议、检测器名称、
 备注）会被翻译，文件名也会带上语言（`zing-report.zh.json`）。命令行自身的
-`--format json|md|html` 报告始终为英文。
+`--format json|md|html|pdf` 报告始终为英文。
 
 **发往被测端点的提示词不跟随界面语言。** zing 发给 LLM API 的每一段文本——对话探测、
 LLM 裁判的提示词、工具 schema、embedding / rerank / 图像 / 音频输入——都集中在同一个提示词库
@@ -360,7 +362,7 @@ jobs:
   • 上报的 prompt token 数远超独立估算
 ```
 
-报告以 JSON、Markdown、HTML 三种格式写入 `reports/`。
+报告以 JSON、Markdown、HTML 格式写入 `reports/`；安装了 `pdf` 扩展时还会生成 PDF（默认的 `--format all`），`--format pdf` 只生成 PDF。
 
 ## 知识库
 

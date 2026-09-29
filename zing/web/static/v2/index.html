@@ -595,26 +595,14 @@
   }
 
   // ---------- step 3: report ----------
-  function download(report) {
-    if (!report) return;
-    var rep = window.ZING_I18N ? ZING_I18N.exportReport(report) : report;
-    var blob = new Blob([JSON.stringify(rep, null, 2)], { type: "application/json" });
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "zing-report." + (window.ZING_LANG ? ZING_LANG.get() : "en") + ".json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-  }
   function showReport(report) {
     lastReport = report;
     $("#radar").classList.add("done");
     ZingReport.render($("#report"), report, {
       actions: [
         { zh: "再测一个", en: "Test another", onClick: function () { go(1); } },
-        { zh: "下载报告 (JSON)", en: "Download report (JSON)", primary: true, onClick: download },
       ],
+      download: { name: "zing-report" },
     });
     $("#cmp-tip").hidden = !!report.baseline;
     go(3);

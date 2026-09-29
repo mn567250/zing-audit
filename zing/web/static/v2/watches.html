@@ -85,6 +85,7 @@
   .mon-meta dd .edit .row { display: flex; gap: 6px; flex-wrap: wrap; }
   .mon-meta dd .edit .in { font-size: 13px; padding: 7px 10px; border-radius: 10px; }
   .mon-meta dd .link { margin-left: 6px; }
+  .mon-meta dd .link.icon-only { padding: 6px; line-height: 0; }
   /* draft: a watch scheduled from a history run that still needs its interval / key */
   .setup {
     margin-top: 14px; padding: 14px 16px; border-radius: 14px;
@@ -259,7 +260,7 @@
   }
   function invalid(fn) { return fn ? ' aria-invalid="true"' : ""; }
   function linkBtn(act, id, label) {
-    return '<button type="button" class="btn sm link" data-act="' + act + '" data-id="' + id + '">' + esc(label) + "</button>";
+    return '<button type="button" class="btn sm link icon-only" data-act="' + act + '" data-id="' + id + '" aria-label="' + esc(label) + '" title="' + esc(label) + '">' + icon("pen") + "</button>";
   }
   function saveCancel(act, id) {
     return '<div class="row">' +

@@ -83,6 +83,10 @@
       '<path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>' +
       '<path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/>' +
       '<path d="M10 11v6"/><path d="M14 11v6"/>',
+    // pen — edit
+    pen:
+      '<path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/>' +
+      '<path d="M14.5 6.5l3 3"/>',
     // refresh — re-run
     refresh:
       '<path d="M20 11a8 8 0 1 0-1.5 5.5"/>' +

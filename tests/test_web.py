@@ -270,7 +270,7 @@ def test_api_key_fields_are_masked_and_paired_with_their_url(client):
 
 # ----- v2 UI, served side by side with the classic one (A/B) ------------- #
 
-_V2_PAGES = {"/": "audit", "/console": "console", "/history": "history", "/watches": "monitors", "/tools": "tools"}
+_V2_PAGES = {"/": "audit", "/history": "history", "/watches": "monitors", "/tools": "tools"}
 
 
 def test_v2_pages_share_the_design_system(client):
@@ -316,10 +316,17 @@ def test_classic_pages_link_to_the_v2_ui(client):
         assert 'class="try-v2" href="?ui=v2"' in client.get(classic).text, classic
 
 
-def test_v2_audit_and_console_send_the_declared_provider(client):
-    # both audit forms take a declared provider, send it and let the model
+def test_console_is_classic_only(client):
+    assert client.get("/v2/console").status_code == 404
+    assert "/v2/console" not in client.get("/v2/static/nav.js").text
+    client.cookies.set("zing_ui", "v2")
+    assert client.get("/console", follow_redirects=False).status_code == 200
+
+
+def test_v2_audit_sends_the_declared_provider(client):
+    # the audit form takes a declared provider, sends it and lets the model
     # picker fill it in
-    for path in ("/v2/", "/v2/console"):
+    for path in ("/v2/",):
         html = client.get(path).text
         assert '<input class="in' in html and 'id="i-prov"' in html, path
         assert 'declared_provider: $("#i-prov").value.trim()' in html, path

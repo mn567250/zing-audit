@@ -14,21 +14,29 @@ and lists every check behind it, passed and failed alike:
 Detectors without a scale still show all their findings, so every dimension is
 covered and a detector gains the points/scale view by adopting
 :class:`zing.detectors.scale.Scale` — nothing here has to change.
+
+Every dimension is listed, those that did not run included (with the reason),
+and a dimension can carry extra content past its checks: register a renderer in
+``_EXTRAS`` (the performance dimension's measurements live there).
 """
 
 from __future__ import annotations
 
 import html
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from zing.models import (
     AuditReport,
     DetectorResult,
+    Dimension,
     DimensionScore,
     Finding,
     ScoringOutcome,
     Status,
 )
+from zing.report import performance as perf_render
+from zing.scoring import DIMENSION_WEIGHTS
 
 _STATUS_EMOJI: dict[Status, str] = {
     Status.PASS: "✅",
@@ -58,6 +66,46 @@ def _num(score: float | None) -> str:
 
 def _members(report: AuditReport, d: DimensionScore) -> list[DetectorResult]:
     return [det for det in report.detectors if det.dimension == d.dimension]
+
+
+def all_dimensions(report: AuditReport) -> list[DimensionScore]:
+    """The report's dimensions plus, as "not run", any it does not carry (a
+    report from before that dimension existed), in scoring order."""
+    have = {d.dimension: d for d in report.dimensions}
+    extra = [
+        DimensionScore(dimension=dim, weight=w, status=Status.NOT_RUN,
+                       reason="Not recorded in this report.")
+        for dim, w in DIMENSION_WEIGHTS.items()
+        if dim not in have
+    ]
+    return list(report.dimensions) + extra
+
+
+def _not_run_reason(d: DimensionScore) -> str:
+    return d.reason or "Not run in this suite."
+
+
+# Extra content a dimension's details carry past its checks, per output format:
+# a renderer returns "" / [] when the report has nothing to add.
+_Extra = tuple[Callable[[AuditReport], list[str]], Callable[[AuditReport], str]]
+_EXTRAS: dict[Dimension, _Extra] = {
+    Dimension.PERFORMANCE: (
+        lambda r: perf_render.markdown_section(
+            r.performance, title="Performance measurements", level=4
+        ),
+        lambda r: perf_render.html_section(r.performance, nested=True),
+    ),
+}
+
+
+def _extra_markdown(report: AuditReport, d: DimensionScore) -> list[str]:
+    x = _EXTRAS.get(d.dimension)
+    return x[0](report) if x else []
+
+
+def _extra_html(report: AuditReport, d: DimensionScore) -> str:
+    x = _EXTRAS.get(d.dimension)
+    return x[1](report) if x else ""
 
 
 def score_explanation(d: DimensionScore, members: list[DetectorResult]) -> str:
@@ -238,21 +286,23 @@ def fold_passed_subjects(det: DetectorResult) -> tuple[list[Finding], list[tuple
 # Markdown
 # --------------------------------------------------------------------------- #
 def markdown_section(report: AuditReport, md) -> list[str]:
-    """The "Dimension details" section; ``md`` escapes untrusted inline text."""
-    dims = [d for d in report.dimensions if _members(report, d)]
-    if not dims:
-        return []
+    """The "Dimension details" section, every dimension listed; ``md`` escapes
+    untrusted inline text."""
     lines = ["## Dimension details", ""]
-    for d in dims:
+    for d in all_dimensions(report):
         members = _members(report, d)
         emoji = _STATUS_EMOJI.get(d.status, "")
         lines.append(f"### {emoji} {d.dimension.value} — {_num(d.score)} ({d.status.value})")
         lines.append("")
-        lines.append(f"- {md(score_explanation(d, members))}")
-        lines.append(f"- {md(status_explanation(d))}")
+        if members:
+            lines.append(f"- {md(score_explanation(d, members))}")
+            lines.append(f"- {md(status_explanation(d))}")
+        else:
+            lines.append(f"- {md(_not_run_reason(d))}")
         lines.append("")
         for det in members:
             lines.extend(_markdown_detector(det, md))
+        lines.extend(_extra_markdown(report, d))
     return lines
 
 
@@ -332,21 +382,23 @@ def _pill(status: Status) -> str:
 
 
 def html_section(report: AuditReport) -> str:
-    dims = [d for d in report.dimensions if _members(report, d)]
-    if not dims:
-        return ""
+    """The "Dimension details" section: every dimension, each one expandable."""
     out = ['<section class="card"><h2>Dimension details</h2>']
-    for d in dims:
+    for d in all_dimensions(report):
         members = _members(report, d)
         out.append('<details class="dim">')
         out.append(
             f"<summary>{_pill(d.status)} <strong>{_esc(d.dimension.value)}</strong> "
             f'<span class="tag">score {_esc(_num(d.score))}</span></summary>'
         )
-        out.append(f'<p class="muted">{_esc(score_explanation(d, members))}</p>')
-        out.append(f'<p class="muted">{_esc(status_explanation(d))}</p>')
+        if members:
+            out.append(f'<p class="muted">{_esc(score_explanation(d, members))}</p>')
+            out.append(f'<p class="muted">{_esc(status_explanation(d))}</p>')
+        else:
+            out.append(f'<p class="muted">{_esc(_not_run_reason(d))}</p>')
         for det in members:
             out.append(_html_detector(det))
+        out.append(_extra_html(report, d))
         out.append("</details>")
     out.append("</section>")
     return "".join(out)

@@ -22,8 +22,6 @@ from zing.report import dimensions as dimension_details
 from zing.report.performance import (
     PERF_CSS,
     compact_performance,
-    html_section,
-    markdown_section,
 )
 
 _DISCLAIMER = (
@@ -304,17 +302,14 @@ def render_markdown(report: AuditReport) -> str:
     # Dimensions table.
     lines.append("## Dimensions")
     lines.append("")
-    if report.dimensions:
-        lines.append("| Dimension | Score | Weight | Status |")
-        lines.append("| --- | ---: | ---: | --- |")
-        for d in report.dimensions:
-            emoji = _STATUS_EMOJI.get(d.status, "")
-            lines.append(
-                f"| {d.dimension.value} | {_fmt_score(d.score)} | "
-                f"{d.weight:g} | {emoji} {d.status.value} |"
-            )
-    else:
-        lines.append("_No dimensions scored._")
+    lines.append("| Dimension | Score | Weight | Status |")
+    lines.append("| --- | ---: | ---: | --- |")
+    for d in dimension_details.all_dimensions(report):
+        emoji = _STATUS_EMOJI.get(d.status, "")
+        lines.append(
+            f"| {d.dimension.value} | {_fmt_score(d.score)} | "
+            f"{d.weight:g} | {emoji} {d.status.value} |"
+        )
     lines.append("")
     lines.extend(dimension_details.markdown_section(report, _md))
 
@@ -391,8 +386,6 @@ def render_markdown(report: AuditReport) -> str:
             errs = ", ".join(f"{k}: {n}" for k, n in r.errors.items())
             lines.append(f"- Errors: {errs}")
         lines.append("")
-
-    lines.extend(markdown_section(report.performance))
 
     if report.knowledge is not None:
         lines.append("## Knowledge base")
@@ -507,24 +500,21 @@ def render_html(report: AuditReport) -> str:
 
     # Dimensions table.
     out.append('<section class="card"><h2>Dimensions</h2>')
-    if report.dimensions:
-        out.append('<table><thead><tr>'
-                    "<th>Dimension</th><th class=\"num\">Score</th>"
-                    "<th class=\"num\">Weight</th><th>Status</th>"
-                    "</tr></thead><tbody>")
-        for d in report.dimensions:
-            cls = _STATUS_CLASS.get(d.status, "muted")
-            out.append(
-                "<tr>"
-                f"<td>{_esc(d.dimension.value)}</td>"
-                f'<td class="num">{_esc(_fmt_score(d.score))}</td>'
-                f'<td class="num">{_esc(f"{d.weight:g}")}</td>'
-                f'<td><span class="pill {cls}">{_esc(d.status.value)}</span></td>'
-                "</tr>"
-            )
-        out.append("</tbody></table>")
-    else:
-        out.append("<p class=\"muted\">No dimensions scored.</p>")
+    out.append('<table><thead><tr>'
+                "<th>Dimension</th><th class=\"num\">Score</th>"
+                "<th class=\"num\">Weight</th><th>Status</th>"
+                "</tr></thead><tbody>")
+    for d in dimension_details.all_dimensions(report):
+        cls = _STATUS_CLASS.get(d.status, "muted")
+        out.append(
+            "<tr>"
+            f"<td>{_esc(d.dimension.value)}</td>"
+            f'<td class="num">{_esc(_fmt_score(d.score))}</td>'
+            f'<td class="num">{_esc(f"{d.weight:g}")}</td>'
+            f'<td><span class="pill {cls}">{_esc(d.status.value)}</span></td>'
+            "</tr>"
+        )
+    out.append("</tbody></table>")
     out.append("</section>")
     out.append(dimension_details.html_section(report))
 
@@ -615,8 +605,6 @@ def render_html(report: AuditReport) -> str:
             errs = ", ".join(f"{_esc(k)}: {n}" for k, n in r.errors.items())
             out.append(f"<li>Errors: {errs}</li>")
         out.append("</ul></section>")
-
-    out.append(html_section(report.performance))
 
     if report.knowledge is not None:
         out.append('<section class="card"><h2>Knowledge base</h2><table class="evidence"><tbody>')

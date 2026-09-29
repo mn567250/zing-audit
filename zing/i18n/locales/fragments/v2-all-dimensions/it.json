@@ -1,0 +1,8 @@
+{
+ "strings": {
+  "Performance measurements": "Misurazioni delle prestazioni",
+  "Not selected": "Non selezionata",
+  "No detector of this dimension ran in this audit.": "Nessun rilevatore di questa dimensione è stato eseguito in questo audit.",
+  "{n} of {total} dimensions run": "{n} di {total} dimensioni eseguite"
+ }
+}

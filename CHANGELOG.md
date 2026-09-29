@@ -244,6 +244,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Every dimension is listed and expandable in the audit report; performance
+  is one of them.** The v2 report view and the Markdown/HTML/PDF reports list
+  all ten dimensions, those that did not run (or were not selected in a custom
+  run) included, muted and with the reason; each row expands. The performance
+  measurements (charts, stats, baseline comparison) no longer form a separate
+  section: they sit in the Performance dimension's details, next to the
+  probe's scored checks. A dimension gains such extra content by registering
+  a renderer (`DIM_EXTRAS` in `v2/report.js`, `_EXTRAS` in
+  `zing/report/dimensions.py`).
 - **Dimension weights rebalanced for performance** (still 100): model_identity
   22→21, context_window 20→19, capability 14→13, reliability 8→6, connectivity
   8→7, performance 6. The `performance.throughput_mismatch` finding became the

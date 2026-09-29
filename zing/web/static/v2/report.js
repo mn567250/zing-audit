@@ -121,6 +121,56 @@
     performance: ["Performance", "Is its speed consistent?"],
   };
 
+  // Every dimension, in scoring order (zing/scoring.py DIMENSION_WEIGHTS). The
+  // report lists all of them, those that did not run included, so a missing
+  // row is never a mystery; a report from before a dimension existed gets it
+  // back as "not run".
+  var DIM_ORDER = [
+    "connectivity", "protocol", "context_window", "model_identity", "capability",
+    "streaming", "billing", "reliability", "security", "performance",
+  ];
+  function allDims(r) {
+    var have = {};
+    var out = (r.dimensions || []).slice();
+    out.forEach(function (d) {
+      have[d.dimension] = true;
+    });
+    DIM_ORDER.forEach(function (k) {
+      if (!have[k]) out.push({ dimension: k, score: null, status: "not_run", reason: "" });
+    });
+    return out;
+  }
+  function ran(d) {
+    return d.status !== "not_run";
+  }
+  function notSelected(d, r) {
+    var sel = r.dimensions_selected || [];
+    return sel.length > 0 && sel.indexOf(d.dimension) < 0;
+  }
+
+  // Extra content a dimension's details carry beyond its detectors' checks,
+  // keyed by dimension: html(report) -> markup ("" for none), and wire(el,
+  // report) to hook it up once rendered. Add an entry to extend a dimension.
+  var DIM_EXTRAS = {
+    performance: {
+      html: function (r) {
+        if (!r.performance || !window.ZingPerf) return "";
+        var body = window.ZingPerf.section(r.performance);
+        return body
+          ? '<h4 class="zr-dh">' + esc(T("性能测量", "Performance measurements")) + "</h4>" + body
+          : "";
+      },
+      wire: function (el, r) {
+        if (window.ZingPerf && r.performance) window.ZingPerf.wireSection(el, r.performance);
+      },
+    },
+  };
+  function dimExtra(d, r) {
+    var x = DIM_EXTRAS[d.dimension];
+    var body = x ? x.html(r) : "";
+    return body ? '<div class="zr-extra" data-extra="' + esc(d.dimension) + '">' + body + "</div>" : "";
+  }
+
   function dimName(k) {
     if (isZh()) return DIMNAME[k];
     var e = DIMNAME_EN[k];
@@ -212,11 +262,15 @@
     var st = label("STATUS", d.status);
     var id = "zr-dn-" + ++uid;
     var did = "zr-dd-" + uid;
+    var off = !ran(d);
+    var offText = notSelected(d, r) ? T("未选择", "Not selected") : T("未运行", "Not run");
     var valText = hasScore
       ? num(v, 0) + "/100 · " + st
-      : T("未评分", "Not scored") + " · " + st;
+      : off
+        ? offText
+        : T("未评分", "Not scored") + " · " + st;
     return (
-      '<div class="zr-dimw"><div class="zr-dim"><div class="nm" id="' + id + '">' +
+      '<div class="zr-dimw' + (off ? " off" : "") + '"><div class="zr-dim"><div class="nm" id="' + id + '">' +
       '<button type="button" class="dtog" aria-expanded="false" aria-controls="' + did + '">' +
       '<span class="chev" aria-hidden="true">' + ico("chevronDown") + "</span>" + esc(n[0]) + "</button>" +
       "<small>" + esc(n[1]) + "</small></div>" +
@@ -224,7 +278,7 @@
         ? '<div class="bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + v +
           '" aria-valuetext="' + esc(valText) + '" aria-labelledby="' + id + '"><i data-w="' + v + '" class="' + c + '"></i></div>'
         : '<div class="bar none"><i data-w="0" class="grey"></i><span class="sr-only">' + esc(valText) + "</span></div>") +
-      '<span class="badge ' + c + '" aria-hidden="true">' + (hasScore ? esc(num(v, 0)) : "—") + "</span></div>" +
+      '<span class="badge ' + (off ? "grey" : c) + '" aria-hidden="true">' + (hasScore ? esc(num(v, 0)) : off ? esc(offText) : "—") + "</span></div>" +
       '<div class="zr-dd" id="' + did + '" role="region" aria-labelledby="' + id + '" hidden>' + dimDetails(d, r) + "</div></div>"
     );
   }
@@ -264,6 +318,12 @@
     var dname = function (i) {
       return byId[i] ? srv(byId[i].name) : i;
     };
+    if (!members.length) {
+      var none = notSelected(d, r)
+        ? T("本次自定义检测未选择该维度。", "Not selected in this custom run.")
+        : T("本次检测未运行该维度的检测器。", "No detector of this dimension ran in this audit.");
+      return '<p class="how">' + esc(none) + "</p>" + dimExtra(d, r);
+    }
     var b = d.breakdown;
     var parts = b
       ? b.detectors.map(function (x) {
@@ -315,7 +375,8 @@
     return (
       '<p class="how">' + esc(how) + "</p>" +
       (why ? '<p class="how">' + esc(why) + "</p>" : "") +
-      members.map(detDetails).join("")
+      members.map(detDetails).join("") +
+      dimExtra(d, r)
     );
   }
   function detDetails(det) {
@@ -615,9 +676,8 @@
     var riskKey = RISK[v.risk_level] ? v.risk_level : "inconclusive";
     var sc = v.overall_score;
     var t = r.target || {};
-    var dims = (r.dimensions || []).filter(function (d) {
-      return d.status !== "not_run";
-    });
+    var dims = allDims(r);
+    var ranN = dims.filter(ran).length;
     var findings = [];
     (r.detectors || []).forEach(function (det) {
       (det.findings || []).forEach(function (f) {
@@ -692,7 +752,7 @@
       "</div></div>" +
       '<dl class="meta-strip">' + meta.join("") + "</dl>" +
       '<section class="sect"><h3>' + esc(T("逐项体检", "Per-dimension checks")) +
-      ' <span class="count">' + esc(count(dims.length, ["{n} 个维度", "{n} dimension"], ["{n} 个维度", "{n} dimensions"])) + "</span></h3>" +
+      ' <span class="count">' + esc(Tf("{n} / {total} 个维度已运行", "{n} of {total} dimensions run", { n: num(ranN, 0), total: num(dims.length, 0) })) + "</span></h3>" +
       dims.map(function (d) {
         return dimRow(d, r);
       }).join("") + "</section>" +
@@ -707,9 +767,6 @@
           esc(T("未发现警告或失败项 —— 各维度表现与所声称模型一致。", "No warnings or failures — every dimension is consistent with the claimed model.")) +
           "</p>") +
       "</section>" +
-      (r.performance && window.ZingPerf
-        ? '<section class="sect perf-sect"><h3>' + esc(T("性能", "Performance")) + "</h3>" + window.ZingPerf.section(r.performance) + "</section>"
-        : "") +
       execSection(r) +
       '<footer class="zr-foot"><p class="disc">' +
       T(
@@ -770,8 +827,11 @@
             btn.disabled = false;
           });
       };
-    var perf = el.querySelector(".perf-sect");
-    if (perf && window.ZingPerf && st.report && st.report.performance) window.ZingPerf.wireSection(perf, st.report.performance);
+    var extras = el.querySelectorAll("[data-extra]");
+    for (var x = 0; x < extras.length; x++) {
+      var ext = DIM_EXTRAS[extras[x].getAttribute("data-extra")];
+      if (ext && ext.wire && st.report) ext.wire(extras[x], st.report);
+    }
   }
 
   var TOGGLES = ".zr-find .more, .zr-dim .dtog, .zr-exec .xtog";

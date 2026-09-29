@@ -201,7 +201,7 @@ zing 对十个维度评分。其中最直接揭示「货不对板」的三项（
 | **security 安全** | 传输（HTTPS）、响应头卫生、密钥回显；隐藏注入的系统提示词（固定的输入 token 开销 + 泄露）、借助答案已知的金丝雀探测传输途中对响应/工具调用的篡改（URL/包名替换），以及提示词前缀缓存（时序）|
 
 每项检测背后的技术、对应的中转作弊手法、以及误报注意事项，详见
-[docs/METHODOLOGY.md](docs/METHODOLOGY.md)。
+[docs/METHODOLOGY.zh-CN.md](docs/METHODOLOGY.zh-CN.md)。
 
 ### 性能
 

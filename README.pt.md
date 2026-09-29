@@ -222,7 +222,7 @@ pesam.
 | **connectivity** | Acessibilidade do endpoint e a lista `/v1/models` anunciada |
 | **security** | Transporte (HTTPS), higiene dos cabeçalhos, eco de segredos; prompt de sistema injetado e oculto (sobrecarga fixa de tokens de entrada + fuga), adulteração em trânsito de respostas/chamadas de ferramentas através de canários de resposta conhecida (substituição de URL/pacote) e cache de prefixo de prompt (tempos) |
 
-Consulte [docs/METHODOLOGY.md](docs/METHODOLOGY.md) para a técnica por detrás de cada
+Consulte [docs/METHODOLOGY.pt.md](docs/METHODOLOGY.pt.md) para a técnica por detrás de cada
 verificação, o truque de relay a que corresponde e as suas ressalvas sobre falsos
 positivos.
 

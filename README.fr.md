@@ -223,7 +223,7 @@ pèsent le plus.
 | **connectivity** | Accessibilité de l'endpoint et liste `/v1/models` annoncée |
 | **security** | Transport (HTTPS), hygiène des en-têtes, écho de secrets ; prompt système injecté caché (surcoût fixe de tokens d'entrée + fuite), altération en transit des réponses/appels d'outils via des canaris à réponse connue (substitution d'URL/de paquet), et mise en cache de préfixe de prompt (temporisation) |
 
-Voir [docs/METHODOLOGY.md](docs/METHODOLOGY.md) pour la technique derrière chaque
+Voir [docs/METHODOLOGY.fr.md](docs/METHODOLOGY.fr.md) pour la technique derrière chaque
 vérification, l'astuce de relais à laquelle elle correspond et ses mises en garde sur
 les faux positifs.
 

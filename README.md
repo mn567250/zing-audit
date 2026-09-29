@@ -83,10 +83,10 @@ You can also install straight from the Git repository without cloning:
   system library (preinstalled on most Linux desktops; `brew install pango` on macOS).
 
 ```bash
-pip install 'zing-audit[tokenizers,web]'          # pip, from PyPI
-pip install -e '.[tokenizers,web]'                # pip, from source
-uv tool install 'zing-audit[tokenizers,web]'      # uv, from PyPI
-uv pip install -e '.[tokenizers,web]'             # uv, from source
+pip install 'zing-audit[tokenizers,web,pdf]'      # pip, from PyPI
+pip install -e '.[tokenizers,web,pdf]'            # pip, from source
+uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, from PyPI
+uv pip install -e '.[tokenizers,web,pdf]'         # uv, from source
 ```
 
 ## Quick start

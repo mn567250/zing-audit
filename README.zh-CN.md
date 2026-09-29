@@ -79,10 +79,10 @@ source .venv/bin/activate       # Windows：.venv\Scripts\activate
   [WeasyPrint](https://weasyprint.org/) 从 HTML 报告渲染，需要系统库 Pango（多数 Linux 桌面已预装；macOS 上 `brew install pango`）。
 
 ```bash
-pip install 'zing-audit[tokenizers,web]'          # pip，从 PyPI
-pip install -e '.[tokenizers,web]'                # pip，从源码
-uv tool install 'zing-audit[tokenizers,web]'      # uv，从 PyPI
-uv pip install -e '.[tokenizers,web]'             # uv，从源码
+pip install 'zing-audit[tokenizers,web,pdf]'      # pip，从 PyPI
+pip install -e '.[tokenizers,web,pdf]'            # pip，从源码
+uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv，从 PyPI
+uv pip install -e '.[tokenizers,web,pdf]'         # uv，从源码
 ```
 
 ## 快速开始
@@ -166,8 +166,8 @@ zing serve            # 打开 http://localhost:8000
 **🇫🇷 法语**、**🇪🇸 西班牙语**、**🇵🇹 葡萄牙语**、**🇮🇹 意大利语** 和 **🇩🇪 德语**
 之间切换界面；选择按浏览器记住。从界面下载的报告（**下载报告**：JSON、Markdown、HTML 或 PDF）同样跟随所选语言：
 JSON 键、枚举值（`risk_level`、`status`、`severity` 等）、id 和证据与命令行报告完全一致
-（仍是合法的 zing 报告），而面向人阅读的值（结论标题/摘要、发现标题/摘要、建议、检测器名称、
-备注）会被翻译，文件名也会带上语言（`zing-report.zh.json`）。命令行自身的
+（JSON 仍是合法的 zing 报告），而面向人阅读的值（结论标题/摘要、发现标题/摘要、建议、检测器名称、
+备注）会被翻译，文件名也会带上语言（`zing-report.zh.json`、`zing-report.zh.pdf`）。Markdown/HTML/PDF 文件的章节标题为英文。命令行自身的
 `--format json|md|html|pdf` 报告始终为英文。
 
 **发往被测端点的提示词不跟随界面语言。** zing 发给 LLM API 的每一段文本——对话探测、

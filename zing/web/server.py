@@ -226,7 +226,7 @@ async def _run_one_watch_inner(row: dict[str, Any]) -> None:
 
         report = await run_audit(target, options, baseline=None, mode="check", pinned=pinned)
         report_dict = json.loads(report.model_dump_json())
-        report_id = history.save(report_dict)
+        report_id = history.save(report_dict, watch_id=wid)
         if report_id is not None and report_id < 0:
             report_id = None
 
@@ -828,12 +828,15 @@ def create_app() -> FastAPI:
         user sets the interval (and, if the endpoint needs one, the key) on the
         monitors page, then enables it.
         A compare run's baseline is dropped: watches run check-only.
+        A run a monitor produced is refused: that monitor already exists.
         """
         from zing.web import history, watches
 
         report = history.get(rid)
         if report is None:
             return JSONResponse({"error": "not found"}, status_code=404)
+        if history.watch_of(rid) is not None:
+            return JSONResponse({"error": "this run was produced by a monitor"}, status_code=409)
         try:
             body = await request.json()
         except ValueError:

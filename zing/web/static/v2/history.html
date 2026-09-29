@@ -129,8 +129,9 @@
     background: none; border: 1px solid transparent; color: var(--faint); transition: color 0.12s, background 0.12s, border-color 0.12s;
   }
   .rdel .zicon, .rsched .zicon { width: 15px; height: 15px; }
-  .rsched:hover { color: var(--teal); background: var(--surface-2); border-color: var(--teal); }
+  .rsched:not(:disabled):hover { color: var(--teal); background: var(--surface-2); border-color: var(--teal); }
   .rsched:disabled { opacity: 0.5; cursor: progress; }
+  .rsched.bymon:disabled { opacity: 0.35; cursor: not-allowed; }
   .rmsg { margin: 2px 10px 10px; font-size: 12.5px; font-weight: 600; color: var(--bad); }
   .rmsg:empty { display: none; }
   .rdel:hover { color: var(--bad); background: var(--badbg); border-color: var(--bad); }
@@ -649,7 +650,7 @@
       '<span class="c-mode"><b>' + esc(r.mode || "check") + "</b>" + (r.suite ? " · " + esc(r.suite) : "") +
       (perf ? '<span class="perf" title="' + esc(T("延迟 p50", "Latency p50")) + '">p50 ' + Math.round(perf.latency_p50_ms) + " ms</span>" : "") + "</span>" +
       '<span class="c-cv" aria-hidden="true">' + ico("chevronDown") + "</span></button>" +
-      '<button type="button" class="rsched" data-sched="' + esc(id) + '" aria-label="' + esc(T("设为监控", "Schedule as monitor")) + '" title="' + esc(T("设为监控", "Schedule as monitor")) + '">' + ico("bell") + "</button>" +
+      schedBtnHTML(r) +
       '<button type="button" class="rdel" aria-label="' + esc(T("删除此记录", "Delete entry")) + '" title="' + esc(T("删除此记录", "Delete entry")) +
       '" aria-expanded="' + (state.confirm === id) + '" aria-controls="c-' + esc(id) + '">' + ico("trash") + "</button></div>" +
       confirmHTML("c-" + esc(id), id, T("删除这条历史记录？", "Delete this history entry?"), T("删除", "Delete")) +
@@ -657,15 +658,29 @@
       '<div class="panel" id="p-' + esc(id) + '" data-id="' + esc(id) + '" role="region" aria-labelledby="r-' + esc(id) + '" hidden></div></li>';
   }
 
+  // A run a monitor produced already has its monitor: offer no second one.
+  function byMonitor(r) { return !!r && r.watch_id != null; }
+
+  function schedBtnHTML(r) {
+    var id = String(r.id);
+    if (byMonitor(r)) {
+      var why = T("此记录由监控运行产生", "This run was produced by a monitor");
+      return '<button type="button" class="rsched bymon" disabled aria-label="' + esc(why) + '" title="' + esc(why) + '">' + ico("bell") + "</button>";
+    }
+    return '<button type="button" class="rsched" data-sched="' + esc(id) + '" aria-label="' + esc(T("设为监控", "Schedule as monitor")) + '" title="' + esc(T("设为监控", "Schedule as monitor")) + '">' + ico("bell") + "</button>";
+  }
+
   /* ---------------- report drawer ---------------- */
   function mount(panel, report) {
     var el = document.createElement("div");
+    var id = panel.getAttribute("data-id");
+    var row = (state.rows || []).filter(function (r) { return String(r.id) === id; })[0];
     el.className = "rep";
     panel.innerHTML = "";
     panel.appendChild(el);
     ZingReport.render(el, report, {
-      actions: [
-        { zh: "设为监控", en: "Schedule as monitor", primary: true, onClick: function () { schedule(panel.getAttribute("data-id")); } },
+      actions: byMonitor(row) ? [] : [
+        { zh: "设为监控", en: "Schedule as monitor", primary: true, onClick: function () { schedule(id); } },
       ],
       download: { name: "zing-report-" + panel.getAttribute("data-id") },
     });

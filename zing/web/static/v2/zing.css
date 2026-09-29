@@ -312,6 +312,18 @@ select.in {
 .seg button[aria-pressed="true"] { color: var(--on-ink); background: var(--ink); border-color: var(--ink); }
 .seg button:disabled { opacity: 0.45; cursor: not-allowed; }
 
+/* multi-select chips: <div class="chips" role="group"><button aria-pressed="true">… (each toggles) */
+.chips { display: flex; gap: 7px; flex-wrap: wrap; }
+.chips button {
+  cursor: pointer; font-family: var(--sans); font-weight: 600; font-size: 12.5px;
+  color: var(--ink2); background: var(--field); border: 1.5px solid var(--line); border-radius: var(--r-pill);
+  padding: 7px 12px; transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.chips button:hover:not(:disabled) { border-color: var(--line-strong); color: var(--ink); }
+.chips button[aria-pressed="true"] { color: var(--on-ink); background: var(--ink); border-color: var(--ink); }
+.chips button[aria-pressed="true"]::before { content: "✓ "; }
+.chips button:disabled { opacity: 0.45; cursor: not-allowed; }
+
 /* switch: <label class="switch"><input type="checkbox" role="switch"><span></span> text</label> */
 .switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13.5px; color: var(--ink2); }
 .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }

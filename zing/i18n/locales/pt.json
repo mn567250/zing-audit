@@ -781,7 +781,7 @@
    "{successes}/{requests} requisições da sonda bem-sucedidas; latência p50 {latency_p50_ms} ms, TTFT p50 {ttft_p50_ms} ms, decodificação p50 {decode_tps_p50} tok/s."
   ],
   "performance.errors": [
-   "Requisições da sonda falharam",
+   "Falhas das requisições da sonda",
    "{errors} erros e {timeouts} tempos esgotados em {requests} requisições da sonda para {endpoint} ({rate_limited} limitadas)."
   ],
   "performance.cache_hit": [
@@ -796,13 +796,29 @@
    "Latência em relação à referência",
    "Latência p50 do alvo {target_latency_p50_ms} ms vs referência {baseline_latency_p50_ms} ms (diferença {latency_p50_delta_ms} ms)."
   ],
-  "performance.throughput_mismatch": [
-   "O alvo gera muito mais rápido que a referência",
-   "O alvo decodifica a {target_decode_tps_p50} tok/s vs {baseline_decode_tps_p50} tok/s da referência ({ratio}x) — compatível com um modelo menor."
-  ],
   "performance.skipped": [
    "Sonda de desempenho desativada",
    "performance_requests = {performance_requests}; nenhuma requisição da sonda foi enviada."
+  ],
+  "performance.latency_consistency": [
+   "Constância da latência",
+   "Latência p50 {p50} ms, p90 {p90} ms — razão de cauda {tail_ratio} em {samples} requisições."
+  ],
+  "performance.ttft_consistency": [
+   "Constância do tempo até o primeiro token",
+   "TTFT p50 {p50} ms, p90 {p90} ms — razão de cauda {tail_ratio} em {samples} requisições."
+  ],
+  "performance.throughput_consistency": [
+   "Constância da vazão",
+   "Vazão p50 {p50} {unit}, p10 {p10} {unit} — razão de cauda {tail_ratio} em {samples} requisições."
+  ],
+  "performance.load_stability": [
+   "Latência sob carga concorrente",
+   "Latência p50 {burst_latency_p50_ms} ms com concorrência {concurrency} contra {sequential_latency_p50_ms} ms uma a uma ({ratio}x)."
+  ],
+  "performance.reference": [
+   "Vazão em relação à referência",
+   "Vazão do alvo {target_tps_p50} tok/s, referência {reference_range} tok/s."
   ]
  }
 }

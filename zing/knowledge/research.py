@@ -48,6 +48,8 @@ _HELP: dict[str, str] = {
     "unsupported_params": "request parameters the model itself rejects (e.g. temperature, top_p)",
     "identity_keywords": "lower-case words the genuine model uses to identify itself",
     "identity_forbidden": "lower-case words that would betray a different model (rival brands)",
+    "performance": "optional published native-API speed: {decode_tps: [low, high] tok/s, "
+    "ttft_ms: [low, high], source: URL, measured: YYYY-MM}; wide ranges, null when unknown",
     "notes": "one paragraph: what matters for spotting a substitute, with dates",
     # fingerprint
     "signal": "what the probe measures",

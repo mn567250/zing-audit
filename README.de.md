@@ -202,7 +202,7 @@ Oberfläche und jeder Befund mit intakten Platzhaltern und intaktem Markup über
 
 ## Was geprüft wird
 
-zing bewertet neun Dimensionen. Die drei, die eine Mogelpackung am direktesten
+zing bewertet zehn Dimensionen. Die drei, die eine Mogelpackung am direktesten
 aufdecken (Modellidentität, tatsächliches Kontextfenster, beworbene Fähigkeiten), werden
 am stärksten gewichtet.
 
@@ -215,20 +215,20 @@ am stärksten gewichtet.
 | **streaming** | Vorgetäuschtes Streaming (erst puffern, dann zerstückeln), erkannt an der Anzahl der Chunks und ihrem zeitlichen Abstand |
 | **protocol** | Konformität zur OpenAI-Kompatibilität: Mehrfachdialoge, Stoppsequenzen, Antwortstruktur, Fehlerschema — sowie eine Determinismus-Teilprüfung auf Antwort-Caches, die temperature/seed ignorieren |
 | **reliability** | Erfolgsquote bei Parallelität und Latenz (HTTP-429-Drosselung wird gesondert gezählt) |
+| **performance** | Wie *gleichmäßig* Latenz, Zeit bis zum ersten Token und Durchsatz sind, Fehlerquote der Messung und Verlangsamung unter Last; das Tempo selbst nur im Vergleich zu einer Referenz |
 | **connectivity** | Erreichbarkeit des Endpunkts und die beworbene `/v1/models`-Liste |
 | **security** | Transport (HTTPS), Header-Hygiene, Echo von Geheimnissen; versteckt injizierter System-Prompt (fester Mehraufwand an Eingabe-Token + Leck), Manipulation von Antworten/Tool-Calls unterwegs per Kanarien mit bekannter Antwort (URL-/Paketaustausch) und Prompt-Präfix-Caching (Timing) |
 
 Siehe [docs/METHODOLOGY.md](docs/METHODOLOGY.md) für die Technik hinter jeder Prüfung,
 den Relay-Trick, dem sie entspricht, und ihre Einschränkungen bezüglich Fehlalarmen.
 
-### Performance (informativ)
+### Performance
 
 Jeder Bericht enthält außerdem einen Abschnitt **performance**: Latenz, Zeit bis zum
 ersten Token (TTFT), Decode- und End-to-End-Token/s, Latenz und Jitter zwischen Chunks,
 Fehler-/Timeout-/429-Raten, eine Netzwerkaufschlüsselung (TCP-Verbindung, TLS, ein
 `GET /models`-Roundtrip, Serverzeit) und Kaltstart, jeweils als
-count / min / mean / p50 / p75 / p90 / p95 / p99 / max / stdev. Er beeinflusst weder die
-Punktzahl noch das Urteil.
+count / min / mean / p50 / p75 / p90 / p95 / p99 / max / stdev. Läuft die eigene Messung, bewertet sie die Dimension **performance** (Gewicht 6) — nach *Gleichmäßigkeit* von Latenz, TTFT und Durchsatz, Fehlerquote und Verhalten unter Last, nicht nach reiner Geschwindigkeit; ein langsames, aber gleichmäßiges (z. B. lokales) Modell wird nicht abgewertet. Das Tempo selbst zählt nur im Vergleich zur Referenz (Baseline oder veröffentlichter Bereich in der Wissensbasis). Die Befunde sind höchstens von niedrigem Schweregrad und ändern nie das Risikourteil.
 
 - **standard** erhebt ihn aus den eigenen Anfragen der Prüfung.
 - **deep / full** fügen einen eigenen Test hinzu: 100 nicht cachebare Anfragen mit 128
@@ -390,6 +390,9 @@ Deployment-Schranke.
 | `standard` | + protocol, model_identity, capability, streaming, billing, reliability | gering–mittel |
 | `deep` | + context_window, determinism, injected_prompt, integrity, performance, prompt_cache, quality_judge (mit `--judge`) | höher (Langkontext- und Timing-Tests kosten Token) |
 | `full` | alles | am höchsten |
+| `custom` | nur die gewählten Dimensionen, in `deep`-Tiefe | je nach Auswahl |
+
+**Benutzerdefinierte Suite:** `zing check ... -D protocol -D performance` (oder `--suite custom --dimension billing,streaming`, in der Konfiguration `run.dimensions`) führt nur die gewählten Dimensionen aus. Die Gesamtbewertung ist das gewichtete Mittel allein dieser Dimensionen; ohne Kerndimension (Modellidentität, Kontextfenster, Fähigkeiten) ist das Risikourteil *nicht eindeutig*. Die Web-UI bietet dieselbe Auswahl.
 
 Der Kontextfenster-Test ist durch `--max-context-tokens` (Standard 200K) begrenzt,
 sodass die Prüfung eines Modells mit 1M Token bezahlbar bleibt.

@@ -196,7 +196,7 @@ its placeholders and markup intact.
 
 ## What it checks
 
-zing scores nine dimensions. The three that most directly reveal a bait-and-switch
+zing scores ten dimensions. The three that most directly reveal a bait-and-switch
 (model identity, real context window, capability claims) carry the most weight.
 
 | Dimension | What it catches |
@@ -208,19 +208,37 @@ zing scores nine dimensions. The three that most directly reveal a bait-and-swit
 | **streaming** | Fake streaming (buffer-then-chunk) detected from chunk count and inter-chunk timing |
 | **protocol** | OpenAI-compatibility conformance: multi-turn, stop sequences, response shape, error schema — and a determinism sub-check for response caching that ignores temperature/seed |
 | **reliability** | Concurrent success rate and latency (HTTP 429 throttling bucketed separately) |
+| **performance** | How *consistent* latency, time to first token and throughput are, the probe's failure rate, and the slowdown under concurrent load; speed itself is checked only against a reference (see below) |
 | **connectivity** | Endpoint reachability and the advertised `/v1/models` list |
 | **security** | Transport (HTTPS), header hygiene, secret echo; hidden injected system prompt (fixed input-token overhead + leak), in-flight response/tool-call tampering via known-answer canaries (URL/package substitution), and prompt-prefix caching (timing) |
 
 See [docs/METHODOLOGY.md](docs/METHODOLOGY.md) for the technique behind each check,
 which relay trick it maps to, and its false-positive caveats.
 
-### Performance (informational)
+### Performance
 
 Every report also carries a **performance** section: latency, time to first token
 (TTFT), decode and end-to-end tokens/s, inter-chunk latency and jitter,
 error/timeout/429 rates, a network breakdown (TCP connect, TLS, a `GET /models`
 round trip, server time) and cold start, each as count / min / mean / p50 / p75 /
-p90 / p95 / p99 / max / stdev. It never affects the score or the verdict.
+p90 / p95 / p99 / max / stdev.
+
+When the dedicated probe runs, it scores the **performance dimension** (weight 6).
+The score is about **consistency**, not raw speed, so a slow but steady endpoint
+(a local or self-hosted model) is not marked down for not being a data centre:
+
+| Check | Scored on |
+|---|---|
+| latency / TTFT consistency | tail ratio p90 ÷ p50 (≤ 1.3 steady 100 · ≤ 1.75 stable 85 · ≤ 2.5 variable 65 · above: erratic 40); needs ≥ 10 samples |
+| throughput consistency | tail ratio p50 ÷ p10 of tokens/s, same bands |
+| errors | failed probe requests: ≤ 2% 100 · ≤ 10% 80 · above: 50 (429s not counted) |
+| load stability | burst p50 latency ÷ sequential p50: ≤ 1.5x 100 · ≤ 3x 80 · above: 55 |
+| cache hit | unique prompts answered from a cache: 60 |
+| reference | tokens/s against the trusted baseline, or else the knowledge base's published range for the model: in line 100 · slower 80 (informational, never a failure) · ≥ 2x faster 60 (hints at a smaller model) · no reference: not counted |
+
+Performance findings are at most low severity: they move the score, never the
+risk verdict. Without the probe (standard without a baseline, smoke), the
+dimension is not run and drops out of the overall score.
 
 - **standard** collects it from the audit's own requests.
 - **deep / full** add a dedicated probe: 100 uncacheable requests of 128 output
@@ -231,10 +249,9 @@ p90 / p95 / p99 / max / stdev. It never affects the score or the verdict.
   the web UI) measures relays that cannot stream. **full** measures both modes,
   interleaved, and reports them side by side.
 - **compare** runs the probe on both endpoints, alternating requests, and adds a
-  target-vs-baseline table (5 requests per side on `standard`) whose differences
-  are marked green ✓ where the target is better and red ✗ where it is worse. A
-  target that generates more than 2x faster than the baseline is flagged as a
-  low-severity hint.
+  target-vs-baseline table (5 requests per side on `standard`, too few for the
+  consistency checks) whose differences are marked green ✓ where the target is
+  better and red ✗ where it is worse.
 
 Tokens are counted twice: from the relay's `usage` and locally, so throughput is
 measurable even when `usage` is missing. A percentile is shown only with enough
@@ -372,9 +389,32 @@ and a deploy-gating example.
 | `standard` | + protocol, model_identity, capability, streaming, billing, reliability | low–medium |
 | `deep` | + context_window, determinism, injected_prompt, integrity, performance, prompt_cache, quality_judge (if `--judge`) | higher (long-context & timing probes cost tokens) |
 | `full` | everything | highest |
+| `custom` | only the dimensions you pick, at `deep` depth | depends on the selection |
 
 The context-window probe is bounded by `--max-context-tokens` (default 200K) so
 auditing a 1M-token model stays affordable.
+
+### Custom suite
+
+Run just the dimensions you care about, which saves time and tokens. Every detector
+of each selected dimension runs, as on `deep`:
+
+```bash
+zing check --base-url ... --model gpt-4o -D protocol -D performance
+zing check --base-url ... --model gpt-4o --suite custom --dimension billing,streaming
+```
+
+`--dimension/-D` is repeatable or comma-separated and implies `--suite custom`;
+in a config file use `run.dimensions: [protocol, performance]`. The dimensions
+are `connectivity`, `protocol`, `context_window`, `model_identity`, `capability`,
+`streaming`, `billing`, `reliability`, `security` and `performance`. The web UI
+(start page, console and monitors) has a `custom` suite button with the same
+choice.
+
+The **overall score is the weighted mean of the selected dimensions only**;
+dimensions you left out are reported as "not selected". The substitution risk
+needs at least one core dimension (model identity, context window, capability):
+without one, the verdict is *inconclusive*.
 
 ## Example verdict
 

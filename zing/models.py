@@ -49,6 +49,7 @@ class Dimension(str, Enum):
     BILLING = "billing"
     RELIABILITY = "reliability"
     SECURITY = "security"
+    PERFORMANCE = "performance"
 
 
 class RiskLevel(str, Enum):
@@ -512,8 +513,9 @@ class ProbeCost(BaseModel):
 
 
 class PerformanceReport(BaseModel):
-    """Latency / TTFT / throughput of the audited endpoint(s). Informational — it
-    never feeds the score or the verdict."""
+    """Latency / TTFT / throughput of the audited endpoint(s). The performance
+    detector scores the probe's consistency in its own dimension; these stats
+    themselves never move the verdict's risk level."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -620,6 +622,8 @@ class AuditReport(BaseModel):
     generated_at: str | None = None  # ISO timestamp, stamped by the runner
     command: str | None = None
     suite: str
+    # The dimensions a ``custom`` suite ran (None for the fixed suites).
+    dimensions_selected: list[str] | None = None
 
     target: RedactedTarget
     baseline: RedactedTarget | None = None

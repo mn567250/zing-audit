@@ -13,9 +13,12 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from zing.models import TargetConfig
+from zing.models import Dimension, TargetConfig
 
-SUITES = ("smoke", "standard", "deep", "full")
+# ``custom`` runs the dimensions the user picks (``AuditOptions.dimensions``) at
+# deep depth; the others are cumulative tiers.
+SUITES = ("smoke", "standard", "deep", "full", "custom")
+DIMENSIONS = tuple(d.value for d in Dimension)
 FORMATS = ("json", "md", "html", "all")
 RISK_LEVELS = ("low", "medium", "high")
 APIS = ("auto", "openai", "anthropic", "responses")
@@ -34,6 +37,8 @@ class AuditOptions(BaseModel):
     judge: bool = False
     only: list[str] = Field(default_factory=list)   # run only these detector ids
     skip: list[str] = Field(default_factory=list)    # skip these detector ids
+    # Dimensions the ``custom`` suite runs (empty for the fixed suites).
+    dimensions: list[str] = Field(default_factory=list)
 
     # Context-window probe: cap so a claimed 1M model does not cost a fortune.
     max_context_probe_tokens: int = 200_000
@@ -46,7 +51,7 @@ class AuditOptions(BaseModel):
     # Identity/determinism sampling.
     determinism_samples: int = 3
 
-    # Performance probe (deep/full, or compare mode on standard): uncacheable
+    # Performance probe (deep/full/custom, or compare mode on standard): uncacheable
     # streaming requests per endpoint and their output length. 0 disables it.
     performance_requests: int = 100
     performance_max_tokens: int = 128
@@ -155,6 +160,36 @@ def validate_suite(value: str) -> str:
     return value
 
 
+def validate_dimensions(suite: str, value: str | list[str] | tuple[str, ...] | None) -> list[str]:
+    """Validate the ``custom`` suite's dimension selection.
+
+    Accepts a list (e.g. a repeated ``--dimension``), comma-separated entries or
+    a mix; returns the distinct dimensions in canonical order. ``custom`` needs
+    at least one, and the fixed suites take none.
+    """
+    raw = [value] if isinstance(value, str) else list(value or [])
+    picked: set[str] = set()
+    for item in raw:
+        for part in str(item).split(","):
+            name = part.strip().lower()
+            if not name:
+                continue
+            if name not in DIMENSIONS:
+                raise ConfigError(
+                    f"Unknown dimension {name!r}. Choose from: {', '.join(DIMENSIONS)}"
+                )
+            picked.add(name)
+    if suite == "custom" and not picked:
+        raise ConfigError(
+            f"The custom suite needs at least one dimension. Choose from: {', '.join(DIMENSIONS)}"
+        )
+    if suite != "custom" and picked:
+        raise ConfigError(
+            f"Dimensions can only be selected with the custom suite (got suite {suite!r})"
+        )
+    return [d for d in DIMENSIONS if d in picked]
+
+
 def validate_format(value: str) -> str:
     if value not in FORMATS:
         raise ConfigError(f"Unknown format {value!r}. Choose from: {', '.join(FORMATS)}")
@@ -208,16 +243,17 @@ baseline:
   model: gpt-4o
 
 run:
-  suite: standard                  # smoke | standard | deep | full
+  suite: standard                  # smoke | standard | deep | full | custom
+  # dimensions: [protocol, performance]  # custom suite only: the dimensions to run
   judge: false                     # enable code+LLM hybrid judging
   output_dir: reports
   format: all                      # json | md | html | all
   reliability_requests: 8
   concurrency: 3
   max_context_probe_tokens: 200000 # cap for the real-context-window probe
-  performance_requests: 100        # performance probe requests per endpoint (deep/full; 0 disables)
+  performance_requests: 100        # performance probe requests per endpoint (deep/full/custom; 0 disables)
   performance_max_tokens: 128      # output tokens per performance probe request
-  performance_streaming: true      # probe mode on standard/deep (full measures both)
+  performance_streaming: true      # probe mode on standard/deep/custom (full measures both)
 
 # Optional LLM judge backend (used when run.judge is true).
 # Defaults to the baseline endpoint if omitted.

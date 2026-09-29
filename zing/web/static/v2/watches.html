@@ -165,8 +165,16 @@
             <button type="button" class="tech" data-v="standard" aria-pressed="true">standard</button>
             <button type="button" class="tech" data-v="deep" aria-pressed="false">deep</button>
             <button type="button" class="tech" data-v="full" aria-pressed="false">full</button>
+            <button type="button" class="tech" data-v="custom" aria-pressed="false">custom</button>
           </div>
           <p class="hint" id="h-suite" data-en="Heavier suites send more requests on every run.">套件越重，每次运行发出的请求越多。</p>
+        </div>
+        <div class="grp" id="f-dims-grp" hidden>
+          <div class="lab" id="lab-f-dims"><span data-en="Dimensions to run">检测维度</span> <span class="key">dimensions</span></div>
+          <div class="chips" id="f-dims" role="group" aria-labelledby="lab-f-dims" aria-describedby="f-dims-hint">
+            <button type="button" aria-pressed="true" data-v="model_identity" data-en="Model identity">模型身份</button><button type="button" aria-pressed="true" data-v="context_window" data-en="Context window">上下文窗口</button><button type="button" aria-pressed="true" data-v="capability" data-en="Capability claims">能力声明</button><button type="button" aria-pressed="true" data-v="protocol" data-en="Protocol compliance">协议兼容</button><button type="button" aria-pressed="true" data-v="connectivity" data-en="Connectivity">连通性</button><button type="button" aria-pressed="true" data-v="streaming" data-en="Streaming authenticity">流式真实</button><button type="button" aria-pressed="true" data-v="billing" data-en="Billing &amp; usage">计费用量</button><button type="button" aria-pressed="true" data-v="reliability" data-en="Concurrency reliability">并发可靠</button><button type="button" aria-pressed="true" data-v="performance" data-en="Performance">性能表现</button><button type="button" aria-pressed="true" data-v="security" data-en="Transport security">传输安全</button>
+          </div>
+          <div class="hint" id="f-dims-hint" data-en="Only the selected dimensions run, at deep depth; the overall score is computed from them alone.">只运行所选维度（按 deep 深度）；综合得分只按这些维度计算。</div>
         </div>
 
         <div class="grp">
@@ -225,6 +233,7 @@
 <script src="/secretfield.js"></script>
 <script src="/modelpicker.js"></script>
 <script src="/v2/static/nav.js"></script>
+<script src="/v2/static/dimpick.js"></script>
 <script>
 (function () {
   "use strict";
@@ -314,8 +323,11 @@
       if (!b) return;
       segSet(id, b.getAttribute("data-v"));
       if (id === "f-alert") paintAlertHint();
+      if (id === "f-suite") $("f-dims-grp").hidden = b.getAttribute("data-v") !== "custom";
     });
   });
+  // Custom suite: the dimensions each run audits.
+  var dimsPick = ZING_DIMPICK.bind($("f-dims"));
 
   // ---- live hints -------------------------------------------------------- //
   function paintAlertHint() {
@@ -431,6 +443,12 @@
       $(FIELDS[bad].input).focus();
       return;
     }
+    if (segValue("f-suite") === "custom" && !dimsPick.value().length) {
+      formErr = function () { return T("请至少选择一个检测维度。", "Select at least one dimension to run."); };
+      paintFormMsg();
+      $("f-dims").querySelector("button").focus();
+      return;
+    }
     var name = $("f-name").value.trim() || "watch";
     var enabled = $("f-enabled").checked;
     var minutes = intervalMinutes();
@@ -443,6 +461,7 @@
       declared_provider: $("f-prov").value.trim() || null,
       api: segValue("f-api") || "auto",
       suite: segValue("f-suite") || "standard",
+      dimensions: segValue("f-suite") === "custom" ? dimsPick.value() : [],
       alert_on: segValue("f-alert") || "medium",
       interval_sec: minutes * 60,
       enabled: enabled,
@@ -567,7 +586,8 @@
           '<div class="mon-url">' + esc(w.base_url || "") + "</div>" +
           '<dl class="mon-meta">' +
             meta(T("请求的模型", "Model to request"), "<code>" + esc(w.model || "?") + "</code>" + claimed) +
-            meta(T("测试套件", "Test suite"), "<code>" + esc(w.suite || "standard") + "</code>") +
+            meta(T("测试套件", "Test suite"), "<code>" + esc(w.suite || "standard") + "</code>" +
+              (w.suite === "custom" && (w.dimensions || []).length ? " <code>" + esc(w.dimensions.join(", ")) + "</code>" : "")) +
             meta(T("检测间隔", "Check interval"), esc(fmtEvery(w.interval_sec))) +
             meta(T("告警阈值", "Alert threshold"), esc(thresholdLabel(w.alert_on || "medium"))) +
             meta(T("Webhook", "Webhooks"), esc(hooksText((w.webhooks || []).length))) +

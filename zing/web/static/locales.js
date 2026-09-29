@@ -34,6 +34,7 @@
   // Sentences of the backend verdict summary (zing/scoring.py::_summary).
   var P = [
     ["Overall health score ([\\d.]+)/100\\.", "Overall health score {1}/100."],
+    ["Custom run: (\\d+) of (\\d+) selected dimensions scored\\.", "Custom run: {1} of {2} selected dimensions scored."],
     [
       "Findings: ((?:\\d+ (?:critical|high|medium)(?:, )?)+)\\.",
       "Findings: {1}.",
@@ -70,6 +71,7 @@
     "No significant divergence findings.",
     "The claimed model was not found in the knowledge base, so identity/capability checks are limited — pass --declared-provider or add a KB profile.",
     "Run `zing compare` against a trusted baseline to strengthen the verdict.",
+    "No core dimension (model identity, context window, capability) was selected, so the substitution risk cannot be judged.",
     "zing reports black-box evidence of divergence and risk, not proof of fraud.",
   ].forEach(function (s) {
     P.push([esc(s), s]);

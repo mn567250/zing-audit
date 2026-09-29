@@ -201,7 +201,7 @@ intactos.
 
 ## O que verifica
 
-O zing pontua nove dimensões. As três que revelam mais diretamente um «gato por lebre»
+O zing pontua dez dimensões. As três que revelam mais diretamente um «gato por lebre»
 (identidade do modelo, janela de contexto real, capacidades anunciadas) são as que mais
 pesam.
 
@@ -214,6 +214,7 @@ pesam.
 | **streaming** | Streaming falso (buffer e depois fragmentação) detetado pelo número de fragmentos e pelo intervalo entre fragmentos |
 | **protocol** | Conformidade com a compatibilidade OpenAI: várias interações, sequências de paragem, forma da resposta, esquema de erros — e uma subverificação de determinismo para caches de resposta que ignoram temperature/seed |
 | **reliability** | Taxa de sucesso em concorrência e latência (a limitação HTTP 429 é contabilizada à parte) |
+| **performance** | Quão *constantes* são a latência, o tempo até o primeiro token e a vazão, a taxa de falhas da sonda e a lentidão sob carga; a velocidade só face a uma referência |
 | **connectivity** | Acessibilidade do endpoint e a lista `/v1/models` anunciada |
 | **security** | Transporte (HTTPS), higiene dos cabeçalhos, eco de segredos; prompt de sistema injetado e oculto (sobrecarga fixa de tokens de entrada + fuga), adulteração em trânsito de respostas/chamadas de ferramentas através de canários de resposta conhecida (substituição de URL/pacote) e cache de prefixo de prompt (tempos) |
 
@@ -221,14 +222,13 @@ Consulte [docs/METHODOLOGY.md](docs/METHODOLOGY.md) para a técnica por detrás 
 verificação, o truque de relay a que corresponde e as suas ressalvas sobre falsos
 positivos.
 
-### Desempenho (informativo)
+### Desempenho
 
 Cada relatório inclui também uma secção de **performance**: latência, tempo até ao
 primeiro token (TTFT), tokens/s de descodificação e de ponta a ponta, latência e jitter
 entre fragmentos, taxas de erro/timeout/429, uma decomposição de rede (ligação TCP, TLS,
 uma ida e volta `GET /models`, tempo do servidor) e arranque a frio, cada um como
-count / min / mean / p50 / p75 / p90 / p95 / p99 / max / stdev. Nunca afeta a
-pontuação nem o veredicto.
+count / min / mean / p50 / p75 / p90 / p95 / p99 / max / stdev. Quando a sonda dedicada é executada, ela pontua a dimensão **performance** (peso 6) pela *constância* de latência, TTFT e vazão, pela taxa de falhas e pelo comportamento sob carga, não pela velocidade bruta: um modelo lento mas constante (ex.: local) não é penalizado. A velocidade só conta face a uma referência (a linha de base ou o intervalo publicado na base de conhecimento). As constatações são no máximo de severidade baixa e nunca mudam o veredito de risco.
 
 - **standard** recolhe-a a partir dos próprios pedidos da auditoria.
 - **deep / full** acrescentam uma sonda dedicada: 100 pedidos não armazenáveis em cache
@@ -386,6 +386,9 @@ tabela completa de entradas/saídas e um exemplo de barreira de implementação.
 | `standard` | + protocol, model_identity, capability, streaming, billing, reliability | baixo–médio |
 | `deep` | + context_window, determinism, injected_prompt, integrity, performance, prompt_cache, quality_judge (com `--judge`) | mais alto (as sondas de contexto longo e de tempos consomem tokens) |
 | `full` | tudo | o mais alto |
+| `custom` | só as dimensões escolhidas, com profundidade `deep` | depende da seleção |
+
+**Suite personalizada:** `zing check ... -D protocol -D performance` (ou `--suite custom --dimension billing,streaming`; no arquivo de configuração `run.dimensions`) executa só as dimensões escolhidas. A pontuação geral é a média ponderada apenas dessas dimensões; sem nenhuma dimensão central (identidade do modelo, janela de contexto, capacidades) o veredito de risco é *inconclusivo*. A interface web oferece a mesma escolha.
 
 A sonda de janela de contexto é limitada por `--max-context-tokens` (200K por omissão),
 para que auditar um modelo de 1M de tokens continue a ser acessível.

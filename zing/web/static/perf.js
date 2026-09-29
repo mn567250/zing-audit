@@ -428,7 +428,10 @@
     var hasB = !!perf.baseline;
     var pid = "zp" + ++seq;
     var o = ['<div class="zp-section" data-zp="' + pid + '">'];
-    o.push('<p class="zp-muted">' + esc(src) + " · " + esc(T("仅供参考，不计分", "Informational — not scored")) + "</p>");
+    var scored = perf.source === "probe"
+      ? T("稳定性计入性能表现维度", "Consistency is scored in the performance dimension")
+      : T("仅供参考，不计分", "Informational — not scored");
+    o.push('<p class="zp-muted">' + esc(src) + " · " + esc(scored) + "</p>");
     o.push(tabs(sectionState.metric, pid));
     o.push(plot(perf.requests, sectionState.metric, pid, sectionState.open));
     o.push(legend(perf.requests, hasB));

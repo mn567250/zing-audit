@@ -143,3 +143,26 @@ def test_all_fingerprints_merges_provider_and_model():
     resolved = ResolvedProfile(provider=provider, model=provider.models[0])
     ids = [fp.id for fp in resolved.all_fingerprints()]
     assert ids == ["p1", "m1"]
+
+
+def test_performance_reference_ranges():
+    import pytest
+    from pydantic import ValidationError
+
+    from zing.knowledge.schema import ModelProfile, PerformanceReference
+
+    ref = PerformanceReference(decode_tps=[40, 120], ttft_ms=[300, 1500], source="x")
+    assert ref.decode_tps == (40.0, 120.0)
+    assert ModelProfile(id="m", performance={"decode_tps": [10, 20]}).performance is not None
+    assert ModelProfile(id="m").performance is None  # optional: old entries stay valid
+    for bad in ([120, 40], [0, 10]):
+        with pytest.raises(ValidationError):
+            PerformanceReference(decode_tps=bad)
+
+
+def test_bundled_performance_references_load():
+    from zing.knowledge import load_knowledge_base
+
+    kb = load_knowledge_base(None, include_user=False)
+    refs = [m.performance for _, m in kb.all_models() if m.performance]
+    assert refs and all(r.decode_tps and r.source for r in refs)

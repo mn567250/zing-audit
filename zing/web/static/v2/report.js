@@ -101,6 +101,7 @@
     reliability: ["并发可靠", "压力下稳不稳？"],
     streaming: ["流式真实", "真流式还是假装？"],
     security: ["传输安全", "密钥是否安全？"],
+    performance: ["性能表现", "快慢是否稳定？"],
   };
   var DIMNAME_EN = {
     model_identity: ["Model identity", "Is it the model it claims to be?"],
@@ -112,6 +113,7 @@
     reliability: ["Concurrency reliability", "Stable under load?"],
     streaming: ["Streaming authenticity", "Real streaming or faked?"],
     security: ["Transport security", "Are keys handled safely?"],
+    performance: ["Performance", "Is its speed consistent?"],
   };
 
   function dimName(k) {
@@ -566,7 +568,14 @@
     if (r.baseline)
       meta.push(item(T("对照基线", "Baseline"), code(r.baseline.model || "—") + " @ " + code(r.baseline.base_url || "—")));
     meta.push(item(T("模式", "Mode"), code(r.mode || "check")));
-    if (r.suite) meta.push(item(T("套件", "Suite"), code(r.suite)));
+    if (r.suite)
+      meta.push(item(T("套件", "Suite"), code(r.suite) +
+        ((r.dimensions_selected || []).length
+          ? " · " + r.dimensions_selected.map(function (d) {
+              var n = dimName(d);
+              return esc(n ? n[0] : d);
+            }).join(" · ")
+          : "")));
     if ((r.prompt_languages || []).length)
       meta.push(item(T("探测语言", "Probe languages"), esc(r.prompt_languages.map(langName).join(" · "))));
     if (r.knowledge) meta.push(item(T("知识库资料", "Knowledge profile"), kbMeta(r.knowledge, code)));

@@ -43,15 +43,26 @@ The substitution- and truncation-revealing dimensions dominate the score
 
 | Dimension / 维度 | Weight / 权重 | Role / 作用 |
 |---|---|---|
-| model_identity | 22 | core 核心 |
-| context_window | 20 | core 核心 |
-| capability | 14 | core 核心 |
-| connectivity | 8 | gate 前置 |
+| model_identity | 21 | core 核心 |
+| context_window | 19 | core 核心 |
+| capability | 13 | core 核心 |
+| connectivity | 7 | gate 前置 |
 | protocol | 8 | conformance 合规 |
 | billing | 8 | |
-| reliability | 8 | |
+| reliability | 6 | |
 | streaming | 6 | |
 | security | 6 | |
+| performance | 6 | consistency 稳定性 |
+
+The overall score is the weighted mean over the dimensions that produced a
+score: a dimension that did not run (not in the suite, or not selected in a
+`custom` run) drops out and the remaining weights are renormalised. A `custom`
+run with no core dimension cannot judge substitution: its risk is
+*inconclusive*.
+
+综合得分是所有得出分数的维度的加权平均：未运行的维度（不在该套件中，或在
+`custom` 运行中未被选择）不计入，其余权重重新归一。未选择任何核心维度的
+`custom` 运行无法判断替换，风险为「无法判定」。
 
 The three **core dimensions** (`model_identity`, `context_window`, `capability`)
 are the ones whose failure most directly indicates 货不对板; the verdict's
@@ -77,8 +88,8 @@ built with `zing/detectors/scale.py`): every possible outcome of each check with
 its points, status and severity. Its findings then carry the `outcome` they hit
 and the `score` (points) they contributed; the detector score is the mean of the
 counted checks, and an inconclusive check is **not counted** (it neither raises
-nor lowers the score). `protocol`, `connectivity` and `determinism` publish such
-scales.
+nor lowers the score). `protocol`, `connectivity`, `determinism` and
+`performance` publish such scales.
 
 Detectors that judge by elimination use the **deductions** method instead
 (`DeductionScale`): the score starts at 100, each finding may deduct points
@@ -86,9 +97,9 @@ Detectors that judge by elimination use the **deductions** method instead
 wins. The scale then lists each outcome's deduction or cap. `model_identity` and
 `billing` use it, and so do `context_window`, `streaming`, `reliability` and
 `security`. Detectors that return one verdict (`vision`, `injected_prompt`,
-`integrity`, `quality_judge`) publish one row per verdict; informational ones
-(`performance`, `prompt_cache`) publish their outcomes as not counted. Every
-detector now publishes its scale.
+`integrity`, `quality_judge`) publish one row per verdict; the informational
+`prompt_cache` publishes its outcomes as not counted. Every detector now
+publishes its scale.
 
 维度得分为其各检测器得分的**等权平均**——检查项多的检测器不会压过检查项少的；
 没有数值分数的检测器不计入。维度状态取检测器得出的最差结论；但 HIGH/CRITICAL
@@ -97,12 +108,12 @@ detector now publishes its scale.
 **Dimension details** 与 Web 界面可展开的维度行中展示。检测器还可以**公开计分
 标准**（`DetectorResult.scoring`，由 `zing/detectors/scale.py` 构建）：列出每个
 检查项所有可能的结果及其分数；未能得出结论的检查项**不计分**。目前 `protocol`、
-`connectivity` 和 `determinism` 采用这种平均分方式。`model_identity` 和 `billing`
+`connectivity`、`determinism` 和 `performance` 采用这种平均分方式。`model_identity` 和 `billing`
 采用**扣分**方式（`DeductionScale`）：从 100 分开始，每项发现可扣分
 （`Finding.deduction`）和/或设定分数上限（`Finding.cap`），取最低上限。其他检测器
 现在所有检测器都公开计分标准：`context_window`、`streaming`、`reliability` 和
-`security` 也采用扣分方式；只给出单一结论的检测器每种结论对应一行；仅供参考的检测器
-（`performance`、`prompt_cache`）的结果都标为不计分。
+`security` 也采用扣分方式；只给出单一结论的检测器每种结论对应一行；仅供参考的
+`prompt_cache` 的结果都标为不计分。
 
 ---
 
@@ -680,7 +691,7 @@ risk.
 | `reliability.latency` | p95 above 30 s: −15% of the remaining score (LOW) |
 | `reliability.rate_limited` | HTTP 429 throttling: none (excluded from the success rate) |
 
-The `performance` probe in this dimension is informational: its outcomes are published but never counted.
+The `performance` probe has its own dimension (see **performance** below).
 
 **False-positive caveats / 误报与确认.** Genuine providers also slow down and 429
 under real load, and output length varies naturally; a single-snapshot audit misses
@@ -827,6 +838,48 @@ canary 锚定输出中出现任何取值替换 → 响应篡改风险。
 **取值替换**。**关键：黑盒下无法证明"是否记录日志"本身**，且条件式篡改可以躲过
 有限探测——这些只能作为已记录的局限说明，而非证据。没有时序信号**并不能**证明
 prompt 没被记录。
+
+---
+
+## performance — Consistency of speed / 速度的稳定性
+
+**What it measures.** The dedicated probe (deep, full, custom; 5 requests per
+side on standard in compare mode) sends uniform, uncacheable requests and scores
+how **consistent** the endpoint is, not how fast. A local or self-hosted model
+that is slow but steady scores well; raw speed counts only against a reference.
+
+**Scoring scale / 计分标准** (`SCALE` in `zing/detectors/performance.py`, method
+"mean_of_checks"). Consistency uses tail ratios, which a stray request cannot
+move the way it moves a standard deviation, and needs at least 10 clean samples
+(otherwise not counted).
+
+| Check | Outcome → points |
+|---|---|
+| `performance.latency_consistency` | p90 ÷ p50 ≤ 1.3: 100 · ≤ 1.75: 85 · ≤ 2.5: 65 (WARN/LOW) · above: 40 (FAIL/LOW) · < 10 samples: not counted |
+| `performance.ttft_consistency` | same bands (streaming only) |
+| `performance.throughput_consistency` | p50 ÷ p10 of tokens/s, same bands |
+| `performance.errors` | failed probe requests ≤ 2%: 100 · ≤ 10%: 80 (WARN/LOW) · above: 50 (FAIL/LOW); 429s excluded |
+| `performance.load_stability` | burst p50 latency ÷ sequential p50 ≤ 1.5: 100 · ≤ 3: 80 (WARN/LOW) · above: 55 (FAIL/LOW) · no burst: not counted |
+| `performance.cache_hit` | target served unique prompts from a cache: 60 (WARN/LOW) · baseline did: not counted |
+| `performance.reference` | against the baseline (else the KB profile's `performance.decode_tps` range): in line 100 · slower 80 (INFO, never a failure) · ≥ 2x faster 60 (WARN/LOW, hints at a smaller model) · no reference: not counted |
+| `performance.summary`, `performance.reasoning`, `performance.relay_overhead` | informational: not counted |
+
+**False-positive caveats / 误报与确认.** Latency depends on the network path and
+on the provider's load at that moment; repeat a poor consistency result at
+another time before reading anything into it. The knowledge-base reference
+ranges are deliberately wide and come from published native-API medians; a
+slower target is expected for local serving and is never a failure. All
+findings are at most LOW severity, so this dimension never moves the risk
+verdict.
+
+**performance — 速度的稳定性（中文）**
+
+专用探测（deep、full、custom；standard 对照模式下每侧 5 个请求）发送统一且不可
+缓存的请求，评估端点的**稳定性**而非快慢：慢但稳定的本地或自托管模型同样得高分，
+绝对速度只与参考值（基线，或知识库中该模型公布的 `performance.decode_tps` 区间）
+对比，且更慢只记为提示、不算失败；远快于参考值（≥ 2 倍）才提示可能是更小的模型。
+稳定性按尾部比（p90 ÷ p50，吞吐为 p50 ÷ p10）计分，至少需要 10 个有效样本。所有
+发现最高为低严重度，因此该维度从不改变风险结论。
 
 ---
 

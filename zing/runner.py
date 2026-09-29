@@ -178,6 +178,7 @@ async def run_audit(
             has_judge=judge is not None,
             has_baseline=baseline_client is not None,
             enabled=options.enabled,
+            dimensions=options.dimensions,
         )
         total = len(detectors)
         has_baseline = baseline_client is not None
@@ -187,7 +188,8 @@ async def run_audit(
             if any(d.id == "performance" for d in detectors)
             else 0
         )
-        _emit({"type": "start", "total": total, "suite": options.suite, "mode": mode,
+        _emit({"type": "start", "total": total, "suite": options.suite,
+               "dimensions": list(options.dimensions), "mode": mode,
                "target": target.name, "claimed_model": target.claimed,
                "has_baseline": has_baseline, "probe_requests": probe_planned})
         results: list[DetectorResult] = []
@@ -211,13 +213,15 @@ async def run_audit(
         probe_max_tokens=options.performance_max_tokens,
         concurrency=options.reliability_concurrency,
     )
-    dimensions = build_dimensions(results, reliability)
+    selected = list(options.dimensions) if options.suite == "custom" else None
+    dimensions = build_dimensions(results, reliability, selected=selected)
     verdict = build_verdict(
         results,
         dimensions,
         profile_matched=profile is not None,
         used_judge=judge is not None,
         used_baseline=baseline_client is not None,
+        selected=selected,
     )
 
     warnings = [
@@ -239,6 +243,7 @@ async def run_audit(
         generated_at=datetime.now(timezone.utc).isoformat(),
         command=command,
         suite=options.suite,
+        dimensions_selected=selected,
         target=_redact(target),
         baseline=_redact(baseline) if baseline else None,
         verdict=verdict,

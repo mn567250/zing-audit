@@ -781,7 +781,7 @@
    "{successes}/{requests} richieste della sonda riuscite; latenza p50 {latency_p50_ms} ms, TTFT p50 {ttft_p50_ms} ms, decodifica p50 {decode_tps_p50} tok/s."
   ],
   "performance.errors": [
-   "Alcune richieste della sonda sono fallite",
+   "Richieste della sonda fallite",
    "{errors} errori e {timeouts} timeout su {requests} richieste della sonda a {endpoint} ({rate_limited} limitate)."
   ],
   "performance.cache_hit": [
@@ -796,13 +796,29 @@
    "Latenza rispetto al riferimento",
    "Latenza p50 dell'obiettivo {target_latency_p50_ms} ms contro {baseline_latency_p50_ms} ms del riferimento (differenza {latency_p50_delta_ms} ms)."
   ],
-  "performance.throughput_mismatch": [
-   "L'obiettivo genera molto più velocemente del riferimento",
-   "L'obiettivo decodifica a {target_decode_tps_p50} tok/s contro {baseline_decode_tps_p50} tok/s del riferimento ({ratio}x): compatibile con un modello più piccolo."
-  ],
   "performance.skipped": [
    "Sonda delle prestazioni disattivata",
    "performance_requests = {performance_requests}; nessuna richiesta della sonda inviata."
+  ],
+  "performance.latency_consistency": [
+   "Costanza della latenza",
+   "Latenza p50 {p50} ms, p90 {p90} ms — rapporto di coda {tail_ratio} su {samples} richieste."
+  ],
+  "performance.ttft_consistency": [
+   "Costanza del tempo al primo token",
+   "TTFT p50 {p50} ms, p90 {p90} ms — rapporto di coda {tail_ratio} su {samples} richieste."
+  ],
+  "performance.throughput_consistency": [
+   "Costanza del throughput",
+   "Throughput p50 {p50} {unit}, p10 {p10} {unit} — rapporto di coda {tail_ratio} su {samples} richieste."
+  ],
+  "performance.load_stability": [
+   "Latenza sotto carico concorrente",
+   "Latenza p50 {burst_latency_p50_ms} ms con concorrenza {concurrency} contro {sequential_latency_p50_ms} ms una alla volta ({ratio}x)."
+  ],
+  "performance.reference": [
+   "Throughput rispetto al riferimento",
+   "Throughput dell'obiettivo {target_tps_p50} tok/s, riferimento {reference_range} tok/s."
   ]
  }
 }

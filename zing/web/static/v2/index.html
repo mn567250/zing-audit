@@ -39,7 +39,8 @@
   /* four-option segments: one row, 2 × 2 on phones (no mid-word breaks) */
   .seg.q { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .seg.q button { min-width: 0; }
-  @media (max-width: 440px) { .seg.q { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  #suite.seg.q { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  @media (max-width: 440px) { .seg.q, #suite.seg.q { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .cmp { margin: 4px 0 16px; }
   .cmp .disclosure { justify-content: flex-start; }
   .cmp .disclosure > .pico { flex: none; }
@@ -189,8 +190,15 @@
           <div class="grp">
             <span class="lab" id="lab-suite" data-en="Test suite">检测套件</span>
             <div class="seg q" id="suite" role="group" aria-labelledby="lab-suite">
-              <button type="button" aria-pressed="false" data-v="smoke">smoke</button><button type="button" aria-pressed="true" data-v="standard">standard</button><button type="button" aria-pressed="false" data-v="deep">deep</button><button type="button" aria-pressed="false" data-v="full">full</button>
+              <button type="button" aria-pressed="false" data-v="smoke">smoke</button><button type="button" aria-pressed="true" data-v="standard">standard</button><button type="button" aria-pressed="false" data-v="deep">deep</button><button type="button" aria-pressed="false" data-v="full">full</button><button type="button" aria-pressed="false" data-v="custom" data-en="custom">自定义</button>
             </div>
+          </div>
+          <div class="grp" id="dims-grp" hidden>
+            <span class="lab" id="lab-dims" data-en="Dimensions to run">检测维度</span>
+            <div class="chips" id="dims" role="group" aria-labelledby="lab-dims" aria-describedby="dims-hint">
+              <button type="button" aria-pressed="true" data-v="model_identity" data-en="Model identity">模型身份</button><button type="button" aria-pressed="true" data-v="context_window" data-en="Context window">上下文窗口</button><button type="button" aria-pressed="true" data-v="capability" data-en="Capability claims">能力声明</button><button type="button" aria-pressed="true" data-v="protocol" data-en="Protocol compliance">协议兼容</button><button type="button" aria-pressed="true" data-v="connectivity" data-en="Connectivity">连通性</button><button type="button" aria-pressed="true" data-v="streaming" data-en="Streaming authenticity">流式真实</button><button type="button" aria-pressed="true" data-v="billing" data-en="Billing &amp; usage">计费用量</button><button type="button" aria-pressed="true" data-v="reliability" data-en="Concurrency reliability">并发可靠</button><button type="button" aria-pressed="true" data-v="performance" data-en="Performance">性能表现</button><button type="button" aria-pressed="true" data-v="security" data-en="Transport security">传输安全</button>
+            </div>
+            <div class="hint" id="dims-hint" data-en="Only the selected dimensions run, at deep depth; the overall score is computed from them alone.">只运行所选维度（按 deep 深度）；综合得分只按这些维度计算。</div>
           </div>
           <div class="grp" id="pmode-grp">
             <span class="lab" id="lab-pmode" data-en="Performance probe requests">性能探测请求</span>
@@ -275,6 +283,7 @@
 <script src="/modelpicker.js"></script>
 <script src="/v2/static/nav.js"></script>
 <script src="/v2/static/report.js"></script>
+<script src="/v2/static/dimpick.js"></script>
 <script>
 (function () {
   "use strict";
@@ -298,7 +307,7 @@
     capability: ["能力声明", "Capability claims"], billing: ["计费用量", "Billing & usage"],
     protocol: ["协议兼容", "Protocol compliance"], connectivity: ["连通性", "Connectivity"],
     reliability: ["并发可靠", "Concurrency reliability"], streaming: ["流式真实", "Streaming authenticity"],
-    security: ["传输安全", "Transport security"],
+    security: ["传输安全", "Transport security"], performance: ["性能表现", "Performance"],
   };
   function statusLabel(s) { return window.ZING_I18N ? ZING_I18N.label("STATUS", s) : s; }
   function detName(ev) {
@@ -319,12 +328,18 @@
       if (seg.id === "suite") syncProbeMode();
     });
   });
-  // Probe request mode: chosen on standard/deep; full measures both; smoke has no probe.
+  // Custom suite: the dimensions to run.
+  var dims = ZING_DIMPICK.bind($("#dims"), function () { syncProbeMode(); });
+  // Probe request mode: chosen on standard/deep/custom; full measures both; smoke has no probe.
   function syncProbeMode() {
     var suite = segVal("suite"), full = suite === "full", smoke = suite === "smoke";
-    $$("#pmode button").forEach(function (b) { b.disabled = full || smoke; });
+    var custom = suite === "custom", noPerf = custom && dims.value().indexOf("performance") < 0;
+    $("#dims-grp").hidden = !custom;
+    $$("#pmode button").forEach(function (b) { b.disabled = full || smoke || noPerf; });
     $("#pmode-hint").textContent = smoke
       ? T("smoke 套件不做性能探测。", "The smoke suite runs no performance probe.")
+      : noPerf
+      ? T("未选择性能表现维度，不做性能探测。", "Performance is not selected, so no probe runs.")
       : full
       ? T("full 套件会同时测量流式与非流式。", "The full suite measures both streaming and non-streaming.")
       : suite === "standard"
@@ -406,11 +421,17 @@
       suite: segVal("suite"),
       performance_streaming: segVal("pmode") === "stream",
     };
+    if (payload.suite === "custom") payload.dimensions = dims.value();
     if (!payload.base_url || !payload.model) {
       if (!payload.base_url) invalid("#i-url");
       if (!payload.model) invalid("#i-model");
       setFormErr(function () { return esc(T("请填写中转站地址和请求的模型。", "Please enter the relay URL and the model to request.")); });
       (payload.base_url ? $("#i-model") : $("#i-url")).focus();
+      return;
+    }
+    if (payload.dimensions && !payload.dimensions.length) {
+      setFormErr(function () { return esc(T("请至少选择一个检测维度。", "Select at least one dimension to run.")); });
+      $("#dims button").focus();
       return;
     }
     var bUrl = $("#b-url").value.trim(), bModel = $("#b-model").value.trim();

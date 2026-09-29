@@ -202,7 +202,7 @@ balisage intacts.
 
 ## Ce qui est vérifié
 
-zing note neuf dimensions. Les trois qui révèlent le plus directement une tromperie sur
+zing note dix dimensions. Les trois qui révèlent le plus directement une tromperie sur
 la marchandise (identité du modèle, fenêtre de contexte réelle, capacités annoncées)
 pèsent le plus.
 
@@ -215,6 +215,7 @@ pèsent le plus.
 | **streaming** | Faux streaming (tampon puis découpage) détecté à partir du nombre de fragments et de leur espacement temporel |
 | **protocol** | Conformité à la compatibilité OpenAI : multi-tours, séquences d'arrêt, forme des réponses, schéma d'erreur — et une sous-vérification de déterminisme pour la mise en cache de réponses qui ignore temperature/seed |
 | **reliability** | Taux de succès en concurrence et latence (la limitation HTTP 429 est comptée à part) |
+| **performance** | La *régularité* de la latence, du délai du premier token et du débit, le taux d'échec de la sonde et le ralentissement sous charge ; la vitesse seulement face à une référence |
 | **connectivity** | Accessibilité de l'endpoint et liste `/v1/models` annoncée |
 | **security** | Transport (HTTPS), hygiène des en-têtes, écho de secrets ; prompt système injecté caché (surcoût fixe de tokens d'entrée + fuite), altération en transit des réponses/appels d'outils via des canaris à réponse connue (substitution d'URL/de paquet), et mise en cache de préfixe de prompt (temporisation) |
 
@@ -222,14 +223,13 @@ Voir [docs/METHODOLOGY.md](docs/METHODOLOGY.md) pour la technique derrière chaq
 vérification, l'astuce de relais à laquelle elle correspond et ses mises en garde sur
 les faux positifs.
 
-### Performance (informatif)
+### Performance
 
 Chaque rapport comporte aussi une section **performance** : latence, temps jusqu'au
 premier token (TTFT), tokens/s en décodage et de bout en bout, latence et gigue entre
 fragments, taux d'erreurs/timeouts/429, une décomposition réseau (connexion TCP, TLS,
 aller-retour `GET /models`, temps serveur) et démarrage à froid, chacun en
-count / min / mean / p50 / p75 / p90 / p95 / p99 / max / stdev. Elle n'affecte jamais
-le score ni le verdict.
+count / min / mean / p50 / p75 / p90 / p95 / p99 / max / stdev. Quand la sonde dédiée s'exécute, elle note la dimension **performance** (poids 6) selon la *régularité* de la latence, du TTFT et du débit, le taux d'échec et le comportement sous charge, et non selon la vitesse brute : un modèle lent mais régulier (p. ex. local) n'est pas pénalisé. La vitesse ne compte que face à une référence (la référence de confiance ou la plage publiée dans la base de connaissances). Les constats sont au plus de sévérité faible et ne changent jamais le verdict de risque.
 
 - **standard** la collecte à partir des propres requêtes de l'audit.
 - **deep / full** ajoutent une sonde dédiée : 100 requêtes non cachables de 128 tokens
@@ -390,6 +390,9 @@ tableau complet des entrées/sorties et un exemple de conditionnement de déploi
 | `standard` | + protocol, model_identity, capability, streaming, billing, reliability | faible à moyen |
 | `deep` | + context_window, determinism, injected_prompt, integrity, performance, prompt_cache, quality_judge (avec `--judge`) | plus élevé (les sondes de contexte long et de temporisation coûtent des tokens) |
 | `full` | tout | le plus élevé |
+| `custom` | seulement les dimensions choisies, en profondeur `deep` | selon la sélection |
+
+**Suite personnalisée :** `zing check ... -D protocol -D performance` (ou `--suite custom --dimension billing,streaming` ; dans le fichier de configuration `run.dimensions`) n'exécute que les dimensions choisies. Le score global est la moyenne pondérée de ces seules dimensions ; sans dimension centrale (identité du modèle, fenêtre de contexte, capacités), le verdict de risque est *non concluant*. L'interface web propose le même choix.
 
 La sonde de fenêtre de contexte est bornée par `--max-context-tokens` (200K par défaut),
 de sorte qu'auditer un modèle à 1M de tokens reste abordable.

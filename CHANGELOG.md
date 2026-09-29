@@ -249,6 +249,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **One relay configuration in the v2 UI, with "Fetch models" everywhere.**
+  The audit, embedding and rerank forms (and the audit's trusted baseline) share
+  the same relay URL / API key / model fields and the same model picker on
+  "Model to request". "Fetch models" (the relay's own `/models`) is offered for
+  every provider, not only "Custom (from relay)": a knowledge-base provider marks
+  the models the relay lists (✓) and adds the relay's ids the knowledge base
+  does not know yet ("Relay only"), so a model newer than the knowledge base can
+  still be picked for an audit, embedding or rerank check.
 - **Every dimension is listed and expandable in the audit report; performance
   is one of them.** The v2 report view and the Markdown/HTML/PDF reports list
   all ten dimensions, those that did not run (or were not selected in a custom

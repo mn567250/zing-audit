@@ -265,6 +265,7 @@
   "Custom (from relay)": "Custom (from relay)",
   "Fetch models": "Fetch models",
   "Fetch models first…": "Fetch models first…",
+  "Relay only (not in knowledge base)": "Relay only (not in knowledge base)",
   "Fetching models…": "Fetching models…",
   "Enter the base_url first": "Enter the base_url first",
   "The relay returned no models": "The relay returned no models",

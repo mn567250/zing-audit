@@ -17,13 +17,17 @@
  * Data: GET /api/kb (cached at module scope as a single shared promise). If the
  * fetch fails, enhance() is a no-op and the page keeps its plain text input.
  *
- * Custom provider: when the page passes `urlInput` (and optionally `keyInput`),
- * the provider list gains "Custom (from relay)". Selecting it shows a "Fetch
- * models" button that POSTs /api/models, which lists the relay's own /models —
- * instant connection feedback plus the exact ids it accepts. The API key is
- * optional (self-hosted Ollama / LM Studio need none). A fetched id is written
- * into `modelInput` (the requested model; defaults to `claimedInput`). `api` is
- * an optional function returning the page's protocol choice ("auto" default).
+ * Relay models: when the page passes `urlInput` (and optionally `keyInput`),
+ * a "Fetch models" button is shown for every provider. It POSTs /api/models,
+ * which lists the relay's own /models — instant connection feedback plus the
+ * exact ids it accepts. The API key is optional (self-hosted Ollama / LM Studio
+ * need none). The provider list gains "Custom (from relay)", which lists only
+ * the fetched ids; a knowledge-base provider keeps its own models and, once
+ * fetched, adds the relay's ids the knowledge base does not know yet (a
+ * "Relay only" group), so a model newer than the knowledge base can still be
+ * picked. A fetched id is written into `modelInput` (the requested model;
+ * defaults to `claimedInput`). `api` is an optional function returning the
+ * page's protocol choice ("auto" default).
  *
  * Styling: keyed off the page CSS vars (--line, --teal, --ink, --ink2, --sans,
  * #fbfdfa input bg) so it visually matches the .in / select look on every page.
@@ -249,8 +253,8 @@
 
     selectRow.appendChild(provSel);
 
-    // Custom provider: "Fetch models" button + status line, shown only while
-    // the custom entry is selected (it lives in selectRow, so custom-input
+    // "Fetch models" button + status line, shown for every provider whenever
+    // the page has a relay URL field (it lives in selectRow, so custom-input
     // mode hides it too).
     var fetchRow = document.createElement("div");
     fetchRow.style.display = "none";
@@ -315,7 +319,7 @@
     }
 
     function paintFetch() {
-      fetchRow.style.display = isCustom() ? "flex" : "none";
+      fetchRow.style.display = relay.urlInput ? "flex" : "none";
       var hasUrl = !!(relay.urlInput && relay.urlInput.value.trim());
       var loading = fetchState === "loading";
       fetchBtn.disabled = !hasUrl || loading;
@@ -397,6 +401,12 @@
         })
         .then(function () {
           if (isCustom()) fillFetched();
+          else if (provSel.value) {
+            var keep = modelSel.value;
+            fillModels(provSel.value);
+            modelSel.value = keep;
+            paintSel(modelSel);
+          }
           paintFetch();
         });
     }
@@ -419,6 +429,10 @@
         }
       }
       var models = (prov && prov.models) || [];
+      var listed = Object.create(null); // ids the relay's /models returned
+      fetched.forEach(function (id) {
+        listed[id] = true;
+      });
       models.forEach(function (m) {
         if (!m || !m.id) return;
         var aliases = (m.aliases || []).filter(function (a) {
@@ -430,9 +444,23 @@
           alias && alias.toLowerCase() !== m.id.toLowerCase()
             ? m.id + " · " + alias
             : m.id;
+        if (listed[m.id]) text += " ✓";
         modelSel.appendChild(opt(m.id, text, unstyled ? text : ""));
       });
-      modelSel.disabled = models.length === 0;
+      // Relay ids the knowledge base doesn't know (e.g. a model released after
+      // it was last updated): still pickable, so a stale KB never blocks a run.
+      var extra = fetched.filter(function (id) {
+        return !ids[id];
+      });
+      if (extra.length) {
+        var grp = document.createElement("optgroup");
+        grp.label = tr("仅中转站提供（知识库未收录）", "Relay only (not in knowledge base)");
+        extra.forEach(function (id) {
+          grp.appendChild(opt(id, id, unstyled ? id : ""));
+        });
+        modelSel.appendChild(grp);
+      }
+      modelSel.disabled = models.length + extra.length === 0;
       paintSel(modelSel);
       return prov;
     }
@@ -458,7 +486,7 @@
     modelSel.addEventListener("change", function () {
       paintSel(modelSel);
       if (!modelSel.value) return;
-      if (isCustom()) {
+      if (isCustom() || !ids[modelSel.value]) {
         // A relay-listed id is what the relay accepts: the requested model.
         relay.modelInput.value = modelSel.value;
         relay.modelInput.dispatchEvent(new Event("input", { bubbles: true }));

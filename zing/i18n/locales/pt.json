@@ -265,6 +265,7 @@
   "Custom (from relay)": "Personalizado (do relay)",
   "Fetch models": "Obter modelos",
   "Fetch models first…": "Obtenha primeiro os modelos…",
+  "Relay only (not in knowledge base)": "Só no relay (fora da base de conhecimento)",
   "Fetching models…": "Obtendo modelos…",
   "Enter the base_url first": "Introduza primeiro a base_url",
   "The relay returned no models": "O relay não devolveu nenhum modelo",

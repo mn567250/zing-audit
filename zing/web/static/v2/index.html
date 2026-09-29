@@ -724,6 +724,11 @@
         claimedInput: "#i-model", providerInput: "#i-prov", urlInput: "#i-url", keyInput: "#i-key",
         api: function () { return segVal("api"); }, unstyled: true,
       });
+      // the trusted baseline is a relay/provider too: same picker, same "Fetch models"
+      ZingModelPicker.enhance({
+        claimedInput: "#b-model", urlInput: "#b-url", keyInput: "#b-key",
+        api: function () { return segVal("b-api"); }, unstyled: true,
+      });
     } catch (e) {}
   }
   // test hook: render a report without running an audit (used by the e2e checks)

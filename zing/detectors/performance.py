@@ -509,10 +509,12 @@ class PerformanceDetector(Detector):
         for check, what, unit, values, higher in metrics:
             ratio = _tail_ratio(values, higher_is_better=higher)
             tail = "p10" if higher else "p90"
+            p50 = _r(percentile(values, 50))
+            tail_value = _r(percentile(values, 10 if higher else 90))
             evidence: dict[str, float | int | str | None] = {
                 "samples": len(values),
-                "p50": _r(percentile(values, 50)),
-                tail: _r(percentile(values, 10 if higher else 90)),
+                "p50": p50,
+                tail: tail_value,
                 "tail_ratio": round(ratio, 2) if ratio is not None else None,
                 "unit": unit,
             }
@@ -532,8 +534,8 @@ class PerformanceDetector(Detector):
                 SCALE.finding(
                     check, _tail_key(ratio),
                     title=f"{what} consistency",
-                    summary=f"{what}: p50 {_fmt(evidence['p50'], unit)}, {tail} "
-                    f"{_fmt(evidence[tail], unit)} — tail ratio ({spread}) {ratio:.2f} over "
+                    summary=f"{what}: p50 {_fmt(p50, unit)}, {tail} "
+                    f"{_fmt(tail_value, unit)} — tail ratio ({spread}) {ratio:.2f} over "
                     f"{len(values)} requests.",
                     evidence=evidence,
                 )

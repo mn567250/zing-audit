@@ -156,28 +156,100 @@ def _kb_embedding_dimensions(model_id: str | None, provider_hint: str | None) ->
     return int(resolved.model.embedding_dimensions or 0)
 
 
-# Ids of watches whose audit is executing right now (scheduler or Run now), so
-# the UI can show which monitors are running and nothing runs twice at once.
-_running_watches: set[int] = set()
+# Watches whose audit is executing right now (scheduler or Run now), keyed by
+# id, so the UI can show which monitors run, how far along they are, cancel
+# one, and nothing runs twice at once. Each value is the run's live state:
+# its asyncio task plus the progress counters fed by run_audit's events.
+_running_watches: dict[int, dict[str, Any]] = {}
+
+# Intervals (minutes) a monitor can be scheduled at: never more often than one
+# run takes, rounded up to one of these, and at most once every 24 h.
+_INTERVAL_STEPS_MIN = (5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 480, 720, 1440)
+
+
+def _min_interval_sec(duration_sec: float | None) -> int:
+    """The shortest offered interval that is not shorter than one run takes."""
+    for step in _INTERVAL_STEPS_MIN:
+        if not duration_sec or step * 60 >= duration_sec:
+            return step * 60
+    return _INTERVAL_STEPS_MIN[-1] * 60
 
 
 class WatchAlreadyRunning(Exception):
     """Raised when a watch is asked to run while its previous run is still going."""
 
 
+class WatchCancelled(Exception):
+    """Raised when a running watch was stopped with Cancel."""
+
+
+def _watch_progress(state: dict[str, Any]) -> int:
+    """Rough percent done of a running watch: finished detectors, plus how far
+    the performance probe (by far the longest detector) is through its requests."""
+    total = state.get("total") or 0
+    if not total:
+        return 0
+    done = float(state.get("done") or 0)
+    planned = state.get("probe_planned") or 0
+    if state.get("current") == "performance" and planned:
+        done += min(state.get("probe_done", 0) / planned, 1.0)
+    return max(0, min(99, int(done * 100 / total)))
+
+
+def _track_progress(state: dict[str, Any], event: dict[str, Any]) -> None:
+    """run_audit's on_event sink for a watch: keep only the counters."""
+    kind = event.get("type")
+    if kind == "start":
+        state["total"] = int(event.get("total") or 0)
+        state["probe_planned"] = int(event.get("probe_requests") or 0)
+    elif kind == "detector_start":
+        state["current"] = event.get("id")
+    elif kind == "detector_done":
+        state["done"] = int(event.get("index", 0)) + 1
+        state["current"] = None
+    elif kind == "request_done":
+        rec = event.get("record") or {}
+        if rec.get("detector") == "performance" and rec.get("endpoint") == "target":
+            state["probe_done"] = state.get("probe_done", 0) + 1
+
+
 async def _run_one_watch(row: dict[str, Any]) -> None:
-    """Run a watch once, refusing to overlap with a run already in flight."""
+    """Run a watch once, refusing to overlap with a run already in flight.
+
+    The run executes as its own task so Cancel can stop it; a cancelled run
+    raises :class:`WatchCancelled` (an ordinary exception, so the scheduler
+    loop carries on), while a server shutdown still propagates CancelledError.
+    """
     wid = int(row["id"])
     if wid in _running_watches:
         raise WatchAlreadyRunning(wid)
-    _running_watches.add(wid)
+    state: dict[str, Any] = {"cancelled": False}
+    _running_watches[wid] = state
     try:
-        await _run_one_watch_inner(row)
+        task = asyncio.create_task(_run_one_watch_inner(row, state))
+        state["task"] = task
+        try:
+            await task
+        except asyncio.CancelledError:
+            if state["cancelled"]:
+                raise WatchCancelled(wid) from None
+            raise
     finally:
-        _running_watches.discard(wid)
+        _running_watches.pop(wid, None)
 
 
-async def _run_one_watch_inner(row: dict[str, Any]) -> None:
+def _cancel_watch(wid: int) -> bool:
+    """Stop a running watch; False when it is not running."""
+    state = _running_watches.get(wid)
+    task = state.get("task") if state else None
+    if state is None or task is None or task.done():
+        return False
+    state["cancelled"] = True
+    task.cancel()
+    return True
+
+
+async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None = None) -> None:
     """Run a single due watch once: audit, persist, alert on regression/threshold.
 
     Always best-effort — any exception is swallowed by the caller so one bad
@@ -192,6 +264,8 @@ async def _run_one_watch_inner(row: dict[str, Any]) -> None:
     risk: str | None = None
     score: float | None = None
     report_id: int | None = None
+    duration: float | None = None
+    cancelled = False
     try:
         suite = validate_suite(str(row.get("suite") or "standard"))
         dimensions = validate_dimensions(suite, row.get("dimensions"))
@@ -224,7 +298,12 @@ async def _run_one_watch_inner(row: dict[str, Any]) -> None:
                 previous = history.get(int(item["id"]))
                 break
 
-        report = await run_audit(target, options, baseline=None, mode="check", pinned=pinned)
+        on_event = (lambda ev: _track_progress(state, ev)) if state is not None else None
+        started = time.perf_counter()
+        report = await run_audit(
+            target, options, baseline=None, mode="check", pinned=pinned, on_event=on_event
+        )
+        duration = time.perf_counter() - started
         report_dict = json.loads(report.model_dump_json())
         report_id = history.save(report_dict, watch_id=wid)
         if report_id is not None and report_id < 0:
@@ -250,10 +329,17 @@ async def _run_one_watch_inner(row: dict[str, Any]) -> None:
                     continue
                 with contextlib.suppress(Exception):
                     await send(url.strip(), report_dict, previous=previous, lang=row.get("language"))
+    except asyncio.CancelledError:
+        cancelled = True
+        raise
     finally:
-        # Record the run no matter what so cadence stays honest.
+        # Record the run no matter what so cadence stays honest. A cancelled
+        # run keeps the previous result on the card, only its time moves on.
         with contextlib.suppress(Exception):
-            watches.mark_run(wid, risk, score, report_id, now)
+            if cancelled:
+                watches.mark_attempt(wid, now)
+            else:
+                watches.mark_run(wid, risk, score, report_id, now, duration_sec=duration)
 
 
 def _risk_meets(risk: str | None, threshold: str) -> bool:
@@ -775,7 +861,10 @@ def create_app() -> FastAPI:
         except Exception:
             kb = None
         for row in rows:
-            row["running"] = int(row["id"]) in _running_watches
+            state = _running_watches.get(int(row["id"]))
+            row["running"] = state is not None
+            row["progress"] = _watch_progress(state) if state is not None else None
+            row["min_interval_sec"] = _min_interval_sec(row.get("run_duration_sec"))
             row["kb_current_hash"] = None
             row["kb_changed"] = False
             if kb is None:
@@ -869,6 +958,7 @@ def create_app() -> FastAPI:
             "dimensions": dimensions,
             "language": (body or {}).get("language") if isinstance(body, dict) else None,
             "source_report_id": rid,
+            "run_duration_sec": history.run_duration_sec(report),
         }
         try:
             knowledge = _watch_knowledge(cfg)
@@ -896,9 +986,15 @@ def create_app() -> FastAPI:
         interval = None
         if body.get("interval_sec") is not None:
             raw = body.get("interval_sec")
-            if isinstance(raw, bool) or not isinstance(raw, int) or raw < 60:
+            if isinstance(raw, bool) or not isinstance(raw, int) or not 60 <= raw <= 86400:
                 return JSONResponse(
-                    {"error": "interval_sec must be a whole number of seconds (60 or more)"},
+                    {"error": "interval_sec must be a whole number of seconds (60 to 86400)"},
+                    status_code=400,
+                )
+            floor = _min_interval_sec(row.get("run_duration_sec"))
+            if row.get("run_duration_sec") and raw < floor:
+                return JSONResponse(
+                    {"error": f"interval_sec must be at least {floor}: one run takes longer than that"},
                     status_code=400,
                 )
             interval = raw
@@ -946,6 +1042,8 @@ def create_app() -> FastAPI:
             await _run_one_watch(row)
         except WatchAlreadyRunning:
             return JSONResponse({"error": "already running"}, status_code=409)
+        except WatchCancelled:
+            return JSONResponse({"ok": False, "cancelled": True})
         except Exception as exc:  # surface a clean error, not a 500 stack
             return JSONResponse(
                 {"error": f"{type(exc).__name__}: {exc}"}, status_code=500
@@ -958,6 +1056,12 @@ def create_app() -> FastAPI:
         if refreshed and refreshed.get("last_report_id") is not None:
             report = history.get(int(refreshed["last_report_id"]))
         return JSONResponse({"ok": True, "report": report})
+
+    @app.post("/api/watches/{wid}/cancel")
+    async def watches_cancel(wid: int) -> Any:
+        if not _cancel_watch(wid):
+            return JSONResponse({"error": "not running"}, status_code=409)
+        return JSONResponse({"ok": True})
 
     # ----- Tools: embedding & rerank auditors (non-chat surface) ---------- #
     @app.get("/tools")

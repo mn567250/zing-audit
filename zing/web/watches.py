@@ -67,6 +67,7 @@ _ALL_COLS = (
     "kb_pinned_ts",
     "dimensions",
     "source_report_id",
+    "run_duration_sec",
 )
 
 # Columns safe to return to the browser — everything except the API key.
@@ -126,6 +127,10 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
     # The history run a watch was scheduled from (NULL for form-created ones).
     if "source_report_id" not in cols:
         conn.execute("ALTER TABLE watches ADD COLUMN source_report_id INTEGER")
+    # Seconds the last completed run took (from the history run for a draft);
+    # no monitor is scheduled more often than that.
+    if "run_duration_sec" not in cols:
+        conn.execute("ALTER TABLE watches ADD COLUMN run_duration_sec REAL")
     kb_snapshot.ensure_table(conn)
     kb_snapshot.add_link_columns(
         conn, "watches", {"kb_snapshot_id": "INTEGER", "kb_usage": "TEXT", "kb_pinned_ts": "REAL"}
@@ -219,6 +224,13 @@ def pinned_knowledge(wid: int) -> dict[str, Any] | None:
     return {**usage, "profile": snap, "pinned_at": row["kb_pinned_ts"]}
 
 
+def _duration(raw: Any) -> float | None:
+    """A positive run duration in seconds, else None."""
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)) or raw <= 0:
+        return None
+    return round(float(raw), 1)
+
+
 def create(
     cfg: dict[str, Any], knowledge: dict[str, Any] | None = None, *, draft: bool = False
 ) -> int:
@@ -264,14 +276,16 @@ def create(
         i18n.normalize(cfg.get("language")),
         json.dumps(list(cfg.get("dimensions") or [])) if cfg.get("dimensions") else None,
         cfg.get("source_report_id") if draft else None,
+        _duration(cfg.get("run_duration_sec")),
     )
     with _connect() as conn:
         cur = conn.execute(
             """INSERT INTO watches
                (name, base_url, api_key, model, claimed_model, api,
                 declared_provider, suite, interval_sec, alert_on, webhooks,
-                enabled, created_ts, language, dimensions, source_report_id)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                enabled, created_ts, language, dimensions, source_report_id,
+                run_duration_sec)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             row,
         )
         wid = int(cur.lastrowid or -1)
@@ -374,21 +388,35 @@ def mark_run(
     score: float | None,
     report_id: int | None,
     ts: float,
+    *,
+    duration_sec: float | None = None,
 ) -> None:
-    """Record the outcome of a run: last risk/score/report id and run timestamp."""
+    """Record the outcome of a run: last risk/score/report id and run timestamp.
+
+    ``duration_sec`` (a completed audit's execution time) replaces the stored
+    one; a run that failed before finishing leaves it as it was.
+    """
     with _connect() as conn:
         conn.execute(
             """UPDATE watches
-               SET last_run_ts = ?, last_risk = ?, last_score = ?, last_report_id = ?
+               SET last_run_ts = ?, last_risk = ?, last_score = ?, last_report_id = ?,
+                   run_duration_sec = COALESCE(?, run_duration_sec)
                WHERE id = ?""",
             (
                 float(ts),
                 risk,
                 float(score) if isinstance(score, (int, float)) else None,
                 int(report_id) if report_id is not None else None,
+                _duration(duration_sec),
                 int(wid),
             ),
         )
+
+
+def mark_attempt(wid: int, ts: float) -> None:
+    """Record a run that was cancelled: only its time, the last result stays."""
+    with _connect() as conn:
+        conn.execute("UPDATE watches SET last_run_ts = ? WHERE id = ?", (float(ts), int(wid)))
 
 
 def due(now_ts: float) -> list[dict[str, Any]]:

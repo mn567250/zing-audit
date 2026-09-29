@@ -350,10 +350,89 @@ def test_running_watch_is_flagged_and_rejects_run_now(tmp_path, monkeypatch, cli
     from zing.web import server, watches
 
     wid = watches.create({"base_url": "https://relay.test/v1", "api_key": "sk-x", "model": "gpt-4o"})
-    assert client.get("/api/watches").json()[0]["running"] is False
-    server._running_watches.add(wid)
+    w = client.get("/api/watches").json()[0]
+    assert w["running"] is False and w["progress"] is None
+    server._running_watches[wid] = {"total": 4, "done": 1}
     try:
-        assert client.get("/api/watches").json()[0]["running"] is True
+        w = client.get("/api/watches").json()[0]
+        assert w["running"] is True and w["progress"] == 25
         assert client.post(f"/api/watches/{wid}/run").status_code == 409
     finally:
-        server._running_watches.discard(wid)
+        server._running_watches.pop(wid, None)
+    # nothing to cancel once it stopped
+    assert client.post(f"/api/watches/{wid}/cancel").status_code == 409
+
+
+def test_watch_progress_counts_detectors_and_probe_requests():
+    from zing.web import server
+
+    state: dict = {}
+    assert server._watch_progress(state) == 0
+    server._track_progress(state, {"type": "start", "total": 4, "probe_requests": 10})
+    server._track_progress(state, {"type": "detector_done", "index": 0})
+    assert server._watch_progress(state) == 25
+    server._track_progress(state, {"type": "detector_start", "id": "performance"})
+    for _ in range(5):
+        server._track_progress(
+            state, {"type": "request_done", "record": {"detector": "performance", "endpoint": "target"}}
+        )
+    assert server._watch_progress(state) == 37  # 1.5 of 4 detectors
+    for i in range(4):
+        server._track_progress(state, {"type": "detector_done", "index": i})
+    assert server._watch_progress(state) == 99  # never 100 while still running
+
+
+async def test_cancel_stops_a_running_watch_and_keeps_its_last_result(tmp_path, monkeypatch):
+    import asyncio
+
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    from zing.web import server, watches
+
+    started = asyncio.Event()
+
+    async def slow_audit(*_a, **_k):
+        started.set()
+        await asyncio.sleep(60)
+
+    monkeypatch.setattr(server, "run_audit", slow_audit)
+    wid = watches.create({"base_url": "https://relay.test/v1", "api_key": "sk-x", "model": "gpt-4o"})
+    watches.mark_run(wid, "low", 88.0, 3, ts=1.0, duration_sec=200)
+    run = asyncio.create_task(server._run_one_watch(watches.get(wid)))
+    await started.wait()
+    assert server._cancel_watch(wid) is True
+    with pytest.raises(server.WatchCancelled):
+        await run
+    assert wid not in server._running_watches and server._cancel_watch(wid) is False
+    w = watches.get(wid)
+    assert w["last_risk"] == "low" and w["last_report_id"] == 3 and w["run_duration_sec"] == 200
+    assert w["last_run_ts"] > 1.0
+
+
+def test_min_interval_rounds_the_run_time_up_to_a_step():
+    from zing.web.server import _min_interval_sec
+
+    assert _min_interval_sec(None) == 300
+    assert _min_interval_sec(210) == 300  # 3.5 min -> 5 min
+    assert _min_interval_sec(301) == 600
+    assert _min_interval_sec(21 * 60) == 30 * 60
+    assert _min_interval_sec(61 * 60) == 120 * 60
+    assert _min_interval_sec(30 * 3600) == 24 * 3600  # never less often than daily
+
+
+def test_history_run_time_sets_the_monitors_shortest_interval(tmp_path, monkeypatch, client):
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    import json
+    from pathlib import Path
+
+    fixture = json.loads((Path(__file__).parent / "fixtures" / "web_report.json").read_text("utf-8"))
+    detectors = fixture["detectors"]
+    for d in detectors:  # a run of 7.5 minutes in all
+        d["duration_ms"] = 450_000 / len(detectors)
+    rid = _saved_report(detectors=detectors)
+    wid = client.post(f"/api/watches/from-history/{rid}").json()["id"]
+    [w] = client.get("/api/watches").json()
+    assert w["run_duration_sec"] == 450 and w["min_interval_sec"] == 600
+    r = client.patch(f"/api/watches/{wid}", json={"interval_sec": 300})
+    assert r.status_code == 400 and "at least 600" in r.json()["error"]
+    assert client.patch(f"/api/watches/{wid}", json={"interval_sec": 86400 + 60}).status_code == 400
+    assert client.patch(f"/api/watches/{wid}", json={"interval_sec": 600, "enabled": True}).status_code == 200

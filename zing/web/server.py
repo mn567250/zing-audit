@@ -68,7 +68,6 @@ _V2 = _STATIC / "v2"
 _UI_COOKIE = "zing_ui"
 _UI_PAGES: dict[str, tuple[str, str]] = {
     "/": ("index.html", "/v2/"),
-    "/console": ("console.html", "/v2/console"),
     "/history": ("history.html", "/v2/history"),
     "/watches": ("watches.html", "/v2/watches"),
     "/tools": ("tools.html", "/v2/tools"),
@@ -315,7 +314,9 @@ def create_app() -> FastAPI:
 
     @app.get("/console")
     async def console(request: Request) -> Any:
-        return _classic_page(request, "/console")
+        # Classic only: the console has no v2 counterpart, so the UI cookie
+        # never redirects it.
+        return FileResponse(_STATIC / "console.html")
 
     # ----- v2 UI (side by side with the classic one, for A/B) ------------- #
     @app.get("/v2")
@@ -325,10 +326,6 @@ def create_app() -> FastAPI:
     @app.get("/v2/")
     async def v2_index(request: Request) -> Any:
         return _v2_page(request, "/")
-
-    @app.get("/v2/console")
-    async def v2_console(request: Request) -> Any:
-        return _v2_page(request, "/console")
 
     @app.get("/v2/history")
     async def v2_history(request: Request) -> Any:

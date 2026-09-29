@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Removed
+
+- **The v2 console page** (`/v2/console`) — it was one more view to maintain.
+  `/console` stays the classic page and is no longer redirected by the v2 cookie.
+
 ### Security
 
 - **`zing serve` is local-only by construction.** It refuses any bind address

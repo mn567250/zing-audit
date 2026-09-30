@@ -22,7 +22,7 @@ inputs:
     required: false
     default: ""
   api:
-    description: "Wire protocol: auto | openai | anthropic."
+    description: "Wire protocol: auto | openai | anthropic | responses."
     required: false
     default: "auto"
   declared-provider:

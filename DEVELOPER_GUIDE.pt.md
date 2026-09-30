@@ -1,0 +1,483 @@
+# zing — Guia do programador
+
+> [🇬🇧 English](DEVELOPER_GUIDE.md) · [🇨🇳 中文](DEVELOPER_GUIDE.zh-CN.md) · [🇫🇷 Français](DEVELOPER_GUIDE.fr.md) · [🇪🇸 Español](DEVELOPER_GUIDE.es.md) · **🇵🇹 Português** · [🇮🇹 Italiano](DEVELOPER_GUIDE.it.md) · [🇩🇪 Deutsch](DEVELOPER_GUIDE.de.md)
+
+Este guia é para quem altera o zing: como está construído, como preparar um
+ambiente de desenvolvimento, como contribuir e como é empacotado, executado em
+Docker e publicado. O que o zing faz e como usá-lo está no [README](README.pt.md);
+como cada verificação funciona e é pontuada, na [Metodologia](docs/METHODOLOGY.pt.md).
+
+---
+
+## Índice
+
+- [Princípios](#princípios)
+- [Ambiente de desenvolvimento](#ambiente-de-desenvolvimento)
+- [Estrutura do repositório](#estrutura-do-repositório)
+- [Arquitetura](#arquitetura)
+  - [Fluxo de uma auditoria](#fluxo-de-uma-auditoria)
+  - [Clientes](#clientes)
+  - [Detectores e escalas de pontuação](#detectores-e-escalas-de-pontuação)
+  - [Pontuação e veredito](#pontuação-e-veredito)
+  - [Base de conhecimento](#base-de-conhecimento)
+  - [Biblioteca de prompts](#biblioteca-de-prompts)
+  - [Relatórios](#relatórios)
+  - [Auditores autónomos](#auditores-autónomos)
+  - [Servidor web](#servidor-web)
+  - [Frontend web](#frontend-web)
+  - [Dados locais](#dados-locais)
+- [Contribuir](#contribuir)
+  - [Pull requests](#pull-requests)
+  - [Adicionar um detector](#adicionar-um-detector)
+  - [Editar a base de conhecimento](#editar-a-base-de-conhecimento)
+  - [Alterar os prompts das sondas](#alterar-os-prompts-das-sondas)
+  - [Traduções](#traduções)
+  - [Documentação](#documentação)
+- [Testes](#testes)
+- [Docker](#docker)
+- [Integração contínua](#integração-contínua)
+- [Publicação de versões](#publicação-de-versões)
+- [Segurança](#segurança)
+- [Licença](#licença)
+
+## Princípios
+
+O zing é uma ajuda de auditoria de caixa-preta: a correção e **não acusar
+injustamente relays honestos** importam mais do que apanhar todos os truques
+possíveis. Tenha essa fasquia presente em qualquer alteração.
+
+- **Evidências, não acusações.** As constatações reportam *desvio e risco*, nunca
+  «fraude». Mais vale *inconclusivo* do que um palpite. Um novo caminho de
+  gravidade ALTA precisa de evidências sólidas e reproduzíveis e deve ser difícil
+  de disparar com um endpoint honesto.
+- **Sem rede nos testes.** Os testes dos detectores correm contra o servidor
+  simulado em processo de `tests/conftest.py` (httpx `MockTransport`), nunca
+  contra uma API real.
+- **Os segredos não saem.** As chaves de API ficam reduzidas a uma impressão e
+  nunca são guardadas nos relatórios. Qualquer novo caminho de saída tem de
+  passar o texto controlado pelo relay por `zing.utils.redact` e escapá-lo para o
+  seu formato.
+- **As mesmas sondas para todos.** Os textos das sondas estão em inglês e são
+  fixos, seja qual for o idioma da interface, para que o mesmo relay receba o
+  mesmo veredito (ver [Biblioteca de prompts](#biblioteca-de-prompts)).
+- **Apenas local.** O zing só contacta os endpoints configurados pelo utilizador,
+  e a interface web só escuta em loopback (ver [Servidor web](#servidor-web)).
+
+## Ambiente de desenvolvimento
+
+Requer Python 3.10+. O Node.js é opcional: os testes do JavaScript do navegador
+correm com `node` e são ignorados sem ele.
+
+```bash
+git clone https://github.com/cenbonew/zing
+cd zing
+pip install -e '.[dev,tokenizers,web,pdf]'   # instalação editável com todos os extras
+pytest                                       # suite de testes
+ruff check zing tests                        # lint
+mypy zing                                    # verificação de tipos
+```
+
+Com uv: `uv venv && uv pip install -e '.[dev,tokenizers,web,pdf]'`. O extra
+`pdf` precisa da biblioteca de sistema Pango (`brew install pango` no macOS; a
+maioria dos ambientes Linux tem-na); omita-o se não trabalhar nos relatórios PDF.
+
+Execute a partir do código-fonte com `zing …` ou `python -m zing …`. `zing serve`
+serve a interface web diretamente a partir de `zing/web/static/`, pelo que
+recarregar o navegador apanha as alterações do frontend; não há passo de build.
+
+## Estrutura do repositório
+
+```text
+zing/
+  cli.py               CLI Typer: check, compare, models, kb*, serve, watch, embed, rerank, image, audio
+  config.py            configuração YAML, referências a segredos (env:/file:), AuditOptions
+  runner.py            run_audit(): liga tudo e executa os detectores
+  context.py           AuditContext entregue a cada detector
+  models.py            contratos de dados pydantic: TargetConfig, Finding, DetectorResult, AuditReport, …
+  scoring.py           pontuações de dimensão, pesos, pontuação global, veredito de risco, confiança
+  clients/             clientes HTTP: compatível com OpenAI, Anthropic Messages, OpenAI Responses
+  detectors/           um ficheiro por detector, mais base.py (registo), scale.py, helpers.py
+  judge/               o juiz LLM de confiança usado por quality_judge
+  knowledge/           esquema, carregador, armazenamento do utilizador (kb.db), importação, prompt de pesquisa, instantâneos
+    data/              perfis de fornecedores integrados (*.yaml)
+  prompts/en.json      todo o texto que o zing envia a uma API de LLM
+  perf/                registo por pedido e a secção de desempenho do relatório
+  report/              renderizadores JSON / Markdown / HTML / PDF e escrita
+  embed_audit.py       auditor autónomo de embeddings e rerank
+  media_audit.py       auditor autónomo de imagem e áudio (TTS)
+  notify.py            alertas por webhook (Slack / Feishu / DingTalk / JSON genérico)
+  datadir.py           o diretório de dados local e os seus ficheiros SQLite
+  i18n/                traduções partilhadas pela interface web e pelos alertas
+    locales/           <code>.json por idioma, fragments/<feature>/<code>.json
+  utils/               ocultação, análise SSE, estatística, estimativa de tokens
+  web/
+    server.py          app FastAPI: páginas, API JSON, fluxo SSE de auditoria, agendador de monitores
+    security.py        escuta em loopback, lista de anfitriões permitidos, controlos de Origin/JSON, cabeçalhos
+    history.py         armazenamento do histórico de auditorias (history.db)
+    watches.py         armazenamento dos monitores (watches.db)
+    static/            páginas da interface clássica e scripts partilhados (lang.js, i18n.js, …)
+    static/v2/         páginas, estilos e scripts da nova interface
+tests/                 suite pytest; conftest.py contém o relay simulado
+docs/                  METHODOLOGY (7 idiomas), CI.md, DOCKER.md, PUBLISHING.md
+examples/zing.yaml     ficheiro de configuração comentado
+prototypes/            protótipos HTML estáticos do design da interface web (não distribuídos)
+action.yml             a action composta do GitHub
+Dockerfile             imagem da interface web
+```
+
+## Arquitetura
+
+### Fluxo de uma auditoria
+
+`zing check`, `zing compare`, `zing watch`, o fluxo de auditoria da interface web
+e o seu agendador de monitores acabam todos na mesma função,
+`zing.runner.run_audit()`:
+
+1. **Configuração.** `zing/config.py` junta a configuração YAML e as opções de
+   linha de comandos em `TargetConfig` (alvo, referência e juiz opcionais) e
+   `AuditOptions` (suite, dimensões, dimensão das sondas, saída). As chaves de API
+   dadas como `env:VAR` ou `file:/caminho` são resolvidas aqui.
+2. **Base de conhecimento.** `load_knowledge_base()` carrega os perfis
+   integrados, `--kb-dir`/`ZING_KB_DIR` e o `kb.db` do utilizador, e resolve o
+   modelo **declarado** (por predefinição, o pedido) para um perfil. Um monitor
+   passa em vez disso o seu instantâneo fixado.
+3. **Clientes.** `make_client()` cria um cliente para o alvo (e a referência) no
+   protocolo escolhido ou detetado automaticamente. Um `RequestRecorder` envolve
+   cada chamada para a secção de desempenho.
+4. **Detectores.** `select_detectors()` escolhe os detectores registados para a
+   suite (ou as dimensões personalizadas), descartando os que precisam de um juiz
+   ou de uma referência em falta. Correm **sequencialmente**, de propósito:
+   pedidos concorrentes disparariam limites de taxa e distorceriam as medições de
+   tempo (as sondas de fiabilidade e desempenho gerem a sua própria concorrência
+   limitada). `run_detector()` cronometra cada um e transforma uma falha interna
+   num resultado com estado **Erro**, para que uma resposta anómala do relay
+   nunca interrompa a auditoria.
+5. **Pontuação.** `scoring.build_dimensions()` e `build_verdict()` transformam os
+   resultados dos detectores em pontuações de dimensão, pontuação global e nota,
+   veredito de risco e a sua confiança.
+6. **Relatório.** Tudo termina num `AuditReport` (`zing/models.py`) com o alvo
+   ocultado, o instantâneo do perfil da base de conhecimento, a secção de
+   desempenho e os idiomas das sondas. A CLI renderiza-o e escreve-o; a interface
+   web transmite-o.
+
+`run_audit()` aceita um callback `on_event`; o servidor web transforma os seus
+eventos (detector iniciado/terminado com constatações compactas, tempos por
+pedido agrupados) em Server-Sent Events para a vista ao vivo.
+
+### Clientes
+
+`zing/clients/` tem um cliente por protocolo — `openai_compatible.py` (Chat
+Completions), `anthropic.py` (Messages) e `responses.py` (Responses) — com a
+mesma interface, construídos sobre a mecânica HTTP comum de `base.py`.
+`make_client()` em `clients/__init__.py` escolhe um conforme `--api` ou deteta-o a
+partir do URL base e do modelo. Os detectores só falam com esta interface
+(`RequestSpec` à entrada, `CompletionOutcome` à saída), pelo que são
+independentes do protocolo.
+
+### Detectores e escalas de pontuação
+
+Um detector é um ficheiro autocontido em `zing/detectors/`: uma subclasse de
+`Detector` (`base.py`) com um `id`, um `name`, uma `dimension`, a primeira suite
+em que corre (`min_suite`), um `cost_hint` aproximado para `--dry-run` e
+`async def run(self, ctx) -> DetectorResult`. `@register` adiciona-o ao registo;
+`zing/detectors/__init__.py` importa cada módulo para que o registo fique
+completo.
+
+Cada detector publica a sua **escala de pontuação** (`SCALE`, construída com
+`scale.py`): cada resultado possível de cada verificação com os seus pontos,
+estado e gravidade. As constatações são criadas a partir da escala
+(`SCALE.finding(check, outcome, …)`), pelo que relatório e comportamento não
+podem divergir. `Scale` pontua com a média das suas verificações;
+`DeductionScale` parte de 100 e desconta ou limita. A interface web mostra a
+escala em **Escala de pontuação**; a [Metodologia](docs/METHODOLOGY.pt.md)
+reproduz cada escala. `connectivity.py` é o exemplo canónico e mais curto.
+
+### Pontuação e veredito
+
+`zing/scoring.py` contém `DIMENSION_WEIGHTS` e as regras do veredito: a pontuação
+de uma dimensão é a média com peso igual dos seus detectores, a pontuação global a
+média ponderada das dimensões executadas, e o nível de risco segue a escala de
+gravidade descrita em
+[Metodologia → Como o zing pontua](docs/METHODOLOGY.pt.md#como-o-zing-pontua).
+Cada dimensão regista como foi calculada em `DimensionScore.breakdown`, que
+alimenta os **Dimension details** dos relatórios e as linhas expansíveis das
+**Verificações por dimensão** da interface web.
+
+### Base de conhecimento
+
+`zing/knowledge/` define o esquema dos perfis (`schema.py`: `ProviderProfile`,
+`ModelProfile`, `FingerprintProbe`), carrega e funde as camadas (`loader.py`:
+YAML integrado → `ZING_KB_DIR`/`--kb-dir` → o `kb.db` do utilizador), guarda as
+entradas do utilizador (`store.py`), verifica e importa YAML (`importer.py`),
+constrói o prompt de pesquisa para assistentes externos (`research.py`) e tira um
+instantâneo do perfil usado por uma execução (`snapshot.py`). Os ids de modelo
+resolvem-se através de aliases e do fornecedor declarado; cada relatório regista
+como o id foi resolvido.
+
+### Biblioteca de prompts
+
+Todo o texto que o zing envia a uma API de LLM — sondas de chat, o prompt do
+juiz, esquemas de ferramentas, entradas de embeddings / rerank / imagem / áudio —
+está em `zing/prompts/en.json` e lê-se com `zing.prompts.text()` / `get()`.
+`{{name}}` marca um valor preenchido em tempo de execução. O idioma das sondas
+está fixado em inglês (`PROBE_LANG`), independentemente do idioma da interface,
+porque as verificações de respostas e as estimativas de tokens estão calibradas
+para esses textos exatos. As sondas cujo idioma *é* a medida (p. ex. fluência em
+chinês, tokenizer ou autoidentificação de modelos chineses) vivem com as suas
+respostas esperadas na base de conhecimento e declaram `prompt_lang` e um motivo
+`language_bound`. O runner regista os idiomas usados em `prompt_languages`.
+
+### Relatórios
+
+`zing/report/render.py` renderiza um `AuditReport` como JSON, JSON compacto para
+agentes, Markdown e HTML; `dimensions.py` e `performance.py` renderizam os
+**Dimension details** e a secção de desempenho; `pdf.py` compõe o HTML como PDF
+com o WeasyPrint (extra opcional `pdf`, sem nunca carregar recursos externos);
+`writer.py` escreve os ficheiros. Todo o texto controlado pelo relay é ocultado e
+escapado (HTML / Markdown) antes da saída. `POST /api/report/export` da interface
+web reutiliza estes renderizadores para a linha **Transferir relatório**, com os
+textos legíveis traduzidos para o idioma da interface.
+
+### Auditores autónomos
+
+Embeddings/rerank (`embed_audit.py`) e imagem/áudio (`media_audit.py`) não são
+superfícies de chat, pelo que têm os seus próprios pequenos auditores com o seu
+próprio veredito em vez do pipeline de detectores. Partilham as definições HTTP
+dos clientes, a base de conhecimento (dimensões nativas, tamanhos de imagem,
+vozes) e a biblioteca de prompts. Toda a descodificação (cabeçalhos de imagem,
+WAV) usa apenas a biblioteca padrão.
+
+### Servidor web
+
+`zing/web/server.py` é uma app FastAPI criada por `create_app()`:
+
+- **Páginas.** A interface clássica (`/`, `/console`, `/history`, `/watches`,
+  `/tools`) e a nova interface (`/v2/`, `/v2/history`, `/v2/watches`,
+  `/v2/tools`, `/v2/kb`) são ficheiros HTML estáticos. `?ui=v2` / `?ui=v1` muda
+  de uma para a outra e um cookie memoriza a escolha, pelo que um URL clássico
+  redireciona para o seu equivalente novo depois de escolhida a nova interface.
+- **API.** `/api/audit/stream` executa uma auditoria e transmite os seus eventos
+  por SSE; `/api/models` lista os modelos de um relay; `/api/report/export`
+  renderiza um relatório; `/api/history…`, `/api/watches…`, `/api/kb…`,
+  `/api/embed` e `/api/rerank` servem as restantes páginas.
+- **Agendador de monitores.** O lifespan da app lança um ciclo em segundo plano
+  que executa os monitores devidos, regista cada execução no histórico e envia
+  alertas por webhook (`zing/notify.py`) ao ultrapassar um limite ou ao piorar.
+- **Segurança.** `security.py` resolve o endereço de escuta (apenas loopback,
+  exceto num contentor detetado com `ZING_CONTAINER=1`) e instala
+  `LocalOnlyMiddleware`: uma lista de anfitriões permitidos contra DNS rebinding,
+  controlos de `Origin` e `Sec-Fetch-Site` contra CSRF, corpos de pedido apenas
+  JSON e cabeçalhos anti-iframe / no-sniff / no-referrer. A interface não tem
+  início de sessão por design.
+
+### Frontend web
+
+O frontend é HTML, CSS e JavaScript de navegador simples, sem módulos nem passo
+de build. As páginas clássicas estão em `zing/web/static/`; a nova interface, em
+`zing/web/static/v2/`, partilha um cabeçalho (`nav.js`), o renderizador de
+relatórios (`report.js`), o seletor de tema (`theme.js`) e os estilos
+(`zing.css`, `fields.css`, `report.css`, `perf.css`). Os scripts partilhados são
+servidos a partir da raiz: `lang.js` (mudança de idioma), `locales.js` (dados de
+tradução), `i18n.js` (tradução das constatações), `icons.js`, `modelpicker.js`
+(**Obter modelos**), `secretfield.js` e `perf.js` (gráficos de desempenho).
+
+**Convenção de tradução.** O texto chinês escrito no HTML é o original e não se
+altera; cada elemento leva o seu texto inglês em `data-en` (e
+`data-en-placeholder`, `data-en-title`, `data-en-aria-label`). O texto inglês é a
+chave de pesquisa para todos os outros idiomas. Os scripts usam `T(zh, en)` para
+texto dinâmico e `ZING_LANG.server(text)` para texto vindo do backend (nomes de
+detectores, recomendações, frases do veredito).
+
+### Dados locais
+
+`zing/datadir.py` gere `$ZING_DATA_DIR` (por predefinição `~/.zing`), criado com
+`0700`, com ficheiros SQLite `0600`: `history.db` (`web/history.py`),
+`watches.db` (`web/watches.py`, que guarda em texto simples as chaves API dos
+monitores) e `kb.db` (`knowledge/store.py`). Cada chamada abre uma ligação de
+curta duração, pelo que os armazenamentos são seguros no pool de threads do
+FastAPI.
+
+## Contribuir
+
+### Pull requests
+
+- Mantenha `pytest`, `ruff check zing tests` e `mypy zing` a verde (a CI executa
+  os três com Python 3.10–3.13).
+- Descreva o truque de relay ou o falso positivo que a alteração resolve.
+- Atualize `CHANGELOG.md` em `[Unreleased]`.
+- Atualize a documentação afetada — README, este guia, a Metodologia — em
+  **todos os idiomas** (ver [Documentação](#documentação)).
+
+Ao contribuir, aceita que as suas contribuições fiquem sob a licença
+[Apache-2.0](LICENSE) do projeto.
+
+### Adicionar um detector
+
+1. Crie `zing/detectors/<name>.py` e importe-o em `zing/detectors/__init__.py`.
+2. Defina a sua `SCALE` (`Scale` ou `DeductionScale` de `scale.py`) com cada
+   resultado de cada verificação, e crie constatações apenas através dela.
+3. Derive de `Detector`; defina `id`, `name`, `dimension`, `min_suite` e
+   `cost_hint`; ponha `requires_judge = True` ou `requires_baseline = True` se
+   precisar de um juiz ou de uma referência, ou redefina `applies()` para outras
+   condições. Decore a classe com `@register`.
+4. Implemente `async def run(self, ctx) -> DetectorResult` a partir de
+   `self.new_result(scoring=SCALE.scoring())`. Envie os pedidos através de
+   `ctx.client` e tire cada prompt de `zing/prompts/en.json`.
+5. Acrescente testes de comportamento para o caminho sinalizado e para o limpo,
+   com o relay simulado de `tests/conftest.py`.
+6. Traduza os novos títulos e resumos de constatações (ver
+   [Traduções](#traduções)) e documente o detector e a sua escala em cada
+   ficheiro de [Metodologia](docs/METHODOLOGY.pt.md).
+
+### Editar a base de conhecimento
+
+Os perfis estão em `zing/knowledge/data/<provider>.yaml`, um ficheiro por
+fornecedor. Cada modelo tem a sua janela de contexto nativa, saída máxima, data de
+corte do conhecimento, tokenizer, modalidades, capacidades, parâmetros não
+suportados, palavras-chave de identidade e impressões (ver
+`zing/knowledge/schema.py`). Quando alterar um campo numérico, **cite uma fonte
+fidedigna** (a ficha oficial do modelo, preços ou documentação do fornecedor) no
+pull request: um valor errado provoca falsos positivos contra relays honestos.
+`zing kb-import --check <ficheiro>` faz as mesmas verificações que a importação do
+utilizador (esquema, limites, expressões regulares perigosas, prompts, colisões de
+ids).
+
+### Alterar os prompts das sondas
+
+Os textos das sondas são dados de calibração. Alterar um em
+`zing/prompts/en.json` pode mudar as verificações de respostas, as estimativas de
+tokens e, portanto, os vereditos; ajuste o detector e os seus testes em
+conformidade e mencione a alteração no CHANGELOG. Nunca faça uma sonda seguir o
+idioma da interface.
+
+### Traduções
+
+A interface e os alertas por webhook partilham um único conjunto de traduções em
+`zing/i18n/locales/<code>.json`:
+
+- `meta` — código, o nome do idioma na própria língua para o menu, idioma
+  `html`, localização das datas e ordem no menu;
+- `strings` — texto inglês → tradução (`en.json` é a aplicação identidade e a
+  lista de referência dos textos traduzíveis);
+- `findings` — id da constatação → `[título, modelo de resumo]` (`zh.json` contém
+  o catálogo chinês original).
+
+As funcionalidades podem trazer os seus textos como fragmentos,
+`zing/i18n/locales/fragments/<feature>/<code>.json` com `{"strings": {…}}`,
+fundidos no idioma ao carregar.
+
+- **Novo texto de interface:** escreva o chinês no HTML e o inglês em `data-en`
+  (ou use `T(zh, en)`), depois acrescente a chave inglesa a `en.json` ou a um
+  fragmento e a sua tradução em cada um dos outros idiomas.
+- **Novo idioma:** acrescente `zing/i18n/locales/<code>.json` (copie `de.json`) e
+  um ficheiro por fragmento; o menu, as páginas, os alertas e `--alert-lang`
+  passam a usá-lo.
+- `tests/test_web_locales.py` falha até que cada texto da interface e cada
+  constatação esteja traduzido com os marcadores de posição e a marcação intactos.
+
+**Terminologia.** Cada termo tem uma única tradução por idioma. Reutilize a
+terminologia que a interface já usa (nomes de páginas, nomes das dimensões,
+rótulos de risco, rótulos dos botões) nos textos novos e na documentação.
+
+### Documentação
+
+A documentação existe em sete idiomas — inglês, chinês (`zh-CN`), francês,
+espanhol, português, italiano e alemão:
+
+| Ficheiro | Público |
+|---|---|
+| `README.md`, `README.<lang>.md` | Utilizadores: o que o zing faz, instalação, utilização da CLI e da interface web |
+| `DEVELOPER_GUIDE.md`, `DEVELOPER_GUIDE.<lang>.md` | Contribuidores: arquitetura, ambiente, contribuições, Docker, versões |
+| `docs/METHODOLOGY.md`, `docs/METHODOLOGY.<lang>.md` | Todos: cada verificação, a sua escala de pontuação e as suas ressalvas |
+| `docs/CI.md`, `docs/DOCKER.md`, `docs/PUBLISHING.md` | Páginas de referência (em inglês) |
+
+Os ficheiros em inglês são a referência. Quando alterar um, altere os outros no
+mesmo pull request e use em cada idioma a terminologia da interface (procure o
+termo em `zing/i18n/locales/`). Os ficheiros METHODOLOGY reproduzem as escalas de
+pontuação com a redação que a interface mostra em **Escala de pontuação**.
+
+## Testes
+
+```bash
+pytest                       # tudo
+pytest tests/test_billing.py # um módulo
+pytest -k streaming          # por palavra-chave
+```
+
+- `tests/conftest.py` fornece `MockServer`, um endpoint compatível com OpenAI
+  sobre `httpx.MockTransport` com parâmetros para cada desvio que o zing procura
+  (modelo servido, autoidentificação, truncagem do contexto, streaming falso,
+  utilização ausente ou inflacionada, chamadas de ferramentas, modo JSON, …).
+  Cada parâmetro tem por predefinição o comportamento de um relay honesto.
+- Os clientes Anthropic e Responses têm os seus próprios testes
+  (`test_anthropic.py`, `test_responses.py`); o servidor web é testado com o
+  cliente de testes do FastAPI (`test_web*.py`), incluindo as proteções de
+  utilização local (`test_web_security.py`).
+- Os scripts do navegador (`lang.js`, `modelpicker.js`, `perf.js`,
+  `secretfield.js`, `v2/report.js`, as traduções) são avaliados com `node` em
+  `test_web_*_js.py` e `test_web_locales.py`; são ignorados sem Node.js.
+- Nenhum teste pode aceder à rede.
+
+## Docker
+
+O `Dockerfile` constrói uma imagem da interface web (Python 3.12 slim, os extras
+`web` e `pdf`, Pango e tipos de letra CJK para os relatórios PDF). Corre com um
+utilizador sem privilégios e o diretório de dados em `/data`.
+
+```bash
+docker build -t zing .
+docker run --rm -p 127.0.0.1:8000:8000 -v zing-data:/data zing
+# abra http://localhost:8000
+```
+
+**Publique sempre em `127.0.0.1`.** Um simples `-p 8000:8000` publica a interface
+— e cada chave API escrita nela ou guardada num monitor — na sua rede. Dentro do
+contentor, o servidor tem de escutar em todas as interfaces; isso só é permitido
+se `ZING_CONTAINER=1` estiver definido (a imagem define-o) *e* for detetado um
+ambiente de contentor.
+
+| Variável | Predefinição | Função |
+|---|---|---|
+| `ZING_CONTAINER` | não definida (`1` na imagem) | Permite escutar fora de loopback dentro de um contentor detetado |
+| `ZING_HOST` | `127.0.0.1` (`0.0.0.0` na imagem) | Endereço de escuta; `--host` prevalece |
+| `ZING_PORT` | `8000` | Porta; `--port` prevalece |
+| `ZING_DATA_DIR` | `~/.zing` (`/data` na imagem) | Histórico, monitores (com as suas chaves) e as suas entradas da base de conhecimento; monte aqui um volume |
+| `ZING_KB_DIR` | não definida | Diretório YAML adicional da base de conhecimento, p. ex. `-v ./profiles:/kb:ro -e ZING_KB_DIR=/kb` |
+| `ZING_NO_USER_KB` | não definida | `1` ignora as suas próprias entradas da base de conhecimento (`kb.db`) |
+| `ZING_ALLOWED_HOSTS` | não definida | Nomes de anfitrião adicionais a que a interface responde, separados por vírgulas |
+
+[docs/DOCKER.md](docs/DOCKER.md) é a referência completa (em inglês), incluindo o
+que protege a interface.
+
+## Integração contínua
+
+| Workflow | Corre em | Faz |
+|---|---|---|
+| `.github/workflows/ci.yml` | push e pull request para `main` | `ruff`, `mypy` e `pytest` com Python 3.10–3.13 e todos os extras; constrói a wheel e a sdist e verifica que a wheel se instala e carrega a base de conhecimento |
+| `.github/workflows/release.yml` | uma tag `v*` | constrói, executa `twine check` e publica no PyPI (Trusted Publishing) |
+| `.github/workflows/example-audit.yml` | agendamento diário, manual | exemplo de auditoria agendada de um relay com a action |
+
+A action composta é `action.yml`, documentada em [docs/CI.md](docs/CI.md).
+
+## Publicação de versões
+
+1. Mude `[Unreleased]` em `CHANGELOG.md` para a nova versão e aumente `version`
+   em `pyproject.toml`.
+2. Faça commit, crie a tag `vX.Y.Z` e envie-a; `release.yml` publica no PyPI.
+3. Crie a release no GitHub com as notas do CHANGELOG e atualize a versão fixada
+   da action nos README e em `docs/CI.md`.
+
+A configuração inicial do PyPI e o procedimento manual estão em
+[docs/PUBLISHING.md](docs/PUBLISHING.md).
+
+## Segurança
+
+Reporte vulnerabilidades em privado, como descrito em [SECURITY.md](SECURITY.md).
+Estão no âmbito sobretudo: uma chave ou um segredo que chegue a um relatório,
+texto controlado pelo relay que injete marcação num relatório ou na interface,
+tráfego para algo que não os endpoints configurados, e formas de contornar as
+proteções de utilização local da interface web.
+
+## Licença
+
+[Apache-2.0](LICENSE)

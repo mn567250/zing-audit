@@ -6,30 +6,57 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
-**zing** ist ein Local-first-Kommandozeilenwerkzeug, das prüft, ob ein API-Relay
-(Wiederverkäufer / Proxy) tatsächlich das Modell liefert, das es verspricht — oder ob es
-stillschweigend ein billigeres unterschiebt, das Kontextfenster kürzt, Streaming
-vortäuscht oder die Token-Abrechnung aufbläht. Kurz: Bekommen Sie, wofür Sie bezahlen?
-Es spricht **OpenAI Chat Completions**, die **Anthropic Messages API** und die **OpenAI
-Responses API** (`/v1/responses`) — automatisch erkannt oder erzwungen mit
-`--api openai|anthropic|responses`.
+**zing** ist ein Local-first-Werkzeug, das prüft, ob ein API-Relay
+(Wiederverkäufer / Proxy) tatsächlich das Modell liefert, das es angibt — oder ob
+es stillschweigend ein billigeres unterschiebt, das Kontextfenster kürzt,
+Streaming vortäuscht oder die Token-Abrechnung aufbläht. Kurz: Bekommen Sie, wofür
+Sie bezahlen? Es spricht die **OpenAI Chat Completions API**, die **Anthropic
+Messages API** und die **OpenAI Responses API** (`/v1/responses`) — automatisch
+erkannt oder erzwungen mit `--api openai|anthropic|responses`.
 
-Sie geben ihm den Endpunkt eines Relays und das beworbene Modell; zing führt eine Reihe
-von Black-Box-Tests aus, vergleicht das beobachtete Verhalten mit einer mitgelieferten
-Wissensbasis von **85 nativen Modellprofilen auf 7 Plattformen** und gibt ein klares,
-mit Belegen untermauertes Urteil aus — für Menschen oder als JSON für ein anderes
-Werkzeug / LLM.
+Sie geben ihm den Endpunkt eines Relays und das Modell, das es angeblich liefert;
+zing führt eine Reihe von Black-Box-Tests aus, vergleicht das beobachtete
+Verhalten mit einer mitgelieferten Wissensbasis von **98 Modellprofilen von 7
+Anbietern** und gibt ein klares, mit Belegen untermauertes Urteil aus — auf der
+Kommandozeile, in einer lokalen Weboberfläche oder als JSON für ein anderes
+Werkzeug oder LLM.
 
 > zing liefert **Black-Box-Belege für Abweichungen und Risiken, keinen
 > kryptografischen Betrugsnachweis.** Siehe [Verantwortungsvoller Einsatz](#verantwortungsvoller-einsatz).
 
+Dieses README richtet sich an alle, die zing **nutzen**. Wie zing aufgebaut,
+getestet und veröffentlicht wird, steht im [Entwicklerhandbuch](DEVELOPER_GUIDE.de.md);
+wie jede Prüfung funktioniert und bewertet wird, in der
+[Methodik](docs/METHODOLOGY.de.md).
+
 ---
+
+## Inhalt
+
+- [Warum](#warum)
+- [Installation](#installation)
+- [Schnellstart](#schnellstart)
+- [Weboberfläche (`zing serve`)](#weboberfläche-zing-serve)
+- [Was geprüft wird](#was-geprüft-wird)
+- [Wie das Urteil zustande kommt](#wie-das-urteil-zustande-kommt)
+- [Suiten](#suiten)
+- [Leistung](#leistung)
+- [Vergleichsmodus und LLM-Richter](#vergleichsmodus-und-llm-richter)
+- [Überwachung](#überwachung)
+- [Prüfungen für Embedding, Rerank, Bild und Audio](#prüfungen-für-embedding-rerank-bild-und-audio)
+- [Einsatz in CI (GitHub Action)](#einsatz-in-ci-github-action)
+- [Wissensbasis](#wissensbasis)
+- [Berichte](#berichte)
+- [Datenschutz und lokale Daten](#datenschutz-und-lokale-daten)
+- [Verantwortungsvoller Einsatz](#verantwortungsvoller-einsatz)
+- [Weitere Dokumentation](#weitere-dokumentation)
+- [Lizenz](#lizenz)
 
 ## Warum
 
 Der Markt für Relay-Schlüssel ist voller Angebote wie „GPT-4o für ein Zehntel des
-Preises“. Viele sind ehrlich. Manche nicht — und die unehrlichen sind mit bloßem Auge
-schwer zu erkennen:
+Preises“. Viele sind ehrlich. Manche nicht — und die unehrlichen sind mit bloßem
+Auge schwer zu erkennen:
 
 - Sie fordern `gpt-4o` an und bekommen stillschweigend `gpt-4o-mini` oder ein offenes Modell.
 - Das Relay bewirbt 1M Token Kontext, kürzt aber stillschweigend auf 32K.
@@ -75,15 +102,14 @@ source .venv/bin/activate       # Windows: .venv\Scripts\activate
 Sie können auch direkt aus dem Git-Repository installieren, ohne es zu klonen:
 `uv tool install git+https://github.com/cenbonew/zing`.
 
-(Maintainer: siehe [docs/PUBLISHING.md](docs/PUBLISHING.md) für den Release-Prozess.)
-
 ### Optionale Extras
 
 - `tokenizers` — genaue Token-Zählung für die OpenAI-Familie in der Abrechnungsprüfung.
 - `web` — die lokale Weboberfläche (`zing serve`).
 - `pdf` — PDF-Berichte (`--format pdf` und der PDF-Download in der Weboberfläche),
-  aus dem HTML-Bericht mit [WeasyPrint](https://weasyprint.org/) erzeugt; benötigt die
-  Systembibliothek Pango (unter macOS `brew install pango`).
+  aus dem HTML-Bericht mit [WeasyPrint](https://weasyprint.org/) erzeugt; benötigt
+  die Systembibliothek Pango (auf den meisten Linux-Desktops vorinstalliert; unter
+  macOS `brew install pango`).
 
 ```bash
 pip install 'zing-audit[tokenizers,web,pdf]'      # pip, von PyPI
@@ -91,6 +117,20 @@ pip install -e '.[tokenizers,web,pdf]'            # pip, aus dem Quellcode
 uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, von PyPI
 uv pip install -e '.[tokenizers,web,pdf]'         # uv, aus dem Quellcode
 ```
+
+### Mit Docker (nur Weboberfläche)
+
+Aus einem Checkout des Quellcodes:
+
+```bash
+docker build -t zing .
+docker run --rm -p 127.0.0.1:8000:8000 -v zing-data:/data zing
+# http://localhost:8000 öffnen
+```
+
+Veröffentlichen Sie den Port immer wie gezeigt an `127.0.0.1`. Details und
+Umgebungsvariablen: [Entwicklerhandbuch → Docker](DEVELOPER_GUIDE.de.md#docker)
+und [docs/DOCKER.md](docs/DOCKER.md).
 
 ## Schnellstart
 
@@ -120,19 +160,26 @@ zing check --base-url https://relay.example.com/v1 --model claude-opus-4-8 \
 zing check --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
   --model doubao-seed-2-0-lite --claimed-model deepseek-v4-flash
 
-# 5) die mitgelieferte Wissensbasis ansehen
-zing kb            # alle 85 Modelle
+# 5) die Modelle auflisten, die ein Endpunkt bewirbt
+zing models --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY
+
+# 6) die Wissensbasis ansehen
+zing kb            # alle Profile, mit ihrer Quelle
 zing kb deepseek   # ein Anbieter
 
-# 6) eine Konfiguration zum Einchecken erzeugen
+# 7) eine Konfiguration zum Einchecken erzeugen
 zing init          # schreibt zing.yaml
 zing check -c zing.yaml
 ```
 
+API-Schlüssel lassen sich direkt, als `env:VAR` oder als `file:/pfad` angeben;
+Berichte enthalten immer nur einen Fingerabdruck des Schlüssels. Eine vollständige
+Konfigurationsdatei finden Sie in [`examples/zing.yaml`](examples/zing.yaml).
+
 ### Als Werkzeug für ein LLM / einen Agenten
 
-zing ist dafür gebaut, von einem anderen Programm oder Modell gesteuert zu werden. Alles
-geht als JSON nach stdout, auch Fehler, und der Exit-Code dient als Schranke.
+zing ist dafür gebaut, von einem anderen Programm oder Modell gesteuert zu werden.
+Alles geht als JSON nach stdout, auch Fehler, und der Exit-Code dient als Schranke.
 
 ```bash
 # schlankes, agentenfreundliches Urteil (~5x kleiner als --json: ohne umfangreiche Belege)
@@ -144,11 +191,12 @@ zing check --base-url ... --model gpt-4o --json
 # erst das Budget: welche Detektoren laufen + geschätzte API-Aufrufe, OHNE einen auszuführen
 zing check --base-url ... --model gpt-4o --suite deep --dry-run --json
 
-# Schranke über den Exit-Code (1 bei Risiko >= medium); Konfigurations-/Aufruffehler enden mit 2, als JSON
+# Schranke über den Exit-Code (1 bei Risiko >= medium oder einer Bewertung unter --fail-under);
+# Konfigurations-/Aufruffehler enden mit 2, als JSON
 zing check --base-url ... --model gpt-4o --compact --fail-on-risk medium
 
 # maschinenlesbare Erkundung
-zing kb --json                 # die gesamte Wissensbasis
+zing kb --json                      # die gesamte Wissensbasis
 zing models --base-url ... --json   # was ein Endpunkt bewirbt
 ```
 
@@ -163,118 +211,250 @@ Kommandozeile.
 
 ```bash
 pip install 'zing-audit[web]'     # oder: uv tool install 'zing-audit[web]'
-zing serve            # öffnet http://localhost:8000
+zing serve                        # öffnet http://localhost:8000
 ```
 
-Geben Sie ein Relay und das beworbene Modell ein; verfolgen Sie die Prüfung **live**
-(Fortschritt je Detektor per SSE) und lesen Sie anschließend einen teilbaren
-Urteilsbericht (Note, Aufschlüsselung je Dimension, Befunde in verständlicher Sprache,
-herunterladbares JSON). Alles läuft auf Ihrem Rechner — ein im Browser eingegebener
-Schlüssel erreicht nur Ihren lokalen Server und das geprüfte Relay, niemals Dritte.
-Standardmäßig wird nur an `127.0.0.1` gebunden.
+Geben Sie **Relay-URL**, **API-Schlüssel** und Modell ein; optional
+**Angegebenes Modell** (wenn das Relay es unter anderem Namen verkauft),
+**Angegebener Anbieter** und eine vertrauenswürdige Referenz (**Mit
+vertrauenswürdiger Referenz vergleichen**). **Modelle abrufen** listet, was das
+Relay bewirbt; die Auswahl eines Modells füllt Modell und Anbieter aus. Dann
+**Prüfung starten** und die Prüfungen **live** verfolgen: jede Prüfung zeigt ihre
+Bewertung und Dauer, und eine Prüfung mit Befunden klappt auf und zeigt die
+Belege. Das Ergebnis ist ein teilbarer Urteilsbericht: Note, die **Prüfungen je
+Dimension** mit ihren Bewertungsskalen, Befunde in verständlicher Sprache und der
+Leistungsabschnitt (in der neuen Oberfläche zusätzlich ein
+**Ausführungsprotokoll** aller Detektoren).
+
+Alles läuft auf Ihrem Rechner: ein im Browser eingegebener Schlüssel erreicht nur
+Ihren lokalen zing-Server und das geprüfte Relay, niemals Dritte. Siehe
+[Datenschutz und lokale Daten](#datenschutz-und-lokale-daten).
+
+### Seiten
+
+Die Weboberfläche gibt es in zwei Versionen mit demselben Server und denselben
+Daten. Die **klassische Oberfläche** öffnet unter `/`; ihr Link **Neue Oberfläche
+testen** wechselt zur **neuen Oberfläche** unter `/v2/`, deren Link **Klassische
+Oberfläche** zurückführt. Die Wahl wird pro Browser gespeichert.
+
+| Seite | Klassische Oberfläche | Neue Oberfläche | Wofür |
+|---|---|---|---|
+| **Prüfung** | `/` | `/v2/` | Ein Relay prüfen (optional gegen eine Referenz) und den Bericht lesen |
+| **Konsole** | `/console` | — | Dieselbe Prüfung als kompakte Konsole im Log-Stil |
+| **Werkzeuge** | `/tools` | `/v2/tools` | Embedding- und Rerank-Prüfungen |
+| **Verlauf** | `/history` | `/v2/history` | Jede Prüfung auf diesem Rechner, gruppiert nach Relay + angegebenem Modell, mit Trends |
+| **Überwachung** | `/watches` | `/v2/watches` | Geplante Wiederholungsprüfungen mit Webhook-Warnungen |
+| **Modelle** | — | `/v2/kb` | Die Wissensbasis durchsuchen und eigene Modellprofile hinzufügen |
+
+Die neue Oberfläche bietet zusätzlich: Filter und konfigurierbare Trends
+(Bewertung, Note, Latenz p50, Token/s) im **Verlauf**; **Als Überwachung
+einplanen** bei jedem Lauf im Verlauf; **Bericht herunterladen** in jedem Format;
+eine Designauswahl (Automatisch / Hell / Dunkel); und die Seite **Modelle**.
+
+### Sprachen
 
 Ein Sprachmenü in der Kopfzeile jeder Seite schaltet die Oberfläche zwischen
 **🇬🇧 Englisch** (Standard), **🇨🇳 Chinesisch** (die ursprüngliche Oberfläche),
 **🇫🇷 Französisch**, **🇪🇸 Spanisch**, **🇵🇹 Portugiesisch**, **🇮🇹 Italienisch** und
-**🇩🇪 Deutsch** um; die Wahl wird pro Browser gespeichert. Aus der Oberfläche
-heruntergeladene Berichte (**Bericht herunterladen**: JSON, Markdown, HTML oder PDF) folgen ebenfalls der
-gewählten Sprache: JSON-Schlüssel, Enum-Werte (`risk_level`, `status`, `severity`, …),
-IDs und Belege bleiben exakt wie im Bericht der CLI (das JSON ist weiterhin ein gültiger
-zing-Bericht), während die für Menschen lesbaren Werte (Überschrift/Zusammenfassung des
-Urteils, Titel/Zusammenfassungen der Befunde, Empfehlungen, Detektornamen, Hinweise)
-übersetzt werden und der Dateiname die Sprache trägt (`zing-report.de.json`, `zing-report.de.pdf`). Die Abschnittsüberschriften der
-Markdown-/HTML-/PDF-Dateien sind englisch. Die
-Berichte der CLI mit `--format json|md|html|pdf` bleiben englisch.
+**🇩🇪 Deutsch** um; die Wahl wird pro Browser gespeichert.
+
+Aus der Oberfläche heruntergeladene Berichte (**Bericht herunterladen**: JSON,
+Markdown, HTML oder PDF) folgen der gewählten Sprache: JSON-Schlüssel,
+Enum-Werte (`risk_level`, `status`, `severity`, …), IDs und Belege bleiben exakt
+wie im Bericht der CLI (das JSON ist weiterhin ein gültiger zing-Bericht),
+während die für Menschen lesbaren Werte (Überschrift und Zusammenfassung des
+Urteils, Titel und Zusammenfassungen der Befunde, Empfehlungen, Detektornamen,
+Hinweise) übersetzt werden und der Dateiname die Sprache trägt
+(`zing-report.de.json`, `zing-report.de.pdf`). Die Abschnittsüberschriften der
+Markdown-/HTML-/PDF-Dateien sind englisch. Die Berichte der CLI mit
+`--format json|md|html|pdf` bleiben englisch.
 
 **An den geprüften Endpunkt gesendete Prompts folgen nicht der Sprache der
-Oberfläche.** Jeder Text, den zing an eine LLM-API sendet — Chat-Tests, der Prompt des
-LLM-Richters, Tool-Schemata, Eingaben für Embedding / Rerank / Bild / Audio — liegt in
-einer einzigen Prompt-Bibliothek, `zing/prompts/en.json`, und ist englisch, damit
-dasselbe Relay dasselbe Urteil erhält, egal wer den Bericht liest (Antwortprüfungen und
-Token-Schätzungen sind auf genau diese Texte kalibriert). Die einzigen Ausnahmen sind
-Fingerabdrücke der Wissensbasis, deren Sprache *selbst* die Messgröße ist — z. B. die
-Tests zu chinesischer Sprachgewandtheit, Tokenizer und Selbstidentifikation
-chinesischer Modelle —, die in `zing/knowledge/data/*.yaml` `prompt_lang` und einen
-`language_bound`-Grund angeben. Jeder Bericht vermerkt die tatsächlich verwendeten
-Testsprachen (`prompt_languages`, z. B. `["en", "zh"]`).
-
-Die Übersetzungen sind Daten, die sich Weboberfläche und Webhook-Warnungen teilen:
-`zing/i18n/locales/<code>.json`, eine Datei pro Sprache. Um eine Sprache hinzuzufügen,
-legen Sie eine Datei an (kopieren Sie `de.json`); Sprachmenü, Seiten und Warnungen
-übernehmen sie automatisch. `tests/test_web_locales.py` schlägt fehl, bis jeder Text der
-Oberfläche und jeder Befund mit intakten Platzhaltern und intaktem Markup übersetzt ist.
+Oberfläche.** Jeder Text, den zing an eine LLM-API sendet, ist englisch, damit
+dasselbe Relay dasselbe Urteil erhält, egal wer den Bericht liest
+(Antwortprüfungen und Token-Schätzungen sind auf genau diese Texte kalibriert).
+Die einzigen Ausnahmen sind Fingerabdrücke der Wissensbasis, deren Sprache
+*selbst* die Messgröße ist — z. B. die Tests zu chinesischer Sprachgewandtheit,
+Tokenizer und Selbstidentifikation chinesischer Modelle. Jeder Bericht vermerkt
+die tatsächlich verwendeten Testsprachen (`prompt_languages`, z. B. `["en", "zh"]`).
 
 ## Was geprüft wird
 
-zing bewertet zehn Dimensionen. Die drei, die eine Mogelpackung am direktesten
-aufdecken (Modellidentität, tatsächliches Kontextfenster, beworbene Fähigkeiten), werden
-am stärksten gewichtet.
+zing bewertet zehn Dimensionen. Die drei **Kerndimensionen** — Modellidentität,
+Kontextfenster und angegebene Fähigkeiten — decken einen Etikettenschwindel am
+direktesten auf und werden am stärksten gewichtet. Die Namen sind die der
+Weboberfläche und der Berichte.
 
-| Dimension | Was sie aufdeckt |
+| Dimension | Kennung | Gewicht | Was sie aufdeckt |
+|---|---|---|---|
+| **Modellidentität** | `model_identity` | 21 | Stillschweigende Herabstufung oder Austausch des Modells — Selbstidentifikation, Wissensstichtag, Tokenizer-Fingerabdrücke, das zurückgegebene `model`-Feld; optional ein LLM-Richter |
+| **Kontextfenster** | `context_window` | 19 | Stillschweigende Kontextkürzung (1M angegeben, Abruf scheitert bei 32K) und „Lost in the Middle“ durch billige RAG-/Zusammenfassungs-Zwischenschichten, per Nadel im Heuhaufen und binärer Suche |
+| **Angegebene Fähigkeiten** | `capability` | 13 | Angaben zu Tool-Calling / JSON-Modus / JSON-Schema / maximaler Ausgabe, die nicht geliefert (oder *über*erfüllt, ein Hinweis auf ein Ersatzmodell) werden; **Vision** — ein Modell, das Bildeingabe angibt, muss ein generiertes Bild mit bekannter Antwort lesen |
+| **Protokollkonformität** | `protocol` | 8 | Konformität auf der Leitung: Mehrfachdialoge, Stoppsequenzen, Fehlerschema; jeder Anfrageparameter angenommen (und beachtet, wo sichtbar), jedes Antwortattribut vorhanden; Antwort-Caches, die temperature/seed ignorieren |
+| **Abrechnung & Verbrauch** | `billing` | 8 | Aufgeblähte Token/Nutzung und fehlende oder nicht überprüfbare Nutzungsabrechnung, per unabhängiger Tokenizer-Schätzung |
+| **Konnektivität** | `connectivity` | 7 | Erreichbarkeit des Endpunkts und die beworbene `/v1/models`-Liste |
+| **Echtheit des Streamings** | `streaming` | 6 | Vorgetäuschtes Streaming (erst puffern, dann zerstückeln), erkannt an Anzahl und zeitlichem Abstand der Chunks |
+| **Zuverlässigkeit unter Parallellast** | `reliability` | 6 | Erfolgsquote und Latenz unter paralleler Last (HTTP-429-Drosselung wird gesondert gezählt) |
+| **Transportsicherheit** | `security` | 6 | HTTPS, Header-Hygiene, Echo von Geheimnissen; ein versteckt eingeschleuster System-Prompt; Manipulation von Antworten und Tool-Calls unterwegs (Kanarien mit bekannter Antwort); Prompt-Präfix-Caching (Timing) |
+| **Leistung** | `performance` | 6 | Wie *gleichmäßig* Latenz, Zeit bis zum ersten Token und Durchsatz sind, Fehlerquote und Verlangsamung unter Last; das Tempo nur im Vergleich zu einer Referenz (siehe [Leistung](#leistung)) |
+
+Die [Methodik](docs/METHODOLOGY.de.md) beschreibt jeden Test, den Relay-Trick, dem
+er entspricht, seine Bewertungsskala und seine Einschränkungen bezüglich
+Fehlalarmen.
+
+## Wie das Urteil zustande kommt
+
+Kurz gefasst (Details in der [Methodik](docs/METHODOLOGY.de.md#wie-zing-bewertet)):
+
+- Jeder Detektor veröffentlicht seine **Bewertungsskala** — jedes mögliche
+  Ergebnis jeder Prüfung mit seinen Punkten —, und die Weboberfläche zeigt sie
+  unter **Bewertungsskala**.
+- Die **Bewertung einer Dimension** ist der gleich gewichtete Mittelwert der
+  Bewertungen ihrer Detektoren. Ein Befund HOCH/KRITISCH erzwingt
+  **Fehlgeschlagen**, ein Befund MITTEL hebt **Bestanden** auf **Warnung** an,
+  unabhängig von der Bewertung. Berichte erklären das je Dimension unter
+  **Dimension details**; in der Weboberfläche klappt jede Zeile der **Prüfungen je
+  Dimension** zu denselben Details auf.
+- Der **Gesamt-Health-Score** ist der gewichtete Mittelwert der gelaufenen
+  Dimensionen (Gewichte oben), benotet mit A (≥ 90), B (≥ 80), C (≥ 70),
+  D (≥ 60) oder F.
+- Das **Risikourteil** richtet sich nach dem Schweregrad der Befunde, nicht nach
+  der Bewertung:
+
+| Risiko | Bezeichnung in der UI | Wann |
+|---|---|---|
+| `inconclusive` | Unzureichendes Signal | Keine Kerndimension lieferte ein verwertbares Ergebnis (Relay nicht erreichbar, Modell nicht in der Wissensbasis oder ein `custom`-Lauf ohne Kerndimension) |
+| `high` | Etikettenschwindel | Ein Befund KRITISCH, ein Befund HOCH/KRITISCH in einer Kerndimension oder zwei oder mehr Befunde HOCH |
+| `medium` | Abweichungen gefunden | Genau ein Befund HOCH außerhalb der Kerndimensionen oder ein Befund MITTEL in einer Kerndimension |
+| `low` | Weitgehend vertrauenswürdig | Jeder andere Befund MITTEL |
+| `clean` | Konsistent (wahrscheinlich echt) | Nichts davon |
+
+Befunde der Dimension Konnektivität erhöhen das Risiko nie: ein Relay, das nicht
+erreichbar ist oder drosselt, konnte nicht beurteilt werden — das ist kein Beleg
+für ein anderes Modell. Die **Konfidenz** des Urteils (niedrig / mittel / hoch)
+steigt mit der Zahl der Kerndimensionen, die ein Ergebnis lieferten, mit einer
+Referenz und mit dem LLM-Richter.
+
+## Suiten
+
+| Suite | Detektoren | Kosten |
+|---|---|---|
+| `smoke` | connectivity, security | sehr gering |
+| `standard` | + protocol, protocol_request, protocol_response, model_identity, capability, streaming, billing, reliability | gering–mittel |
+| `deep` | + context_window, determinism, vision, injected_prompt, integrity, prompt_cache, performance, quality_judge (mit `--judge`) | höher (Langkontext- und Timing-Tests kosten Token) |
+| `full` | die Detektoren von `deep`, Leistung mit und ohne Streaming gemessen | am höchsten |
+| `custom` | nur die gewählten Dimensionen, in `deep`-Tiefe | je nach Auswahl |
+
+Der Kontextfenster-Test ist durch `--max-context-tokens` (Standard 200K)
+begrenzt, sodass die Prüfung eines Modells mit 1M Token bezahlbar bleibt.
+`--only` / `--skip` führen einzelne Detektoren anhand ihrer Kennung aus oder
+lassen sie weg.
+
+### Benutzerdefinierte Suite
+
+Führen Sie nur die Dimensionen aus, die Sie interessieren — das spart Zeit und
+Token. Jeder Detektor jeder gewählten Dimension läuft wie bei `deep`:
+
+```bash
+zing check --base-url ... --model gpt-4o -D protocol -D performance
+zing check --base-url ... --model gpt-4o --suite custom --dimension billing,streaming
+```
+
+`--dimension/-D` ist wiederholbar oder kommagetrennt und impliziert
+`--suite custom`; in einer Konfigurationsdatei `run.dimensions: [protocol, performance]`.
+Die Dimensionen sind `connectivity`, `protocol`, `context_window`,
+`model_identity`, `capability`, `streaming`, `billing`, `reliability`, `security`
+und `performance`. In der Weboberfläche öffnet die Suite-Schaltfläche `custom`
+dieselbe Auswahl (**Auszuführende Dimensionen**) auf der Prüfseite, in der
+Konsole und bei den Überwachungen.
+
+Die **Gesamtbewertung ist der gewichtete Mittelwert allein der gewählten
+Dimensionen**; ausgelassene Dimensionen werden als „nicht ausgewählt“
+ausgewiesen. Das Risikourteil braucht mindestens eine Kerndimension
+(Modellidentität, Kontextfenster, angegebene Fähigkeiten): ohne sie ist es
+*nicht eindeutig*.
+
+## Leistung
+
+Jeder Bericht enthält einen Abschnitt **performance**: Latenz, Zeit bis zum
+ersten Token (TTFT), Decode- und End-to-End-Token/s, Latenz und Jitter zwischen
+Chunks, Fehler-/Timeout-/429-Raten, eine Netzwerkaufschlüsselung
+(TCP-Verbindung, TLS, ein `GET /models`-Roundtrip, Serverzeit) und Kaltstart,
+jeweils als count / min / mean / p50 / p75 / p90 / p95 / p99 / max / stdev.
+
+Läuft die eigene Messung, bewertet sie die Dimension **Leistung**. Die Bewertung
+misst **Gleichmäßigkeit**, nicht reine Geschwindigkeit: ein langsamer, aber
+gleichmäßiger Endpunkt (ein lokales oder selbst gehostetes Modell) wird nicht
+dafür abgewertet, dass er kein Rechenzentrum ist:
+
+| Prüfung | Bewertet nach |
 |---|---|
-| **model_identity** | Stillschweigende Herabstufung/Austausch des Modells — Selbstidentifikation, Wissensstichtag, Tokenizer-Fingerabdrücke, das zurückgegebene `model`-Feld |
-| **context_window** | Stillschweigende Kontextkürzung (1M beworben, Abruf scheitert bei 32K) und „Lost in the Middle“ durch billige RAG-/Zusammenfassungs-Zwischenschichten, per Nadel im Heuhaufen + binärer Suche |
-| **capability** | Beworbene Fähigkeiten für Tool-Calling / JSON-Modus / json-schema / maximale Ausgabe, die tatsächlich nicht geliefert werden (oder *über*erfüllt werden, ein Hinweis auf ein Ersatzmodell); dazu **Vision** — ein Modell, das Bildeingabe bewirbt, erhält ein generiertes Bild mit bekannter Antwort, um zu bestätigen, dass es tatsächlich „sieht“ |
-| **billing** | Aufgeblähte Token/Nutzung und fehlende/nicht überprüfbare Nutzungsabrechnung, per unabhängiger Tokenizer-Schätzung |
-| **streaming** | Vorgetäuschtes Streaming (erst puffern, dann zerstückeln), erkannt an der Anzahl der Chunks und ihrem zeitlichen Abstand |
-| **protocol** | Konformität zur OpenAI-Kompatibilität: Mehrfachdialoge, Stoppsequenzen, Antwortstruktur, Fehlerschema — sowie eine Determinismus-Teilprüfung auf Antwort-Caches, die temperature/seed ignorieren |
-| **reliability** | Erfolgsquote bei Parallelität und Latenz (HTTP-429-Drosselung wird gesondert gezählt) |
-| **performance** | Wie *gleichmäßig* Latenz, Zeit bis zum ersten Token und Durchsatz sind, Fehlerquote der Messung und Verlangsamung unter Last; das Tempo selbst nur im Vergleich zu einer Referenz |
-| **connectivity** | Erreichbarkeit des Endpunkts und die beworbene `/v1/models`-Liste |
-| **security** | Transport (HTTPS), Header-Hygiene, Echo von Geheimnissen; versteckt injizierter System-Prompt (fester Mehraufwand an Eingabe-Token + Leck), Manipulation von Antworten/Tool-Calls unterwegs per Kanarien mit bekannter Antwort (URL-/Paketaustausch) und Prompt-Präfix-Caching (Timing) |
+| Gleichmäßigkeit von Latenz / TTFT | Verhältnis p90 ÷ p50 (≤ 1,3 gleichmäßig 100 · ≤ 1,75 stabil 85 · ≤ 2,5 schwankend 65 · darüber: sprunghaft 40); braucht ≥ 10 Stichproben |
+| Gleichmäßigkeit des Durchsatzes | Verhältnis p50 ÷ p10 der Token/s, dieselben Stufen |
+| Fehler | fehlgeschlagene Messanfragen: ≤ 2 % 100 · ≤ 10 % 80 · darüber: 50 (429 nicht mitgezählt) |
+| Stabilität unter Last | p50-Latenz im Burst ÷ sequenzielle p50: ≤ 1,5x 100 · ≤ 3x 80 · darüber: 55 |
+| Cache-Treffer | eindeutige Prompts aus einem Cache beantwortet: 60 |
+| Referenz | Token/s im Vergleich zur vertrauenswürdigen Referenz, sonst zum veröffentlichten Bereich des Modells in der Wissensbasis: im Rahmen 100 · langsamer 80 (nur Hinweis, nie ein Fehlschlag) · ≥ 2x schneller 60 (Hinweis auf ein kleineres Modell) · keine Referenz: nicht gewertet |
 
-Siehe [docs/METHODOLOGY.de.md](docs/METHODOLOGY.de.md) für die Technik hinter jeder Prüfung,
-den Relay-Trick, dem sie entspricht, und ihre Einschränkungen bezüglich Fehlalarmen.
+Leistungsbefunde haben höchstens niedrigen Schweregrad: sie bewegen die
+Bewertung, nie das Risikourteil. Ohne die Messung (`standard` ohne Referenz,
+`smoke`) läuft die Dimension nicht und fällt aus der Gesamtbewertung heraus.
 
-### Performance
+- **standard** erhebt den Abschnitt aus den eigenen Anfragen der Prüfung.
+- **deep / full / custom** fügen eine eigene Messung hinzu: 100 nicht cachebare
+  Anfragen mit 128 Ausgabe-Token (eine zufällige Anfrage-ID eröffnet jeden
+  Prompt; es werden keine Cache- oder Reasoning-Parameter gesendet) sowie einen
+  Burst mit `--concurrency`. Einstellbar über `--performance-requests` (0
+  deaktiviert sie) und `--performance-max-tokens`.
+- Die Messung streamt standardmäßig; `--performance-non-streaming` (oder der
+  Schalter **Streaming / Ohne Streaming** in der Weboberfläche) misst Relays, die
+  nicht streamen können. **full** misst beide Modi verschränkt und stellt sie
+  nebeneinander dar.
+- **compare** führt die Messung auf beiden Endpunkten mit abwechselnden Anfragen
+  aus und ergänzt eine Tabelle Ziel-vs.-Referenz (5 Anfragen je Seite bei
+  `standard`, zu wenige für die Gleichmäßigkeitsprüfungen), deren Unterschiede
+  grün ✓ markiert sind, wo das Ziel besser ist, und rot ✗, wo es schlechter ist.
 
-Jeder Bericht enthält außerdem einen Abschnitt **performance**: Latenz, Zeit bis zum
-ersten Token (TTFT), Decode- und End-to-End-Token/s, Latenz und Jitter zwischen Chunks,
-Fehler-/Timeout-/429-Raten, eine Netzwerkaufschlüsselung (TCP-Verbindung, TLS, ein
-`GET /models`-Roundtrip, Serverzeit) und Kaltstart, jeweils als
-count / min / mean / p50 / p75 / p90 / p95 / p99 / max / stdev. Läuft die eigene Messung, bewertet sie die Dimension **performance** (Gewicht 6) — nach *Gleichmäßigkeit* von Latenz, TTFT und Durchsatz, Fehlerquote und Verhalten unter Last, nicht nach reiner Geschwindigkeit; ein langsames, aber gleichmäßiges (z. B. lokales) Modell wird nicht abgewertet. Das Tempo selbst zählt nur im Vergleich zur Referenz (Baseline oder veröffentlichter Bereich in der Wissensbasis). Die Befunde sind höchstens von niedrigem Schweregrad und ändern nie das Risikourteil.
+Token werden doppelt gezählt — aus der `usage` des Relays und lokal —, sodass der
+Durchsatz auch ohne `usage` messbar ist. Ein Perzentil wird nur bei ausreichend
+Stichproben angezeigt (p90 ab 10, p95 ab 20, p99 ab 100). Der JSON-Bericht
+speichert die Zeiten jeder Anfrage (nur Zahlen, kein Text); HTML-Bericht und
+Weboberfläche stellen sie entlang der Zeitachse der Prüfung dar.
 
-- **standard** erhebt ihn aus den eigenen Anfragen der Prüfung.
-- **deep / full** fügen einen eigenen Test hinzu: 100 nicht cachebare Anfragen mit 128
-  Ausgabe-Token (eine zufällige Anfrage-ID eröffnet jeden Prompt, es werden keine Cache-
-  oder Reasoning-Parameter gesendet) sowie einen Burst mit `--concurrency`. Einstellbar
-  über `--performance-requests` (0 deaktiviert ihn) und `--performance-max-tokens`.
-- Der Test streamt standardmäßig; `--performance-non-streaming` (oder der Schalter in der
-  Weboberfläche) misst Relays, die nicht streamen können. **full** misst beide Modi,
-  verschränkt, und stellt sie nebeneinander dar.
-- **compare** führt den Test auf beiden Endpunkten mit abwechselnden Anfragen aus und
-  ergänzt eine Tabelle Ziel-vs.-Referenz (5 Anfragen je Seite bei `standard`), deren
-  Unterschiede grün ✓ markiert sind, wo das Ziel besser ist, und rot ✗, wo es schlechter
-  ist. Ein Ziel, das mehr als 2x schneller generiert als die Referenz, wird als Hinweis
-  geringer Schwere markiert.
+## Vergleichsmodus und LLM-Richter
 
-Token werden doppelt gezählt: aus der `usage` des Relays und lokal, sodass der Durchsatz
-auch ohne `usage` messbar ist. Ein Perzentil wird nur bei ausreichend Stichproben
-angezeigt (p90 ab 10, p95 ab 20, p99 ab 100). Der JSON-Bericht speichert die Zeiten jeder
-Anfrage (nur Zahlen, kein Text); HTML-Bericht und Weboberfläche stellen sie entlang der
-Zeitachse der Prüfung dar.
+zing hat zwei Erkennungsmodi:
 
-## Zwei Erkennungsmodi
-
-- **Reiner Code (Standard):** alle deterministischen Tests — Fingerabdrücke,
-  Kontext-Durchlauf, Abrechnungsberechnung, Streaming-Timing. Kein zweites Modell
-  nötig; vollständig reproduzierbar.
-- **Hybrid aus Code + LLM (`--judge`):** zieht zusätzlich ein *vertrauenswürdiges*
-  Richtermodell hinzu (separat konfiguriert, niemals das Ziel), um unscharfe Signale wie
-  Qualität und Denktiefe zu bewerten, die reiner Code nicht entscheiden kann. Treibt den
-  Detektor `quality_judge` an.
+- **Reiner Code (Standard):** jeder Detektor außer `quality_judge` entscheidet per
+  deterministischem Code — Fingerabdrücke, Kontext-Durchlauf,
+  Abrechnungsberechnung, Streaming-Timing. Kein zweites Modell nötig; die
+  Ergebnisse sind reproduzierbar.
+- **Hybrid aus Code + LLM (`--judge`):** fragt zusätzlich ein *vertrauenswürdiges*
+  Richtermodell (separat konfiguriert, niemals das Ziel), ob die Antworten des
+  Ziels wie das angegebene Modell klingen — unscharfe Signale wie Qualität und
+  Denktiefe, die reiner Code nicht entscheiden kann. Das ist der Detektor
+  `quality_judge`.
 
 ```bash
 zing check --base-url ... --model gpt-4o --suite deep --judge \
   --judge-base-url https://api.openai.com/v1 --judge-api-key env:OPENAI_API_KEY --judge-model gpt-4o-mini
 ```
 
-## Überwachung (`zing watch`)
+Der **Vergleichsmodus** (`zing compare` oder **Mit vertrauenswürdiger Referenz
+vergleichen** in der Weboberfläche) führt dieselben Tests gleichzeitig gegen eine
+vertrauenswürdige Referenz des angegebenen Modells aus. Er ist der stärkste Weg
+zur Bestätigung: Identitätsantworten, abgelehnte Anfrageparameter,
+Manipulations-Kanarien und Leistung werden Seite an Seite beurteilt, und nur eine
+Referenz lässt die Konfidenz des Urteils *hoch* werden. Ohne `--judge-base-url`
+nutzt der Vergleichsmodus die Referenz als Richter.
 
-Ein Relay kann heute das echte Modell liefern und es nächste Woche stillschweigend
-austauschen. `zing watch` wiederholt die Prüfung nach Zeitplan, speichert jeden Lauf im
-Verlauf und alarmiert einen Webhook, wenn das Risiko eine Schwelle überschreitet oder
-sich gegenüber dem vorherigen Lauf **verschlechtert**.
+## Überwachung
+
+Ein Relay kann heute das echte Modell liefern und es nächste Woche
+stillschweigend austauschen. `zing watch` wiederholt die Prüfung nach Zeitplan,
+speichert jeden Lauf im Verlauf und alarmiert einen Webhook, wenn das Risiko eine
+Schwelle überschreitet oder sich gegenüber dem vorherigen Lauf
+**verschlechtert**.
 
 ```bash
 zing watch --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
@@ -285,27 +465,42 @@ zing watch --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
 
 Warnungen werden für **Slack / Feishu / DingTalk / generisches JSON** formatiert,
 automatisch anhand der Webhook-URL erkannt, und in der Warnsprache verfasst —
-standardmäßig Englisch; `--alert-lang en|zh|fr|es|pt|it|de`. Die generische JSON-Nutzlast
-hält ihre Schlüssel und Maschinenwerte (`risk_level`, `score`, …) sprachneutral,
-übersetzt die für Menschen lesbaren (`text`, `headline`, `key_findings`) und gibt die
-`language` an.
+standardmäßig Englisch; `--alert-lang en|zh|fr|es|pt|it|de`. Die generische
+JSON-Nutzlast hält ihre Schlüssel und Maschinenwerte (`risk_level`, `score`, …)
+sprachneutral, übersetzt die für Menschen lesbaren (`text`, `headline`,
+`key_findings`) und gibt die `language` an.
 
-Lieber eine Oberfläche? `zing serve` bringt unter **`/watches`** (🔔 Überwachung) einen
-Monitor mit: Legen Sie im Browser eine Überwachung an, und ein Hintergrund-Scheduler im
-selben Prozess führt sie in ihrem Intervall erneut aus, speichert jeden Lauf im Verlauf
-und löst dieselben Webhook-Warnungen bei Schwellenüberschreitung oder Verschlechterung
-aus. Jede Überwachung hat ihre eigene Warnsprache (im Formular gewählt, standardmäßig die
-Sprache der Oberfläche, und auf ihrer Karte änderbar). Jetzt ausführen / pausieren /
-löschen direkt auf der Seite. Schlüssel werden nur in `~/.zing` gespeichert und nie an
-den Browser zurückgegeben.
+**In der Weboberfläche** führt `zing serve` dieselben Überwachungen in einem
+Hintergrund-Scheduler im Serverprozess aus, speichert jeden Lauf im **Verlauf**
+und sendet dieselben Webhook-Warnungen:
 
-## Embedding- & Rerank-Prüfungen
+- **Neue Oberfläche:** einen Lauf im **Verlauf** öffnen und **Als Überwachung
+  einplanen** wählen. zing übernimmt die Konfiguration dieses Laufs (Relay,
+  Modell, angegebenes Modell, Anbieter, Suite, benutzerdefinierte Dimensionen) in
+  eine pausierte Überwachung auf der Seite **Überwachung**; dort Intervall und
+  API-Schlüssel setzen (der Verlauf speichert nie Schlüssel) und sie
+  einschalten. Intervall, Schlüssel, **Warnschwelle**, Webhooks und **Sprache der
+  Warnungen** lassen sich auf jeder Überwachung direkt bearbeiten.
+- **Klassische Oberfläche:** das Formular auf der Seite **Überwachung** ausfüllen
+  und **Überwachung hinzufügen**.
 
-Embeddings und Rerank sind keine Chat-Schnittstelle, daher prüft zing sie mit einem
-eigenen, fokussierten Prüfer statt mit der Chat-Pipeline mit 9 Dimensionen.
+Jede Überwachung hat ihre eigene Warnsprache (standardmäßig die Sprache der
+Oberfläche), lässt sich sofort ausführen, pausieren oder löschen und bleibt an das
+Wissensbasis-Profil gebunden, mit dem sie angelegt wurde, bis Sie es neu binden.
+Schlüssel werden nur in Ihrem lokalen Datenverzeichnis gespeichert und nie an den
+Browser zurückgegeben.
+
+## Prüfungen für Embedding, Rerank, Bild und Audio
+
+Diese Endpunkte liefern Vektoren, Rangfolgen, Bilder oder Audio statt Chat, daher
+prüft zing sie mit eigenen, fokussierten Prüfern statt mit der Chat-Pipeline mit
+zehn Dimensionen. Jeder gibt ein Urteil aus und unterstützt `--json` und
+`--fail-on-risk`.
+
+### Embeddings und Rerank
 
 ```bash
-# Die erwartete Vektordimension wird für das beworbene Modell aus der mitgelieferten Wissensbasis ermittelt.
+# Die erwartete Vektordimension wird für das angegebene Modell aus der Wissensbasis ermittelt.
 zing embed --base-url https://relay.example.com/v1 \
            --model text-embedding-3-large --claimed-model text-embedding-3-large --fail-on-risk high
 
@@ -318,53 +513,55 @@ zing rerank --base-url https://relay.example.com/v1 --model my-rerank
 ```
 
 `embed` prüft Konnektivität, **Übereinstimmung der Dimension** (Länge des
-zurückgegebenen Vektors gegenüber der nativen Dimension des beworbenen Modells — das
-Hauptsignal für eine Mogelpackung; ein Relay, das `text-embedding-3-large` mit 3072-d
-bewirbt, aber 1024-d zurückgibt, liefert ein Ersatzmodell), Determinismus (gleiche
-Eingabe → Kosinus ≈ 1), Unterscheidbarkeit (unzusammenhängende Eingaben → Kosinus
-deutlich unter 1) und das zurückgegebene `model`-Feld. Mitgelieferte Profile: OpenAI
+zurückgegebenen Vektors gegenüber der nativen Dimension des angegebenen Modells —
+das Hauptsignal für einen Etikettenschwindel: ein Relay, das
+`text-embedding-3-large` mit 3072-d angibt, aber 1024-d zurückgibt, liefert ein
+Ersatzmodell), Determinismus (gleiche Eingabe → Kosinus ≈ 1),
+Unterscheidbarkeit (unzusammenhängende Eingaben → Kosinus deutlich unter 1) und
+das zurückgegebene `model`-Feld. Mitgelieferte Profile: OpenAI
 `text-embedding-3-small` (1536), `text-embedding-3-large` (3072),
 `text-embedding-ada-002` (1536), Qwen `text-embedding-v3`/`-v4` (1024).
 
-Beide gibt es auch in der Weboberfläche — `zing serve` hat eine Seite **Werkzeuge**
-unter `/tools` (in der Navigation verlinkt) mit Formularen für embed/rerank, die dasselbe
-lokalisierte Urteil anzeigen.
+Beide gibt es auch auf der Seite **Werkzeuge** der Weboberfläche
+(**Embedding-Prüfung**, **Rerank-Prüfung**); dort lässt sich der Rerank-Test durch
+eine eigene Anfrage und eigene Dokumente ersetzen.
 
-## Prüfungen für Bild- & Audio-Generierung (TTS)
+### Bild- und Audio-Generierung (TTS)
 
-Zwei weitere Nicht-Chat-Schnittstellen: Bildgenerierung (`POST /v1/images/generations`)
-und Sprachsynthese (`POST /v1/audio/speech`). Die gesamte Dekodierung erfolgt mit der
-reinen Standardbibliothek — Bildabmessungen aus den Header-Bytes (PNG/JPEG/GIF/WebP),
-WAV-Dauer über das Modul `wave`.
+Bildgenerierung (`POST /v1/images/generations`) und Sprachsynthese
+(`POST /v1/audio/speech`), dekodiert allein mit der Python-Standardbibliothek —
+Bildabmessungen aus den Header-Bytes (PNG/JPEG/GIF/WebP), WAV-Dauer über `wave`.
 
 ```bash
-# Liefert ein Relay, das DALL·E 3 bewirbt, wirklich das angeforderte 1792x1024? Ein
-# verkleinertes Bild / eines in falscher Größe (oder eine Größe außerhalb der nativen Größen
-# des beworbenen Modells, ermittelt aus der Wissensbasis) ist das Hauptsignal für eine Mogelpackung.
+# Liefert ein Relay, das DALL·E 3 angibt, wirklich das angeforderte 1792x1024? Ein
+# verkleinertes Bild oder eines in falscher Größe (oder außerhalb der nativen Größen des
+# angegebenen Modells laut Wissensbasis) ist das Hauptsignal für einen Etikettenschwindel.
 zing image --base-url https://relay.example.com/v1 --api-key env:RELAY_KEY \
   --model dall-e-3 --claimed-model dall-e-3 --size 1792x1024 --fail-on-risk high
 
-# Liefert ein Relay, das tts-1-hd bewirbt, echtes Audio, dessen Länge mit der Eingabe
+# Liefert ein Relay, das tts-1-hd angibt, echtes Audio, dessen Länge mit der Eingabe
 # wächst (kein fester Platzhalter, kein als Audio getarntes HTML/JSON)?
 zing audio --base-url https://relay.example.com/v1 --api-key env:RELAY_KEY \
   --model tts-1-hd --voice alloy --format wav --save clip.wav
 ```
 
-`image` prüft: Konnektivität, gültiges/dekodierbares Format, **Übereinstimmung der
-Größe** (dekodierte BxH gegenüber der Anfrage und den nativen Größen des beworbenen
-Modells — FAIL/HIGH bei Abweichung), Unterscheidbarkeit (zwei Prompts → verschiedene
-Bilder, um einen festen Platzhalter zu entlarven), Anzahl, model-Feld. `audio` prüft:
-Konnektivität, Gültigkeit von Container/Format, Einhaltung des Formats, nicht triviale
-Dauer (wächst mit der Eingabelänge), Unterscheidbarkeit, model-Feld. Die Wissensbasis
-enthält OpenAI DALL·E 2/3, gpt-image-1, tts-1/tts-1-hd/gpt-4o-mini-tts sowie Bild-/TTS-
-Profile von Qwen.
+`image` prüft Konnektivität, ein gültiges und dekodierbares Format,
+**Übereinstimmung der Größe** (dekodierte Breite × Höhe gegenüber der Anfrage und
+den nativen Größen des angegebenen Modells — FAIL/HIGH bei Abweichung),
+Unterscheidbarkeit (zwei Prompts → verschiedene Bilder, um einen festen
+Platzhalter zu entlarven), Anzahl und das `model`-Feld. `audio` prüft
+Konnektivität, Gültigkeit von Container/Format, Einhaltung des Formats, eine
+nicht triviale Dauer, die mit der Eingabe wächst, Unterscheidbarkeit und das
+`model`-Feld. Die Wissensbasis enthält OpenAI DALL·E 2/3, gpt-image-1,
+tts-1/tts-1-hd/gpt-4o-mini-tts sowie Bild-/TTS-Profile von Qwen.
 
 ## Einsatz in CI (GitHub Action)
 
 Machen Sie jeden Workflow mit der mitgelieferten Composite Action von einer
-Relay-Prüfung abhängig. Sie führt `zing check --compact --fail-on-risk` aus, stellt
-`risk` / `score` / `rating` als Ausgaben bereit, schreibt eine Zusammenfassung in den
-Lauf und lässt den Job fehlschlagen, wenn die Risikoschranke auslöst.
+Relay-Prüfung abhängig. Sie führt `zing check --compact --fail-on-risk` aus,
+stellt `risk` / `score` / `rating` als Ausgaben bereit, schreibt eine
+Zusammenfassung in den Lauf und lässt den Job fehlschlagen, wenn die
+Risikoschranke auslöst.
 
 ```yaml
 jobs:
@@ -372,7 +569,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: zing
-        uses: cenbonew/zing@v0.9.0          # auf ein Release-Tag festlegen
+        uses: cenbonew/zing@v0.11.0         # auf ein Release-Tag festlegen
         with:
           base-url: https://relay.example.com/v1
           api-key: ${{ secrets.RELAY_API_KEY }}   # Secret des Aufrufers; wird nie ausgegeben
@@ -381,27 +578,54 @@ jobs:
       - run: echo "risk=${{ steps.zing.outputs.risk }} score=${{ steps.zing.outputs.score }}"
 ```
 
-Der Relay-Schlüssel wird über eine Umgebungsvariable weitergereicht (`--api-key env:…`)
-und erscheint daher nie auf einer Kommandozeile. Siehe [docs/CI.md](docs/CI.md) für die
-vollständige Tabelle der Ein- und Ausgaben sowie ein Beispiel für eine
+Der Relay-Schlüssel wird über eine Umgebungsvariable weitergereicht
+(`--api-key env:…`) und erscheint daher nie auf einer Kommandozeile. Siehe
+[docs/CI.md](docs/CI.md) für alle Ein- und Ausgaben und ein Beispiel für eine
 Deployment-Schranke.
 
-## Suiten
+## Wissensbasis
 
-| Suite | Detektoren | Kosten |
-|---|---|---|
-| `smoke` | connectivity, security | sehr gering |
-| `standard` | + protocol, model_identity, capability, streaming, billing, reliability | gering–mittel |
-| `deep` | + context_window, determinism, injected_prompt, integrity, performance, prompt_cache, quality_judge (mit `--judge`) | höher (Langkontext- und Timing-Tests kosten Token) |
-| `full` | alles | am höchsten |
-| `custom` | nur die gewählten Dimensionen, in `deep`-Tiefe | je nach Auswahl |
+zing beurteilt ein Relay anhand des **Profils** des angegebenen Modells: natives
+Kontextfenster, maximale Ausgabe, Wissensstichtag, Tokenizer, Fähigkeitsflags,
+Identitätsschlüsselwörter und Verhaltens-Fingerabdrücke. Die mitgelieferten
+Profile decken OpenAI, Anthropic, Google Gemini, DeepSeek, Qwen, GLM und Moonshot
+ab (`zing kb` listet sie). Es gibt drei Ebenen; spätere haben Vorrang:
 
-**Benutzerdefinierte Suite:** `zing check ... -D protocol -D performance` (oder `--suite custom --dimension billing,streaming`, in der Konfiguration `run.dimensions`) führt nur die gewählten Dimensionen aus. Die Gesamtbewertung ist das gewichtete Mittel allein dieser Dimensionen; ohne Kerndimension (Modellidentität, Kontextfenster, Fähigkeiten) ist das Risikourteil *nicht eindeutig*. Die Web-UI bietet dieselbe Auswahl.
+1. **Mitgelieferte** Profile, eine YAML-Datei pro Anbieter in
+   [`zing/knowledge/data/`](zing/knowledge/data).
+2. **Ein Verzeichnis eigener YAML-Dateien**: `--kb-dir ./my-profiles`
+   (wiederholbar) oder `ZING_KB_DIR`.
+3. **Ihre Einträge** (`kb.db` im Datenverzeichnis), hinzugefügt ohne YAML-Dateien
+   oder editierbare Installation:
+   - auf der Seite **Modelle** der Weboberfläche (`/v2/kb`): **Modell
+     hinzufügen** → **Recherche-Prompt kopieren** und in den KI-Assistenten Ihrer
+     Wahl einfügen, das YAML seiner Antwort hochladen oder einfügen, dann
+     **Prüfen und speichern**. **Alle Profile** listet jedes Profil mit seiner
+     Quelle; **Welches Profil verwendet eine Modell-ID?** zeigt, wie eine ID
+     aufgelöst wird; **Deine Einträge** lassen sich als YAML exportieren;
+   - auf der Kommandozeile: `zing kb-prompt <model>`, `zing kb-import <file>`
+     (mit `--check` nur prüfen) und `zing kb-export`.
 
-Der Kontextfenster-Test ist durch `--max-context-tokens` (Standard 200K) begrenzt,
-sodass die Prüfung eines Modells mit 1M Token bezahlbar bleibt.
+Vor dem Speichern prüft zing einen Eintrag: Schema und Grenzen, unsichere
+reguläre Ausdrücke, jeden Prompt, den er senden würde, und Modell-IDs, die zu
+einem anderen Profil aufgelöst würden. Ein eigenes Modell mit der ID eines
+mitgelieferten ersetzt dieses (als *Überschattung* ausgewiesen), ändert aber nie
+die Einstellungen eines mitgelieferten Anbieters; Fingerabdrücke werden anhand
+ihrer ID zusammengeführt. `zing check` und `zing serve` nutzen genau dieselben
+Profile; `--no-user-kb` (oder `ZING_NO_USER_KB=1`) lässt Ihre Einträge weg.
 
-## Beispielurteil
+Jeder Bericht hält fest, gegen welches Profil er geprüft hat (`knowledge`:
+Anbieter, Modell, wie die ID zugeordnet wurde, ihre Quelle und ein vollständiger
+Schnappschuss mit Inhalts-Hash), sodass ein Bericht auch nach Änderungen an der
+Wissensbasis überprüfbar bleibt.
+
+## Berichte
+
+`zing check` und `zing compare` geben ein Urteil aus und schreiben den Bericht
+nach `reports/` (`--out-dir`) als JSON, Markdown und HTML, plus PDF, wenn das
+Extra `pdf` installiert ist (`--format all`, der Standard); `--format json|md|html|pdf`
+schreibt ein einzelnes Format. `--json` und `--compact` geben stattdessen auf
+stdout aus.
 
 ```text
 ╭─ ✗ HIGH RISK — Strong evidence the relay does not deliver the claimed model… ─╮
@@ -411,24 +635,31 @@ sodass die Prüfung eines Modells mit 1M Token bezahlbar bleibt.
 │                                                                               │
 │ Overall health score 53.5/100. Findings: 3 high. …                            │
 ╰───────────────────────────────────────────────────────────────────────────────╯
-  • Gibt sich unter der beworbenen Modell-ID gpt-4o als Konkurrenzmarke (anthropic) aus
-  • Tatsächliches Kontextfenster ~8000 << angegebene 128000 (stillschweigende Kürzung vermutet)
-  • Gemeldete Prompt-Token übersteigen die unabhängige Schätzung deutlich
+  • Self-identifies as a rival brand (anthropic) under the claimed model id gpt-4o
+  • Real context window ~8000 << declared 128000 (silent truncation suspected)
+  • Reported prompt tokens far exceed independent estimate
 ```
 
-Berichte werden als JSON, Markdown und HTML nach `reports/` geschrieben – mit dem Extra `pdf` zusätzlich als PDF.
+Ein Bericht enthält das Urteil (Risiko, Konfidenz, Bewertung, Note), die
+wichtigsten Befunde mit Empfehlungen, die Bewertungen je Dimension und
+**Dimension details**, die Befunde jedes Detektors mit Belegen, den
+Leistungsabschnitt, das verwendete Wissensbasis-Profil und die Testsprachen. Vom
+Relay kontrollierter Text wird vor dem Schreiben geschwärzt und maskiert.
 
-## Wissensbasis
+## Datenschutz und lokale Daten
 
-Die Profile liegen in [`zing/knowledge/data/`](zing/knowledge/data) als bearbeitbares
-YAML — eine Datei pro Anbieter (OpenAI, Anthropic, Google Gemini, DeepSeek, Qwen, GLM,
-Moonshot). Jedes Modell enthält sein natives Kontextfenster, die maximale Ausgabe, den
-Tokenizer, Fähigkeits-Flags, Identitäts-Schlüsselwörter und Verhaltens-Fingerabdrücke.
-Profile lassen sich ohne Fork ergänzen oder überschreiben:
-
-```bash
-zing check --kb-dir ./my-profiles ...     # oder ZING_KB_DIR setzen
-```
+- **Nur lokal.** `zing serve` lauscht nur auf Loopback (`127.0.0.1`, `::1`,
+  `localhost`), antwortet nur unter diesen Hostnamen und weist
+  seitenübergreifende Anfragen ab; es hat keine Anmeldung, weil nichts außerhalb
+  Ihres Rechners es erreichen kann. zing kontaktiert nur die Endpunkte, die Sie
+  konfigurieren (Ziel, Referenz, Richter, Webhooks).
+- **Schlüssel.** Berichte und Verlauf speichern von einem API-Schlüssel nur einen
+  Fingerabdruck. Die Schlüssel der Überwachungen liegen im Klartext in Ihrem
+  Datenverzeichnis, weshalb nur Sie Zugriff darauf haben.
+- **Datenverzeichnis.** `~/.zing` (oder `ZING_DATA_DIR`), angelegt mit `0700` und
+  Dateien mit `0600`: `history.db` (Prüfverlauf), `watches.db` (Überwachungen samt
+  Schlüsseln) und `kb.db` (Ihre Wissensbasis-Einträge). Löschen Sie das
+  Verzeichnis, um alles zu entfernen.
 
 ## Verantwortungsvoller Einsatz
 
@@ -443,6 +674,17 @@ Anbieter nicht öffentlich** auf Grundlage eines einzelnen Laufs, ohne
 Stichprobengröße, Kosteneinstellungen und lokales Recht zu prüfen. Führen Sie
 `zing compare` gegen eine vertrauenswürdige Referenz aus, bevor Sie weitreichende
 Schlüsse ziehen.
+
+## Weitere Dokumentation
+
+| Dokument | Wofür |
+|---|---|
+| [Methodik](docs/METHODOLOGY.de.md) | Wie jede Prüfung funktioniert, ihre Bewertungsskala und ihre Einschränkungen |
+| [Entwicklerhandbuch](DEVELOPER_GUIDE.de.md) | Architektur, Entwicklungsumgebung, Mitwirken, Übersetzungen, Docker, Releases |
+| [docs/CI.md](docs/CI.md) | Die GitHub Action: Ein- und Ausgaben, Beispiele (englisch) |
+| [docs/DOCKER.md](docs/DOCKER.md) | Die Weboberfläche in einem Container betreiben (englisch) |
+| [CHANGELOG.md](CHANGELOG.md) | Was sich in jeder Version geändert hat (englisch) |
+| [SECURITY.md](SECURITY.md) | Eine Sicherheitslücke melden (englisch) |
 
 ## Lizenz
 

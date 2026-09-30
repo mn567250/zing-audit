@@ -6,32 +6,57 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
-**zing** 是一个本地优先（local-first）的命令行工具，用于检测一个 API 中转站 / 代理 /
-转售商提供的，**是否真的是它声称的那个模型**——还是悄悄换成了更便宜的模型、截断了上下文窗口、
-伪造了流式输出，或者虚报了 token 计费（即「**货不对板**」）。它同时支持
-**OpenAI Chat Completions**、**Anthropic Messages API** 和 **OpenAI Responses API**
-（`/v1/responses`）——自动识别，也可用 `--api openai|anthropic|responses` 强制指定。
+**zing** 是一个本地优先的工具，用来检测 API 中转站（转售商 / 代理）是否真的提供了它
+声称的模型——还是偷偷换成更便宜的模型、截断你的上下文窗口、伪造流式输出，或虚报 token
+计费。一句话：你付的钱，买到对的货了吗？它支持 **OpenAI Chat Completions API**、
+**Anthropic Messages API** 和 **OpenAI Responses API**（`/v1/responses`）——自动识别，
+也可用 `--api openai|anthropic|responses` 强制指定。
 
-你只需告诉 zing 中转站的接口地址和它声称的模型，zing 就会运行一整套黑盒探测，
-把观测到的行为与内置的**覆盖 7 大平台、85 个原生模型画像**的知识库逐项比对，
-最后给出一个清晰、有证据支撑的结论——既适合人看，也能输出 JSON 给其它程序或大模型直接消费。
+只需给出中转站地址和它声称提供的模型，zing 就会运行一整套黑盒探测，把观察到的行为与内置的
+**7 家厂商、98 个模型画像**的知识库比对，并给出清晰、有证据支撑的结论——可以在命令行里、
+本地 Web 界面里查看，也可以输出 JSON 供其他工具或大模型读取。
 
 > zing 给出的是**「行为差异与风险」的黑盒证据，而非欺诈的密码学证明**。
 > 请阅读 [负责任使用](#负责任使用)。
 
+本 README 面向 zing 的**使用者**。zing 如何构建、测试和发布，见[开发者指南](DEVELOPER_GUIDE.zh-CN.md)；
+每项检测如何工作、如何计分，见[方法论](docs/METHODOLOGY.zh-CN.md)。
+
 ---
+
+## 目录
+
+- [为什么需要它](#为什么需要它)
+- [安装](#安装)
+- [快速开始](#快速开始)
+- [Web 界面（`zing serve`）](#web-界面zing-serve)
+- [检测了什么](#检测了什么)
+- [结论如何得出](#结论如何得出)
+- [套件（suite）](#套件suite)
+- [性能](#性能)
+- [对比模式与 LLM 裁判](#对比模式与-llm-裁判)
+- [持续监控](#持续监控)
+- [Embedding、rerank、图像与音频检测](#embeddingrerank图像与音频检测)
+- [在 CI 中使用（GitHub Action）](#在-ci-中使用github-action)
+- [知识库](#知识库)
+- [报告](#报告)
+- [隐私与本地数据](#隐私与本地数据)
+- [负责任使用](#负责任使用)
+- [更多文档](#更多文档)
+- [许可证](#许可证)
 
 ## 为什么需要它
 
-中转 key 市场充斥着「GPT-4o 一折价」的报价。很多是诚实的，但有些不是——而且作弊手法肉眼很难识别：
+中转 key 市场上充斥着「GPT-4o 一折价」之类的报价。很多是诚实的，也有一些不是——而
+不诚实的那些很难用肉眼识破：
 
-- 你点名要 `gpt-4o`，实际被悄悄换成 `gpt-4o-mini` 或某个开源模型；
-- 宣传 1M token 上下文，实际悄悄截断到 32K；
-- 所谓「流式」其实是把整段回复缓存后再切片下发，毫无首字延迟优势；
-- 上报的 `usage` token 数被夸大，你的余额烧得比应有的更快；
-- 本该支持工具调用 / JSON 模式的模型，实际并不支持。
+- 你请求 `gpt-4o`，实际却被悄悄换成了 `gpt-4o-mini` 或某个开源模型。
+- 中转站宣称支持 1M token 上下文，实际却悄悄截断到 32K。
+- 所谓的「流式输出」其实是把完整响应缓冲后再切块发送，毫无延迟优势。
+- 返回的 `usage` token 数被虚报，你的余额消耗得比应有的更快。
+- 本应支持工具调用 / JSON 模式的模型，实际悄悄不支持。
 
-zing 把「感觉不太对」变成一份可复现的报告。
+zing 把「感觉哪里不对」变成一份可复现的报告。
 
 ## 安装
 
@@ -69,14 +94,13 @@ source .venv/bin/activate       # Windows：.venv\Scripts\activate
 也可以不克隆，直接从 Git 仓库安装：
 `uv tool install git+https://github.com/cenbonew/zing`。
 
-（维护者：发布流程见 [docs/PUBLISHING.md](docs/PUBLISHING.md)。）
-
 ### 可选附加项
 
-- `tokenizers`——让账单审计对 OpenAI 系模型做精确 token 计数。
-- `web`——本地 Web 界面（`zing serve`）。
-- `pdf`——PDF 报告（`--format pdf` 以及 Web 界面中的 PDF 下载），由
-  [WeasyPrint](https://weasyprint.org/) 从 HTML 报告渲染，需要系统库 Pango（多数 Linux 桌面已预装；macOS 上 `brew install pango`）。
+- `tokenizers` —— 在计费审计中对 OpenAI 系列模型做精确的 token 计数。
+- `web` —— 本地 Web 界面（`zing serve`）。
+- `pdf` —— PDF 报告（`--format pdf` 以及 Web 界面中的 PDF 下载），由
+  [WeasyPrint](https://weasyprint.org/) 从 HTML 报告生成，需要系统库 Pango
+  （大多数 Linux 桌面已预装；macOS 上 `brew install pango`）。
 
 ```bash
 pip install 'zing-audit[tokenizers,web,pdf]'      # pip，从 PyPI
@@ -85,11 +109,24 @@ uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv，从 PyPI
 uv pip install -e '.[tokenizers,web,pdf]'         # uv，从源码
 ```
 
+### 使用 Docker（仅 Web 界面）
+
+在源码目录中：
+
+```bash
+docker build -t zing .
+docker run --rm -p 127.0.0.1:8000:8000 -v zing-data:/data zing
+# 打开 http://localhost:8000
+```
+
+端口务必像上面这样只发布到 `127.0.0.1`。详细说明和环境变量见
+[开发者指南 → Docker](DEVELOPER_GUIDE.zh-CN.md#docker) 与 [docs/DOCKER.md](docs/DOCKER.md)。
+
 ## 快速开始
 
 ```bash
-# 1) 按中转站声称的模型审计它（模型 id + 平台提示）
-export ZING_API_KEY=sk-你的中转key
+# 1) 按中转站声称的模型审计它（模型 id + 厂商提示）
+export ZING_API_KEY=sk-your-relay-key
 zing check \
   --base-url https://relay.example.com/v1 \
   --api-key env:ZING_API_KEY \
@@ -97,7 +134,7 @@ zing check \
   --suite standard
 
 # 2) 最强检测：与同款模型的可信基线对比
-export OPENAI_API_KEY=sk-你的官方key
+export OPENAI_API_KEY=sk-your-openai-key
 zing compare \
   --target-base-url https://relay.example.com/v1 --target-api-key env:ZING_API_KEY --target-model gpt-4o \
   --baseline-base-url https://api.openai.com/v1 --baseline-api-key env:OPENAI_API_KEY --baseline-model gpt-4o \
@@ -113,18 +150,24 @@ zing check --base-url https://relay.example.com/v1 --model claude-opus-4-8 \
 zing check --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
   --model doubao-seed-2-0-lite --claimed-model deepseek-v4-flash
 
-# 5) 查看内置知识库
-zing kb            # 全部 85 个模型
-zing kb deepseek   # 单个平台
+# 5) 列出某个端点公布的模型
+zing models --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY
 
-# 6) 生成可提交的配置文件
-zing init          # 生成 zing.yaml
+# 6) 查看知识库
+zing kb            # 全部画像及其来源
+zing kb deepseek   # 单个厂商
+
+# 7) 生成可提交的配置文件
+zing init          # 写出 zing.yaml
 zing check -c zing.yaml
 ```
 
+API 密钥可以直接填写，也可以写成 `env:VAR` 或 `file:/path`；报告里只会出现密钥的指纹。
+完整的配置文件示例见 [`examples/zing.yaml`](examples/zing.yaml)。
+
 ### 作为给大模型 / Agent 使用的工具
 
-zing 专为被其它程序或模型驱动而设计。所有输出都以 JSON 打到标准输出（错误也不例外），
+zing 天生适合被其他程序或模型驱动。所有内容（包括错误）都以 JSON 输出到 stdout，
 退出码即门禁。
 
 ```bash
@@ -137,16 +180,17 @@ zing check --base-url ... --model gpt-4o --json
 # 先算预算：会运行哪些检测器 + 预估 API 调用次数，且「不」发出任何请求
 zing check --base-url ... --model gpt-4o --suite deep --dry-run --json
 
-# 以退出码做门禁（风险 >= medium 时退出码为 1）；配置/用法错误以 JSON 输出并退出码 2
+# 以退出码做门禁（风险 >= medium 或分数低于 --fail-under 时退出码为 1）；
+# 配置/用法错误以 JSON 输出并退出码 2
 zing check --base-url ... --model gpt-4o --compact --fail-on-risk medium
 
 # 机器可读的发现能力
-zing kb --json                 # 整个知识库
-zing models --base-url ... --json   # 某个端点宣称提供的模型
+zing kb --json                      # 整个知识库
+zing models --base-url ... --json   # 某个端点公布了哪些模型
 ```
 
-在 `--json`/`--compact` 模式下，错误的配置会输出 `{"error": {...}}`（退出码 2），
-而非面向人的提示信息，便于流水线统一解析失败。
+在 `--json`/`--compact` 模式下，配置错误会输出 `{"error": {...}}`（退出码 2），
+而不是面向人的提示，方便流水线统一解析失败。
 
 ## Web 界面（`zing serve`）
 
@@ -154,93 +198,191 @@ zing models --base-url ... --json   # 某个端点宣称提供的模型
 
 ```bash
 pip install 'zing-audit[web]'     # 或：uv tool install 'zing-audit[web]'
-zing serve            # 打开 http://localhost:8000
+zing serve                        # 打开 http://localhost:8000
 ```
 
-输入中转站和它声称的模型，即可**实时**观看检测过程（通过 SSE 逐个检测器显示进度），
-随后阅读一份可分享的结论报告（评级、各维度明细、通俗易懂的发现、可下载的 JSON）。
-一切都在你的机器上运行——在浏览器里输入的 key 只会到达你的本地服务和被测中转站，
-绝不会发给第三方。默认只绑定 `127.0.0.1`。
+填写**中转站地址**、**API 密钥**和模型；可选填写**声称的模型**（如果中转站以另一个名字出售它）、
+**声明的厂商**，以及可信基线（**对照可信基线**）。**获取模型列表**会列出中转站公布的模型，
+选中其中一个即可自动填入模型及其厂商。然后点击**开始检测**，**实时**观看检测过程：每个检测项
+都显示得分和耗时，有发现的检测项可以展开查看证据。结果是一份可分享的结论报告：评级、带计分标准的
+**逐项体检**、通俗易懂的发现以及性能部分（新界面中还有列出每个检测器的**执行记录**）。
+
+一切都在你的机器上运行：在浏览器里输入的密钥只会到达你本地的 zing 服务和被测中转站，
+绝不会发给第三方。见[隐私与本地数据](#隐私与本地数据)。
+
+### 页面
+
+Web 界面有两个版本，共用同一个服务和同一份数据。**经典界面**在 `/` 打开；点它的
+**试用新界面**链接进入 `/v2/` 下的**新界面**，新界面的**经典界面**链接可切回。
+选择按浏览器记住。
+
+| 页面 | 经典界面 | 新界面 | 用途 |
+|---|---|---|---|
+| **检测** | `/` | `/v2/` | 审计中转站（可对照基线）并阅读报告 |
+| **控制台**（Console） | `/console` | — | 以紧凑的日志风格控制台运行同样的检测 |
+| **工具** | `/tools` | `/v2/tools` | Embedding 与 rerank 检测 |
+| **检测历史** | `/history` | `/v2/history` | 本机上运行过的每次检测，按「中转站 + 声称的模型」分组，附趋势 |
+| **监控** | `/watches` | `/v2/watches` | 定时重新检测，并通过 Webhook 告警 |
+| **模型库** | — | `/v2/kb` | 浏览知识库，添加你自己的模型画像 |
+
+新界面额外提供：**检测历史**中的筛选和可配置趋势（分数、评级、延迟 p50、tokens/s）；
+检测历史中每次运行都可**设为监控**；各种格式的**下载报告**；主题切换（跟随系统 / 浅色 / 深色）；
+以及**模型库**页面。
+
+### 语言
 
 每个页面顶部的语言下拉框可在 **🇬🇧 英语**（默认）、**🇨🇳 中文**（界面原始语言）、
 **🇫🇷 法语**、**🇪🇸 西班牙语**、**🇵🇹 葡萄牙语**、**🇮🇹 意大利语** 和 **🇩🇪 德语**
-之间切换界面；选择按浏览器记住。从界面下载的报告（**下载报告**：JSON、Markdown、HTML 或 PDF）同样跟随所选语言：
+之间切换界面；选择按浏览器记住。
+
+从界面下载的报告（**下载报告**：JSON、Markdown、HTML 或 PDF）同样跟随所选语言：
 JSON 键、枚举值（`risk_level`、`status`、`severity` 等）、id 和证据与命令行报告完全一致
-（JSON 仍是合法的 zing 报告），而面向人阅读的值（结论标题/摘要、发现标题/摘要、建议、检测器名称、
-备注）会被翻译，文件名也会带上语言（`zing-report.zh.json`、`zing-report.zh.pdf`）。Markdown/HTML/PDF 文件的章节标题为英文。命令行自身的
-`--format json|md|html|pdf` 报告始终为英文。
+（JSON 仍是合法的 zing 报告），而面向人阅读的值（结论标题和摘要、发现标题和摘要、建议、
+检测器名称、备注）会被翻译，文件名也会带上语言（`zing-report.zh.json`、`zing-report.zh.pdf`）。
+Markdown/HTML/PDF 文件的章节标题为英文。命令行自身的 `--format json|md|html|pdf`
+报告始终为英文。
 
-**发往被测端点的提示词不跟随界面语言。** zing 发给 LLM API 的每一段文本——对话探测、
-LLM 裁判的提示词、工具 schema、embedding / rerank / 图像 / 音频输入——都集中在同一个提示词库
-`zing/prompts/en.json` 中，且均为英文，这样无论谁来读报告，同一个中转站都会得到同样的结论
-（答案校验和 token 估算都针对这些确切文本校准过）。唯一的例外是那些「语言本身就是测量对象」的
-知识库指纹——例如中国原生模型的中文流畅度、分词器和自我身份识别探测——它们在
-`zing/knowledge/data/*.yaml` 中声明了 `prompt_lang` 和 `language_bound` 理由。
-每份报告都会记录实际使用的探测语言（`prompt_languages`，例如 `["en", "zh"]`）。
-
-翻译是数据，由 Web 界面和 Webhook 告警共用：`zing/i18n/locales/<code>.json`，每种语言一个文件。
-要新增一种语言，只需新增一个文件（复制 `de.json`）；下拉框、页面和告警都会自动识别。
-`tests/test_web_locales.py` 会一直失败，直到每条界面文案和每条发现都已翻译，
-且占位符与标记完好无损。
+**发往被测端点的提示词不跟随界面语言。** zing 发给 LLM API 的每一段文本都是英文，
+这样无论谁来读报告，同一个中转站都会得到同样的结论（答案校验和 token 估算都针对这些确切文本
+校准过）。唯一的例外是那些「语言本身就是测量对象」的知识库指纹——例如中国原生模型的
+中文流畅度、分词器和自我身份识别探测。每份报告都会记录实际使用的探测语言
+（`prompt_languages`，例如 `["en", "zh"]`）。
 
 ## 检测了什么
 
-zing 对十个维度评分。其中最直接揭示「货不对板」的三项（模型身份、真实上下文窗口、能力声明）权重最高。
+zing 对十个维度评分。三个**核心维度**——模型身份、上下文窗口和能力声明——最直接地
+指向「货不对板」，权重也最高。维度名称与 Web 界面和报告中使用的一致。
 
-| 维度 | 能抓到什么 |
+| 维度 | 标识 | 权重 | 能发现什么 |
+|---|---|---|---|
+| **模型身份** | `model_identity` | 21 | 模型被悄悄降级或替换——自我身份识别、知识截止日期、分词器指纹、回包中的 `model` 字段；可选 LLM 裁判 |
+| **上下文窗口** | `context_window` | 19 | 上下文被悄悄截断（宣称 1M，32K 时回忆就失败），以及廉价 RAG/摘要中间层导致的「中段遗失」，通过大海捞针 + 二分搜索检测 |
+| **能力声明** | `capability` | 13 | 声称支持的工具调用 / JSON 模式 / JSON schema / 最大输出其实没有兑现（或*超额*兑现，暗示换了模型）；**视觉**——声称支持图像输入的模型必须读出一张答案已知的生成图片 |
+| **协议兼容** | `protocol` | 8 | 线上协议合规：多轮对话、停止序列、错误结构；每个请求参数都被接受（可见时也被遵守）、每个响应属性都存在；忽略 temperature/seed 的响应缓存 |
+| **计费用量** | `billing` | 8 | token/用量虚报，以及缺失或无法核实的用量统计，通过独立的分词器估算检测 |
+| **连通性** | `connectivity` | 7 | 端点可达性和公布的 `/v1/models` 列表 |
+| **流式真实** | `streaming` | 6 | 伪流式（先缓冲再切块），根据分块数量和块间时间间隔识别 |
+| **并发可靠** | `reliability` | 6 | 并发负载下的成功率和延迟（HTTP 429 限流单独统计） |
+| **传输安全** | `security` | 6 | HTTPS、请求头卫生、密钥回显；隐藏注入的系统提示词；传输途中对回答和工具调用的篡改（答案已知的金丝雀）；提示词前缀缓存（计时） |
+| **性能表现** | `performance` | 6 | 延迟、首 token 时间和吞吐量有多*稳定*，失败率，以及并发负载下的变慢程度；速度本身只与参考值对比（见[性能](#性能)） |
+
+[方法论](docs/METHODOLOGY.zh-CN.md)介绍了每项探测、它对应的中转站作弊手法、它的计分标准，
+以及误报方面的注意事项。
+
+## 结论如何得出
+
+简要说明（详见[方法论](docs/METHODOLOGY.zh-CN.md#zing-如何计分)）：
+
+- 每个检测器都公开自己的**计分标准**——每个检查项所有可能的结果及其分数——Web 界面在
+  「**计分标准**」中展示。
+- **维度得分**是其各检测器得分的平均值（权重相同）。「高/严重」发现会强制判为**失败**，
+  「中」发现会把**通过**提升为**警告**，与分数无关。报告在 **Dimension details** 中按维度解释这一过程；
+  Web 界面中「**逐项体检**」的每一行都可展开查看同样的细节。
+- **综合健康分**是已运行维度的加权平均（权重见上表），评级为 A（≥ 90）、B（≥ 80）、
+  C（≥ 70）、D（≥ 60）或 F。
+- **风险结论**由发现的严重程度决定，而不是由分数决定：
+
+| 风险 | 界面中的名称 | 条件 |
+|---|---|---|
+| `inconclusive` | 信号不足 | 没有任何核心维度得出可用结果（中转站不可达、模型不在知识库中，或 `custom` 运行未选择任何核心维度） |
+| `high` | 货不对板 | 出现「严重」发现；或核心维度中出现「高/严重」发现；或出现两个及以上「高」发现 |
+| `medium` | 存在偏离 | 核心维度之外恰有一个「高」发现，或核心维度中出现「中」发现 |
+| `low` | 基本可信 | 其他任何「中」发现 |
+| `clean` | 一致（疑似真货） | 以上都不满足 |
+
+连通性维度的发现从不抬高风险：中转站宕机或限流只说明无法评估，并不能证明它换了模型。
+结论的**置信度**（低 / 中 / 高）随得出结果的核心维度数量、是否使用基线以及 LLM 裁判而提高。
+
+## 套件（suite）
+
+| 套件 | 检测器 | 成本 |
+|---|---|---|
+| `smoke` | connectivity、security | 很低 |
+| `standard` | + protocol、protocol_request、protocol_response、model_identity、capability、streaming、billing、reliability | 低–中 |
+| `deep` | + context_window、determinism、vision、injected_prompt、integrity、prompt_cache、performance、quality_judge（需 `--judge`） | 较高（长上下文和计时探测会消耗 token） |
+| `full` | 与 `deep` 相同的检测器，性能在流式和非流式下各测一遍 | 最高 |
+| `custom` | 只运行你选择的维度，深度同 `deep` | 取决于所选维度 |
+
+上下文窗口探测受 `--max-context-tokens`（默认 200K）限制，因此审计 1M token 的模型也不会太贵。
+`--only` / `--skip` 可按 id 单独运行或跳过某些检测器。
+
+### 自定义套件
+
+只运行你关心的维度，节省时间和 token。每个所选维度下的所有检测器都会以 `deep` 深度运行：
+
+```bash
+zing check --base-url ... --model gpt-4o -D protocol -D performance
+zing check --base-url ... --model gpt-4o --suite custom --dimension billing,streaming
+```
+
+`--dimension/-D` 可重复或用逗号分隔，并隐含 `--suite custom`；配置文件中使用
+`run.dimensions: [protocol, performance]`。可选维度为 `connectivity`、`protocol`、
+`context_window`、`model_identity`、`capability`、`streaming`、`billing`、`reliability`、
+`security` 和 `performance`。Web 界面中，`custom` 套件按钮会在检测页、控制台和监控中打开
+同样的选择（**检测维度**）。
+
+**综合分只按所选维度加权平均**；未选的维度标为「未选择」。风险结论至少需要一个核心维度
+（模型身份、上下文窗口、能力声明）：没有核心维度时，结论为*不确定*。
+
+## 性能
+
+每份报告都包含一个 **performance** 部分：延迟、首 token 时间（TTFT）、解码与端到端 tokens/s、
+块间延迟与抖动、错误/超时/429 比率、网络拆解（TCP 连接、TLS、一次 `GET /models` 往返、
+服务端耗时）以及冷启动，每项都给出 count / min / mean / p50 / p75 / p90 / p95 / p99 / max / stdev。
+
+运行专用探测时，它会为**性能表现**维度计分。分数衡量的是**稳定性**而非绝对速度，因此慢但稳定的
+端点（本地或自托管模型）不会因为不是数据中心而被扣分：
+
+| 检查项 | 计分依据 |
 |---|---|
-| **model_identity 模型身份** | 静默降级 / 替换——自我身份识别、知识截止、分词器指纹、回包里的 `model` 字段 |
-| **context_window 上下文窗口** | 静默截断（宣称 1M，32K 就召回失败）、廉价 RAG/摘要垫片导致的「中段遗忘」；用大海捞针 + 二分搜索实测 |
-| **capability 能力声明** | 工具调用 / JSON 模式 / json-schema / 最大输出等声称的能力是否真的兑现（或「过度兑现」，反向暗示是替身模型）；以及**视觉**——向声称支持图像输入的模型发送一张答案已知的生成图，确认它真的「看得见」 |
-| **billing 计费** | 通过独立分词估算，发现 token/usage 虚高，以及缺失/无法核验的用量统计 |
-| **streaming 流式** | 通过分片数量与分片间隔时序，识别伪流式（缓存后切片）|
-| **protocol 协议兼容** | OpenAI 兼容性一致性：多轮、停止序列、响应结构、错误结构；并含一项「确定性」子检查，识别忽略 temperature/seed 的响应缓存 |
-| **reliability 可靠性** | 并发成功率与延迟（HTTP 429 限流单独计列，不计入失败）|
-| **performance 性能表现** | 延迟、首 token 时间与吞吐是否*稳定*、探测失败率、并发负载下的变慢程度；速度本身只与参考值对比 |
-| **connectivity 连通性** | 端点可达性与声称的 `/v1/models` 列表 |
-| **security 安全** | 传输（HTTPS）、响应头卫生、密钥回显；隐藏注入的系统提示词（固定的输入 token 开销 + 泄露）、借助答案已知的金丝雀探测传输途中对响应/工具调用的篡改（URL/包名替换），以及提示词前缀缓存（时序）|
+| 延迟 / TTFT 稳定性 | 尾部比 p90 ÷ p50（≤ 1.3 平稳 100 · ≤ 1.75 稳定 85 · ≤ 2.5 波动明显 65 · 更高：极不稳定 40）；至少需要 10 个样本 |
+| 吞吐稳定性 | tokens/s 的尾部比 p50 ÷ p10，分档相同 |
+| 错误 | 失败的探测请求：≤ 2% 100 · ≤ 10% 80 · 更高：50（429 不计入） |
+| 负载稳定性 | 突发时 p50 延迟 ÷ 顺序 p50：≤ 1.5x 100 · ≤ 3x 80 · 更高：55 |
+| 缓存命中 | 唯一提示词却由缓存作答：60 |
+| 参考值 | tokens/s 与可信基线对比，没有基线时与知识库中该模型公布的范围对比：相符 100 · 更慢 80（仅作提示，不算失败）· 快 2 倍及以上 60（暗示是更小的模型）· 无参考值：不计分 |
 
-每项检测背后的技术、对应的中转作弊手法、以及误报注意事项，详见
-[docs/METHODOLOGY.zh-CN.md](docs/METHODOLOGY.zh-CN.md)。
+性能发现的严重程度最高为「低」：它们影响分数，但从不影响风险结论。没有探测时
+（`standard` 且无基线，或 `smoke`），该维度不运行，也不计入综合分。
 
-### 性能
+- **standard** 从检测自身的请求中收集性能数据。
+- **deep / full / custom** 额外运行专用探测：100 个不可缓存的请求，每个输出 128 个 token
+  （每个提示词都以随机请求 id 开头；不发送任何缓存或推理参数），外加一次并发度为 `--concurrency`
+  的突发。可用 `--performance-requests`（0 表示关闭）和 `--performance-max-tokens` 调整。
+- 探测默认使用流式；`--performance-non-streaming`（或 Web 界面中的**流式 / 非流式**开关）
+  可测量不支持流式的中转站。**full** 会交替测量两种模式并并排展示。
+- **compare** 在两个端点上交替发送请求运行探测，并增加一张「目标 vs 基线」对照表
+  （`standard` 下每侧 5 个请求，不足以进行稳定性检查），目标更好的差异以绿色 ✓ 标出，
+  更差的以红色 ✗ 标出。
 
-每份报告还包含一个 **performance（性能）** 部分：延迟、首 token 时间（TTFT）、解码与端到端
-tokens/s、分片间延迟与抖动、错误/超时/429 比率、网络拆解（TCP 连接、TLS、一次
-`GET /models` 往返、服务端耗时）以及冷启动，每项都给出
-count / min / mean / p50 / p75 / p90 / p95 / p99 / max / stdev。运行专用探测时，它为 **performance（性能表现）** 维度评分（权重 6）——依据的是延迟、TTFT 与吞吐的*稳定性*、失败率以及负载下的表现，而不是绝对速度：慢但稳定的模型（如本地部署）不会被扣分。速度本身只在与参考值（基线，或知识库中公布的区间）对比时计入。这些发现最高为低严重度，从不改变风险结论。
+token 会计数两次——取自中转站的 `usage` 和本地计数——因此即使缺少 `usage` 也能测量吞吐。
+只有样本足够时才显示对应分位数（p90 需 10 个，p95 需 20 个，p99 需 100 个）。JSON 报告保存
+每个请求的耗时（只有数字，没有文本）；HTML 报告和 Web 界面会把它们画在检测时间轴上。
 
-- **standard** 从检测自身的请求中收集。
-- **deep / full** 额外运行一个专用探测：100 个不可缓存、输出 128 token 的请求
-  （每个提示词以随机请求 id 开头，不发送任何缓存或推理参数），外加一次按 `--concurrency`
-  并发的突发请求。可用 `--performance-requests`（0 表示关闭）和 `--performance-max-tokens` 调整。
-- 探测默认使用流式；`--performance-non-streaming`（或 Web 界面中的开关）用于测量不支持流式的中转。
-  **full** 会交替测量两种模式并并排展示。
-- **compare** 在两个端点上交替发请求运行探测，并附加一张「目标 vs 基线」对比表
-  （`standard` 下每侧 5 个请求）：目标更好的差异标绿 ✓，更差的标红 ✗。
-  生成速度比基线快 2 倍以上的目标会被标记为一条低严重度提示。
+## 对比模式与 LLM 裁判
 
-token 会计数两次：来自中转的 `usage`，以及本地计数，因此即使缺少 `usage` 也能测出吞吐。
-只有样本足够时才显示分位数（p90 需 10 个、p95 需 20 个、p99 需 100 个）。
-JSON 报告保留每个请求的耗时（只有数字，不含文本）；HTML 报告和 Web 界面会按检测时间线绘制图表。
+zing 有两种检测模式：
 
-## 两种检测模式
-
-- **纯代码（默认）**：所有可确定性判定的探测——指纹、上下文扫描、账单计算、流式时序。
-  无需第二个模型，完全可复现。
-- **代码 + LLM 融合（`--judge`）**：在此基础上，额外调用一个**可信的**裁判模型
-  （单独配置，绝不用被测中转站本身）来评估纯代码无法判定的模糊信号，
-  如回答质量、推理深度。`quality_judge` 检测器即由此驱动。
+- **纯代码（默认）：** 除 `quality_judge` 外，所有检测器都由确定性代码判定——指纹、上下文扫描、
+  计费算术、流式计时。不需要第二个模型，结果可复现。
+- **代码 + LLM 混合（`--judge`）：** 额外请一个*可信*的裁判模型（单独配置，绝不是被测目标）
+  判断目标的回答是否像所声称的模型——质量、推理深度这类纯代码难以判定的模糊信号。
+  这就是 `quality_judge` 检测器。
 
 ```bash
 zing check --base-url ... --model gpt-4o --suite deep --judge \
   --judge-base-url https://api.openai.com/v1 --judge-api-key env:OPENAI_API_KEY --judge-model gpt-4o-mini
 ```
 
-## 持续监控（`zing watch`）
+**对比模式**（`zing compare`，或 Web 界面中的**对照可信基线**）在同一时间用完全相同的探测
+去打一个所声称模型的可信基线。这是最有力的确认手段：身份回答、被拒绝的请求参数、篡改金丝雀和
+性能都会并排比较，而且只有使用基线时，结论的置信度才可能达到*高*。未指定 `--judge-base-url` 时，
+对比模式会把基线用作裁判。
 
-中转站可能今天提供真模型，下周就悄悄换掉。`zing watch` 按计划定期重新检测，把每次运行记入历史，
-并在风险越过阈值或相比上次**恶化**时向 Webhook 告警。
+## 持续监控
+
+中转站今天可能提供真货，下周就悄悄换掉。`zing watch` 按计划重新检测，把每次运行记录到
+检测历史，并在风险越过阈值或相比上一次**恶化**时通知 Webhook。
 
 ```bash
 zing watch --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
@@ -249,23 +391,32 @@ zing watch --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
   --alert-lang zh                                     # 或用 --once 配合 cron
 ```
 
-告警会针对 **Slack / 飞书 / 钉钉 / 通用 JSON** 进行格式化（根据 Webhook URL 自动识别），
-并以告警语言撰写——默认英文；`--alert-lang en|zh|fr|es|pt|it|de`。通用 JSON 载荷的键和机器值
-（`risk_level`、`score` 等）保持与语言无关，翻译面向人阅读的字段（`text`、`headline`、
-`key_findings`），并注明 `language`。
+告警会按 **Slack / 飞书 / 钉钉 / 通用 JSON** 格式化（根据 Webhook URL 自动识别），并使用
+告警语言撰写——默认英文；`--alert-lang en|zh|fr|es|pt|it|de`。通用 JSON 负载的键和机器值
+（`risk_level`、`score` 等）保持语言中立，面向人阅读的值（`text`、`headline`、`key_findings`）
+会被翻译，并注明 `language`。
 
-更喜欢界面操作？`zing serve` 在 **`/watches`**（🔔 监控）内置了监控页：在浏览器里添加一个监控，
-进程内的后台调度器会按间隔重新运行它，把每次运行持久化到历史，并在越过阈值或恶化时触发同样的
-Webhook 告警。每个监控都有自己的告警语言（在表单中选择，默认为界面语言，也可在监控卡片上修改）。
-可在页面上立即运行 / 暂停 / 删除。key 只存放在 `~/.zing` 中，绝不会返回给浏览器。
+**在 Web 界面中**，`zing serve` 在服务进程内的后台调度器中运行同样的监控，把每次运行存入
+**检测历史**，并发送同样的 Webhook 告警：
 
-## Embedding 与 rerank 检测
+- **新界面：** 在**检测历史**中打开一次运行，选择**设为监控**。zing 会把该次运行的配置
+  （中转站、模型、声称的模型、厂商、套件、自定义维度）复制成**监控**页面上一个已暂停的监控；
+  在那里设置间隔和 API 密钥（检测历史从不保存密钥）并启用。间隔、密钥、**告警阈值**、
+  Webhook 和**告警语言**都可以在每个监控上直接修改。
+- **经典界面：** 在**监控**页面填写表单，然后点击**添加监控**。
 
-Embedding 和 rerank 不属于对话接口，因此 zing 用一个专门的独立检测器来审计它们，
-而不走九维度的对话检测流水线。
+每个监控都有自己的告警语言（默认跟随界面语言），可以立即运行、暂停或删除，并固定使用创建时的
+知识库画像，直到你重新固定。密钥只保存在本地数据目录中，绝不会返回给浏览器。
+
+## Embedding、rerank、图像与音频检测
+
+这些端点返回的是向量、排序、图像或音频，而不是对话，因此 zing 用独立的专用检测器来审计，
+而不走十维度的对话流水线。每个都会输出结论，并支持 `--json` 和 `--fail-on-risk`。
+
+### Embedding 与 rerank
 
 ```bash
-# 期望的向量维度会根据声称的模型从内置知识库中解析。
+# 期望的向量维度会根据声称的模型从知识库中解析。
 zing embed --base-url https://relay.example.com/v1 \
            --model text-embedding-3-large --claimed-model text-embedding-3-large --fail-on-risk high
 
@@ -276,24 +427,23 @@ zing embed --base-url ... --model my-embed --claimed-dimensions 1024 --json
 zing rerank --base-url https://relay.example.com/v1 --model my-rerank
 ```
 
-`embed` 检查连通性、**维度匹配**（返回的向量长度 vs 声称模型的原生维度——这是最核心的
-「货不对板」信号；声称是 3072 维的 `text-embedding-3-large` 却返回 1024 维，说明模型被替换了）、
-确定性（相同输入 → 余弦 ≈ 1）、区分度（无关输入 → 余弦明显小于 1），以及回包里的 `model` 字段。
-内置知识库画像：OpenAI `text-embedding-3-small`（1536）、`text-embedding-3-large`（3072）、
-`text-embedding-ada-002`（1536），通义千问 `text-embedding-v3`/`-v4`（1024）。
+`embed` 检查连通性、**维度匹配**（返回向量的长度 vs 声称模型的原生维度——最核心的
+「货不对板」信号：声称是 3072 维 `text-embedding-3-large`、却返回 1024 维的中转站，提供的是替代品）、
+确定性（相同输入 → 余弦 ≈ 1）、区分度（无关输入 → 余弦明显小于 1）以及回包中的 `model` 字段。
+内置画像：OpenAI `text-embedding-3-small`（1536）、`text-embedding-3-large`（3072）、
+`text-embedding-ada-002`（1536），Qwen `text-embedding-v3`/`-v4`（1024）。
 
-两者也都在 Web 界面中——`zing serve` 在 `/tools` 提供 **工具箱** 页面（导航栏有链接），
-其中的 embed/rerank 表单会呈现同样的本地化结论。
+两者也都在 Web 界面的**工具**页面中（**嵌入审计**、**重排审计**），在那里还可以用你自己的
+查询和文档替换 rerank 探测。
 
-## 图像与音频（TTS）生成检测
+### 图像与音频（TTS）生成
 
-另外两个非对话接口：图像生成（`POST /v1/images/generations`）和文本转语音
-（`POST /v1/audio/speech`）。所有解码都只用标准库——从文件头字节读取图像尺寸
-（PNG/JPEG/GIF/WebP），用 `wave` 模块读取 WAV 时长。
+图像生成（`POST /v1/images/generations`）和文本转语音（`POST /v1/audio/speech`），
+只用 Python 标准库解码——从文件头字节读取图像尺寸（PNG/JPEG/GIF/WebP），用 `wave` 读取 WAV 时长。
 
 ```bash
 # 声称是 DALL·E 3 的中转真的返回了所请求的 1792x1024 吗？被缩小 / 尺寸错误的图像
-# （或尺寸不在声称模型的原生尺寸范围内，按知识库解析）就是最核心的「货不对板」信号。
+# （或尺寸不在知识库中声称模型的原生尺寸内）就是最核心的「货不对板」信号。
 zing image --base-url https://relay.example.com/v1 --api-key env:RELAY_KEY \
   --model dall-e-3 --claimed-model dall-e-3 --size 1792x1024 --fail-on-risk high
 
@@ -303,17 +453,17 @@ zing audio --base-url https://relay.example.com/v1 --api-key env:RELAY_KEY \
   --model tts-1-hd --voice alloy --format wav --save clip.wav
 ```
 
-`image` 检查：连通性、格式合法/可解码、**尺寸匹配**（解码出的宽x高 vs 请求尺寸及声称模型的
-原生尺寸——不匹配即 FAIL/HIGH）、区分度（两个提示词 → 不同图像，识别固定占位图）、数量、model 字段。
-`audio` 检查：连通性、容器/格式合法性、是否遵循所请求的格式、非平凡时长（随输入长度增长）、
-区分度、model 字段。知识库内置 OpenAI DALL·E 2/3、gpt-image-1、tts-1/tts-1-hd/gpt-4o-mini-tts，
-以及通义千问的图像/TTS 画像。
+`image` 检查连通性、格式有效且可解码、**尺寸匹配**（解码出的宽 × 高 vs 请求尺寸和声称模型的
+原生尺寸——不匹配即 FAIL/HIGH）、区分度（两个提示词 → 不同的图像，识破固定占位图）、数量以及
+`model` 字段。`audio` 检查连通性、容器/格式有效性、格式是否被遵守、随输入增长的非平凡时长、
+区分度以及 `model` 字段。知识库包含 OpenAI DALL·E 2/3、gpt-image-1、
+tts-1/tts-1-hd/gpt-4o-mini-tts，以及 Qwen 的图像/TTS 画像。
 
 ## 在 CI 中使用（GitHub Action）
 
-用内置的 composite action，让任意工作流以中转检测结果为门禁。它运行
-`zing check --compact --fail-on-risk`，把 `risk` / `score` / `rating` 作为输出暴露出来，
-在运行页写入摘要，并在风险门禁触发时让任务失败。
+用内置的复合 Action 给任意工作流加上中转站审计门禁。它运行
+`zing check --compact --fail-on-risk`，把 `risk` / `score` / `rating` 作为输出，
+向运行写入摘要，并在风险门禁触发时让任务失败。
 
 ```yaml
 jobs:
@@ -321,33 +471,46 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: zing
-        uses: cenbonew/zing@v0.9.0          # 固定到某个发布 tag
+        uses: cenbonew/zing@v0.11.0         # 固定到发布标签
         with:
           base-url: https://relay.example.com/v1
-          api-key: ${{ secrets.RELAY_API_KEY }}   # 调用方的 secret；绝不回显
+          api-key: ${{ secrets.RELAY_API_KEY }}   # 调用方的密钥；绝不回显
           model: gpt-4o
           fail-on-risk: high
       - run: echo "risk=${{ steps.zing.outputs.risk }} score=${{ steps.zing.outputs.score }}"
 ```
 
-中转 key 通过环境变量传入（`--api-key env:…`），因此绝不会出现在命令行上。
-完整的输入/输出表和部署门禁示例见 [docs/CI.md](docs/CI.md)。
+中转站密钥通过环境变量传递（`--api-key env:…`），因此绝不会出现在命令行上。完整的输入/输出
+和部署门禁示例见 [docs/CI.md](docs/CI.md)。
 
-## 套件（suite）
+## 知识库
 
-| 套件 | 包含检测器 | 成本 |
-|---|---|---|
-| `smoke` | connectivity, security | 极低 |
-| `standard` | + protocol, model_identity, capability, streaming, billing, reliability | 低–中 |
-| `deep` | + context_window, determinism, injected_prompt, integrity, performance, prompt_cache, quality_judge（加 `--judge` 时）| 较高（长上下文与时序探测消耗 token）|
-| `full` | 全部 | 最高 |
-| `custom` | 仅所选维度，按 `deep` 深度 | 取决于所选 |
+zing 依据所声称模型的**画像**来评判中转站：原生上下文窗口、最大输出、知识截止日期、分词器、
+能力标记、身份关键词和行为指纹。内置画像覆盖 OpenAI、Anthropic、Google Gemini、DeepSeek、
+Qwen、GLM 和 Moonshot（用 `zing kb` 查看）。共有三层，后面的优先：
 
-**自定义套件：** `zing check ... -D protocol -D performance`（或 `--suite custom --dimension billing,streaming`；配置文件中为 `run.dimensions`）只运行所选维度。综合得分仅为这些维度的加权平均；若未选择任何核心维度（模型身份、上下文窗口、能力声明），风险结论为「无法判定」。Web 界面提供同样的选择。
+1. **内置**画像，每个厂商一个 YAML 文件，位于 [`zing/knowledge/data/`](zing/knowledge/data)。
+2. **你自己的 YAML 目录**：`--kb-dir ./my-profiles`（可重复）或 `ZING_KB_DIR`。
+3. **你的条目**（数据目录中的 `kb.db`），无需 YAML 文件或可编辑安装即可添加：
+   - 在 Web 界面的**模型库**页面（`/v2/kb`）：**添加模型** → **复制调研提示词**，粘贴到你选用的
+     AI 助手中，上传或粘贴它回复的 YAML，然后**检查并保存**。**全部资料**列出每个画像及其来源；
+     **某个模型 ID 会使用哪份资料？**显示某个 id 如何解析；**你的条目**可导出为 YAML；
+   - 在命令行：`zing kb-prompt <model>`、`zing kb-import <file>`（加 `--check` 只检查不保存）
+     和 `zing kb-export`。
 
-上下文窗口探测受 `--max-context-tokens`（默认 200K）约束，因此审计 1M 上下文的模型也能控制花费。
+保存条目前 zing 会先检查：结构与限制、不安全的正则表达式、它将发送的每条提示词，以及会解析到
+其他画像的模型 id。你的模型若与内置模型 id 相同，会替换内置模型（报告为*遮蔽*了它），但绝不会
+修改内置厂商自身的设置；指纹按 id 合并。`zing check` 与 `zing serve` 使用完全相同的画像；
+`--no-user-kb`（或 `ZING_NO_USER_KB=1`）会排除你的条目。
 
-## 结论示例
+每份报告都会记录它对照的画像（`knowledge`：厂商、模型、id 如何匹配、来源，以及带内容哈希的
+完整快照），因此即使知识库之后发生变化，报告依然可以核验。
+
+## 报告
+
+`zing check` 和 `zing compare` 会输出结论，并把报告以 JSON、Markdown 和 HTML 写入 `reports/`
+（`--out-dir`），安装了 `pdf` 附加项时还会写出 PDF（`--format all`，默认）；
+`--format json|md|html|pdf` 只写一种格式。`--json` 和 `--compact` 则改为输出到 stdout。
 
 ```text
 ╭─ ✗ HIGH RISK — Strong evidence the relay does not deliver the claimed model… ─╮
@@ -357,35 +520,47 @@ jobs:
 │                                                                               │
 │ Overall health score 53.5/100. Findings: 3 high. …                            │
 ╰───────────────────────────────────────────────────────────────────────────────╯
-  • 在 gpt-4o 名义下自我标识为竞品品牌（anthropic）
-  • 真实上下文窗口约 8000 << 声称的 128000（疑似静默截断）
-  • 上报的 prompt token 数远超独立估算
+  • Self-identifies as a rival brand (anthropic) under the claimed model id gpt-4o
+  • Real context window ~8000 << declared 128000 (silent truncation suspected)
+  • Reported prompt tokens far exceed independent estimate
 ```
 
-报告以 JSON、Markdown、HTML 格式写入 `reports/`；安装了 `pdf` 扩展时还会生成 PDF（默认的 `--format all`），`--format pdf` 只生成 PDF。
+报告包含结论（风险、置信度、分数、评级）、带建议的关键发现、各维度得分与 **Dimension details**、
+每个检测器的发现及证据、性能部分、所用的知识库画像以及探测语言。由中转站控制的文本在写出前都会
+经过脱敏和转义。
 
-## 知识库
+## 隐私与本地数据
 
-平台画像位于 [`zing/knowledge/data/`](zing/knowledge/data)，是可编辑的 YAML——
-每个平台一个文件（OpenAI、Anthropic、Google Gemini、DeepSeek、通义千问 Qwen、智谱 GLM、月之暗面 Moonshot）。
-每个模型都带有原生上下文窗口、最大输出、分词器、能力标志、身份关键词与行为指纹。
-无需 fork 即可新增或覆盖画像：
-
-```bash
-zing check --kb-dir ./my-profiles ...     # 或设置 ZING_KB_DIR
-```
+- **仅限本地。** `zing serve` 只监听回环地址（`127.0.0.1`、`::1`、`localhost`），只响应这些主机名，
+  并拒绝跨站请求；它没有登录，因为你的机器之外没有任何东西能访问它。zing 只会联系你配置的端点
+  （目标、基线、裁判、Webhook）。
+- **密钥。** 报告和检测历史只保存 API 密钥的指纹。监控的密钥以明文保存在你的数据目录中，
+  因此该目录仅对你本人可访问。
+- **数据目录。** `~/.zing`（或 `ZING_DATA_DIR`），以 `0700` 创建，文件为 `0600`：
+  `history.db`（检测历史）、`watches.db`（监控，含密钥）和 `kb.db`（你的知识库条目）。
+  删除该目录即可清除全部数据。
 
 ## 负责任使用
 
-zing 是黑盒审计的辅助工具。它**无法证明**：
+zing 是黑盒审计辅助工具。它**无法证明**：
 
-- 服务方是否存储或用于训练你的 prompt；
-- 它是否始终路由到某个确切的模型（中转可能做概率性路由）；
-- 超出独立 token 估算所能暗示范围之外的计费欺诈。
+- 某个服务商存储了你的提示词或用其训练，
+- 它始终路由到同一个确切的模型（中转站可以按概率路由），
+- 超出独立 token 估算所能提示范围的计费欺诈。
 
-请将报告用于你自己的尽职调查。**不要仅凭单次运行就公开指控某个服务商**，
-应先评估样本量、成本设置与当地法律。在得出强结论前，请先用 `zing compare`
-与可信基线对比。
+请把报告用于你自己的尽职调查。**不要仅凭单次运行就公开指控某个服务商**，而不去审视样本量、
+成本设置和当地法律。在得出强结论之前，请先用 `zing compare` 对照可信基线运行。
+
+## 更多文档
+
+| 文档 | 用途 |
+|---|---|
+| [方法论](docs/METHODOLOGY.zh-CN.md) | 每项检测如何工作、它的计分标准和注意事项 |
+| [开发者指南](DEVELOPER_GUIDE.zh-CN.md) | 架构、开发环境、贡献、翻译、Docker、发布 |
+| [docs/CI.md](docs/CI.md) | GitHub Action：输入、输出、示例（英文） |
+| [docs/DOCKER.md](docs/DOCKER.md) | 在容器中运行 Web 界面（英文） |
+| [CHANGELOG.md](CHANGELOG.md) | 每个版本的变更（英文） |
+| [SECURITY.md](SECURITY.md) | 报告安全漏洞（英文） |
 
 ## 许可证
 

@@ -222,7 +222,7 @@ capacità dichiarate) pesano di più.
 | **connectivity** | Raggiungibilità dell'endpoint e l'elenco `/v1/models` dichiarato |
 | **security** | Trasporto (HTTPS), igiene delle intestazioni, eco di segreti; prompt di sistema iniettato nascosto (overhead fisso di token in input + fuga), manomissione in transito di risposte/chiamate a strumenti tramite canarini a risposta nota (sostituzione di URL/pacchetti) e cache del prefisso del prompt (tempi) |
 
-Vedi [docs/METHODOLOGY.md](docs/METHODOLOGY.md) per la tecnica alla base di ogni
+Vedi [docs/METHODOLOGY.it.md](docs/METHODOLOGY.it.md) per la tecnica alla base di ogni
 controllo, il trucco del relay a cui corrisponde e le avvertenze sui falsi positivi.
 
 ### Prestazioni

@@ -223,7 +223,7 @@ am stärksten gewichtet.
 | **connectivity** | Erreichbarkeit des Endpunkts und die beworbene `/v1/models`-Liste |
 | **security** | Transport (HTTPS), Header-Hygiene, Echo von Geheimnissen; versteckt injizierter System-Prompt (fester Mehraufwand an Eingabe-Token + Leck), Manipulation von Antworten/Tool-Calls unterwegs per Kanarien mit bekannter Antwort (URL-/Paketaustausch) und Prompt-Präfix-Caching (Timing) |
 
-Siehe [docs/METHODOLOGY.md](docs/METHODOLOGY.md) für die Technik hinter jeder Prüfung,
+Siehe [docs/METHODOLOGY.de.md](docs/METHODOLOGY.de.md) für die Technik hinter jeder Prüfung,
 den Relay-Trick, dem sie entspricht, und ihre Einschränkungen bezüglich Fehlalarmen.
 
 ### Performance

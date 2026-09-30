@@ -222,7 +222,7 @@ que más pesan.
 | **connectivity** | Accesibilidad del endpoint y la lista `/v1/models` anunciada |
 | **security** | Transporte (HTTPS), higiene de cabeceras, eco de secretos; prompt de sistema inyectado oculto (sobrecoste fijo de tokens de entrada + filtración), manipulación en tránsito de respuestas/llamadas a herramientas mediante canarios de respuesta conocida (sustitución de URL/paquete) y caché de prefijo de prompt (tiempos) |
 
-Consulta [docs/METHODOLOGY.md](docs/METHODOLOGY.md) para la técnica detrás de cada
+Consulta [docs/METHODOLOGY.es.md](docs/METHODOLOGY.es.md) para la técnica detrás de cada
 comprobación, el truco de relay con el que se corresponde y sus advertencias sobre
 falsos positivos.
 

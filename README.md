@@ -1,27 +1,53 @@
 # zing — LLM relay reality check
 
-> **🇬🇧 English** · [🇨🇳 Chinese](README.zh-CN.md) · [🇫🇷 Français](README.fr.md) · [🇪🇸 Español](README.es.md) · [🇵🇹 Português](README.pt.md) · [🇮🇹 Italiano](README.it.md) · [🇩🇪 Deutsch](README.de.md)
+> **🇬🇧 English** · [🇨🇳 中文](README.zh-CN.md) · [🇫🇷 Français](README.fr.md) · [🇪🇸 Español](README.es.md) · [🇵🇹 Português](README.pt.md) · [🇮🇹 Italiano](README.it.md) · [🇩🇪 Deutsch](README.de.md)
 
 [![CI](https://github.com/cenbonew/zing/actions/workflows/ci.yml/badge.svg)](https://github.com/cenbonew/zing/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
-**zing** is a local-first CLI that audits whether an API relay (reseller / proxy)
-actually serves the model it claims to — or quietly substitutes a cheaper
-one, truncates your context window, fakes streaming, or inflates token billing
-— in short, whether you get what you paid for. It speaks both **OpenAI Chat
-Completions** and the **Anthropic Messages API**, and the **OpenAI Responses API** (`/v1/responses`) —
-auto-detected, or forced with `--api openai|anthropic|responses`.
+**zing** is a local-first tool that audits whether an API relay (reseller /
+proxy) actually serves the model it claims to — or quietly substitutes a cheaper
+one, truncates your context window, fakes streaming, or inflates token billing.
+In short: do you get what you paid for? It speaks the **OpenAI Chat Completions
+API**, the **Anthropic Messages API** and the **OpenAI Responses API**
+(`/v1/responses`) — auto-detected, or forced with `--api openai|anthropic|responses`.
 
-You point it at a relay endpoint and the model it advertises; zing runs a battery
-of black-box probes, compares the observed behavior against a bundled knowledge
-base of **85 native model profiles across 7 platforms**, and prints a clear,
-evidence-backed verdict — for a human, or as JSON for another tool / LLM to read.
+You point it at a relay endpoint and the model it claims to serve; zing runs a
+battery of black-box probes, compares what it observes with a bundled knowledge
+base of **98 model profiles from 7 providers**, and gives a clear, evidence-backed
+verdict — on the command line, in a local web UI, or as JSON for another tool or
+LLM.
 
 > zing reports **black-box evidence of divergence and risk, not cryptographic
 > proof of fraud.** See [Responsible use](#responsible-use).
 
+This README is for people who **use** zing. How zing is built, tested and
+released is in the [Developer guide](DEVELOPER_GUIDE.md); how every check works
+and is scored is in the [Methodology](docs/METHODOLOGY.md).
+
 ---
+
+## Contents
+
+- [Why](#why)
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Web UI (`zing serve`)](#web-ui-zing-serve)
+- [What it checks](#what-it-checks)
+- [How the verdict is reached](#how-the-verdict-is-reached)
+- [Suites](#suites)
+- [Performance](#performance)
+- [Compare mode and the LLM judge](#compare-mode-and-the-llm-judge)
+- [Monitoring](#monitoring)
+- [Embedding, rerank, image and audio audits](#embedding-rerank-image-and-audio-audits)
+- [Use in CI (GitHub Action)](#use-in-ci-github-action)
+- [Knowledge base](#knowledge-base)
+- [Reports](#reports)
+- [Privacy and local data](#privacy-and-local-data)
+- [Responsible use](#responsible-use)
+- [Further documentation](#further-documentation)
+- [License](#license)
 
 ## Why
 
@@ -32,7 +58,7 @@ honest. Some are not — and the dishonest ones are hard to catch by eye:
 - The relay advertises a 1M-token context but silently truncates to 32K.
 - "Streaming" is the full response buffered and re-chunked, with no latency win.
 - Reported `usage` tokens are inflated, so your balance burns faster than it should.
-- A model that should support tool-calling / JSON mode quietly doesn't.
+- A model that should support tool calling / JSON mode quietly doesn't.
 
 zing turns "this feels off" into a reproducible report.
 
@@ -72,8 +98,6 @@ source .venv/bin/activate       # Windows: .venv\Scripts\activate
 You can also install straight from the Git repository without cloning:
 `uv tool install git+https://github.com/cenbonew/zing`.
 
-(Maintainers: see [docs/PUBLISHING.md](docs/PUBLISHING.md) for the release process.)
-
 ### Optional extras
 
 - `tokenizers` — accurate OpenAI-family token counting in the billing audit.
@@ -88,6 +112,20 @@ pip install -e '.[tokenizers,web,pdf]'            # pip, from source
 uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, from PyPI
 uv pip install -e '.[tokenizers,web,pdf]'         # uv, from source
 ```
+
+### With Docker (web UI only)
+
+From a source checkout:
+
+```bash
+docker build -t zing .
+docker run --rm -p 127.0.0.1:8000:8000 -v zing-data:/data zing
+# open http://localhost:8000
+```
+
+Always publish the port to `127.0.0.1` as shown. Details and environment
+variables: [Developer guide → Docker](DEVELOPER_GUIDE.md#docker) and
+[docs/DOCKER.md](docs/DOCKER.md).
 
 ## Quick start
 
@@ -107,8 +145,8 @@ zing compare \
   --baseline-base-url https://api.openai.com/v1 --baseline-api-key env:OPENAI_API_KEY --baseline-model gpt-4o \
   --suite deep
 
-# 3) audit an Anthropic-native (Messages API) relay — protocol is auto-detected
-#    from the base_url/model, or force it with --api anthropic
+# 3) audit an Anthropic-native (Messages API) relay — the protocol is auto-detected
+#    from the base_url/model, or forced with --api anthropic
 zing check --base-url https://relay.example.com/v1 --model claude-opus-4-8 \
   --api-key env:ZING_API_KEY --api anthropic
 
@@ -117,14 +155,21 @@ zing check --base-url https://relay.example.com/v1 --model claude-opus-4-8 \
 zing check --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
   --model doubao-seed-2-0-lite --claimed-model deepseek-v4-flash
 
-# 5) inspect the bundled knowledge base
-zing kb            # all 85 models
+# 5) list the models an endpoint advertises
+zing models --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY
+
+# 6) inspect the knowledge base
+zing kb            # every profile, with its source
 zing kb deepseek   # one provider
 
-# 6) generate a config you can commit
+# 7) generate a config you can commit
 zing init          # writes zing.yaml
 zing check -c zing.yaml
 ```
+
+API keys can be given literally, as `env:VAR` or as `file:/path`; reports only
+ever contain a fingerprint of the key. A full config file is in
+[`examples/zing.yaml`](examples/zing.yaml).
 
 ### As a tool for an LLM / agent
 
@@ -141,11 +186,12 @@ zing check --base-url ... --model gpt-4o --json
 # budget first: which detectors run + estimated API calls, WITHOUT making any
 zing check --base-url ... --model gpt-4o --suite deep --dry-run --json
 
-# gate on the exit code (1 if risk >= medium); config/usage errors exit 2 as JSON
+# gate on the exit code (1 if risk >= medium, or the score is below --fail-under);
+# config/usage errors exit 2, as JSON
 zing check --base-url ... --model gpt-4o --compact --fail-on-risk medium
 
 # machine-readable discovery
-zing kb --json                 # the whole knowledge base
+zing kb --json                      # the whole knowledge base
 zing models --base-url ... --json   # what an endpoint advertises
 ```
 
@@ -158,78 +204,167 @@ Prefer point-and-click? A local web UI wraps the same engine — no CLI needed.
 
 ```bash
 pip install 'zing-audit[web]'     # or: uv tool install 'zing-audit[web]'
-zing serve            # opens http://localhost:8000
+zing serve                        # opens http://localhost:8000
 ```
 
-Enter a relay and the model it claims; watch the audit stream **live** (per-detector
-progress over SSE), then read a shareable verdict report (grade, per-dimension
-breakdown, plain-language findings, downloadable JSON). It runs entirely on your
-machine — a key typed in the browser reaches only your local server and the target
-relay, never a third party. The server only listens on loopback (`127.0.0.1`, `::1`,
-`localhost`) and answers only to those host names, and it refuses cross-site requests —
-it has no login because nothing outside your machine can reach it. To run it in Docker,
-see [docs/DOCKER.md](docs/DOCKER.md) (`docker run -p 127.0.0.1:8000:8000 -v zing-data:/data zing`).
+Enter the **Relay URL**, the **API key** and the model; optionally a **Claimed
+model** (if the relay sells it under another name), a **Declared provider** and a
+trusted baseline (**Compare against a trusted baseline**). **Fetch models** lists
+what the relay advertises, and picking one fills in the model and its provider.
+Then **Start audit** and watch the checks run **live**: every check shows its
+score and how long it took, and a check with findings expands to show the
+evidence. The result is a shareable verdict report: grade, the per-dimension
+checks with their scoring scales, plain-language findings and the performance
+section (in the new UI also an **Execution log** of every detector).
+
+Everything runs on your machine: a key typed in the browser reaches only your
+local zing server and the relay you audit, never a third party. See
+[Privacy and local data](#privacy-and-local-data).
+
+### Pages
+
+The web UI comes in two versions that share the same server and data. The
+**classic UI** opens at `/`; its **Try the new UI** link switches to the **new
+UI** under `/v2/`, and the new UI's **Classic UI** link switches back. The
+choice is remembered per browser.
+
+| Page | Classic UI | New UI | What it is for |
+|---|---|---|---|
+| **Audit** | `/` | `/v2/` | Audit a relay (optionally against a baseline) and read the report |
+| **Console** | `/console` | — | The same audit as a compact, log-style console |
+| **Tools** | `/tools` | `/v2/tools` | Embedding and rerank audits |
+| **History** | `/history` | `/v2/history` | Every audit run on this machine, grouped by relay + claimed model, with trends |
+| **Monitors** | `/watches` | `/v2/watches` | Scheduled re-audits with webhook alerts |
+| **Models** | — | `/v2/kb` | Browse the knowledge base and add your own model profiles |
+
+The new UI adds: filters and configurable trends (score, grade, latency p50,
+tokens/s) on **History**; **Schedule as monitor** on every History run; **Download
+report** in every format; a theme switch (Auto theme / Light / Dark); and the
+**Models** page.
+
+### Languages
 
 A language dropdown in the header of every page switches the UI between
-**🇬🇧 English** (default), **🇨🇳 Chinese** (the original UI), **🇫🇷 French**, **🇪🇸 Spanish**,
-**🇵🇹 Portuguese**, **🇮🇹 Italian** and **🇩🇪 German**; the choice is remembered per browser.
-Reports downloaded from the UI (**Download report**: JSON, Markdown, HTML or PDF) follow
-the selected language too: the JSON keys, enum values (`risk_level`, `status`, `severity`, …), ids and evidence
-stay exactly as in the CLI's report (the JSON is still a valid zing report), while the
-human-readable values (verdict headline/summary, finding titles/summaries,
-recommendations, detector names, notes) are translated, and the file name carries the
-language (`zing-report.de.json`, `zing-report.de.pdf`). The section headings of the
-Markdown/HTML/PDF files are English. The CLI's own `--format json|md|html|pdf` reports stay
-English.
+**🇬🇧 English** (default), **🇨🇳 Chinese** (the original UI), **🇫🇷 French**,
+**🇪🇸 Spanish**, **🇵🇹 Portuguese**, **🇮🇹 Italian** and **🇩🇪 German**; the choice
+is remembered per browser.
 
-**Prompts sent to the audited endpoint do not follow the UI language.** Every text zing
-sends to an LLM API — chat probes, the LLM judge's prompt, tool schemas, embedding /
-rerank / image / audio inputs — lives in one prompt library, `zing/prompts/en.json`, and
-is English, so the same relay gets the same verdict whoever reads the report (answer
-checks and token estimates are calibrated to these exact texts). The only exceptions are
-knowledge-base fingerprints whose language *is* the measurement — e.g. the Chinese
-fluency, tokenizer and self-identification probes of China-native models — which declare
-`prompt_lang` and a `language_bound` reason in `zing/knowledge/data/*.yaml`. Each report
-records the probe languages it actually used (`prompt_languages`, e.g. `["en", "zh"]`).
+Reports downloaded from the UI (**Download report**: JSON, Markdown, HTML or PDF)
+follow the selected language: the JSON keys, enum values (`risk_level`,
+`status`, `severity`, …), ids and evidence stay exactly as in the CLI's report
+(the JSON is still a valid zing report), while the human-readable values
+(verdict headline and summary, finding titles and summaries, recommendations,
+detector names, notes) are translated, and the file name carries the language
+(`zing-report.de.json`, `zing-report.de.pdf`). The section headings of the
+Markdown/HTML/PDF files are English. The CLI's own `--format json|md|html|pdf`
+reports stay English.
 
-The translations are data, shared by the web UI and the webhook alerts:
-`zing/i18n/locales/<code>.json`, one file per language. To add a language, add one file
-(copy `de.json`); the dropdown, the pages and the alerts pick it up.
-`tests/test_web_locales.py` fails until every UI string and finding is translated with
-its placeholders and markup intact.
+**Prompts sent to the audited endpoint do not follow the UI language.** Every
+text zing sends to an LLM API is English, so the same relay gets the same
+verdict whoever reads the report (answer checks and token estimates are
+calibrated to these exact texts). The only exceptions are knowledge-base
+fingerprints whose language *is* the measurement — for example the Chinese
+fluency, tokenizer and self-identification probes of China-native models. Each
+report records the probe languages it actually used (`prompt_languages`, e.g.
+`["en", "zh"]`).
 
 ## What it checks
 
-zing scores ten dimensions. The three that most directly reveal a bait-and-switch
-(model identity, real context window, capability claims) carry the most weight.
+zing scores ten dimensions. The three **core dimensions** — model identity,
+context window and capability claims — most directly reveal a bait-and-switch
+and carry the most weight. The names are the ones the web UI and reports use.
 
-| Dimension | What it catches |
-|---|---|
-| **model_identity** | Silent model downgrade/substitution — self-identification, knowledge-cutoff, tokenizer fingerprints, the echoed `model` field |
-| **context_window** | Silent context truncation (claim 1M, recall fails at 32K) and lost-in-the-middle from cheap RAG/summarization shims, via needle-in-a-haystack + binary search |
-| **capability** | Tool-calling / JSON-mode / json-schema / max-output claims that aren't actually delivered (or *over*-delivered, hinting at a substitute); and **vision** — a model claiming image input is sent a known-answer generated image to confirm it actually "sees" |
-| **billing** | Token/usage inflation and missing/unverifiable usage accounting, via an independent tokenizer estimate |
-| **streaming** | Fake streaming (buffer-then-chunk) detected from chunk count and inter-chunk timing |
-| **protocol** | OpenAI-compatibility conformance: multi-turn, stop sequences, response shape, error schema — and a determinism sub-check for response caching that ignores temperature/seed |
-| **reliability** | Concurrent success rate and latency (HTTP 429 throttling bucketed separately) |
-| **performance** | How *consistent* latency, time to first token and throughput are, the probe's failure rate, and the slowdown under concurrent load; speed itself is checked only against a reference (see below) |
-| **connectivity** | Endpoint reachability and the advertised `/v1/models` list |
-| **security** | Transport (HTTPS), header hygiene, secret echo; hidden injected system prompt (fixed input-token overhead + leak), in-flight response/tool-call tampering via known-answer canaries (URL/package substitution), and prompt-prefix caching (timing) |
+| Dimension | Id | Weight | What it catches |
+|---|---|---|---|
+| **Model identity** | `model_identity` | 21 | Silent model downgrade or substitution — self-identification, knowledge cutoff, tokenizer fingerprints, the echoed `model` field; optionally an LLM judge |
+| **Context window** | `context_window` | 19 | Silent context truncation (claims 1M, recall fails at 32K) and lost-in-the-middle from cheap RAG/summarization shims, via needle-in-a-haystack and binary search |
+| **Capability claims** | `capability` | 13 | Tool calling / JSON mode / JSON schema / max-output claims that aren't delivered (or are *over*-delivered, hinting at a substitute); **vision** — a model claiming image input must read a generated known-answer image |
+| **Protocol compliance** | `protocol` | 8 | Wire conformance: multi-turn, stop sequences, error schema; every request parameter accepted (and honored where visible), every response attribute present; response caching that ignores temperature/seed |
+| **Billing & usage** | `billing` | 8 | Token/usage inflation and missing or unverifiable usage accounting, via an independent tokenizer estimate |
+| **Connectivity** | `connectivity` | 7 | Endpoint reachability and the advertised `/v1/models` list |
+| **Streaming authenticity** | `streaming` | 6 | Fake streaming (buffer-then-chunk), from chunk count and inter-chunk timing |
+| **Concurrency reliability** | `reliability` | 6 | Success rate and latency under concurrent load (HTTP 429 throttling counted separately) |
+| **Transport security** | `security` | 6 | HTTPS, header hygiene, secret echo; a hidden injected system prompt; in-flight tampering of answers and tool calls (known-answer canaries); prompt-prefix caching (timing) |
+| **Performance** | `performance` | 6 | How *consistent* latency, time to first token and throughput are, the failure rate and the slowdown under load; speed only against a reference (see [Performance](#performance)) |
 
-See [docs/METHODOLOGY.md](docs/METHODOLOGY.md) for the technique behind each check,
-which relay trick it maps to, and its false-positive caveats.
+The [Methodology](docs/METHODOLOGY.md) describes every probe, which relay trick
+it maps to, its scoring scale and its false-positive caveats.
 
-### Performance
+## How the verdict is reached
 
-Every report also carries a **performance** section: latency, time to first token
+In short (the [Methodology](docs/METHODOLOGY.md#how-zing-scores) has the details):
+
+- Every detector publishes its **scoring scale** — each possible outcome of each
+  check with its points — and the web UI shows it under **Scoring scale**.
+- A **dimension score** is the equal-weight mean of its detectors' scores. A
+  HIGH/CRITICAL finding forces **Fail** and a MEDIUM finding lifts **Pass** to
+  **Warning**, whatever the score. Reports explain this per dimension under
+  **Dimension details**; in the web UI each row of **Per-dimension checks**
+  expands into the same details.
+- The **overall health score** is the weighted mean of the dimensions that ran
+  (weights above), rated A (≥ 90), B (≥ 80), C (≥ 70), D (≥ 60) or F.
+- The **risk verdict** is driven by finding severity, not by the score:
+
+| Risk | Label in the UI | When |
+|---|---|---|
+| `inconclusive` | Insufficient signal | No core dimension produced a usable result (relay unreachable, model not in the knowledge base, or a `custom` run without a core dimension) |
+| `high` | Bait-and-switch | A CRITICAL finding, a HIGH/CRITICAL finding in a core dimension, or two or more HIGH findings |
+| `medium` | Deviations found | Exactly one HIGH finding outside the core dimensions, or a MEDIUM finding in a core dimension |
+| `low` | Mostly trustworthy | Any other MEDIUM finding |
+| `clean` | Consistent (likely genuine) | None of the above |
+
+Findings of the connectivity dimension never raise the risk: a relay that is down
+or throttled could not be assessed, which is not evidence of a different model.
+The verdict's **confidence** (low / medium / high) grows with the number of core
+dimensions that produced a result, a baseline and the LLM judge.
+
+## Suites
+
+| Suite | Detectors | Cost |
+|---|---|---|
+| `smoke` | connectivity, security | very low |
+| `standard` | + protocol, protocol_request, protocol_response, model_identity, capability, streaming, billing, reliability | low–medium |
+| `deep` | + context_window, determinism, vision, injected_prompt, integrity, prompt_cache, performance, quality_judge (with `--judge`) | higher (long-context and timing probes cost tokens) |
+| `full` | the detectors of `deep`, with performance measured both streaming and non-streaming | highest |
+| `custom` | only the dimensions you pick, at `deep` depth | depends on the selection |
+
+The context-window probe is bounded by `--max-context-tokens` (default 200K) so
+auditing a 1M-token model stays affordable. `--only` / `--skip` run or leave out
+single detectors by id.
+
+### Custom suite
+
+Run just the dimensions you care about, which saves time and tokens. Every
+detector of each selected dimension runs, as on `deep`:
+
+```bash
+zing check --base-url ... --model gpt-4o -D protocol -D performance
+zing check --base-url ... --model gpt-4o --suite custom --dimension billing,streaming
+```
+
+`--dimension/-D` is repeatable or comma-separated and implies `--suite custom`;
+in a config file use `run.dimensions: [protocol, performance]`. The dimensions
+are `connectivity`, `protocol`, `context_window`, `model_identity`, `capability`,
+`streaming`, `billing`, `reliability`, `security` and `performance`. In the web
+UI, the `custom` suite button opens the same choice (**Dimensions to run**) on
+the audit page, the console and the monitors.
+
+The **overall score is the weighted mean of the selected dimensions only**;
+dimensions you left out are reported as "not selected". The risk verdict needs
+at least one core dimension (model identity, context window, capability claims):
+without one, it is *inconclusive*.
+
+## Performance
+
+Every report carries a **performance** section: latency, time to first token
 (TTFT), decode and end-to-end tokens/s, inter-chunk latency and jitter,
 error/timeout/429 rates, a network breakdown (TCP connect, TLS, a `GET /models`
 round trip, server time) and cold start, each as count / min / mean / p50 / p75 /
 p90 / p95 / p99 / max / stdev.
 
-When the dedicated probe runs, it scores the **performance dimension** (weight 6).
-The score is about **consistency**, not raw speed, so a slow but steady endpoint
-(a local or self-hosted model) is not marked down for not being a data centre:
+When the dedicated probe runs, it scores the **Performance** dimension. The score
+is about **consistency**, not raw speed, so a slow but steady endpoint (a local
+or self-hosted model) is not marked down for not being a data centre:
 
 | Check | Scored on |
 |---|---|
@@ -241,48 +376,57 @@ The score is about **consistency**, not raw speed, so a slow but steady endpoint
 | reference | tokens/s against the trusted baseline, or else the knowledge base's published range for the model: in line 100 · slower 80 (informational, never a failure) · ≥ 2x faster 60 (hints at a smaller model) · no reference: not counted |
 
 Performance findings are at most low severity: they move the score, never the
-risk verdict. Without the probe (standard without a baseline, smoke), the
-dimension is not run and drops out of the overall score.
+risk verdict. Without the probe (`standard` without a baseline, `smoke`), the
+dimension does not run and drops out of the overall score.
 
-- **standard** collects it from the audit's own requests.
-- **deep / full** add a dedicated probe: 100 uncacheable requests of 128 output
-  tokens (a random request id opens every prompt, no cache or reasoning
-  parameters are sent) plus a burst at `--concurrency`. Tune with
+- **standard** collects the section from the audit's own requests.
+- **deep / full / custom** add a dedicated probe: 100 uncacheable requests of 128
+  output tokens (a random request id opens every prompt; no cache or reasoning
+  parameters are sent) plus a burst at `--concurrency`. Tune it with
   `--performance-requests` (0 disables) and `--performance-max-tokens`.
-- The probe streams by default; `--performance-non-streaming` (or the switch in
-  the web UI) measures relays that cannot stream. **full** measures both modes,
-  interleaved, and reports them side by side.
+- The probe streams by default; `--performance-non-streaming` (or the
+  **Streaming / Non-streaming** switch in the web UI) measures relays that cannot
+  stream. **full** measures both modes, interleaved, and reports them side by side.
 - **compare** runs the probe on both endpoints, alternating requests, and adds a
   target-vs-baseline table (5 requests per side on `standard`, too few for the
   consistency checks) whose differences are marked green ✓ where the target is
   better and red ✗ where it is worse.
 
-Tokens are counted twice: from the relay's `usage` and locally, so throughput is
-measurable even when `usage` is missing. A percentile is shown only with enough
-samples (p90 from 10, p95 from 20, p99 from 100). The JSON report keeps every
-request's timings (numbers only, no text); the HTML report and the web UI chart
-them over the audit's timeline.
+Tokens are counted twice — from the relay's `usage` and locally — so throughput
+is measurable even when `usage` is missing. A percentile is shown only with
+enough samples (p90 from 10, p95 from 20, p99 from 100). The JSON report keeps
+every request's timings (numbers only, no text); the HTML report and the web UI
+chart them over the audit's timeline.
 
-## Two detection modes
+## Compare mode and the LLM judge
 
-- **Pure code (default):** every deterministic probe — fingerprints, context
-  sweep, billing math, streaming timing. No second model needed; fully
-  reproducible.
-- **Code + LLM hybrid (`--judge`):** additionally consults a *trusted* judge
-  model (configured separately, never the target) to assess fuzzy signals like
-  quality and reasoning depth that pure code can't decide. Powers the
-  `quality_judge` detector.
+zing has two detection modes:
+
+- **Pure code (default):** every detector except `quality_judge` decides by
+  deterministic code — fingerprints, the context sweep, billing arithmetic,
+  streaming timing. No second model is needed; results are reproducible.
+- **Code + LLM hybrid (`--judge`):** additionally asks a *trusted* judge model
+  (configured separately, never the target) whether the target's answers read
+  like the claimed model — fuzzy signals such as quality and reasoning depth that
+  pure code can't decide. This is the `quality_judge` detector.
 
 ```bash
 zing check --base-url ... --model gpt-4o --suite deep --judge \
   --judge-base-url https://api.openai.com/v1 --judge-api-key env:OPENAI_API_KEY --judge-model gpt-4o-mini
 ```
 
-## Monitoring (`zing watch`)
+**Compare mode** (`zing compare`, or **Compare against a trusted baseline** in
+the web UI) runs the same probes against a trusted baseline of the claimed model
+at the same time. It is the strongest confirmation path: identity answers,
+rejected request parameters, tampering canaries and performance are all judged
+side by side, and only a baseline lets the verdict's confidence reach *high*.
+Without `--judge-base-url`, compare mode uses the baseline as the judge.
+
+## Monitoring
 
 Relays can serve the real model today and quietly swap it next week. `zing watch`
-re-audits on a schedule, records each run to history, and alerts a webhook when the
-risk crosses a threshold or **regresses** versus the previous run.
+re-audits on a schedule, records each run to the history, and alerts a webhook
+when the risk crosses a threshold or **regresses** versus the previous run.
 
 ```bash
 zing watch --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
@@ -292,79 +436,94 @@ zing watch --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
 ```
 
 Alerts are formatted for **Slack / Feishu / DingTalk / generic JSON**,
-auto-detected from the webhook URL, and written in the alert language — English by
-default; `--alert-lang en|zh|fr|es|pt|it|de`. The generic JSON payload keeps its keys
-and machine values (`risk_level`, `score`, …) language-neutral, translates the
-human-readable ones (`text`, `headline`, `key_findings`) and reports the `language`.
+auto-detected from the webhook URL, and written in the alert language — English
+by default; `--alert-lang en|zh|fr|es|pt|it|de`. The generic JSON payload keeps
+its keys and machine values (`risk_level`, `score`, …) language-neutral,
+translates the human-readable ones (`text`, `headline`, `key_findings`) and
+reports the `language`.
 
-Prefer a UI? `zing serve` has a built-in monitor at **`/watches`** (🔔 Monitors): add a
-watch in the browser and an in-process background scheduler re-runs it on its interval,
-persists every run to history, and fires the same webhook alerts on a threshold cross or
-regression. Each monitor has its own alert language (chosen in the form, defaulting to
-the UI language, and changeable on the monitor's card). Run-now / pause / delete from
-the page. Keys are stored only in `~/.zing` and
-never returned to the browser.
+**In the web UI**, `zing serve` runs the same monitors in a background scheduler
+inside the server process, stores every run in **History** and sends the same
+webhook alerts:
 
-## Embedding & rerank audits
+- **New UI:** open a run in **History** and choose **Schedule as monitor**. zing
+  copies that run's configuration (relay, model, claimed model, provider, suite,
+  custom dimensions) into a paused monitor on the **Monitors** page; set its
+  interval and API key there (History never stores keys) and switch it on.
+  Interval, key, **Alert threshold**, webhooks and **Alert language** can be
+  edited in place on each monitor.
+- **Classic UI:** fill in the form on the **Monitors** page and **Add monitor**.
 
-Embeddings and rerank are a non-chat surface, so zing audits them with a focused
-standalone auditor instead of the 9-dimension chat pipeline.
+Each monitor has its own alert language (defaulting to the UI language), can be
+run now, paused or deleted, and pins the knowledge-base profile it was created
+with until you re-pin it. Keys are stored only in your local data directory and
+are never sent back to the browser.
+
+## Embedding, rerank, image and audio audits
+
+These endpoints return vectors, rankings, images or audio instead of chat, so
+zing audits them with focused, standalone auditors instead of the ten-dimension
+chat pipeline. Each prints a verdict and supports `--json` and `--fail-on-risk`.
+
+### Embeddings and rerank
 
 ```bash
-# Expected vector dimension is resolved from the bundled KB for the claimed model.
+# The expected vector dimension is resolved from the knowledge base for the claimed model.
 zing embed --base-url https://relay.example.com/v1 \
            --model text-embedding-3-large --claimed-model text-embedding-3-large --fail-on-risk high
 
-# Or override the expected dimension directly:
+# Or give the expected dimension directly:
 zing embed --base-url ... --model my-embed --claimed-dimensions 1024 --json
 
 # Rerank: a built-in known-answer probe — a genuine reranker must rank the
-# obviously-relevant document first.
+# obviously relevant document first.
 zing rerank --base-url https://relay.example.com/v1 --model my-rerank
 ```
 
-`embed` checks connectivity, **dimension match** (returned vector length vs the claimed
-model's native dimension — the headline bait-and-switch signal; a relay claiming 3072-d
-`text-embedding-3-large` but returning 1024-d is a substituted model), determinism (same
-input → cosine ≈ 1), distinctness (unrelated inputs → cosine well below 1), and the
-echoed `model` field. Bundled KB profiles: OpenAI `text-embedding-3-small` (1536),
-`text-embedding-3-large` (3072), `text-embedding-ada-002` (1536), Qwen
-`text-embedding-v3`/`-v4` (1024).
+`embed` checks connectivity, **dimension match** (the returned vector length
+against the claimed model's native dimension — the headline bait-and-switch
+signal: a relay claiming 3072-d `text-embedding-3-large` but returning 1024-d
+serves a substitute), determinism (same input → cosine ≈ 1), distinctness
+(unrelated inputs → cosine well below 1) and the echoed `model` field. Bundled
+profiles: OpenAI `text-embedding-3-small` (1536), `text-embedding-3-large`
+(3072), `text-embedding-ada-002` (1536), Qwen `text-embedding-v3`/`-v4` (1024).
 
-Both also live in the web UI — `zing serve` has a **Tools** page at `/tools`
-(linked from the nav) with embed/rerank forms that render the same localized verdict.
+Both are also on the web UI's **Tools** page (**Embedding audit**, **Rerank
+audit**), where the rerank probe can be replaced by your own query and documents.
 
-## Image & audio (TTS) generation audits
+### Image and audio (TTS) generation
 
-Two more non-chat surfaces: image generation (`POST /v1/images/generations`) and
-text-to-speech (`POST /v1/audio/speech`). All decoding is pure stdlib — image
-dimensions from header bytes (PNG/JPEG/GIF/WebP), WAV duration via the `wave` module.
+Image generation (`POST /v1/images/generations`) and text-to-speech
+(`POST /v1/audio/speech`), decoded with the Python standard library only — image
+dimensions from the header bytes (PNG/JPEG/GIF/WebP), WAV duration via `wave`.
 
 ```bash
 # Does a relay claiming DALL·E 3 actually return the requested 1792x1024? A
-# downscaled / wrong-size image (or a size outside the claimed model's native sizes,
-# resolved from the KB) is the headline bait-and-switch signal.
+# downscaled or wrong-size image (or a size outside the claimed model's native
+# sizes, from the knowledge base) is the headline bait-and-switch signal.
 zing image --base-url https://relay.example.com/v1 --api-key env:RELAY_KEY \
   --model dall-e-3 --claimed-model dall-e-3 --size 1792x1024 --fail-on-risk high
 
-# Does a relay claiming tts-1-hd return real audio whose length scales with the input
-# (not a fixed placeholder, not HTML/JSON masquerading as audio)?
+# Does a relay claiming tts-1-hd return real audio whose length scales with the
+# input (not a fixed placeholder, not HTML/JSON masquerading as audio)?
 zing audio --base-url https://relay.example.com/v1 --api-key env:RELAY_KEY \
   --model tts-1-hd --voice alloy --format wav --save clip.wav
 ```
 
-`image` checks: connectivity, valid/decodable format, **size match** (decoded WxH vs the
-request and the claimed model's native sizes — FAIL/HIGH on mismatch), distinctness (two
-prompts → different images, catching a fixed placeholder), count, model field. `audio`
-checks: connectivity, container/format validity, format honored, non-trivial duration
-(scales with input length), distinctness, model field. KB ships OpenAI DALL·E 2/3,
-gpt-image-1, tts-1/tts-1-hd/gpt-4o-mini-tts, and Qwen image/TTS profiles.
+`image` checks connectivity, a valid and decodable format, **size match**
+(decoded width × height against the request and the claimed model's native
+sizes — FAIL/HIGH on a mismatch), distinctness (two prompts → different images,
+catching a fixed placeholder), count and the `model` field. `audio` checks
+connectivity, container/format validity, that the format is honored, a
+non-trivial duration that scales with the input, distinctness and the `model`
+field. The knowledge base ships OpenAI DALL·E 2/3, gpt-image-1,
+tts-1/tts-1-hd/gpt-4o-mini-tts and Qwen image/TTS profiles.
 
 ## Use in CI (GitHub Action)
 
 Gate any workflow on a relay audit with the bundled composite action. It runs
-`zing check --compact --fail-on-risk`, exposes `risk` / `score` / `rating` as outputs,
-writes a summary to the run, and fails the job when the risk gate trips.
+`zing check --compact --fail-on-risk`, exposes `risk` / `score` / `rating` as
+outputs, writes a summary to the run and fails the job when the risk gate trips.
 
 ```yaml
 jobs:
@@ -372,7 +531,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: zing
-        uses: cenbonew/zing@v0.9.0          # pin to a release tag
+        uses: cenbonew/zing@v0.11.0         # pin to a release tag
         with:
           base-url: https://relay.example.com/v1
           api-key: ${{ secrets.RELAY_API_KEY }}   # caller secret; never echoed
@@ -381,46 +540,49 @@ jobs:
       - run: echo "risk=${{ steps.zing.outputs.risk }} score=${{ steps.zing.outputs.score }}"
 ```
 
-The relay key is forwarded via an environment variable (`--api-key env:…`), so it never
-appears on a command line. See [docs/CI.md](docs/CI.md) for the full inputs/outputs table
-and a deploy-gating example.
+The relay key is forwarded through an environment variable (`--api-key env:…`),
+so it never appears on a command line. See [docs/CI.md](docs/CI.md) for every
+input and output and a deploy-gating example.
 
-## Suites
+## Knowledge base
 
-| Suite | Detectors | Cost |
-|---|---|---|
-| `smoke` | connectivity, security | very low |
-| `standard` | + protocol, model_identity, capability, streaming, billing, reliability | low–medium |
-| `deep` | + context_window, determinism, injected_prompt, integrity, performance, prompt_cache, quality_judge (if `--judge`) | higher (long-context & timing probes cost tokens) |
-| `full` | everything | highest |
-| `custom` | only the dimensions you pick, at `deep` depth | depends on the selection |
+zing judges a relay against the **profile** of the model it claims: native
+context window, max output, knowledge cutoff, tokenizer, capability flags,
+identity keywords and behavioral fingerprints. The packaged profiles cover
+OpenAI, Anthropic, Google Gemini, DeepSeek, Qwen, GLM and Moonshot
+(`zing kb` lists them). There are three layers, later ones winning:
 
-The context-window probe is bounded by `--max-context-tokens` (default 200K) so
-auditing a 1M-token model stays affordable.
+1. **Packaged** profiles, one YAML file per provider in
+   [`zing/knowledge/data/`](zing/knowledge/data).
+2. **A directory of your own YAML files**: `--kb-dir ./my-profiles` (repeatable)
+   or `ZING_KB_DIR`.
+3. **Your entries** (`kb.db` in the data directory), added without YAML files
+   or an editable install:
+   - in the web UI's **Models** page (`/v2/kb`): **Add a model** → **Copy the
+     research prompt** into the AI assistant of your choice, upload or paste the
+     YAML it answers with, then **Check and save**. **All profiles** lists every
+     profile with its source; **Which profile does a model id use?** shows how an
+     id resolves; **Your entries** can be exported as YAML;
+   - on the CLI: `zing kb-prompt <model>`, `zing kb-import <file>` (add `--check`
+     to only check it) and `zing kb-export`.
 
-### Custom suite
+Before storing an entry zing checks it: schema and limits, unsafe regular
+expressions, every prompt it would send, and model ids that would resolve to a
+different profile. A model of yours with a packaged id replaces it (reported as
+*shadowing* it), but never changes a packaged provider's own settings;
+fingerprints are merged by id. `zing check` and `zing serve` use exactly the
+same profiles; `--no-user-kb` (or `ZING_NO_USER_KB=1`) leaves your entries out.
 
-Run just the dimensions you care about, which saves time and tokens. Every detector
-of each selected dimension runs, as on `deep`:
+Every report records the profile it audited against (`knowledge`: provider,
+model, how the id matched, its source, and a full snapshot with its content
+hash), so a report stays verifiable after the knowledge base changes.
 
-```bash
-zing check --base-url ... --model gpt-4o -D protocol -D performance
-zing check --base-url ... --model gpt-4o --suite custom --dimension billing,streaming
-```
+## Reports
 
-`--dimension/-D` is repeatable or comma-separated and implies `--suite custom`;
-in a config file use `run.dimensions: [protocol, performance]`. The dimensions
-are `connectivity`, `protocol`, `context_window`, `model_identity`, `capability`,
-`streaming`, `billing`, `reliability`, `security` and `performance`. The web UI
-(start page, console and monitors) has a `custom` suite button with the same
-choice.
-
-The **overall score is the weighted mean of the selected dimensions only**;
-dimensions you left out are reported as "not selected". The substitution risk
-needs at least one core dimension (model identity, context window, capability):
-without one, the verdict is *inconclusive*.
-
-## Example verdict
+`zing check` and `zing compare` print a verdict and write the report to
+`reports/` (`--out-dir`) as JSON, Markdown and HTML, plus PDF when the `pdf`
+extra is installed (`--format all`, the default); `--format json|md|html|pdf`
+writes one format. `--json` and `--compact` print to stdout instead.
 
 ```text
 ╭─ ✗ HIGH RISK — Strong evidence the relay does not deliver the claimed model… ─╮
@@ -435,39 +597,26 @@ without one, the verdict is *inconclusive*.
   • Reported prompt tokens far exceed independent estimate
 ```
 
-Reports are written to `reports/` as JSON, Markdown, and HTML — plus PDF when the `pdf`
-extra is installed (`--format all`, the default); `--format pdf` asks for PDF alone.
+A report contains the verdict (risk, confidence, score, rating), the key
+findings with recommendations, the per-dimension scores and **Dimension
+details**, every detector's findings with evidence, the performance section, the
+knowledge-base profile used and the probe languages. Relay-controlled text is
+redacted and escaped before it is written.
 
-## Knowledge base
+## Privacy and local data
 
-Profiles live in [`zing/knowledge/data/`](zing/knowledge/data) as editable YAML —
-one per provider (OpenAI, Anthropic, Google Gemini, DeepSeek, Qwen, GLM,
-Moonshot). Each model carries its native context window, max output, tokenizer,
-capability flags, identity keywords, and behavioral fingerprints. Add or override
-profiles without forking:
-
-```bash
-zing check --kb-dir ./my-profiles ...     # or set ZING_KB_DIR
-```
-
-**Your own profiles, without YAML files or an editable install.** The web UI's
-**Models** page (`/v2/kb`) lists every profile with its source and lets you add
-models: copy a research prompt into the AI assistant of your choice, upload the
-YAML it answers with, and zing checks it (schema, limits, unsafe regular
-expressions, every prompt it would send, model ids that would resolve
-differently) before storing it in `kb.db` in your data directory. The CLI does
-the same with `zing kb-prompt <model>`, `zing kb-import <file>` and
-`zing kb-export`. Your entries have the highest priority — a model with a
-packaged id replaces it, reported as *shadowing* it — but they never change a
-packaged provider's own settings; fingerprints are merged by id. `zing check`
-and `zing serve` use exactly the same profiles; `--no-user-kb` (or
-`ZING_NO_USER_KB=1`) leaves your entries out.
-
-Every report records which profile it audited against (`knowledge`: provider,
-model, how the id matched, its source file or `kb.db` entry, and a full snapshot
-with its content hash), so a report stays verifiable after the knowledge base
-changes. Monitors pin the profile they were created with and keep auditing
-against that snapshot until you re-pin them.
+- **Local only.** `zing serve` listens on loopback only (`127.0.0.1`, `::1`,
+  `localhost`), answers only to those host names and refuses cross-site
+  requests; it has no login because nothing outside your machine can reach it.
+  zing contacts only the endpoints you configure (target, baseline, judge,
+  webhooks).
+- **Keys.** Reports and history keep only a fingerprint of an API key. The
+  monitors' keys are stored in plain text in your data directory, which is why
+  it is owner-only.
+- **Data directory.** `~/.zing` (or `ZING_DATA_DIR`), created `0700` with `0600`
+  files: `history.db` (audit history), `watches.db` (monitors, including their
+  keys) and `kb.db` (your knowledge-base entries). Delete the directory to
+  remove everything.
 
 ## Responsible use
 
@@ -478,8 +627,19 @@ zing is a black-box auditing aid. It **cannot prove**:
 - billing fraud beyond what independent token estimation can suggest.
 
 Use reports for your own due diligence. **Do not publicly accuse a vendor** based
-on a single run without reviewing sample size, cost settings, and local law. Run
+on a single run without reviewing sample size, cost settings and local law. Run
 `zing compare` against a trusted baseline before drawing strong conclusions.
+
+## Further documentation
+
+| Document | For |
+|---|---|
+| [Methodology](docs/METHODOLOGY.md) | How every check works, its scoring scale and its caveats |
+| [Developer guide](DEVELOPER_GUIDE.md) | Architecture, development setup, contributing, translations, Docker, releases |
+| [docs/CI.md](docs/CI.md) | The GitHub Action: inputs, outputs, examples |
+| [docs/DOCKER.md](docs/DOCKER.md) | Running the web UI in a container |
+| [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
+| [SECURITY.md](SECURITY.md) | Reporting a vulnerability |
 
 ## License
 

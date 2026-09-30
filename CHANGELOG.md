@@ -6,6 +6,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Documentation
+
+- **READMEs split into user and developer documentation, in all seven
+  languages.** Each `README.<lang>.md` now covers only using zing (install,
+  CLI, web UI pages of the classic and the new UI, checks, verdict, suites,
+  performance, monitoring, non-chat audits, CI, knowledge base, reports,
+  privacy) and opens with a table of contents; a new
+  `DEVELOPER_GUIDE.<lang>.md` covers architecture, development setup,
+  contributing, translations, tests, Docker, CI and releases.
+  `CONTRIBUTING.md` now points to the developer guide. The texts were brought
+  up to date (98 profiles, the new UI's pages, the `custom` suite, the user
+  knowledge base) and use the web UI's and the Methodology's wording in each
+  language. `docs/CI.md` pins `v0.11.0` and lists the `responses` protocol.
+
 ### Removed
 
 - **The v2 console page** (`/v2/console`) — it was one more view to maintain.

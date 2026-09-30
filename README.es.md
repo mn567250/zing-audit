@@ -1,4 +1,4 @@
-# zing — prueba de realidad para relays de LLM
+# zing — verificación de la realidad de los relays de LLM
 
 > [🇬🇧 English](README.md) · [🇨🇳 中文](README.zh-CN.md) · [🇫🇷 Français](README.fr.md) · **🇪🇸 Español** · [🇵🇹 Português](README.pt.md) · [🇮🇹 Italiano](README.it.md) · [🇩🇪 Deutsch](README.de.md)
 
@@ -6,30 +6,55 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
-**zing** es una herramienta de línea de comandos local-first que audita si un relay de
-API (revendedor / proxy) sirve realmente el modelo que anuncia — o si lo sustituye en
-silencio por uno más barato, recorta tu ventana de contexto, simula el streaming o infla
-la facturación de tokens. En resumen: ¿recibes lo que pagas? Habla **OpenAI Chat
-Completions**, la **API Anthropic Messages** y la **API OpenAI Responses**
-(`/v1/responses`) — con detección automática, o forzado con
+**zing** es una herramienta local-first que audita si un relay de API
+(revendedor / proxy) sirve realmente el modelo que declara — o si lo sustituye en
+silencio por uno más barato, recorta tu ventana de contexto, simula el streaming
+o infla la facturación de tokens. En resumen: ¿recibes lo que pagas? Habla la
+**API OpenAI Chat Completions**, la **API Anthropic Messages** y la **API OpenAI
+Responses** (`/v1/responses`) — con detección automática, o forzada con
 `--api openai|anthropic|responses`.
 
-Le indicas el endpoint de un relay y el modelo que anuncia; zing ejecuta una batería de
-sondas de caja negra, compara el comportamiento observado con una base de conocimiento
-integrada de **85 perfiles de modelos nativos en 7 plataformas** e imprime un veredicto
-claro y respaldado por evidencias — para una persona, o en JSON para que otra
-herramienta / LLM lo lea.
+Le indicas el endpoint de un relay y el modelo que dice servir; zing ejecuta una
+batería de sondas de caja negra, compara el comportamiento observado con una
+base de conocimiento integrada de **98 perfiles de modelos de 7 proveedores** y
+da un veredicto claro y respaldado por evidencia — en la línea de comandos, en
+una interfaz web local o en JSON para otra herramienta o LLM.
 
-> zing aporta **evidencia de caja negra de divergencias y riesgos, no una prueba
+> zing aporta **evidencia de caja negra de desviaciones y riesgos, no una prueba
 > criptográfica de fraude.** Consulta [Uso responsable](#uso-responsable).
+
+Este README es para quienes **usan** zing. Cómo se construye, se prueba y se
+publica zing está en la [Guía para desarrolladores](DEVELOPER_GUIDE.es.md); cómo
+funciona y se puntúa cada comprobación, en la [Metodología](docs/METHODOLOGY.es.md).
 
 ---
 
+## Contenido
+
+- [Por qué](#por-qué)
+- [Instalación](#instalación)
+- [Inicio rápido](#inicio-rápido)
+- [Interfaz web (`zing serve`)](#interfaz-web-zing-serve)
+- [Qué comprueba](#qué-comprueba)
+- [Cómo se llega al veredicto](#cómo-se-llega-al-veredicto)
+- [Suites](#suites)
+- [Rendimiento](#rendimiento)
+- [Modo comparación y juez LLM](#modo-comparación-y-juez-llm)
+- [Monitorización](#monitorización)
+- [Auditorías de embeddings, rerank, imagen y audio](#auditorías-de-embeddings-rerank-imagen-y-audio)
+- [Uso en CI (GitHub Action)](#uso-en-ci-github-action)
+- [Base de conocimiento](#base-de-conocimiento)
+- [Informes](#informes)
+- [Privacidad y datos locales](#privacidad-y-datos-locales)
+- [Uso responsable](#uso-responsable)
+- [Más documentación](#más-documentación)
+- [Licencia](#licencia)
+
 ## Por qué
 
-El mercado de claves de relay está lleno de ofertas de «GPT-4o a una décima parte del
-precio». Muchas son honestas. Otras no — y las deshonestas son difíciles de detectar a
-simple vista:
+El mercado de claves de relay está lleno de ofertas de «GPT-4o a una décima parte
+del precio». Muchas son honestas. Otras no — y las deshonestas son difíciles de
+detectar a simple vista:
 
 - Pides `gpt-4o`; en silencio te sirven `gpt-4o-mini` o un modelo abierto.
 - El relay anuncia un contexto de 1M de tokens pero lo recorta en silencio a 32K.
@@ -41,7 +66,7 @@ zing convierte «aquí algo no cuadra» en un informe reproducible.
 
 ## Instalación
 
-Requiere Python 3.10+. Cada opción de abajo proporciona el comando `zing`.
+Requiere Python 3.10+. Cualquiera de las opciones siguientes proporciona el comando `zing`.
 
 ### Con pip
 
@@ -61,7 +86,7 @@ pip install -e .
 # desde PyPI, como herramienta independiente en tu PATH
 uv tool install zing-audit
 
-# o ejecutarlo una vez sin instalar
+# o ejecutarlo una vez sin instalarlo
 uvx --from zing-audit zing --help
 
 # o desde el código fuente, en un entorno virtual local del proyecto
@@ -72,18 +97,17 @@ uv pip install -e .
 source .venv/bin/activate       # Windows: .venv\Scripts\activate
 ```
 
-También puedes instalar directamente desde el repositorio Git sin clonarlo:
+También puedes instalarlo directamente desde el repositorio Git sin clonarlo:
 `uv tool install git+https://github.com/cenbonew/zing`.
-
-(Mantenedores: consultad [docs/PUBLISHING.md](docs/PUBLISHING.md) para el proceso de publicación.)
 
 ### Extras opcionales
 
 - `tokenizers` — conteo preciso de tokens de la familia OpenAI en la auditoría de facturación.
 - `web` — la interfaz web local (`zing serve`).
-- `pdf` — informes PDF (`--format pdf` y la descarga PDF de la interfaz web),
-  generados a partir del informe HTML con [WeasyPrint](https://weasyprint.org/); requiere
-  la biblioteca del sistema Pango (en macOS `brew install pango`).
+- `pdf` — informes PDF (`--format pdf` y la descarga en PDF de la interfaz web),
+  generados a partir del informe HTML por [WeasyPrint](https://weasyprint.org/),
+  que necesita la biblioteca del sistema Pango (preinstalada en la mayoría de
+  escritorios Linux; `brew install pango` en macOS).
 
 ```bash
 pip install 'zing-audit[tokenizers,web,pdf]'      # pip, desde PyPI
@@ -92,10 +116,24 @@ uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, desde PyPI
 uv pip install -e '.[tokenizers,web,pdf]'         # uv, desde el código fuente
 ```
 
+### Con Docker (solo la interfaz web)
+
+Desde una copia del código fuente:
+
+```bash
+docker build -t zing .
+docker run --rm -p 127.0.0.1:8000:8000 -v zing-data:/data zing
+# abre http://localhost:8000
+```
+
+Publica siempre el puerto en `127.0.0.1`, como arriba. Detalles y variables de
+entorno: [Guía para desarrolladores → Docker](DEVELOPER_GUIDE.es.md#docker) y
+[docs/DOCKER.md](docs/DOCKER.md).
+
 ## Inicio rápido
 
 ```bash
-# 1) auditar un relay frente a lo que anuncia (id del modelo + pista de proveedor)
+# 1) auditar un relay frente a lo que declara (id del modelo + pista de proveedor)
 export ZING_API_KEY=sk-tu-clave-del-relay
 zing check \
   --base-url https://relay.example.com/v1 \
@@ -103,7 +141,7 @@ zing check \
   --model gpt-4o \
   --suite standard
 
-# 2) la comprobación más sólida: comparar con una referencia de confianza del mismo modelo
+# 2) la comprobación más fuerte: comparar con una referencia de confianza del mismo modelo
 export OPENAI_API_KEY=sk-tu-clave-de-openai
 zing compare \
   --target-base-url https://relay.example.com/v1 --target-api-key env:ZING_API_KEY --target-model gpt-4o \
@@ -120,19 +158,26 @@ zing check --base-url https://relay.example.com/v1 --model claude-opus-4-8 \
 zing check --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
   --model doubao-seed-2-0-lite --claimed-model deepseek-v4-flash
 
-# 5) inspeccionar la base de conocimiento integrada
-zing kb            # los 85 modelos
+# 5) listar los modelos que anuncia un endpoint
+zing models --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY
+
+# 6) consultar la base de conocimiento
+zing kb            # todos los perfiles, con su origen
 zing kb deepseek   # un proveedor
 
-# 6) generar una configuración que puedas versionar
+# 7) generar una configuración que puedes versionar
 zing init          # escribe zing.yaml
 zing check -c zing.yaml
 ```
 
+Las claves de API pueden darse en claro, como `env:VAR` o como `file:/ruta`; los
+informes solo contienen una huella de la clave. Tienes un archivo de
+configuración completo en [`examples/zing.yaml`](examples/zing.yaml).
+
 ### Como herramienta para un LLM / agente
 
-zing está pensado para ser controlado por otro programa o modelo. Todo sale por stdout
-en JSON, incluidos los errores, y el código de salida actúa como compuerta.
+zing está pensado para que lo controle otro programa o modelo. Todo sale por
+stdout en JSON, errores incluidos, y el código de salida hace de barrera.
 
 ```bash
 # veredicto ligero, apto para agentes (~5x más pequeño que --json: sin la evidencia voluminosa)
@@ -141,140 +186,270 @@ zing check --base-url ... --model gpt-4o --compact | jq .verdict.risk
 # informe estructurado completo cuando necesitas la evidencia de cada hallazgo
 zing check --base-url ... --model gpt-4o --json
 
-# primero el presupuesto: qué detectores se ejecutan + llamadas de API estimadas, SIN hacer ninguna
+# primero el presupuesto: qué detectores se ejecutan + llamadas a la API estimadas, SIN hacer ninguna
 zing check --base-url ... --model gpt-4o --suite deep --dry-run --json
 
-# compuerta según el código de salida (1 si riesgo >= medium); los errores de config/uso salen con 2, en JSON
+# barrera por código de salida (1 si el riesgo >= medium, o la puntuación queda bajo --fail-under);
+# los errores de configuración/uso salen con 2, en JSON
 zing check --base-url ... --model gpt-4o --compact --fail-on-risk medium
 
 # descubrimiento legible por máquina
-zing kb --json                 # toda la base de conocimiento
+zing kb --json                      # toda la base de conocimiento
 zing models --base-url ... --json   # lo que anuncia un endpoint
 ```
 
-En modo `--json`/`--compact`, una configuración incorrecta imprime `{"error": {...}}`
-(código 2) en lugar de un mensaje para personas, de modo que un pipeline pueda analizar
-los fallos de forma uniforme.
+En modo `--json`/`--compact`, una configuración errónea imprime `{"error": {...}}`
+(código de salida 2) en lugar de un mensaje para personas, para que un pipeline
+pueda procesar los fallos de forma uniforme.
 
 ## Interfaz web (`zing serve`)
 
-¿Prefieres hacer clic? Una interfaz web local envuelve el mismo motor — sin necesidad de
-la línea de comandos.
+¿Prefieres hacer clic? Una interfaz web local envuelve el mismo motor — sin
+línea de comandos.
 
 ```bash
 pip install 'zing-audit[web]'     # o: uv tool install 'zing-audit[web]'
-zing serve            # abre http://localhost:8000
+zing serve                        # abre http://localhost:8000
 ```
 
-Introduce un relay y el modelo que anuncia; sigue la auditoría **en directo** (progreso
-por detector mediante SSE) y luego lee un informe de veredicto que se puede compartir
-(nota, desglose por dimensión, hallazgos en lenguaje claro, JSON descargable). Todo se
-ejecuta en tu máquina — una clave escrita en el navegador solo llega a tu servidor local
-y al relay auditado, nunca a un tercero. Por defecto escucha solo en `127.0.0.1`.
+Introduce la **URL del intermediario**, la **Clave API** y el modelo; de forma
+opcional, un **Modelo declarado** (si el relay lo vende con otro nombre), un
+**Proveedor declarado** y una referencia de confianza (**Comparar con una
+referencia de confianza**). **Obtener modelos** lista lo que anuncia el relay, y
+elegir uno rellena el modelo y su proveedor. Después, **Iniciar auditoría** y
+sigue las comprobaciones **en vivo**: cada comprobación muestra su puntuación y
+cuánto tardó, y una comprobación con hallazgos se despliega para mostrar la
+evidencia. El resultado es un informe de veredicto que puedes compartir: nota,
+**Comprobaciones por dimensión** con sus escalas de puntuación, hallazgos en
+lenguaje claro y la sección de rendimiento (en la nueva interfaz, además, un
+**Registro de ejecución** de cada detector).
 
-Un desplegable de idioma en la cabecera de cada página cambia la interfaz entre
-**🇬🇧 inglés** (por defecto), **🇨🇳 chino** (la interfaz original), **🇫🇷 francés**,
-**🇪🇸 español**, **🇵🇹 portugués**, **🇮🇹 italiano** y **🇩🇪 alemán**; la elección se
-recuerda por navegador. Los informes descargados desde la interfaz (**Descargar informe**:
-JSON, Markdown, HTML o PDF) también siguen el idioma elegido: las claves JSON, los valores de enumeración
-(`risk_level`, `status`, `severity`, …), los identificadores y la evidencia se mantienen
-exactamente como en el informe de la CLI (el JSON sigue siendo un informe zing válido), mientras
-que los valores legibles por personas (titular/resumen del veredicto, títulos/resúmenes
-de hallazgos, recomendaciones, nombres de detectores, notas) se traducen, y el nombre
-del archivo lleva el idioma (`zing-report.es.json`, `zing-report.es.pdf`). Los encabezados de sección de
-los archivos Markdown/HTML/PDF están en inglés. Los informes
-`--format json|md|html|pdf` de la CLI siguen en inglés.
+Todo se ejecuta en tu máquina: una clave escrita en el navegador solo llega a tu
+servidor zing local y al relay que auditas, nunca a terceros. Consulta
+[Privacidad y datos locales](#privacidad-y-datos-locales).
 
-**Los prompts enviados al endpoint auditado no siguen el idioma de la interfaz.** Todo
-texto que zing envía a una API de LLM — sondas de chat, el prompt del juez LLM, esquemas
-de herramientas, entradas de embedding / rerank / imagen / audio — vive en una única
-biblioteca de prompts, `zing/prompts/en.json`, y está en inglés, así el mismo relay
-obtiene el mismo veredicto lea quien lea el informe (las comprobaciones de respuestas y
-las estimaciones de tokens están calibradas con estos textos exactos). Las únicas
-excepciones son las huellas de la base de conocimiento cuyo idioma *es* la medida — p. ej.
-las sondas de fluidez en chino, de tokenizer y de autoidentificación de los modelos
-nativos de China — que declaran `prompt_lang` y un motivo `language_bound` en
-`zing/knowledge/data/*.yaml`. Cada informe registra los idiomas de sonda que realmente
-usó (`prompt_languages`, p. ej. `["en", "zh"]`).
+### Páginas
 
-Las traducciones son datos, compartidos por la interfaz web y las alertas de webhook:
-`zing/i18n/locales/<code>.json`, un archivo por idioma. Para añadir un idioma, añade un
-archivo (copia `de.json`); el desplegable, las páginas y las alertas lo incorporan.
-`tests/test_web_locales.py` falla hasta que cada texto de la interfaz y cada hallazgo
-estén traducidos con sus marcadores de posición y su marcado intactos.
+La interfaz web tiene dos versiones que comparten el mismo servidor y los mismos
+datos. La **interfaz clásica** se abre en `/`; su enlace **Probar la nueva
+interfaz** pasa a la **nueva interfaz** en `/v2/`, cuyo enlace **Interfaz
+clásica** vuelve atrás. La elección se recuerda por navegador.
+
+| Página | Interfaz clásica | Nueva interfaz | Para qué sirve |
+|---|---|---|---|
+| **Auditoría** | `/` | `/v2/` | Auditar un relay (opcionalmente frente a una referencia) y leer el informe |
+| **Consola** | `/console` | — | La misma auditoría como consola compacta, estilo registro |
+| **Herramientas** | `/tools` | `/v2/tools` | Auditorías de embeddings y rerank |
+| **Historial** | `/history` | `/v2/history` | Cada auditoría ejecutada en esta máquina, agrupada por relay + modelo declarado, con tendencias |
+| **Monitores** | `/watches` | `/v2/watches` | Reauditorías programadas con alertas por webhook |
+| **Modelos** | — | `/v2/kb` | Explorar la base de conocimiento y añadir tus propios perfiles de modelo |
+
+La nueva interfaz añade: filtros y tendencias configurables (puntuación, nota,
+latencia p50, tokens/s) en el **Historial**; **Programar como monitor** en cada
+ejecución del Historial; **Descargar informe** en todos los formatos; un selector
+de tema (Automático / Claro / Oscuro); y la página **Modelos**.
+
+### Idiomas
+
+Un menú de idioma en la cabecera de cada página cambia la interfaz entre
+**🇬🇧 inglés** (por defecto), **🇨🇳 chino** (la interfaz original),
+**🇫🇷 francés**, **🇪🇸 español**, **🇵🇹 portugués**, **🇮🇹 italiano** y
+**🇩🇪 alemán**; la elección se recuerda por navegador.
+
+Los informes descargados desde la interfaz (**Descargar informe**: JSON,
+Markdown, HTML o PDF) siguen el idioma elegido: las claves JSON, los valores
+enumerados (`risk_level`, `status`, `severity`, …), los ids y la evidencia quedan
+exactamente como en el informe de la CLI (el JSON sigue siendo un informe de zing
+válido), mientras que los valores legibles (titular y resumen del veredicto,
+títulos y resúmenes de los hallazgos, recomendaciones, nombres de detectores,
+notas) se traducen, y el nombre del archivo lleva el idioma
+(`zing-report.es.json`, `zing-report.es.pdf`). Los encabezados de sección de los
+archivos Markdown/HTML/PDF están en inglés. Los informes de la CLI con
+`--format json|md|html|pdf` siguen en inglés.
+
+**Los prompts enviados al endpoint auditado no siguen el idioma de la
+interfaz.** Todo texto que zing envía a una API de LLM está en inglés, para que el
+mismo relay reciba el mismo veredicto sea quien sea quien lea el informe (las
+comprobaciones de respuestas y las estimaciones de tokens están calibradas con
+esos textos exactos). Las únicas excepciones son las huellas de la base de
+conocimiento cuyo idioma *es* la medida — por ejemplo, las sondas de fluidez en
+chino, de tokenizer y de autoidentificación de los modelos chinos. Cada informe
+registra los idiomas de sonda realmente usados (`prompt_languages`, p. ej.
+`["en", "zh"]`).
 
 ## Qué comprueba
 
-zing puntúa diez dimensiones. Las tres que revelan más directamente un «gato por
-liebre» (identidad del modelo, ventana de contexto real, capacidades anunciadas) son las
-que más pesan.
+zing puntúa diez dimensiones. Las tres **dimensiones núcleo** — identidad del
+modelo, ventana de contexto y capacidades declaradas — revelan más directamente
+un «gato por liebre» y son las que más pesan. Los nombres son los de la interfaz
+web y los informes.
 
-| Dimensión | Qué detecta |
+| Dimensión | Id | Peso | Qué detecta |
+|---|---|---|---|
+| **Identidad del modelo** | `model_identity` | 21 | Degradación o sustitución silenciosa del modelo — autoidentificación, fecha de corte del conocimiento, huellas de tokenizer, el campo `model` devuelto; opcionalmente un juez LLM |
+| **Ventana de contexto** | `context_window` | 19 | Recorte silencioso del contexto (declara 1M, la recuperación falla en 32K) y «lost in the middle» por capas baratas de RAG/resumen, mediante aguja en un pajar y búsqueda binaria |
+| **Capacidades declaradas** | `capability` | 13 | Llamadas a herramientas / modo JSON / esquema JSON / salida máxima declarados pero no entregados (o *sobre*entregados, señal de un sustituto); **visión** — un modelo que declara entrada de imagen debe leer una imagen generada de respuesta conocida |
+| **Conformidad del protocolo** | `protocol` | 8 | Conformidad en el cable: multiturno, secuencias de parada, esquema de error; cada parámetro de petición aceptado (y respetado cuando es visible), cada atributo de respuesta presente; caché de respuestas que ignora temperature/seed |
+| **Facturación y uso** | `billing` | 8 | Inflado de tokens/uso y contabilidad de uso ausente o no verificable, mediante una estimación independiente con tokenizer |
+| **Conectividad** | `connectivity` | 7 | Accesibilidad del endpoint y la lista `/v1/models` anunciada |
+| **Autenticidad del streaming** | `streaming` | 6 | Streaming falso (búfer y luego troceo), a partir del número de fragmentos y su separación temporal |
+| **Fiabilidad en concurrencia** | `reliability` | 6 | Tasa de éxito y latencia bajo carga concurrente (la limitación HTTP 429 se cuenta aparte) |
+| **Seguridad del transporte** | `security` | 6 | HTTPS, higiene de cabeceras, eco de secretos; un prompt de sistema inyectado oculto; manipulación en tránsito de respuestas y llamadas a herramientas (canarios de respuesta conocida); caché de prefijo de prompt (tiempos) |
+| **Rendimiento** | `performance` | 6 | Lo *constantes* que son la latencia, el tiempo hasta el primer token y el throughput, la tasa de fallos y la ralentización bajo carga; la velocidad solo frente a una referencia (ver [Rendimiento](#rendimiento)) |
+
+La [Metodología](docs/METHODOLOGY.es.md) describe cada sonda, el truco de relay al
+que responde, su escala de puntuación y sus salvedades sobre falsos positivos.
+
+## Cómo se llega al veredicto
+
+En resumen (los detalles están en la [Metodología](docs/METHODOLOGY.es.md#cómo-puntúa-zing)):
+
+- Cada detector publica su **escala de puntuación** — cada resultado posible de
+  cada comprobación con sus puntos —, y la interfaz web la muestra en **Escala de
+  puntuación**.
+- La **puntuación de una dimensión** es la media con igual peso de las
+  puntuaciones de sus detectores. Un hallazgo ALTO/CRÍTICO impone **Fallo** y un
+  hallazgo MEDIO eleva **Correcto** a **Advertencia**, sea cual sea la
+  puntuación. Los informes lo explican por dimensión en **Dimension details**; en
+  la interfaz web, cada fila de **Comprobaciones por dimensión** se despliega con
+  los mismos detalles.
+- La **puntuación de salud global** es la media ponderada de las dimensiones
+  ejecutadas (pesos arriba), con nota A (≥ 90), B (≥ 80), C (≥ 70), D (≥ 60) o F.
+- El **veredicto de riesgo** depende de la gravedad de los hallazgos, no de la
+  puntuación:
+
+| Riesgo | Etiqueta en la interfaz | Cuándo |
+|---|---|---|
+| `inconclusive` | Señal insuficiente | Ninguna dimensión núcleo dio un resultado utilizable (relay inaccesible, modelo fuera de la base de conocimiento o ejecución `custom` sin dimensión núcleo) |
+| `high` | Gato por liebre | Un hallazgo CRÍTICO, un hallazgo ALTO/CRÍTICO en una dimensión núcleo, o dos o más hallazgos ALTOS |
+| `medium` | Desviaciones detectadas | Exactamente un hallazgo ALTO fuera de las dimensiones núcleo, o un hallazgo MEDIO en una dimensión núcleo |
+| `low` | Mayormente fiable | Cualquier otro hallazgo MEDIO |
+| `clean` | Coherente (probablemente auténtico) | Ninguno de los anteriores |
+
+Los hallazgos de la dimensión de conectividad nunca elevan el riesgo: un relay
+caído o limitado no pudo evaluarse, y eso no prueba que responda otro modelo. La
+**confianza** del veredicto (baja / media / alta) crece con el número de
+dimensiones núcleo que dieron resultado, con una referencia y con el juez LLM.
+
+## Suites
+
+| Suite | Detectores | Coste |
+|---|---|---|
+| `smoke` | connectivity, security | muy bajo |
+| `standard` | + protocol, protocol_request, protocol_response, model_identity, capability, streaming, billing, reliability | bajo–medio |
+| `deep` | + context_window, determinism, vision, injected_prompt, integrity, prompt_cache, performance, quality_judge (con `--judge`) | más alto (las sondas de contexto largo y de tiempos cuestan tokens) |
+| `full` | los detectores de `deep`, con el rendimiento medido con y sin streaming | el más alto |
+| `custom` | solo las dimensiones que elijas, con la profundidad de `deep` | según la selección |
+
+La sonda de ventana de contexto está limitada por `--max-context-tokens` (200K
+por defecto) para que auditar un modelo de 1M de tokens siga siendo asequible.
+`--only` / `--skip` ejecutan o excluyen detectores sueltos por su id.
+
+### Suite personalizada
+
+Ejecuta solo las dimensiones que te interesan, lo que ahorra tiempo y tokens. Se
+ejecuta cada detector de cada dimensión elegida, como en `deep`:
+
+```bash
+zing check --base-url ... --model gpt-4o -D protocol -D performance
+zing check --base-url ... --model gpt-4o --suite custom --dimension billing,streaming
+```
+
+`--dimension/-D` es repetible o separado por comas e implica `--suite custom`; en
+un archivo de configuración usa `run.dimensions: [protocol, performance]`. Las
+dimensiones son `connectivity`, `protocol`, `context_window`, `model_identity`,
+`capability`, `streaming`, `billing`, `reliability`, `security` y `performance`.
+En la interfaz web, el botón de suite `custom` abre la misma elección
+(**Dimensiones a ejecutar**) en la página de auditoría, la consola y los
+monitores.
+
+La **puntuación global es la media ponderada solo de las dimensiones elegidas**;
+las que dejas fuera aparecen como «no seleccionadas». El veredicto de riesgo
+necesita al menos una dimensión núcleo (identidad del modelo, ventana de
+contexto, capacidades declaradas): sin ella, es *no concluyente*.
+
+## Rendimiento
+
+Cada informe incluye una sección **performance**: latencia, tiempo hasta el
+primer token (TTFT), tokens/s de decodificación y de extremo a extremo, latencia
+y jitter entre fragmentos, tasas de error/timeout/429, un desglose de red
+(conexión TCP, TLS, un viaje de ida y vuelta `GET /models`, tiempo de servidor) y
+arranque en frío, cada uno como count / min / mean / p50 / p75 / p90 / p95 / p99
+/ max / stdev.
+
+Cuando se ejecuta la sonda dedicada, puntúa la dimensión **Rendimiento**. La
+puntuación mide la **constancia**, no la velocidad bruta, así que un endpoint
+lento pero constante (un modelo local o autoalojado) no se penaliza por no ser un
+centro de datos:
+
+| Comprobación | Se puntúa según |
 |---|---|
-| **model_identity** | Degradación/sustitución silenciosa del modelo — autoidentificación, fecha de corte del conocimiento, huellas del tokenizer, el campo `model` devuelto |
-| **context_window** | Recorte silencioso del contexto (anuncia 1M, el recuerdo falla a 32K) y «pérdida en el medio» por capas baratas de RAG/resumen, mediante aguja en un pajar + búsqueda binaria |
-| **capability** | Capacidades anunciadas de llamadas a herramientas / modo JSON / json-schema / salida máxima que no se cumplen realmente (o se *sobre*cumplen, señal de un sustituto); y **visión** — a un modelo que anuncia entrada de imágenes se le envía una imagen generada con respuesta conocida para confirmar que realmente «ve» |
-| **billing** | Inflado de tokens/uso y contabilidad de uso ausente/inverificable, mediante una estimación independiente con tokenizer |
-| **streaming** | Streaming falso (búfer y luego troceo) detectado por el número de fragmentos y el tiempo entre fragmentos |
-| **protocol** | Conformidad con la compatibilidad OpenAI: multiturno, secuencias de parada, forma de la respuesta, esquema de errores — y una subcomprobación de determinismo para cachés de respuesta que ignoran temperature/seed |
-| **reliability** | Tasa de éxito concurrente y latencia (la limitación HTTP 429 se contabiliza aparte) |
-| **performance** | Cuán *constantes* son la latencia, el tiempo hasta el primer token y el rendimiento, la tasa de fallos de la sonda y la ralentización bajo carga; la velocidad solo frente a una referencia |
-| **connectivity** | Accesibilidad del endpoint y la lista `/v1/models` anunciada |
-| **security** | Transporte (HTTPS), higiene de cabeceras, eco de secretos; prompt de sistema inyectado oculto (sobrecoste fijo de tokens de entrada + filtración), manipulación en tránsito de respuestas/llamadas a herramientas mediante canarios de respuesta conocida (sustitución de URL/paquete) y caché de prefijo de prompt (tiempos) |
+| constancia de latencia / TTFT | ratio de cola p90 ÷ p50 (≤ 1,3 constante 100 · ≤ 1,75 estable 85 · ≤ 2,5 variable 65 · por encima: errática 40); necesita ≥ 10 muestras |
+| constancia del throughput | ratio de cola p50 ÷ p10 de tokens/s, mismos tramos |
+| errores | peticiones de sonda fallidas: ≤ 2 % 100 · ≤ 10 % 80 · por encima: 50 (los 429 no cuentan) |
+| estabilidad bajo carga | latencia p50 en ráfaga ÷ p50 secuencial: ≤ 1,5x 100 · ≤ 3x 80 · por encima: 55 |
+| acierto de caché | prompts únicos respondidos desde una caché: 60 |
+| referencia | tokens/s frente a la referencia de confianza o, si no, al rango publicado para el modelo en la base de conocimiento: en línea 100 · más lento 80 (informativo, nunca un fallo) · ≥ 2x más rápido 60 (señal de un modelo más pequeño) · sin referencia: no computa |
 
-Consulta [docs/METHODOLOGY.es.md](docs/METHODOLOGY.es.md) para la técnica detrás de cada
-comprobación, el truco de relay con el que se corresponde y sus advertencias sobre
-falsos positivos.
+Los hallazgos de rendimiento son como mucho de gravedad baja: mueven la
+puntuación, nunca el veredicto de riesgo. Sin la sonda (`standard` sin
+referencia, `smoke`), la dimensión no se ejecuta y sale de la puntuación global.
 
-### Rendimiento
+- **standard** reúne la sección a partir de las propias peticiones de la auditoría.
+- **deep / full / custom** añaden una sonda dedicada: 100 peticiones no
+  cacheables de 128 tokens de salida (un id de petición aleatorio abre cada
+  prompt; no se envían parámetros de caché ni de razonamiento) más una ráfaga con
+  `--concurrency`. Ajústala con `--performance-requests` (0 la desactiva) y
+  `--performance-max-tokens`.
+- La sonda usa streaming por defecto; `--performance-non-streaming` (o el
+  selector **Streaming / Sin streaming** de la interfaz web) mide relays que no
+  pueden hacer streaming. **full** mide ambos modos, intercalados, y los muestra
+  lado a lado.
+- **compare** ejecuta la sonda en ambos endpoints, alternando peticiones, y añade
+  una tabla objetivo-vs-referencia (5 peticiones por lado en `standard`,
+  demasiadas pocas para las comprobaciones de constancia) cuyas diferencias se
+  marcan en verde ✓ cuando el objetivo es mejor y en rojo ✗ cuando es peor.
 
-Cada informe incluye además una sección de **performance**: latencia, tiempo hasta el
-primer token (TTFT), tokens/s de decodificación y de extremo a extremo, latencia y
-jitter entre fragmentos, tasas de error/timeout/429, un desglose de red (conexión TCP,
-TLS, un ida y vuelta `GET /models`, tiempo de servidor) y arranque en frío, cada uno como
-count / min / mean / p50 / p75 / p90 / p95 / p99 / max / stdev. Cuando se ejecuta la sonda dedicada, puntúa la dimensión **performance** (peso 6) según la *constancia* de latencia, TTFT y rendimiento, la tasa de errores y el comportamiento bajo carga, no según la velocidad bruta: un modelo lento pero constante (p. ej. local) no se penaliza. La velocidad solo cuenta frente a una referencia (la línea base o el rango publicado en la base de conocimiento). Los hallazgos son como mucho de severidad baja y nunca cambian el veredicto de riesgo.
+Los tokens se cuentan dos veces — a partir del `usage` del relay y localmente —,
+así que el throughput se puede medir incluso sin `usage`. Un percentil solo se
+muestra con suficientes muestras (p90 desde 10, p95 desde 20, p99 desde 100). El
+informe JSON guarda los tiempos de cada petición (solo números, sin texto); el
+informe HTML y la interfaz web los representan a lo largo de la línea temporal de
+la auditoría.
 
-- **standard** la recoge de las propias peticiones de la auditoría.
-- **deep / full** añaden una sonda dedicada: 100 peticiones no cacheables de 128 tokens
-  de salida (un id de petición aleatorio abre cada prompt, no se envían parámetros de
-  caché ni de razonamiento) más una ráfaga a `--concurrency`. Ajustable con
-  `--performance-requests` (0 la desactiva) y `--performance-max-tokens`.
-- La sonda usa streaming por defecto; `--performance-non-streaming` (o el interruptor de
-  la interfaz web) mide relays que no pueden hacer streaming. **full** mide ambos modos,
-  intercalados, y los muestra uno junto al otro.
-- **compare** ejecuta la sonda en ambos endpoints, alternando peticiones, y añade una
-  tabla objetivo-vs-referencia (5 peticiones por lado en `standard`) cuyas diferencias
-  se marcan en verde ✓ cuando el objetivo es mejor y en rojo ✗ cuando es peor. Un
-  objetivo que genera más de 2x más rápido que la referencia se señala como un indicio
-  de baja gravedad.
+## Modo comparación y juez LLM
 
-Los tokens se cuentan dos veces: a partir del `usage` del relay y localmente, de modo
-que el rendimiento sea medible incluso cuando falta `usage`. Un percentil solo se
-muestra con suficientes muestras (p90 desde 10, p95 desde 20, p99 desde 100). El informe
-JSON conserva los tiempos de cada petición (solo números, sin texto); el informe HTML y
-la interfaz web los representan a lo largo de la cronología de la auditoría.
+zing tiene dos modos de detección:
 
-## Dos modos de detección
-
-- **Código puro (por defecto):** todas las sondas deterministas — huellas, barrido de
-  contexto, cálculos de facturación, tiempos de streaming. No hace falta un segundo
-  modelo; totalmente reproducible.
-- **Híbrido código + LLM (`--judge`):** consulta además un modelo juez *de confianza*
-  (configurado aparte, nunca el objetivo) para evaluar señales difusas como la calidad y
-  la profundidad de razonamiento que el código puro no puede decidir. Alimenta el
-  detector `quality_judge`.
+- **Código puro (por defecto):** todos los detectores salvo `quality_judge`
+  deciden con código determinista — huellas, barrido de contexto, aritmética de
+  facturación, tiempos del streaming. No hace falta un segundo modelo; los
+  resultados son reproducibles.
+- **Híbrido código + LLM (`--judge`):** además pregunta a un modelo juez *de
+  confianza* (configurado aparte, nunca el objetivo) si las respuestas del
+  objetivo se parecen al modelo declarado — señales difusas como la calidad y la
+  profundidad de razonamiento que el código solo no puede decidir. Es el detector
+  `quality_judge`.
 
 ```bash
 zing check --base-url ... --model gpt-4o --suite deep --judge \
   --judge-base-url https://api.openai.com/v1 --judge-api-key env:OPENAI_API_KEY --judge-model gpt-4o-mini
 ```
 
-## Monitorización (`zing watch`)
+El **modo comparación** (`zing compare`, o **Comparar con una referencia de
+confianza** en la interfaz web) ejecuta las mismas sondas, al mismo tiempo,
+contra una referencia de confianza del modelo declarado. Es la vía de
+confirmación más fuerte: respuestas de identidad, parámetros de petición
+rechazados, canarios de manipulación y rendimiento se juzgan lado a lado, y solo
+una referencia permite que la confianza del veredicto sea *alta*. Sin
+`--judge-base-url`, el modo comparación usa la referencia como juez.
 
-Un relay puede servir el modelo real hoy y cambiarlo en silencio la semana que viene.
-`zing watch` repite la auditoría según una programación, registra cada ejecución en el
-historial y avisa a un webhook cuando el riesgo supera un umbral o **empeora** respecto
-a la ejecución anterior.
+## Monitorización
+
+Un relay puede servir el modelo real hoy y cambiarlo en silencio la semana que
+viene. `zing watch` vuelve a auditar según un calendario, guarda cada ejecución
+en el historial y avisa a un webhook cuando el riesgo cruza un umbral o
+**empeora** respecto a la ejecución anterior.
 
 ```bash
 zing watch --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
@@ -283,86 +458,104 @@ zing watch --base-url https://relay.example.com/v1 --api-key env:ZING_API_KEY \
   --alert-lang es                                     # o --once para cron
 ```
 
-Las alertas se formatean para **Slack / Feishu / DingTalk / JSON genérico**, detectado
-automáticamente a partir de la URL del webhook, y se redactan en el idioma de alerta —
-inglés por defecto; `--alert-lang en|zh|fr|es|pt|it|de`. La carga JSON genérica mantiene
-sus claves y valores de máquina (`risk_level`, `score`, …) independientes del idioma,
-traduce los legibles por personas (`text`, `headline`, `key_findings`) e indica el
-`language`.
+Las alertas se formatean para **Slack / Feishu / DingTalk / JSON genérico**,
+detectados automáticamente a partir de la URL del webhook, y se redactan en el
+idioma de las alertas — inglés por defecto; `--alert-lang en|zh|fr|es|pt|it|de`.
+La carga JSON genérica mantiene neutrales sus claves y valores de máquina
+(`risk_level`, `score`, …), traduce los legibles (`text`, `headline`,
+`key_findings`) e indica el `language`.
 
-¿Prefieres una interfaz? `zing serve` incluye un monitor en **`/watches`**
-(🔔 Monitores): añade un monitor en el navegador y un planificador en segundo plano,
-dentro del mismo proceso, lo vuelve a ejecutar en su intervalo, guarda cada ejecución en
-el historial y dispara las mismas alertas de webhook al superar un umbral o empeorar.
-Cada monitor tiene su propio idioma de alerta (elegido en el formulario, por defecto el
-de la interfaz, y modificable en su tarjeta). Ejecutar ahora / pausar / eliminar desde la
-página. Las claves se guardan solo en `~/.zing` y nunca se devuelven al navegador.
+**En la interfaz web**, `zing serve` ejecuta los mismos monitores en un
+planificador en segundo plano dentro del proceso del servidor, guarda cada
+ejecución en el **Historial** y envía las mismas alertas por webhook:
 
-## Auditorías de embedding y rerank
+- **Nueva interfaz:** abre una ejecución en el **Historial** y elige **Programar
+  como monitor**. zing copia la configuración de esa ejecución (relay, modelo,
+  modelo declarado, proveedor, suite, dimensiones personalizadas) en un monitor
+  en pausa de la página **Monitores**; allí fija su intervalo y su clave API (el
+  Historial nunca guarda claves) y actívalo. Intervalo, clave, **Umbral de
+  alerta**, webhooks e **Idioma de las alertas** se editan directamente en cada
+  monitor.
+- **Interfaz clásica:** rellena el formulario de la página **Monitores** y pulsa
+  **Añadir monitor**.
 
-Los embeddings y el rerank son una superficie ajena al chat, así que zing los audita con
-un auditor independiente específico en lugar del pipeline de chat de 9 dimensiones.
+Cada monitor tiene su propio idioma de alertas (por defecto, el de la interfaz),
+puede ejecutarse ahora, pausarse o eliminarse, y queda anclado al perfil de la
+base de conocimiento con el que se creó hasta que lo vuelvas a anclar. Las claves
+solo se guardan en tu directorio de datos local y nunca se devuelven al
+navegador.
+
+## Auditorías de embeddings, rerank, imagen y audio
+
+Estos endpoints devuelven vectores, clasificaciones, imágenes o audio en lugar de
+chat, así que zing los audita con auditores independientes y específicos en
+lugar del pipeline de chat de diez dimensiones. Cada uno imprime un veredicto y
+admite `--json` y `--fail-on-risk`.
+
+### Embeddings y rerank
 
 ```bash
-# La dimensión de vector esperada se resuelve desde la base integrada para el modelo anunciado.
+# La dimensión de vector esperada se resuelve desde la base de conocimiento para el modelo declarado.
 zing embed --base-url https://relay.example.com/v1 \
            --model text-embedding-3-large --claimed-model text-embedding-3-large --fail-on-risk high
 
-# O fijar directamente la dimensión esperada:
+# O indicar directamente la dimensión esperada:
 zing embed --base-url ... --model my-embed --claimed-dimensions 1024 --json
 
-# Rerank: una sonda integrada de respuesta conocida — un reranker auténtico debe
-# colocar primero el documento obviamente relevante.
+# Rerank: una sonda integrada de respuesta conocida — un reranker auténtico debe poner
+# primero el documento evidentemente relevante.
 zing rerank --base-url https://relay.example.com/v1 --model my-rerank
 ```
 
-`embed` comprueba la conectividad, la **coincidencia de dimensión** (longitud del vector
-devuelto frente a la dimensión nativa del modelo anunciado — la señal principal de
-«gato por liebre»; un relay que anuncia `text-embedding-3-large` de 3072-d pero devuelve
-1024-d sirve un modelo sustituido), el determinismo (misma entrada → coseno ≈ 1), la
-distinción (entradas no relacionadas → coseno muy por debajo de 1) y el campo `model`
-devuelto. Perfiles integrados: OpenAI `text-embedding-3-small` (1536),
-`text-embedding-3-large` (3072), `text-embedding-ada-002` (1536), Qwen
-`text-embedding-v3`/`-v4` (1024).
+`embed` comprueba la conectividad, la **coincidencia de dimensión** (longitud del
+vector devuelto frente a la dimensión nativa del modelo declarado — la señal
+principal de «gato por liebre»: un relay que declara `text-embedding-3-large` de
+3072-d pero devuelve 1024-d sirve un sustituto), el determinismo (misma entrada →
+coseno ≈ 1), la distinción (entradas sin relación → coseno claramente inferior a
+1) y el campo `model` devuelto. Perfiles integrados: OpenAI
+`text-embedding-3-small` (1536), `text-embedding-3-large` (3072),
+`text-embedding-ada-002` (1536), Qwen `text-embedding-v3`/`-v4` (1024).
 
-Ambos están también en la interfaz web — `zing serve` tiene una página
-**Herramientas** en `/tools` (enlazada desde la navegación) con formularios de
-embed/rerank que muestran el mismo veredicto localizado.
+Ambos están también en la página **Herramientas** de la interfaz web
+(**Auditoría de embeddings**, **Auditoría de rerank**), donde la sonda de rerank
+puede sustituirse por tu propia consulta y tus propios documentos.
 
-## Auditorías de generación de imágenes y audio (TTS)
+### Generación de imagen y audio (TTS)
 
-Dos superficies más ajenas al chat: la generación de imágenes
-(`POST /v1/images/generations`) y la síntesis de voz (`POST /v1/audio/speech`). Toda la
-decodificación es stdlib pura — dimensiones de imagen a partir de los bytes de cabecera
-(PNG/JPEG/GIF/WebP), duración WAV mediante el módulo `wave`.
+Generación de imágenes (`POST /v1/images/generations`) y texto a voz
+(`POST /v1/audio/speech`), decodificados solo con la biblioteca estándar de
+Python — dimensiones de imagen a partir de los bytes de cabecera
+(PNG/JPEG/GIF/WebP), duración WAV mediante `wave`.
 
 ```bash
-# ¿Un relay que anuncia DALL·E 3 devuelve realmente el 1792x1024 pedido? Una imagen
-# reducida / de tamaño incorrecto (o un tamaño fuera de los nativos del modelo anunciado,
-# resueltos desde la base) es la señal principal de «gato por liebre».
+# ¿Un relay que declara DALL·E 3 devuelve de verdad el 1792x1024 pedido? Una imagen
+# reducida o de tamaño incorrecto (o fuera de los tamaños nativos del modelo declarado,
+# según la base de conocimiento) es la señal principal de «gato por liebre».
 zing image --base-url https://relay.example.com/v1 --api-key env:RELAY_KEY \
   --model dall-e-3 --claimed-model dall-e-3 --size 1792x1024 --fail-on-risk high
 
-# ¿Un relay que anuncia tts-1-hd devuelve audio real cuya duración crece con la entrada
-# (no un marcador fijo, no HTML/JSON disfrazado de audio)?
+# ¿Un relay que declara tts-1-hd devuelve audio real cuya duración crece con la entrada
+# (no un marcador fijo, ni HTML/JSON disfrazado de audio)?
 zing audio --base-url https://relay.example.com/v1 --api-key env:RELAY_KEY \
   --model tts-1-hd --voice alloy --format wav --save clip.wav
 ```
 
-`image` comprueba: conectividad, formato válido/decodificable, **coincidencia de tamaño**
-(AnchoxAlto decodificado frente a la petición y los tamaños nativos del modelo anunciado
-— FAIL/HIGH si no coinciden), distinción (dos prompts → imágenes distintas, para detectar
-un marcador fijo), cantidad, campo model. `audio` comprueba: conectividad, validez del
-contenedor/formato, respeto del formato, duración no trivial (proporcional a la longitud
-de la entrada), distinción, campo model. La base incluye OpenAI DALL·E 2/3, gpt-image-1,
-tts-1/tts-1-hd/gpt-4o-mini-tts y perfiles de imagen/TTS de Qwen.
+`image` comprueba la conectividad, un formato válido y decodificable, la
+**coincidencia de tamaño** (ancho × alto decodificados frente a la petición y a
+los tamaños nativos del modelo declarado — FAIL/HIGH si no coinciden), la
+distinción (dos prompts → imágenes distintas, para descubrir un marcador fijo),
+el número y el campo `model`. `audio` comprueba la conectividad, la validez del
+contenedor/formato, que se respete el formato, una duración no trivial que crece
+con la entrada, la distinción y el campo `model`. La base de conocimiento incluye
+OpenAI DALL·E 2/3, gpt-image-1, tts-1/tts-1-hd/gpt-4o-mini-tts y perfiles de
+imagen/TTS de Qwen.
 
 ## Uso en CI (GitHub Action)
 
-Condiciona cualquier workflow a una auditoría de relay con la acción compuesta incluida.
-Ejecuta `zing check --compact --fail-on-risk`, expone `risk` / `score` / `rating` como
-salidas, escribe un resumen en la ejecución y hace fallar el job cuando salta la
-compuerta de riesgo.
+Condiciona cualquier workflow a una auditoría de relay con la action compuesta
+incluida. Ejecuta `zing check --compact --fail-on-risk`, expone `risk` / `score` /
+`rating` como salidas, escribe un resumen en la ejecución y hace fallar el job
+cuando salta la barrera de riesgo.
 
 ```yaml
 jobs:
@@ -370,7 +563,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: zing
-        uses: cenbonew/zing@v0.9.0          # fijar a una etiqueta de release
+        uses: cenbonew/zing@v0.11.0         # fijar a una etiqueta de versión
         with:
           base-url: https://relay.example.com/v1
           api-key: ${{ secrets.RELAY_API_KEY }}   # secreto del llamante; nunca se muestra
@@ -379,26 +572,52 @@ jobs:
       - run: echo "risk=${{ steps.zing.outputs.risk }} score=${{ steps.zing.outputs.score }}"
 ```
 
-La clave del relay se pasa mediante una variable de entorno (`--api-key env:…`), por lo
-que nunca aparece en una línea de comandos. Consulta [docs/CI.md](docs/CI.md) para la
-tabla completa de entradas/salidas y un ejemplo de compuerta de despliegue.
+La clave del relay se pasa por una variable de entorno (`--api-key env:…`), así
+que nunca aparece en una línea de comandos. Consulta [docs/CI.md](docs/CI.md)
+para todas las entradas y salidas y un ejemplo de barrera de despliegue.
 
-## Suites
+## Base de conocimiento
 
-| Suite | Detectores | Coste |
-|---|---|---|
-| `smoke` | connectivity, security | muy bajo |
-| `standard` | + protocol, model_identity, capability, streaming, billing, reliability | bajo–medio |
-| `deep` | + context_window, determinism, injected_prompt, integrity, performance, prompt_cache, quality_judge (con `--judge`) | más alto (las sondas de contexto largo y de tiempos consumen tokens) |
-| `full` | todo | el más alto |
-| `custom` | solo las dimensiones elegidas, con profundidad `deep` | según la selección |
+zing juzga un relay según el **perfil** del modelo que declara: ventana de
+contexto nativa, salida máxima, fecha de corte del conocimiento, tokenizer,
+capacidades, palabras clave de identidad y huellas de comportamiento. Los
+perfiles integrados cubren OpenAI, Anthropic, Google Gemini, DeepSeek, Qwen, GLM
+y Moonshot (`zing kb` los lista). Hay tres capas; las posteriores prevalecen:
 
-**Suite personalizada:** `zing check ... -D protocol -D performance` (o `--suite custom --dimension billing,streaming`; en el archivo de configuración `run.dimensions`) ejecuta solo las dimensiones elegidas. La puntuación global es la media ponderada de esas dimensiones; sin ninguna dimensión central (identidad del modelo, ventana de contexto, capacidades) el veredicto de riesgo es *no concluyente*. La interfaz web ofrece la misma selección.
+1. Perfiles **integrados**, un archivo YAML por proveedor en
+   [`zing/knowledge/data/`](zing/knowledge/data).
+2. **Un directorio con tus propios archivos YAML**: `--kb-dir ./my-profiles`
+   (repetible) o `ZING_KB_DIR`.
+3. **Tus entradas** (`kb.db` en el directorio de datos), añadidas sin archivos
+   YAML ni instalación editable:
+   - en la página **Modelos** de la interfaz web (`/v2/kb`): **Añadir un
+     modelo** → **Copiar el prompt de investigación** en el asistente de IA que
+     prefieras, subir o pegar el YAML con el que responde y después **Comprobar y
+     guardar**. **Todos los perfiles** lista cada perfil con su origen; **¿Qué
+     perfil usa un ID de modelo?** muestra cómo se resuelve un id; **Tus
+     entradas** se pueden exportar como YAML;
+   - en la línea de comandos: `zing kb-prompt <model>`, `zing kb-import <file>`
+     (añade `--check` para solo comprobarlo) y `zing kb-export`.
 
-La sonda de ventana de contexto está limitada por `--max-context-tokens` (200K por
-defecto), así que auditar un modelo de 1M de tokens sigue siendo asequible.
+Antes de guardar una entrada, zing la comprueba: esquema y límites, expresiones
+regulares peligrosas, cada prompt que enviaría e ids de modelo que se
+resolverían a otro perfil. Un modelo tuyo con el id de uno integrado lo sustituye
+(se indica que lo *oculta*), pero nunca cambia los ajustes propios de un
+proveedor integrado; las huellas se fusionan por id. `zing check` y `zing serve`
+usan exactamente los mismos perfiles; `--no-user-kb` (o `ZING_NO_USER_KB=1`)
+deja fuera tus entradas.
 
-## Ejemplo de veredicto
+Cada informe registra el perfil contra el que auditó (`knowledge`: proveedor,
+modelo, cómo se resolvió el id, su origen y una instantánea completa con su hash
+de contenido), de modo que un informe sigue siendo verificable después de que
+cambie la base de conocimiento.
+
+## Informes
+
+`zing check` y `zing compare` imprimen un veredicto y escriben el informe en
+`reports/` (`--out-dir`) como JSON, Markdown y HTML, más PDF si el extra `pdf`
+está instalado (`--format all`, el valor por defecto); `--format json|md|html|pdf`
+escribe un solo formato. `--json` y `--compact` imprimen en stdout en su lugar.
 
 ```text
 ╭─ ✗ HIGH RISK — Strong evidence the relay does not deliver the claimed model… ─╮
@@ -408,37 +627,56 @@ defecto), así que auditar un modelo de 1M de tokens sigue siendo asequible.
 │                                                                               │
 │ Overall health score 53.5/100. Findings: 3 high. …                            │
 ╰───────────────────────────────────────────────────────────────────────────────╯
-  • Se identifica como una marca rival (anthropic) bajo el id de modelo anunciado gpt-4o
-  • Ventana de contexto real ~8000 << 128000 declarados (se sospecha recorte silencioso)
-  • Los tokens de prompt reportados superan con creces la estimación independiente
+  • Self-identifies as a rival brand (anthropic) under the claimed model id gpt-4o
+  • Real context window ~8000 << declared 128000 (silent truncation suspected)
+  • Reported prompt tokens far exceed independent estimate
 ```
 
-Los informes se escriben en `reports/` como JSON, Markdown y HTML, y también en PDF con el extra `pdf`.
+Un informe contiene el veredicto (riesgo, confianza, puntuación, nota), los
+hallazgos clave con recomendaciones, las puntuaciones por dimensión y los
+**Dimension details**, los hallazgos de cada detector con su evidencia, la
+sección de rendimiento, el perfil de la base de conocimiento usado y los idiomas
+de sonda. El texto controlado por el relay se censura y se escapa antes de
+escribirse.
 
-## Base de conocimiento
+## Privacidad y datos locales
 
-Los perfiles están en [`zing/knowledge/data/`](zing/knowledge/data) como YAML editable
-— uno por proveedor (OpenAI, Anthropic, Google Gemini, DeepSeek, Qwen, GLM, Moonshot).
-Cada modelo incluye su ventana de contexto nativa, salida máxima, tokenizer, indicadores
-de capacidades, palabras clave de identidad y huellas de comportamiento. Añade o
-sobrescribe perfiles sin hacer un fork:
-
-```bash
-zing check --kb-dir ./my-profiles ...     # o define ZING_KB_DIR
-```
+- **Solo local.** `zing serve` escucha solo en loopback (`127.0.0.1`, `::1`,
+  `localhost`), responde solo a esos nombres de host y rechaza peticiones entre
+  sitios; no tiene inicio de sesión porque nada fuera de tu máquina puede
+  alcanzarlo. zing solo contacta los endpoints que configuras (objetivo,
+  referencia, juez, webhooks).
+- **Claves.** Los informes y el historial solo guardan una huella de una clave
+  API. Las claves de los monitores se guardan en texto plano en tu directorio de
+  datos, por eso solo tú tienes acceso a él.
+- **Directorio de datos.** `~/.zing` (o `ZING_DATA_DIR`), creado con `0700` y
+  archivos con `0600`: `history.db` (historial de auditorías), `watches.db`
+  (monitores, con sus claves) y `kb.db` (tus entradas de la base de
+  conocimiento). Borra el directorio para eliminarlo todo.
 
 ## Uso responsable
 
-zing es una ayuda para auditorías de caja negra. **No puede demostrar**:
+zing es una ayuda de auditoría de caja negra. **No puede probar**:
 
-- que un proveedor almacene tus prompts o entrene con ellos,
-- que siempre enrute a un único modelo concreto (un relay puede enrutar de forma probabilística),
-- fraude de facturación más allá de lo que la estimación independiente de tokens puede sugerir.
+- que un proveedor guarde tus prompts o entrene con ellos,
+- que siempre enrute a un único modelo exacto (los relays pueden enrutar de forma probabilística),
+- un fraude de facturación más allá de lo que la estimación independiente de tokens puede sugerir.
 
 Usa los informes para tu propia diligencia debida. **No acuses públicamente a un
-proveedor** basándote en una sola ejecución sin revisar el tamaño de la muestra, la
-configuración de costes y la legislación local. Ejecuta `zing compare` contra una
-referencia de confianza antes de sacar conclusiones firmes.
+proveedor** basándote en una sola ejecución sin revisar el tamaño de la muestra,
+la configuración de costes y la legislación local. Ejecuta `zing compare` contra
+una referencia de confianza antes de sacar conclusiones firmes.
+
+## Más documentación
+
+| Documento | Para |
+|---|---|
+| [Metodología](docs/METHODOLOGY.es.md) | Cómo funciona cada comprobación, su escala de puntuación y sus salvedades |
+| [Guía para desarrolladores](DEVELOPER_GUIDE.es.md) | Arquitectura, entorno de desarrollo, contribuciones, traducciones, Docker, versiones |
+| [docs/CI.md](docs/CI.md) | La GitHub Action: entradas, salidas, ejemplos (en inglés) |
+| [docs/DOCKER.md](docs/DOCKER.md) | Ejecutar la interfaz web en un contenedor (en inglés) |
+| [CHANGELOG.md](CHANGELOG.md) | Qué cambió en cada versión (en inglés) |
+| [SECURITY.md](SECURITY.md) | Informar de una vulnerabilidad (en inglés) |
 
 ## Licencia
 

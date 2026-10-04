@@ -337,7 +337,8 @@ def test_consistent_identification(open_page, lang: str) -> None:
 NAV_LINKS_JS = """
 () => {
   // site-wide navigation: the nav landmark and the page footer (contentinfo)
-  const navs = [...document.querySelectorAll('nav, [role=navigation], body > footer, [role=contentinfo]')];
+  const navs = [...document.querySelectorAll('nav, [role=navigation], [role=contentinfo]')].concat(
+    [...document.querySelectorAll('footer')].filter(f => !f.closest('article, aside, main, nav, section')));
   const out = {};
   for (const nav of navs) for (const a of nav.querySelectorAll('a[href]')) {
     const u = new URL(a.href, location.href);

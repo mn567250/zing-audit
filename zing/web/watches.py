@@ -14,9 +14,13 @@ FastAPI's threadpool, lazily creates its table, and is best-effort: a malformed
 row must never crash the scheduler loop.
 
 Secret handling: the stored ``api_key`` is what the scheduler needs to actually
-run the audit, so it is kept in the DB. But :func:`list_all` (the listing the
-browser sees) NEVER returns it — only :func:`get` and :func:`due`, used
-server-side by the scheduler, expose the key.
+run the audit, so it is kept in the DB — encrypted with :mod:`zing.secretbox`
+(``enc:v1:…``); ``env:``/``file:`` references are kept as they are. :func:`init`
+encrypts keys left in plain text by older versions. :func:`list_all` (the
+listing the browser sees) NEVER returns the key, only whether one is stored and
+can be decrypted; :func:`get` and :func:`due`, used server-side by the
+scheduler, return it decrypted. A key that no longer decrypts (lost or changed
+master key) comes back as ``None`` with ``key_error`` set, never as a guess.
 
 Pinned knowledge-base profile: when a watch is created, the profile its
 claimed model resolves to is snapshotted into this database (``kb_snapshots``,
@@ -30,6 +34,7 @@ model matched no profile at creation resolves the live knowledge base per run.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import time
 from collections.abc import Iterator
@@ -37,7 +42,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from zing import datadir, i18n
+from zing import datadir, i18n, secretbox
 from zing.knowledge import snapshot as kb_snapshot
 
 # Full column set, in table order. ``api_key`` lives here for the scheduler, but
@@ -75,6 +80,8 @@ _LIST_COLS = tuple(c for c in _ALL_COLS if c != "api_key")
 
 
 _DB_NAME = "watches.db"
+
+_log = logging.getLogger(__name__)
 
 
 def _db_path() -> Path:
@@ -137,10 +144,101 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
     )
 
 
-def init() -> None:
-    """Create the table if it doesn't exist. Idempotent; safe to call often."""
+def init(box: secretbox.SecretBox | None = None) -> int:
+    """Create the table and encrypt plain-text keys; return how many were.
+
+    Idempotent; safe to call often.
+    """
     with _connect():
         pass
+    return migrate_keys(box)
+
+
+def migrate_keys(box: secretbox.SecretBox | None = None) -> int:
+    """Encrypt every ``api_key`` still stored in plain text; return the count.
+
+    The old plain text is then scrubbed from SQLite's free pages and WAL.
+    """
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, api_key FROM watches WHERE COALESCE(api_key, '') != ''"
+            " AND api_key NOT LIKE 'enc:%' AND api_key NOT LIKE 'env:%'"
+            " AND api_key NOT LIKE 'file:%'"
+        ).fetchall()
+        if not rows:
+            return 0
+        box = box or secretbox.default()
+        conn.executemany(
+            "UPDATE watches SET api_key = ? WHERE id = ?",
+            [(box.seal(r["api_key"]), r["id"]) for r in rows],
+        )
+    _scrub()
+    return len(rows)
+
+
+def reseal_keys(box: secretbox.SecretBox) -> int:
+    """Re-encrypt every stored key with ``box``'s first key (rotation).
+
+    All-or-nothing: a key that does not decrypt aborts before anything is written.
+    """
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, api_key FROM watches WHERE COALESCE(api_key, '') != ''"
+            " AND api_key NOT LIKE 'env:%' AND api_key NOT LIKE 'file:%'"
+        ).fetchall()
+        updates = [(box.reseal(r["api_key"]), r["id"]) for r in rows]
+        conn.executemany("UPDATE watches SET api_key = ? WHERE id = ?", updates)
+    _scrub()
+    return len(updates)
+
+
+def _scrub() -> None:
+    """Overwrite freed pages and truncate the WAL so replaced keys don't linger."""
+    with datadir.connect(_DB_NAME) as conn:
+        conn.execute("PRAGMA secure_delete=ON")
+        conn.commit()
+        conn.isolation_level = None  # VACUUM cannot run inside a transaction
+        conn.execute("VACUUM")
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+
+def key_counts(box: secretbox.SecretBox | None = None) -> dict[str, int]:
+    """How many stored keys are encrypted, references, plain or unreadable."""
+    counts = {"encrypted": 0, "reference": 0, "plain": 0, "unreadable": 0}
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT api_key FROM watches WHERE COALESCE(api_key, '') != ''"
+        ).fetchall()
+    for r in rows:
+        status = _key_status(r["api_key"], box)
+        counts[status] = counts.get(status, 0) + 1
+    return counts
+
+
+def _key_status(stored: str | None, box: secretbox.SecretBox | None = None) -> str:
+    """none | encrypted | reference | plain | unreadable — never the key itself."""
+    if not stored:
+        return "none"
+    if secretbox.is_reference(stored):
+        return "reference"
+    if not secretbox.is_sealed(stored):
+        return "plain"
+    try:
+        ok = (box or secretbox.default()).can_open(stored)
+    except secretbox.SecretError:
+        ok = False
+    return "encrypted" if ok else "unreadable"
+
+
+def _open_key(d: dict[str, Any]) -> None:
+    """Decrypt ``d["api_key"]`` in place; on failure set ``key_error`` instead."""
+    d["key_error"] = None
+    try:
+        d["api_key"] = secretbox.default().open(d.get("api_key"))
+    except secretbox.SecretError as exc:
+        _log.warning("watch %s: %s", d.get("id"), exc)
+        d["api_key"] = None
+        d["key_error"] = str(exc)
 
 
 def _row_to_dict(row: sqlite3.Row, *, include_key: bool) -> dict[str, Any]:
@@ -152,6 +250,8 @@ def _row_to_dict(row: sqlite3.Row, *, include_key: bool) -> dict[str, Any]:
     d = dict(row)
     if not include_key:
         d.pop("api_key", None)
+    else:
+        _open_key(d)
     # webhooks is stored as a JSON list; decode defensively.
     raw = d.get("webhooks")
     try:
@@ -262,7 +362,7 @@ def create(
     row = (
         cfg.get("name") or "watch",
         cfg.get("base_url"),
-        cfg.get("api_key") or "",
+        secretbox.default().seal(cfg.get("api_key") or ""),
         cfg.get("model"),
         cfg.get("claimed_model") or None,
         cfg.get("api") or "auto",
@@ -297,17 +397,21 @@ def create(
 def list_all() -> list[dict[str, Any]]:
     """All watches, newest first, WITHOUT api_key (safe for the browser).
 
-    ``has_key`` says whether a key is stored, without revealing it.
+    ``has_key`` says whether a key is stored and ``key_status`` how (see
+    :func:`_key_status`; ``unreadable`` means it must be re-entered), without
+    revealing it.
     """
     cols = ", ".join(_LIST_COLS)
     with _connect() as conn:
         rows = conn.execute(
-            f"SELECT {cols}, COALESCE(api_key, '') != '' AS has_key FROM watches ORDER BY id DESC"
+            f"SELECT {cols}, api_key AS _stored_key FROM watches ORDER BY id DESC"
         ).fetchall()
     out = []
     for r in rows:
         d = _row_to_dict(r, include_key=False)
-        d["has_key"] = bool(d.get("has_key"))
+        stored = d.pop("_stored_key", None)
+        d["has_key"] = bool(stored)
+        d["key_status"] = _key_status(stored)
         out.append(d)
     return out
 
@@ -362,7 +466,7 @@ def update(
         vals.append(int(interval_sec))
     if api_key is not None:
         sets.append("api_key = ?")
-        vals.append(api_key)
+        vals.append(secretbox.default().seal(api_key))
     if alert_on is not None:
         sets.append("alert_on = ?")
         vals.append(alert_on)
@@ -426,15 +530,11 @@ def due(now_ts: float) -> list[dict[str, Any]]:
     A draft (no interval yet) is never due. Used by the scheduler, so the
     api_key is included to actually run the audit.
     """
-    out: list[dict[str, Any]] = []
     with _connect() as conn:
         rows = conn.execute(
             "SELECT * FROM watches WHERE enabled = 1 AND interval_sec IS NOT NULL"
+            " AND (last_run_ts IS NULL OR ? - last_run_ts >= interval_sec)",
+            (float(now_ts),),
         ).fetchall()
-    for r in rows:
-        d = _row_to_dict(r, include_key=True)
-        last = d.get("last_run_ts")
-        interval = d.get("interval_sec") or 0
-        if last is None or (now_ts - float(last)) >= float(interval):
-            out.append(d)
-    return out
+    # Only the due rows are decrypted.
+    return [_row_to_dict(r, include_key=True) for r in rows]

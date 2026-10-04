@@ -23,6 +23,7 @@ stored in a watch — to your network.
 | `ZING_HOST` | `127.0.0.1` (`0.0.0.0` in the image) | Bind address. Anything but loopback needs `ZING_CONTAINER=1`. `--host` wins over it. |
 | `ZING_PORT` | `8000` | Port inside the container. `--port` wins over it. |
 | `ZING_DATA_DIR` | `~/.zing` (`/data` in the image) | Audit history, monitors (including their API keys) and your own knowledge-base entries. Mount a volume here to keep them. |
+| `ZING_SECRET_KEY` | unset | Master key that encrypts the monitors' stored API keys: a key from `zing secret export`, or `file:/run/secrets/zing_key` / `env:VAR`. Unset, zing generates `secret.key` in `ZING_DATA_DIR`. See below. |
 | `ZING_KB_DIR` | unset | Extra knowledge-base YAML directory, mounted read-only for example (`-v ./profiles:/kb:ro -e ZING_KB_DIR=/kb`). |
 | `ZING_NO_USER_KB` | unset | `1` ignores the knowledge-base entries you added in the UI (`kb.db`). |
 | `ZING_ALLOWED_HOSTS` | unset | Comma-separated extra host names the UI answers to, if you reach it under another name than `localhost`/`127.0.0.1`. |
@@ -39,5 +40,19 @@ stored in a watch — to your network.
   cannot submit forms to the local API.
 - **Security headers.** The UI cannot be framed by other sites
   (`X-Frame-Options`, `frame-ancestors`), and no referrer leaves the page.
+- **Encrypted monitor keys.** Stored API keys are encrypted with a master
+  key. By default it is `secret.key` in the data volume, so a copy of
+  `watches.db` alone reveals nothing, but a copy of the whole volume does. To
+  keep it out of the volume, hand it in as a Docker secret:
+
+  ```bash
+  docker run --rm zing zing secret export 2>/dev/null > zing_key   # or reuse yours
+  docker run --rm -p 127.0.0.1:8000:8000 -v zing-data:/data \
+    -v "$PWD/zing_key:/run/secrets/zing_key:ro" \
+    -e ZING_SECRET_KEY=file:/run/secrets/zing_key zing
+  ```
+
+  Changing the master key without `zing secret rotate` leaves the stored keys
+  unreadable; the UI then asks to re-enter them.
 - **Owner-only data.** The data directory is created `0700` and every database
   file is `0600`; the image runs as an unprivileged user.

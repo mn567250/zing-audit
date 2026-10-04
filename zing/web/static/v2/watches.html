@@ -127,7 +127,7 @@
     <!-- list -->
     <h2 class="section-title" id="list-title" tabindex="-1" style="margin-top:24px"><span data-en="Configured monitors">已配置的监控</span> <span class="count" id="count"></span></h2>
     <div class="mons" id="list" aria-live="polite"><p class="empty" data-en="Loading…">加载中…</p></div>
-    <p class="reassure"><span class="pico" id="lock-icon"></span> <span data-en="Everything <b>runs locally</b>. The API key is stored only in the local database under <b>~/.zing</b> on this machine; it <b>never</b> appears in the monitor list and is never sent to the browser.">全程<b>本地运行</b>。API Key 仅保存在本机 <b>~/.zing</b> 的本地数据库里，<b>绝不</b>出现在监控列表里、也不会发给浏览器。</span></p>
+    <p class="reassure"><span class="pico" id="lock-icon"></span> <span data-en="Everything <b>runs locally</b>. The API key is stored <b>encrypted</b>, only in the local database under <b>~/.zing</b> on this machine; it <b>never</b> appears in the monitor list and is never sent to the browser.">全程<b>本地运行</b>。API Key 仅<b>加密</b>保存在本机 <b>~/.zing</b> 的本地数据库里，<b>绝不</b>出现在监控列表里、也不会发给浏览器。</span></p>
   </main>
   <p class="foot" data-en="zing · relay reality check · monitors are scheduled in the background by the <code>zing serve</code> process">zing · 中转站验真 · 监控由 <code>zing serve</code> 进程在后台调度</p>
 </div>
@@ -358,7 +358,11 @@
   }
   function keyCell(w, s) {
     if (s.edit === "key") return '<form class="edit" data-id="' + w.id + '" novalidate>' + keyInput(w, s, true) + saveCancel("key", w.id) + "</form>";
-    return esc(w.has_key ? T("已保存", "Stored") : T("无", "None")) + linkBtn("edit-key", w.id, T("更换", "Replace"));
+    if (w.key_status === "unreadable") {
+      return '<span style="color:var(--warn)" title="' + esc(T("主密钥已丢失或更换，无法解密已保存的密钥", "The master key was lost or changed, so the stored key cannot be decrypted")) + '">' +
+        esc(T("无法读取，请重新输入", "Unreadable – re-enter")) + "</span>" + linkBtn("edit-key", w.id, T("输入", "Enter"));
+    }
+    return esc(w.has_key ? T("已加密保存", "Stored encrypted") : T("无", "None")) + linkBtn("edit-key", w.id, T("更换", "Replace"));
   }
   function hooksCell(w, s) {
     if (s.edit === "hooks") {

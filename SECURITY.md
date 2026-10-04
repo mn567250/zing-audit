@@ -23,6 +23,16 @@ zing is a local-first auditing tool. The security properties that matter most:
   through the redactor (`zing/utils/redact.py`) before serialization. A path that
   lets a configured key or another secret reach a JSON/Markdown/HTML report is an
   in-scope vulnerability.
+- **Stored monitor keys.** `zing serve` keeps each monitor's API key in
+  `watches.db`, encrypted with Fernet (`zing/secretbox.py`). The master key is
+  `ZING_SECRET_KEY` (a key, or an `env:`/`file:` reference) or else
+  `<data dir>/secret.key`, created `0600`. With the default key file next to
+  the database, a copy of the database alone (backup, synced folder, support
+  bundle) reveals no key; anyone who can read the whole data directory or run
+  code as your user still can. For real separation, pass the key through
+  `ZING_SECRET_KEY` (e.g. `file:/run/secrets/zing_key`) and keep it out of the
+  data directory. Back it up with `zing secret export`; without it the stored
+  keys must be re-entered. `zing secret rotate` replaces it.
 - **Untrusted input.** Relay responses are untrusted by design. Report renderers
   must neutralize relay-controlled text (HTML-escape, Markdown-escape) so it
   cannot inject markup or spoof report structure.

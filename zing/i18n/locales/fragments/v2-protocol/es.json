@@ -1,0 +1,11 @@
+{
+ "strings": {
+  "(unknown)": "(desconocido)",
+  "auto-detected": "detectado automáticamente",
+  "set manually": "fijado manualmente",
+  "Streaming + non-streaming": "Streaming + sin streaming",
+  "Protocol detection": "Detección del protocolo",
+  "Relay, model, suite, protocol…": "Relay, modelo, suite, protocolo…",
+  "Probe requests": "Solicitudes de sondeo"
+ }
+}

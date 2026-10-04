@@ -66,6 +66,7 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 
 from zing import __version__, prompts
+from zing.clients import detect_api
 from zing.config import (
     AuditOptions,
     ConfigError,
@@ -74,7 +75,8 @@ from zing.config import (
     validate_dimensions,
     validate_suite,
 )
-from zing.models import KnowledgeUsage
+from zing.detectors.performance import stream_mode
+from zing.models import KnowledgeUsage, TargetConfig
 from zing.runner import run_audit
 from zing.web import jobs
 from zing.web.security import LocalOnlyMiddleware
@@ -148,6 +150,24 @@ def _coerce_int(value: Any) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _watch_protocol(row: dict[str, Any]) -> dict[str, Any]:
+    """A watch's protocol (what ``auto`` resolves to now), whether it is
+    auto-detected, and its probe request mode — for the monitor card and the
+    in-progress list."""
+    configured = (row.get("api") or "auto").lower()
+    try:
+        resolved = detect_api(
+            TargetConfig(base_url=row.get("base_url") or "", model=row.get("model") or "", api=configured)
+        )
+    except Exception:
+        resolved = None
+    mode = stream_mode(AuditOptions(
+        suite=str(row.get("suite") or "standard"),
+        performance_streaming=row.get("performance_streaming") is not False,
+    ))
+    return {"api_resolved": resolved, "api_auto": configured == "auto", "stream_mode": mode}
 
 
 def _watch_knowledge(row: dict[str, Any], kb: Any = None) -> dict[str, Any]:
@@ -251,6 +271,7 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
         "claimed_model": row.get("claimed_model") or row.get("model"),
         "suite": row.get("suite") or "standard",
         "since": time.time(),
+        **_watch_protocol(row),
     }
     _running_watches[wid] = state
     try:
@@ -307,7 +328,11 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
             declared_provider=row.get("declared_provider") or None,
             api=validate_api(row.get("api")),
         )
-        options = AuditOptions(suite=suite, dimensions=dimensions)
+        options = AuditOptions(
+            suite=suite,
+            dimensions=dimensions,
+            performance_streaming=row.get("performance_streaming") is not False,
+        )
         # Audit against the profile pinned when the watch was created, so a
         # knowledge-base edit cannot silently change what the monitor measures.
         pinned_raw = watches.pinned_knowledge(wid)
@@ -697,7 +722,7 @@ def create_app() -> FastAPI:
         # List the relay's own /models so the picker can offer ids it really
         # accepts. The API key is optional: self-hosted relays (Ollama, LM Studio)
         # need none, and an empty key sends no auth header.
-        from zing.clients import detect_api, make_client
+        from zing.clients import make_client
 
         body = await request.json()
         try:
@@ -785,6 +810,9 @@ def create_app() -> FastAPI:
             "suite": suite,
             "dimensions": list(dimensions or []),
             "baseline_url": baseline.base_url if baseline is not None else None,
+            "api": detect_api(target),
+            "api_auto": target.api == "auto",
+            "stream_mode": stream_mode(options),
         }
         urls = [target.base_url, baseline.base_url if baseline is not None else None]
         return jobs.manager.submit(summary, urls, run)
@@ -845,6 +873,9 @@ def create_app() -> FastAPI:
                 "model": state.get("model"),
                 "claimed_model": state.get("claimed_model"),
                 "suite": state.get("suite"),
+                "api": state.get("api_resolved"),
+                "api_auto": state.get("api_auto"),
+                "stream_mode": state.get("stream_mode"),
                 "status": "running" if started else "queued",
                 "created": state.get("since"),
                 "progress": _watch_progress(state) if started else None,
@@ -980,6 +1011,7 @@ def create_app() -> FastAPI:
             row["queued"] = state is not None and not state.get("started")
             row["progress"] = _watch_progress(state) if state is not None else None
             row["min_interval_sec"] = _min_interval_sec(row.get("run_duration_sec"))
+            row.update(_watch_protocol(row))
             row["kb_current_hash"] = None
             row["kb_changed"] = False
             if kb is None:
@@ -1015,7 +1047,12 @@ def create_app() -> FastAPI:
         except ConfigError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
-        cfg = {**body, "suite": suite, "dimensions": dimensions}
+        cfg = {
+            **body,
+            "suite": suite,
+            "dimensions": dimensions,
+            "performance_streaming": body.get("performance_streaming") is not False,
+        }
         try:
             knowledge = _watch_knowledge(cfg)
         except Exception as exc:  # e.g. a broken ZING_KB_DIR file
@@ -1032,10 +1069,11 @@ def create_app() -> FastAPI:
     async def watches_from_history(rid: int, request: Request) -> Any:
         """Schedule a history run: a paused draft watch with the run's config.
 
-        History never stores the API key (only a fingerprint) nor a forced
-        protocol, so the draft has no key, ``api="auto"`` and no interval; the
-        user sets the interval (and, if the endpoint needs one, the key) on the
-        monitors page, then enables it.
+        History never stores the API key (only a fingerprint), so the draft has
+        no key and no interval; the user sets the interval (and, if the endpoint
+        needs one, the key) on the monitors page, then enables it. The run's
+        protocol is kept when it was set by hand (``api="auto"`` otherwise, and
+        for runs from before it was recorded), and so is its probe request mode.
         A compare run's baseline is dropped: watches run check-only.
         A run a monitor produced is refused: that monitor already exists.
         """
@@ -1051,6 +1089,9 @@ def create_app() -> FastAPI:
         except ValueError:
             body = {}
         tgt = report.get("target") or {}
+        # A protocol set by hand stays forced; an auto-detected one is detected
+        # again on every run.
+        api = tgt.get("api") if tgt.get("api_auto") is False and tgt.get("api") else "auto"
         try:
             suite = validate_suite(str(report.get("suite") or "standard"))
             dimensions = validate_dimensions(suite, report.get("dimensions_selected"))
@@ -1062,7 +1103,7 @@ def create_app() -> FastAPI:
                 model=tgt.get("model"),
                 claimed_model=tgt.get("claimed_model") or None,
                 declared_provider=tgt.get("declared_provider") or None,
-                api="auto",
+                api=validate_api(api),
             )
         except ConfigError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
@@ -1073,9 +1114,10 @@ def create_app() -> FastAPI:
             "model": tgt.get("model"),
             "claimed_model": tgt.get("claimed_model") or None,
             "declared_provider": tgt.get("declared_provider") or None,
-            "api": "auto",
+            "api": api,
             "suite": suite,
             "dimensions": dimensions,
+            "performance_streaming": report.get("stream_mode") != "non_stream",
             "language": (body or {}).get("language") if isinstance(body, dict) else None,
             "source_report_id": rid,
             "run_duration_sec": history.run_duration_sec(report),

@@ -560,6 +560,12 @@ class RedactedTarget(BaseModel):
     claimed_model: str | None = None
     declared_provider: str | None = None
     api_key_fingerprint: str | None = None
+    # Wire protocol the run spoke: "openai" (Chat Completions), "anthropic"
+    # (Messages) or "responses" (OpenAI Responses), and whether it was
+    # auto-detected from the base_url/model (False: set by hand). None in
+    # reports from before this was recorded.
+    api: str | None = None
+    api_auto: bool | None = None
 
 
 class KnowledgeEntryRef(BaseModel):
@@ -624,6 +630,10 @@ class AuditReport(BaseModel):
     suite: str
     # The dimensions a ``custom`` suite ran (None for the fixed suites).
     dimensions_selected: list[str] | None = None
+    # Request mode the performance probe was configured with: "stream",
+    # "non_stream" or "both" (the full suite). The streaming-authenticity
+    # detector always streams. None in reports from before this was recorded.
+    stream_mode: str | None = None
 
     target: RedactedTarget
     baseline: RedactedTarget | None = None

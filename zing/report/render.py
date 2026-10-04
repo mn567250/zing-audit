@@ -16,8 +16,16 @@ from __future__ import annotations
 
 import html
 import json
+from typing import Any
 
-from zing.models import AuditReport, KnowledgeUsage, RiskLevel, Severity, Status
+from zing.models import (
+    AuditReport,
+    KnowledgeUsage,
+    RedactedTarget,
+    RiskLevel,
+    Severity,
+    Status,
+)
 from zing.report import dimensions as dimension_details
 from zing.report.performance import (
     PERF_CSS,
@@ -47,6 +55,38 @@ _RISK_COLOR: dict[RiskLevel, str] = {
     RiskLevel.HIGH: "#cf222e",       # red
     RiskLevel.INCONCLUSIVE: "#656d76",  # grey
 }
+
+# The performance probe's configured request mode (AuditReport.stream_mode).
+_STREAM_MODE_LABEL: dict[str, str] = {
+    "stream": "streaming",
+    "non_stream": "non-streaming",
+    "both": "streaming + non-streaming",
+}
+
+
+def _protocol_bits(t: RedactedTarget) -> tuple[str, str] | None:
+    """(protocol, how it was chosen) of a target, or None for an old report."""
+    if not t.api:
+        return None
+    if t.api_auto is None:
+        return t.api, ""
+    return t.api, "auto-detected" if t.api_auto else "set manually"
+
+
+def _run_config_meta(report: AuditReport) -> list[tuple[str, str, str]]:
+    """(label, value, note) meta entries for the protocol and probe request mode."""
+    out: list[tuple[str, str, str]] = []
+    proto = _protocol_bits(report.target)
+    if proto:
+        out.append(("protocol", proto[0], proto[1]))
+    if report.baseline is not None:
+        bproto = _protocol_bits(report.baseline)
+        if bproto:
+            out.append(("baseline protocol", bproto[0], bproto[1]))
+    if report.stream_mode:
+        out.append(("requests", _STREAM_MODE_LABEL.get(report.stream_mode, report.stream_mode), ""))
+    return out
+
 
 _SEVERITY_EMOJI: dict[Severity, str] = {
     Severity.INFO: "ℹ️",
@@ -143,11 +183,14 @@ def compact_dict(report: AuditReport) -> dict:
     """
     v = report.verdict
     t = report.target
-    target = {"name": t.name, "model": t.model, "base_url": t.base_url}
+    target: dict[str, Any] = {"name": t.name, "model": t.model, "base_url": t.base_url}
     if t.claimed_model:
         target["claimed_model"] = t.claimed_model
     if t.declared_provider:
         target["provider"] = t.declared_provider
+    if t.api:
+        target["api"] = t.api
+        target["api_auto"] = t.api_auto
 
     rel = None
     if report.reliability:
@@ -167,9 +210,15 @@ def compact_dict(report: AuditReport) -> dict:
         "mode": report.mode,
         "suite": report.suite,
         "dimensions_selected": report.dimensions_selected,
+        "stream_mode": report.stream_mode,
         "target": target,
         "baseline": (
-            {"model": report.baseline.model, "base_url": report.baseline.base_url}
+            {
+                "model": report.baseline.model,
+                "base_url": report.baseline.base_url,
+                "api": report.baseline.api,
+                "api_auto": report.baseline.api_auto,
+            }
             if report.baseline
             else None
         ),
@@ -275,6 +324,8 @@ def render_markdown(report: AuditReport) -> str:
         meta.append(f"provider `{report.target.declared_provider}`")
     if report.baseline:
         meta.append(f"baseline `{report.baseline.model}`")
+    for label, value, note in _run_config_meta(report):
+        meta.append(f"{label} `{value}`" + (f" ({note})" if note else ""))
     if report.judge_used:
         meta.append(f"judge `{report.judge_model or 'on'}`")
     if report.generated_at:
@@ -476,6 +527,10 @@ def render_html(report: AuditReport) -> str:
         meta_bits.append(f"provider <code>{_esc(report.target.declared_provider)}</code>")
     if report.baseline:
         meta_bits.append(f"baseline <code>{_esc(report.baseline.model)}</code>")
+    for label, value, note in _run_config_meta(report):
+        meta_bits.append(
+            f"{_esc(label)} <code>{_esc(value)}</code>" + (f" ({_esc(note)})" if note else "")
+        )
     if report.judge_used:
         meta_bits.append(f"judge <code>{_esc(report.judge_model or 'on')}</code>")
     if report.generated_at:

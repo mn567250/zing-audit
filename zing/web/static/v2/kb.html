@@ -61,7 +61,7 @@
 <body>
 <div class="wrap">
   <header class="znav" data-page="kb" data-trust></header>
-  <main>
+  <main id="main" tabindex="-1">
     <div class="hero">
       <h1 data-en="The <span class='u'>knowledge base</span> zing audits against">zing 用来比对的<span class="u">知识库</span></h1>
       <p data-en="Every audit compares a relay with the profile of the model it claims: context window, output limit, capabilities, identity and behavioral fingerprints. Browse the profiles here and add your own models — no YAML files or editable install needed. Your entries are stored in <b>kb.db</b> on this machine and used by the web UI and <code>zing check</code> alike.">每次检测都会把中转站与其声称模型的资料比对：上下文窗口、输出上限、能力、身份与行为指纹。你可以在这里浏览这些资料并添加自己的模型——无需编写 YAML 文件或可编辑安装。你的条目保存在本机的 <b>kb.db</b> 中，网页界面和 <code>zing check</code> 都会使用。</p>
@@ -147,7 +147,7 @@
     <input class="in filter" id="filter" type="search" autocomplete="off" spellcheck="false" aria-label="筛选" data-en-aria-label="Filter" placeholder="筛选厂商或模型…" data-en-placeholder="Filter providers or models…">
     <div class="provs" id="provs" style="margin-top:12px"></div>
   </main>
-  <p class="foot" data-en="zing · relay reality check · packaged profiles live in <code>zing/knowledge/data</code>; <code>ZING_KB_DIR</code> and your entries are layered on top">zing · 中转站验真 · 内置资料位于 <code>zing/knowledge/data</code>；<code>ZING_KB_DIR</code> 与你的条目叠加在其上</p>
+  <footer><p class="foot" data-en="zing · relay reality check · packaged profiles live in <code>zing/knowledge/data</code>; <code>ZING_KB_DIR</code> and your entries are layered on top">zing · 中转站验真 · 内置资料位于 <code>zing/knowledge/data</code>；<code>ZING_KB_DIR</code> 与你的条目叠加在其上</p></footer>
 </div>
 <script src="/i18n.js"></script>
 <script src="/icons.js"></script>

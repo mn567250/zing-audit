@@ -8,6 +8,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Re-run an audit from History.** Every History run has a refresh button next
+  to the monitor bell, and every expanded report ends with a **Re-run audit**
+  button. Both open the audit form prefilled with that run's relay, model,
+  claimed model, provider, protocol, suite, custom dimensions and probe request
+  mode (`/v2/?rerun=<id>`). History never stores API keys, so the key field
+  keeps its default or your browser's saved credential for that relay; a
+  compare run's baseline is not restored.
 - **Protocol and request mode in every report, history row and monitor.**
   A report now records the wire protocol each endpoint spoke
   (`target.api` / `baseline.api`: `openai`, `anthropic` or `responses`), whether

@@ -246,7 +246,7 @@ nuova interfaccia** passa alla **nuova interfaccia** sotto `/v2/`, il cui link
 | **Modelli** | — | `/v2/kb` | Sfogliare la base di conoscenza e aggiungere i tuoi profili di modello |
 
 La nuova interfaccia aggiunge: filtri e tendenze configurabili (punteggio, voto,
-latenza p50, token/s) nella **Cronologia**; **Pianifica come monitor** su ogni
+latenza p50, token/s) nella **Cronologia**; **Pianifica come monitor** e **Riesegui audit** su ogni
 esecuzione della Cronologia; **Scarica il rapporto** in tutti i formati; un
 selettore del tema (Automatico / Chiaro / Scuro); e la pagina **Modelli**.
 

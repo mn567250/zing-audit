@@ -8,61 +8,25 @@ ausreichend"). axe-core tags its rules "wcag143", so the mapping is mechanical.
 
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
+from typing import Any
+
+# The single source of truth for the 50 WCAG 2.1 A/AA criteria (= EN 301 549
+# 9.x.x.x / BITV steps): number, level, title, how far the tests decide it and
+# how. The conformance report (tests/a11y/conformance.py) and the report page
+# in web UI v2 (/v2/accessibility) read the same file.
+CATALOGUE_FILE = Path(__file__).resolve().parents[2] / "zing" / "web" / "static" / "v2" / "bitv-catalogue.json"
+
+
+def catalogue() -> dict[str, Any]:
+    """The coverage catalogue: {"standards": {...}, "steps": [{step, wcag, level, title, automation, how}]}."""
+    return dict(json.loads(CATALOGUE_FILE.read_text(encoding="utf-8")))
+
 
 # WCAG 2.1 level A + AA (the EN 301 549 / BITV scope), with short titles.
-CRITERIA: dict[str, str] = {
-    "1.1.1": "Non-text Content",
-    "1.2.1": "Audio-only and Video-only (Prerecorded)",
-    "1.2.2": "Captions (Prerecorded)",
-    "1.2.3": "Audio Description or Media Alternative",
-    "1.2.4": "Captions (Live)",
-    "1.2.5": "Audio Description (Prerecorded)",
-    "1.3.1": "Info and Relationships",
-    "1.3.2": "Meaningful Sequence",
-    "1.3.3": "Sensory Characteristics",
-    "1.3.4": "Orientation",
-    "1.3.5": "Identify Input Purpose",
-    "1.4.1": "Use of Color",
-    "1.4.2": "Audio Control",
-    "1.4.3": "Contrast (Minimum)",
-    "1.4.4": "Resize Text",
-    "1.4.5": "Images of Text",
-    "1.4.10": "Reflow",
-    "1.4.11": "Non-text Contrast",
-    "1.4.12": "Text Spacing",
-    "1.4.13": "Content on Hover or Focus",
-    "2.1.1": "Keyboard",
-    "2.1.2": "No Keyboard Trap",
-    "2.1.4": "Character Key Shortcuts",
-    "2.2.1": "Timing Adjustable",
-    "2.2.2": "Pause, Stop, Hide",
-    "2.3.1": "Three Flashes or Below Threshold",
-    "2.4.1": "Bypass Blocks",
-    "2.4.2": "Page Titled",
-    "2.4.3": "Focus Order",
-    "2.4.4": "Link Purpose (In Context)",
-    "2.4.5": "Multiple Ways",
-    "2.4.6": "Headings and Labels",
-    "2.4.7": "Focus Visible",
-    "2.5.1": "Pointer Gestures",
-    "2.5.2": "Pointer Cancellation",
-    "2.5.3": "Label in Name",
-    "2.5.4": "Motion Actuation",
-    "3.1.1": "Language of Page",
-    "3.1.2": "Language of Parts",
-    "3.2.1": "On Focus",
-    "3.2.2": "On Input",
-    "3.2.3": "Consistent Navigation",
-    "3.2.4": "Consistent Identification",
-    "3.3.1": "Error Identification",
-    "3.3.2": "Labels or Instructions",
-    "3.3.3": "Error Suggestion",
-    "3.3.4": "Error Prevention (Legal, Financial, Data)",
-    "4.1.1": "Parsing",
-    "4.1.2": "Name, Role, Value",
-    "4.1.3": "Status Messages",
-}
+CRITERIA: dict[str, str] = {s["wcag"]: s["title"] for s in catalogue()["steps"]}
 
 _TAG = re.compile(r"^wcag(\d)(\d)(\d+)$")
 

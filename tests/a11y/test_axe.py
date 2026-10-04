@@ -23,7 +23,17 @@ from tests.a11y.harness import (
 
 PAGE_IDS = list(PAGES)
 
+# BITV steps the enabled axe 4.13 rules tagged wcag2a/wcag2aa/wcag21a/wcag21aa
+# decide (time-based media and audio are n/a here). Each step's outcome comes
+# from its own rules (tests/a11y/results.py), not from the whole test.
+AXE_WCAG_STEPS = (
+    "9.1.1.1", "9.1.3.1", "9.1.3.5", "9.1.4.1", "9.1.4.3", "9.1.4.4", "9.1.4.12",
+    "9.2.1.1", "9.2.2.1", "9.2.2.2", "9.2.4.1", "9.2.4.2", "9.2.4.4",
+    "9.3.1.1", "9.3.1.2", "9.3.3.2", "9.4.1.2",
+)
 
+
+@pytest.mark.bitv(*AXE_WCAG_STEPS)
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
@@ -32,6 +42,7 @@ def test_wcag_rules_as_loaded(open_page, page_id: str, lang: str, theme: str) ->
     assert_no_violations(run_axe(page, WCAG_TAGS), f"{page_id} [{lang}, {theme}] as loaded")
 
 
+@pytest.mark.bitv(*AXE_WCAG_STEPS)
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
@@ -41,6 +52,7 @@ def test_wcag_rules_expanded(open_page, page_id: str, lang: str, theme: str) -> 
     assert_no_violations(run_axe(page, WCAG_TAGS), f"{page_id} [{lang}, {theme}] with disclosures open")
 
 
+@pytest.mark.bitv(*AXE_WCAG_STEPS)
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_wcag_rules_every_tab_panel(open_page, page_id: str, theme: str) -> None:
@@ -53,6 +65,7 @@ def test_wcag_rules_every_tab_panel(open_page, page_id: str, theme: str) -> None
     assert_no_violations(found, f"{page_id} [en, {theme}] each tab panel")
 
 
+@pytest.mark.bitv("9.1.3.1", "9.2.4.1", "9.2.4.3", "9.2.4.6")
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_best_practices(open_page, page_id: str, lang: str) -> None:

@@ -23,6 +23,7 @@ def _html_lang(page: Any, lang: str) -> str:
     return str(page.evaluate("l => (ZING_LANG.langs().find(x => x.code === l) || {}).html || l", lang))
 
 
+@pytest.mark.bitv("9.3.1.1")
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_page_language(open_page, page_id: str, lang: str) -> None:
@@ -70,6 +71,7 @@ LANG_OF_PARTS_JS = (
 )
 
 
+@pytest.mark.bitv("9.3.1.2")
 @pytest.mark.parametrize("lang", [x for x in LANGS if x != "zh"])
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_language_of_parts(open_page, page_id: str, lang: str) -> None:
@@ -80,6 +82,7 @@ def test_language_of_parts(open_page, page_id: str, lang: str) -> None:
     assert_no_issues(page.evaluate(LANG_OF_PARTS_JS, CJK), f"{page_id} [{lang}]", "language-of-parts")
 
 
+@pytest.mark.bitv("9.2.4.2")
 @pytest.mark.parametrize("lang", LANGS)
 def test_page_titles(open_page, lang: str) -> None:
     """9.2.4.2 Page titled: every page has its own title, in the page language."""
@@ -112,6 +115,7 @@ HEADINGS_JS = """
 """
 
 
+@pytest.mark.bitv("9.1.3.1", "9.2.4.6")
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_heading_structure(open_page, page_id: str, lang: str) -> None:
@@ -152,6 +156,7 @@ LANDMARKS_JS = """
 """
 
 
+@pytest.mark.bitv("9.1.3.1", "9.2.4.1", "9.3.2.3", "9.3.2.4")
 @pytest.mark.parametrize("lang", LANGS)
 def test_consistent_navigation_and_landmarks(open_page, lang: str) -> None:
     """9.3.2.3 Consistent navigation, 9.3.2.4 Consistent identification,
@@ -192,6 +197,7 @@ LABEL_IN_NAME_JS = """
 """
 
 
+@pytest.mark.bitv("9.2.5.3")
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_label_in_name(open_page, page_id: str, lang: str) -> None:
@@ -214,6 +220,7 @@ SUBMIT_FORMS_JS = """
 """
 
 
+@pytest.mark.bitv("9.3.3.1", "9.3.3.3")
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_error_identification(open_page, page_id: str, lang: str) -> None:

@@ -40,6 +40,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -195,6 +196,14 @@ class WatchCancelled(Exception):
     """Raised when a running watch was stopped with Cancel."""
 
 
+class WatchKeyUnreadable(Exception):
+    """Raised when a watch's stored API key no longer decrypts (master key lost
+    or changed); the key must be re-entered before the watch can run."""
+
+
+_log = logging.getLogger("zing.web")
+
+
 # Progress counters are shared with background audit jobs (see jobs.py).
 _watch_progress = jobs.progress_pct
 _track_progress = jobs.track_progress
@@ -210,6 +219,15 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
     wid = int(row["id"])
     if wid in _running_watches:
         raise WatchAlreadyRunning(wid)
+    if row.get("key_error"):
+        # Never audit with a missing key: it would fail and alert falsely.
+        # Move the run time on (so the scheduler doesn't retry every tick)
+        # and keep the last result on the card.
+        from zing.web import watches
+
+        with contextlib.suppress(Exception):
+            watches.mark_attempt(wid, time.time())
+        raise WatchKeyUnreadable(row["key_error"])
     state: dict[str, Any] = {
         "cancelled": False,
         "name": row.get("name"),
@@ -393,8 +411,11 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Spawn the watch scheduler on startup; cancel it cleanly on shutdown."""
     from zing.web import watches
 
-    with contextlib.suppress(Exception):
-        watches.init()
+    try:
+        migrated = watches.init()
+        _log_secret_key(migrated)
+    except Exception as exc:
+        _log.warning("watch store: %s", exc)
     task = asyncio.create_task(_scheduler_loop())
     try:
         yield
@@ -404,6 +425,24 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
             await task
         with contextlib.suppress(Exception):
             await jobs.manager.shutdown()
+
+
+def _log_secret_key(migrated: int) -> None:
+    """Say once at startup which master key protects the stored watch keys."""
+    from zing import secretbox
+
+    box = secretbox.default()
+    _log.warning(
+        "watch API keys are encrypted with the key from %s (fingerprint %s)",
+        box.source, box.fingerprint(),
+    )
+    if secretbox.default_created():
+        _log.warning(
+            "generated a new master key; back it up with `zing secret export` "
+            "(losing it means re-entering every watch's API key)"
+        )
+    if migrated:
+        _log.warning("encrypted %d API key(s) that were stored in plain text", migrated)
 
 
 def create_app() -> FastAPI:
@@ -1086,6 +1125,12 @@ def create_app() -> FastAPI:
             return JSONResponse({"error": "already running"}, status_code=409)
         except WatchCancelled:
             return JSONResponse({"ok": False, "cancelled": True})
+        except WatchKeyUnreadable:
+            return JSONResponse(
+                {"error": "the stored API key cannot be decrypted (master key lost or "
+                          "changed); enter the key again", "key_error": True},
+                status_code=409,
+            )
         except Exception as exc:  # surface a clean error, not a 500 stack
             return JSONResponse(
                 {"error": f"{type(exc).__name__}: {exc}"}, status_code=500

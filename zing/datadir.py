@@ -2,9 +2,10 @@
 
 Everything zing persists locally — audit history, scheduled watches, the user's
 own knowledge-base entries — lives in ``$ZING_DATA_DIR`` (default ``~/.zing``).
-The watch store holds API keys in plain text, so the directory is created
-owner-only (``0700``) and every database file (plus SQLite's ``-wal``/``-shm``
-side files) is kept ``0600``.
+The watch store holds API keys (encrypted, see :mod:`zing.secretbox`, whose
+default master key file ``secret.key`` lives here too), so the directory is
+created owner-only (``0700``) and every database file (plus SQLite's
+``-wal``/``-shm`` side files) is kept ``0600``.
 
 :func:`connect` opens a fresh, short-lived connection per call, so callers are
 safe on FastAPI's threadpool without sharing a connection across threads.

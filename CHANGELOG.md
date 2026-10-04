@@ -8,6 +8,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Monitor API keys are encrypted at rest.** `zing serve` now stores each
+  watch's API key in `watches.db` as a Fernet token (`enc:v1:…`, AES with an
+  HMAC check) instead of plain text; `env:VAR` / `file:/path` references stay
+  as they are. Existing plain-text keys are encrypted (and scrubbed from the
+  database file) the first time the server starts. The master key comes from
+  `ZING_SECRET_KEY` (a key, or `env:`/`file:` reference; comma-separated to
+  rotate) or is generated in `<data dir>/secret.key` (`0600`). New commands:
+  `zing secret status | export | rotate`. A watch whose key no longer decrypts
+  is shown as "Unreadable – re-enter" and skipped instead of run without a key.
+  The `web` extra now depends on `cryptography`. Downgrading to an older zing
+  leaves the stored keys unusable (re-enter them there).
 - **Background audits in the new UI.** An audit is now a job owned by the
   `zing serve` process instead of the browser tab: switching pages, reloading
   or closing the tab no longer stops it, and **Continue in background** on the

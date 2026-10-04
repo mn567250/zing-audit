@@ -7,6 +7,7 @@ Commands:
   zing models    quickly probe an endpoint's /models list
   zing kb        inspect the knowledge base (packaged, ZING_KB_DIR, your entries)
   zing kb-prompt / kb-import / kb-export   add your own model profiles
+  zing secret    the master key encrypting the API keys `zing serve` stores
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 from rich.console import Console
@@ -42,6 +43,9 @@ from zing.config import (
 from zing.knowledge import load_knowledge_base
 from zing.models import AuditReport, RiskLevel, Status, TargetConfig
 from zing.report.performance import fmt_num
+
+if TYPE_CHECKING:
+    from zing.secretbox import SecretBox
 
 # Risk ordering for the `watch` alert threshold (clean < low < medium < high).
 _WATCH_RISK_RANK = {
@@ -1270,6 +1274,106 @@ def main(
         console.print(ctx.get_help())
         raise typer.Exit()
 
+
+
+secret_app = typer.Typer(
+    help="The master key that encrypts the API keys stored for `zing serve` monitors.",
+    no_args_is_help=True,
+)
+app.add_typer(secret_app, name="secret")
+
+
+def _secret_box() -> SecretBox:
+    from zing import secretbox
+
+    try:
+        return secretbox.default()
+    except secretbox.SecretError as exc:
+        err_console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2) from exc
+
+
+@secret_app.command("status")
+def secret_status() -> None:
+    """Where the master key comes from, its fingerprint, and the stored keys' state."""
+    from zing.web import watches
+
+    box = _secret_box()
+    console.print(f"master key: [bold]{box.source}[/bold]  (fingerprint {box.fingerprint()})")
+    if len(box.keys) > 1:
+        console.print(f"  + {len(box.keys) - 1} older key(s), used only to decrypt")
+    counts = watches.key_counts(box)
+    console.print(
+        "watch API keys: "
+        + ", ".join(f"{n} {k}" for k, n in counts.items())
+    )
+    if counts.get("unreadable"):
+        err_console.print(
+            "[yellow]![/yellow] Unreadable keys were encrypted with another master key: "
+            "restore it, or re-enter those keys in the web UI."
+        )
+    if counts.get("plain"):
+        console.print("Plain-text keys are encrypted the next time `zing serve` starts.")
+
+
+@secret_app.command("export")
+def secret_export() -> None:
+    """Print the master key, to back it up (password manager, Docker secret)."""
+    box = _secret_box()
+    err_console.print(
+        "[yellow]![/yellow] This is a secret: anyone with it and your watches.db can read "
+        "the stored API keys."
+    )
+    typer.echo(box.keys[0])
+
+
+@secret_app.command("rotate")
+def secret_rotate() -> None:
+    """Generate a new master key and re-encrypt every stored API key with it."""
+    from zing import secretbox
+
+    box = _secret_box()
+    if box.source == secretbox.ENV:
+        # zing cannot change an environment variable: rotate in two steps.
+        if len(box.keys) == 1:
+            new_key = secretbox.generate_key()
+            err_console.print(
+                "The master key comes from ZING_SECRET_KEY, which zing cannot change.\n"
+                "Set it to this value (new key, then the old one), run "
+                "`zing secret rotate` again, then drop the old key:"
+            )
+            typer.echo(f"{new_key},{box.keys[0]}")
+            return
+        n = _reseal(box)
+        console.print(
+            f"[green]Re-encrypted[/green] {n} key(s) with the first key in ZING_SECRET_KEY "
+            f"(fingerprint {box.fingerprint()}); the older key(s) can now be removed from it."
+        )
+        return
+    # Key file: every step leaves a key set that opens every stored key, so a
+    # crash part-way loses nothing. 1) new + old keys, 2) re-encrypt, 3) new only.
+    new_key = secretbox.generate_key()
+    path = Path(box.source)
+    secretbox.write_key_file(",".join([new_key, *box.keys]), path)
+    secretbox.clear_cache()
+    n = _reseal(secretbox.default())
+    secretbox.write_key_file(new_key, path)
+    secretbox.clear_cache()
+    console.print(
+        f"[green]Rotated.[/green] {n} key(s) re-encrypted; new master key in {path} "
+        f"(fingerprint {secretbox.default().fingerprint()}). Back it up with `zing secret export`."
+    )
+
+
+def _reseal(box: SecretBox) -> int:
+    from zing import secretbox
+    from zing.web import watches
+
+    try:
+        return watches.reseal_keys(box)
+    except secretbox.SecretError as exc:
+        err_console.print(f"[red]Nothing re-encrypted:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
 
 if __name__ == "__main__":
     app()

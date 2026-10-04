@@ -49,6 +49,8 @@ tokenizers = ["tiktoken>=0.7"]
 web = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
+    # Encrypts the API keys stored for monitors (zing/secretbox.py).
+    "cryptography>=42",
 ]
 # PDF reports are part of the core install now; the empty extra keeps
 # `pip install 'zing-audit[pdf]'` from older instructions working.

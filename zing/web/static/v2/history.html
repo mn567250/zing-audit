@@ -278,7 +278,7 @@
 
   var host = $("#hist"), fbar = $("#filters");
   var FKEY = "zing.v2.history.filters", NONE = "__none__";
-  var FDEF = { host: "", model: "", suite: "", mode: "", api: "", detect: "", stream: "", risk: "", min: "", days: "", q: "" };
+  var FDEF = { host: "", model: "", suite: "", mode: "", api: "", detect: "", stream: "", risk: "", min: "", days: "", exec: "", q: "" };
   var state = { rows: null, error: null, reports: {}, open: null, confirm: null, filters: loadFilters() };
 
   $("#lockIcon").innerHTML = ico("lock");
@@ -318,6 +318,8 @@
   function apiOf(r) { return r.api || ""; }
   function detectOf(r) { return r.api_auto == null ? "" : r.api_auto ? "auto" : "manual"; }
   function streamOf(r) { return r.stream_mode || ""; }
+  // who started the run: a monitor (it has a watch_id) or a person (ad-hoc)
+  function execOf(r) { return r.watch_id != null ? "monitor" : "adhoc"; }
   var STREAM = {
     stream: ["流式", "Streaming"],
     non_stream: ["非流式", "Non-streaming"],
@@ -341,12 +343,14 @@
       if (f.mode && modeOf(r) !== f.mode) return false;
       if (!fmatch(f.api, apiOf(r)) || !fmatch(f.detect, detectOf(r)) || !fmatch(f.stream, streamOf(r))) return false;
       if (f.risk && riskOf(r) !== f.risk) return false;
+      if (f.exec && execOf(r) !== f.exec) return false;
       if (min != null && !isNaN(min) && !(typeof r.score === "number" && r.score >= min)) return false;
       if (since != null) {
         var t = Date.parse(r.ts);
         if (isNaN(t) || t < since) return false;
       }
       if (q && [r.base_url, r.claimed_model, r.model, r.suite, modeOf(r), apiOf(r),
+        execOf(r) === "monitor" ? T("监控", "Monitor") : "",
         detectOf(r) && detectLabel(detectOf(r)), streamOf(r) && streamLabel(streamOf(r))].join(" ").toLowerCase().indexOf(q) < 0) return false;
       return true;
     });
@@ -416,6 +420,10 @@
         { v: "7", t: T("最近 7 天", "Last 7 days") },
         { v: "30", t: T("最近 30 天", "Last 30 days") },
         { v: "90", t: T("最近 90 天", "Last 90 days") },
+      ]) +
+      selectHTML("exec", T("执行方式", "Execution"), [
+        { v: "adhoc", t: T("手动", "Ad-hoc") },
+        { v: "monitor", t: T("监控", "Monitor") },
       ]) +
       "</div>" + trendPickerHTML() + '<div class="ffoot"><span id="fcount" aria-live="polite"></span>' +
       '<button type="button" class="linkbtn" id="freset"' + (isFiltered() ? "" : " hidden") + ">" + esc(T("重置筛选", "Reset filters")) + "</button></div>";
@@ -714,7 +722,7 @@
       esc(ZING_I18N.label("RISK_LEVEL", lvl)) + "</span></span>" +
       '<span class="c-score f-' + scoreC(r.score) + '"><span class="sr-only">' + esc(T("健康分", "Score")) + " </span>" + num(r.score) + "</span>" +
       '<span class="c-grade f-' + gradeC(r.rating) + '"><span class="sr-only">' + esc(T("评级", "Grade")) + " </span>" + esc(r.rating || "–") + "</span>" +
-      '<span class="c-mode"><b>' + esc(r.mode || "check") + "</b>" + (r.suite ? " · " + esc(r.suite) : "") + protoHTML(r) +
+      '<span class="c-mode"><b>' + esc(r.mode || "check") + "</b>" + (byMonitor(r) ? ' <span class="badge sky">' + ico("bell") + " " + esc(T("监控", "Monitor")) + "</span>" : "") + (r.suite ? " · " + esc(r.suite) : "") + protoHTML(r) +
       (perf ? '<span class="perf" title="' + esc(T("延迟 p50", "Latency p50")) + '">p50 ' + Math.round(perf.latency_p50_ms) + " ms</span>" : "") + "</span>" +
       '<span class="c-cv" aria-hidden="true">' + ico("chevronDown") + "</span></button>" +
       rerunBtnHTML(r) + schedBtnHTML(r) +

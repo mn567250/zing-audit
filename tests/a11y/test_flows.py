@@ -97,8 +97,8 @@ def broken_relay() -> Iterator[FakeRelay]:
 
 
 def new_context(browser: Browser, base: str, lang: str, **opts: Any) -> BrowserContext:
-    """A context like harness.Opener's (language preset, light theme, offline
-    except for ``base`` and 127.0.0.1 relays the server talks to)."""
+    """A context like harness.Opener's: language preset, light theme, UTC, and
+    offline except for ``base`` (the fake relay is reached by the server)."""
     ctx = browser.new_context(viewport=DESKTOP, color_scheme="light", timezone_id="UTC", locale="en-US", **opts)
     ctx.add_init_script(
         f"try {{ localStorage.setItem('zing.lang', {json.dumps(lang)});"
@@ -193,6 +193,8 @@ TRACK_JS = r"""
     S.last = e.target; S.lastDesc = desc(e.target);
     S.trail.push(e.target); if (S.trail.length > 8) S.trail.shift();
   }, true);
+  // decided after the event (removal can blur before the node is gone);
+  // Flow.step also settles it before each step
   document.addEventListener('focusout', e => { if (!e.relatedTarget) setTimeout(checkFocus, 0); }, true);
   setInterval(checkFocus, 40);
   const dialogOpen = d => d.matches('dialog') ? d.open : !d.hidden && shown(d);
@@ -281,7 +283,8 @@ class Flow:
         message selectors (instead of the flow's) during this step only."""
         page = self.page
         start = page.evaluate(
-            "sels => { __a11y.events = []; __a11y.losses = []; if (sels) __a11y.watch = sels; return __a11y.batch; }",
+            "sels => { __a11y.checkFocus(); __a11y.events = []; __a11y.losses = []; if (sels) __a11y.watch = sels;"
+            " return __a11y.batch; }",
             messages,
         )
         try:
@@ -697,11 +700,37 @@ def snapshot_nodes(snapshot: str) -> Iterator[tuple[str, str | None, str]]:
         yield node["role"], (None if name is None else name.replace('\\"', '"')), where
 
 
-_snapshots: dict[tuple[str, str], str] = {}
+# Roles that ARIA 1.2 forbids naming (a name there is not announced): a
+# div/span with aria-label but no role is the usual case. Playwright's aria
+# snapshot drops generic nodes, so this is read from the DOM of the same page.
+NAMED_GENERICS_JS = """
+() => {
+  const PROHIBITED = new Set(['caption', 'code', 'deletion', 'emphasis', 'generic', 'insertion', 'none',
+                              'paragraph', 'presentation', 'strong', 'subscript', 'superscript']);
+  const IMPLICIT = { DIV: 'generic', SPAN: 'generic', B: 'generic', I: 'generic', U: 'generic', S: 'generic',
+                     SMALL: 'generic', Q: 'generic', BDI: 'generic', BDO: 'generic', DATA: 'generic', PRE: 'generic',
+                     P: 'paragraph', CODE: 'code', EM: 'emphasis', STRONG: 'strong', DEL: 'deletion',
+                     INS: 'insertion', SUB: 'subscript', SUP: 'superscript', CAPTION: 'caption' };
+  const out = [];
+  for (const el of document.body.querySelectorAll('[aria-label], [aria-labelledby]')) {
+    if (el.closest('[hidden], [aria-hidden=true]') || !el.checkVisibility()) continue;
+    let role = (el.getAttribute('role') || '').trim().split(/\\s+/)[0] || IMPLICIT[el.tagName] || '';
+    if (!role && /^(HEADER|FOOTER)$/.test(el.tagName) && el.parentElement.closest('article, aside, main, nav, section')) role = 'generic';
+    const ids = (el.getAttribute('aria-labelledby') || '').split(/\\s+/).filter(Boolean);
+    const name = (el.getAttribute('aria-label') || ids.map(i => (document.getElementById(i) || {}).textContent || '').join(' ')).trim();
+    if (PROHIBITED.has(role) && name)
+      out.push(`${role} <${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\\s+/).join('.') : ''}> named "${name.slice(0, 60)}"`);
+  }
+  return out;
+}
+"""
+
+_snapshots: dict[tuple[str, str], tuple[str, list[str]]] = {}
 
 
-def aria_tree(browser: Browser, contexts: list[BrowserContext], base: str, page_id: str, lang: str) -> str:
-    """Aria snapshot of <body> after load + expand_all (clock and time zone fixed)."""
+def aria_tree(browser: Browser, contexts: list[BrowserContext], base: str, page_id: str, lang: str) -> tuple[str, list[str]]:
+    """Aria snapshot of <body> after load + expand_all (clock and time zone
+    fixed), and the named generic elements of that same state."""
     key = (page_id, lang)
     if key not in _snapshots:
         ctx = new_context(browser, base, lang)
@@ -713,7 +742,7 @@ def aria_tree(browser: Browser, contexts: list[BrowserContext], base: str, page_
         expand_all(page)
         page.mouse.move(0, 0)
         settle(page)
-        _snapshots[key] = mask(page.locator("body").aria_snapshot())
+        _snapshots[key] = (mask(page.locator("body").aria_snapshot()), list(page.evaluate(NAMED_GENERICS_JS)))
     return _snapshots[key]
 
 
@@ -729,7 +758,7 @@ needs_aria_snapshot = pytest.mark.skipif(
 def test_aria_snapshot_unchanged(browser, contexts, zing_seeded, page_id: str, lang: str) -> None:
     """Regression guard: the accessibility tree (roles, names, states, structure)
     matches the reviewed snapshot. ZING_A11Y_UPDATE_SNAPSHOTS=1 rewrites it."""
-    got = aria_tree(browser, contexts, zing_seeded.url, page_id, lang)
+    got = aria_tree(browser, contexts, zing_seeded.url, page_id, lang)[0]
     path = SNAP_DIR / f"{page_id}-{lang}.yml"
     if UPDATE:
         SNAP_DIR.mkdir(exist_ok=True)
@@ -755,13 +784,13 @@ def test_aria_snapshot_unchanged(browser, contexts, zing_seeded, page_id: str, l
 def test_aria_tree_names(browser, contexts, zing_seeded, page_id: str, lang: str) -> None:
     """Every interactive node has a non-empty accessible name; no generic
     node carries one (aria-label on a plain div/span is not announced)."""
+    tree, named_generics = aria_tree(browser, contexts, zing_seeded.url, page_id, lang)
     issues: list[str] = []
-    for role, name, where in snapshot_nodes(aria_tree(browser, contexts, zing_seeded.url, page_id, lang)):
+    for role, name, where in snapshot_nodes(tree):
         if role in NAMED_ROLES and not (name or "").strip():
             issues.append(f"{role} without an accessible name (in {where or 'body'})  —  BITV 9.4.1.2 Name, role, value")
         elif role == "generic" and name:
-            issues.append(
-                f'generic element with a name "{name}" (in {where or "body"}): give it a role or drop the label'
-                "  —  BITV 9.4.1.2 / 9.1.3.1"
-            )
+            issues.append(f'generic node with a name "{name}" (in {where or "body"})  —  BITV 9.4.1.2 / 9.1.3.1')
+    for el in named_generics:
+        issues.append(f"{el}: this role cannot carry a name, give it a role or drop the label  —  BITV 9.4.1.2 / 9.1.3.1")
     assert_no_issues(issues, f"{page_id} [{lang}]", "aria-names")

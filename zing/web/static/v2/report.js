@@ -105,7 +105,8 @@
     warn: { c: "warn", g: "warning" },
     fail: { c: "bad", g: "x" },
     error: { c: "bad", g: "x" },
-    inconclusive: { c: "grey", g: "info" },
+    inconclusive: { c: "grey", g: "help" },
+    not_run: { c: "grey", g: "minus" },
   };
   var DIMNAME = {
     model_identity: ["模型身份", "它是不是它自称的那个？"],
@@ -271,6 +272,8 @@
     var hasScore = d.score != null && isFinite(d.score);
     var v = hasScore ? Math.max(0, Math.min(100, Math.round(d.score))) : null;
     var st = label("STATUS", d.status);
+    // the status glyph next to the score, so the status is not told by colour alone
+    var g = STATG[d.status] ? ico(STATG[d.status].g) : "";
     var id = "zr-dn-" + ++uid;
     var did = "zr-dd-" + uid;
     var off = !ran(d);
@@ -289,7 +292,8 @@
         ? '<div class="bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + v +
           '" aria-valuetext="' + esc(valText) + '" aria-labelledby="' + id + '"><i data-w="' + v + '" class="' + c + '"></i></div>'
         : '<div class="bar none"><i data-w="0" class="grey"></i><span class="sr-only">' + esc(valText) + "</span></div>") +
-      '<span class="badge ' + (off ? "grey" : c) + '" aria-hidden="true">' + (hasScore ? esc(num(v, 0)) : off ? esc(offText) : "—") + "</span></div>" +
+      '<span class="badge ' + (off ? "grey" : c) + '" aria-hidden="true">' + (off ? "" : g) +
+      (hasScore ? esc(num(v, 0)) : off ? esc(offText) : "—") + "</span></div>" +
       '<div class="zr-dd" id="' + did + '" role="region" aria-labelledby="' + id + '" hidden>' + dimDetails(d, r) + "</div></div>"
     );
   }

@@ -597,7 +597,11 @@
     ".zp-grid{stroke:var(--zp-grid);stroke-width:1}" +
     ".zp-tick{fill:var(--zp-ink2);font-size:11px;font-variant-numeric:tabular-nums}" +
     ".zp-pt{stroke:var(--zp-surface);stroke-width:2}.zp-pt.t{fill:var(--zp-t)}.zp-pt.b{fill:var(--zp-b)}" +
-    ".zp-pt.passive{fill-opacity:.45}.zp-pt.cached{fill:var(--zp-cached);fill-opacity:.6}.zp-pt:hover{stroke:var(--zp-ink)}" +
+    // audit (passive) requests: a lightly tinted ring in the series colour, so the
+    // mark keeps >= 3:1 (its stroke) yet reads apart from solid and hollow points;
+    // cached hits: grey, ringed in the secondary ink
+    ".zp-pt.passive{fill-opacity:.35}.zp-pt.passive.t{stroke:var(--zp-t)}.zp-pt.passive.b{stroke:var(--zp-b)}" +
+    ".zp-pt.t.cached,.zp-pt.b.cached{fill:var(--zp-cached);fill-opacity:.6;stroke:var(--zp-ink2)}.zp-pt:hover{stroke:var(--zp-ink)}" +
     ".zp-pt.hollow{fill:var(--zp-surface)}.zp-pt.hollow.t{stroke:var(--zp-t)}.zp-pt.hollow.b{stroke:var(--zp-b)}" +
     ".zp-legend .zp-key.hollow{background:transparent;border:2px solid var(--zp-t);box-sizing:border-box}" +
     ".zp-better{color:var(--zp-better);font-weight:700}.zp-worse{color:var(--zp-worse);font-weight:700}" +
@@ -605,7 +609,8 @@
     ".zp-fail{stroke:var(--zp-x);stroke-width:2;stroke-linecap:round}" +
     ".zp-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--zp-ink2);margin:2px 0 8px}" +
     ".zp-key{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;font-style:normal}" +
-    ".zp-key.t{background:var(--zp-t)}.zp-key.b{background:var(--zp-b)}.zp-key.passive{opacity:.45}" +
+    ".zp-key.t{background:var(--zp-t)}.zp-key.b{background:var(--zp-b)}" +
+    ".zp-legend .zp-key.passive{background:color-mix(in srgb,var(--zp-t) 35%,transparent);border:2px solid var(--zp-t);box-sizing:border-box}" +
     ".zp-key.x{width:auto;height:auto;border-radius:0;color:var(--zp-x);font-weight:800}" +
     ".zp-empty{font-size:12.5px;color:var(--zp-faint);padding:18px 0;text-align:center}" +
     ".zp-muted{font-size:12.5px;color:var(--zp-ink2);margin:6px 0;line-height:1.5}" +

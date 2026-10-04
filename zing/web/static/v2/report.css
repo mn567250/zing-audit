@@ -53,7 +53,7 @@
 .zr-dim .bar i.sky { background: var(--sky-fill); }
 .zr-dim .bar i.warn { background: var(--warn-fill); }
 .zr-dim .bar i.bad { background: var(--bad-fill); }
-.zr-dim .badge { min-width: 42px; justify-content: center; font-variant-numeric: tabular-nums; }
+.zr-dim .badge { min-width: 58px; justify-content: center; font-variant-numeric: tabular-nums; }
 
 /* dimension details: the name toggles a panel with the score/status explanation
    and every check behind it */

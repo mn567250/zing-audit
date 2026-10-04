@@ -117,3 +117,7 @@
 .zmk-act { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
 .zmk-err { margin: 8px 0 0; font-size: 13px; font-weight: 600; color: var(--bad); }
 .zmk-err[hidden] { display: none; }
+
+/* field-level error message, linked to its field with aria-describedby (BITV 9.3.3.1) */
+.ferr { margin: 6px 0 0; font-size: 12.5px; font-weight: 600; color: var(--bad); line-height: 1.45; }
+.ferr[hidden] { display: none; }

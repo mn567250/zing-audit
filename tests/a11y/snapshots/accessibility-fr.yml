@@ -37,7 +37,7 @@
     - paragraph: Partiellement conforme
     - paragraph: Sur 44 étapes applicables, 27 sont réussies, 0 échouent, 17 attendent une revue manuelle et 0 ne sont pas encore testées.
     - term: Généré
-    - definition: 4 octobre 2026 à 19:42
+    - definition: <report date>
     - term: Commit
     - definition:
       - code: <id>
@@ -151,7 +151,7 @@
       - text: "Auto-évaluation : à chaque modification, la suite de tests automatisés de"
       - code: tests/a11y
       - text: vérifie chaque page de l'interface web v2 dans un vrai navigateur (Chromium, avec axe-core et des vérifications propres) dans chaque langue de l'interface et dans les thèmes clair et sombre. Chaque test indique les étapes de test qu'il tranche.
-    - paragraph: "Dernière exécution des tests : 4 octobre 2026 à 19:42. Aucune revue manuelle, y compris avec des lecteurs d'écran, n'a encore été faite."
+    - paragraph: "Dernière exécution des tests : <report date>. Aucune revue manuelle, y compris avec des lecteurs d'écran, n'a encore été faite."
     - heading "Retour" [level=3]
     - paragraph:
       - text: "Vous avez trouvé un obstacle, ou quelque chose est difficile à utiliser avec une technologie d'assistance ? Dites-le-nous :"

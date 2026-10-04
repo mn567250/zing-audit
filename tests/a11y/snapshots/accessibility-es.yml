@@ -37,7 +37,7 @@
     - paragraph: Parcialmente conforme
     - paragraph: De 44 pasos aplicables, 27 se superan, 0 fallan, 17 esperan una revisión manual y 0 aún no se han probado.
     - term: Generado
-    - definition: 4 de octubre de 2026, 19:42
+    - definition: <report date>
     - term: Commit
     - definition:
       - code: <id>
@@ -151,7 +151,7 @@
       - text: "Autoevaluación: en cada cambio, la batería de pruebas automatizadas de"
       - code: tests/a11y
       - text: comprueba cada página de la interfaz web v2 en un navegador real (Chromium, con axe-core y comprobaciones propias) en todos los idiomas de la interfaz y en los temas claro y oscuro. Cada prueba indica los pasos de prueba que decide.
-    - paragraph: "Última ejecución de pruebas: 4 de octubre de 2026, 19:42. Aún no se ha hecho una revisión manual, incluidos lectores de pantalla."
+    - paragraph: "Última ejecución de pruebas: <report date>. Aún no se ha hecho una revisión manual, incluidos lectores de pantalla."
     - heading "Comentarios" [level=3]
     - paragraph:
       - text: "¿Ha encontrado una barrera o algo es difícil de usar con tecnologías de apoyo? Díganoslo:"

@@ -37,7 +37,7 @@
     - paragraph: Teilweise vereinbar
     - paragraph: Von 44 anwendbaren Schritten sind 27 bestanden, 0 nicht bestanden, 17 warten auf eine manuelle Prüfung und 0 sind noch nicht geprüft.
     - term: Erstellt
-    - definition: 4. Oktober 2026 um 19:42
+    - definition: <report date>
     - term: Commit
     - definition:
       - code: <id>
@@ -151,7 +151,7 @@
       - text: "Selbstbewertung: Bei jeder Änderung prüft die automatisierte Testsuite in"
       - code: tests/a11y
       - text: jede Seite der Web-Oberfläche v2 in einem echten Browser (Chromium, mit axe-core und eigenen Prüfungen) in jeder Sprache der Oberfläche sowie im hellen und im dunklen Design. Jeder Test nennt die Prüfschritte, die er entscheidet.
-    - paragraph: "Letzter Testlauf: 4. Oktober 2026 um 19:42. Eine manuelle Prüfung, auch mit Screenreadern, wurde noch nicht durchgeführt."
+    - paragraph: "Letzter Testlauf: <report date>. Eine manuelle Prüfung, auch mit Screenreadern, wurde noch nicht durchgeführt."
     - heading "Rückmeldung" [level=3]
     - paragraph:
       - text: "Sind Sie auf eine Barriere gestoßen oder ist etwas mit assistiven Technologien schwer zu bedienen? Bitte sagen Sie es uns:"

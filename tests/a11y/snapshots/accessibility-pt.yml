@@ -37,7 +37,7 @@
     - paragraph: Parcialmente conforme
     - paragraph: Dos 44 passos aplicáveis, 27 são aprovados, 0 falham, 17 aguardam uma revisão manual e 0 ainda não foram testados.
     - term: Gerado
-    - definition: 4 de outubro de 2026 às 19:42
+    - definition: <report date>
     - term: Commit
     - definition:
       - code: <id>
@@ -151,7 +151,7 @@
       - text: "Autoavaliação: a cada alteração, o conjunto de testes automatizados em"
       - code: tests/a11y
       - text: verifica cada página da interface web v2 num navegador real (Chromium, com axe-core e verificações próprias) em todos os idiomas da interface e nos temas claro e escuro. Cada teste indica os passos de teste que decide.
-    - paragraph: "Última execução dos testes: 4 de outubro de 2026 às 19:42. Ainda não foi feita uma revisão manual, incluindo leitores de ecrã."
+    - paragraph: "Última execução dos testes: <report date>. Ainda não foi feita uma revisão manual, incluindo leitores de ecrã."
     - heading "Comentários" [level=3]
     - paragraph:
       - text: "Encontrou uma barreira ou algo é difícil de usar com tecnologias de apoio? Diga-nos:"

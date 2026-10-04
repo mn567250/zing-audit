@@ -37,7 +37,7 @@
     - paragraph: 部分符合
     - paragraph: 适用的 44 个步骤中：27 个通过，0 个未通过，17 个待人工审核，0 个尚未测试。
     - term: 生成时间
-    - definition: 2026年10月4日 19:42
+    - definition: <report date>
     - term: 提交
     - definition:
       - code: <id>
@@ -151,7 +151,7 @@
       - text: 自我评估：每次变更时，
       - code: tests/a11y
       - text: 中的自动化测试套件都会在真实浏览器（Chromium，使用 axe-core 和自有检查）中，以每种界面语言、浅色与深色主题检查网页界面 v2 的每个页面。每个测试都标明它所判定的检查步骤。
-    - paragraph: 最近一次测试：2026年10月4日 19:42。尚未进行包括屏幕阅读器在内的人工审核。
+    - paragraph: 最近一次测试：<report date>。尚未进行包括屏幕阅读器在内的人工审核。
     - heading "反馈" [level=3]
     - paragraph:
       - text: 发现了障碍，或者某些功能难以通过辅助技术使用？请告诉我们：

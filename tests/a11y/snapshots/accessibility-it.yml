@@ -37,7 +37,7 @@
     - paragraph: Parzialmente conforme
     - paragraph: Dei 44 passi applicabili, 27 sono superati, 0 non superati, 17 attendono una revisione manuale e 0 non sono ancora verificati.
     - term: Generato
-    - definition: 4 ottobre 2026 alle ore 19:42
+    - definition: <report date>
     - term: Commit
     - definition:
       - code: <id>
@@ -151,7 +151,7 @@
       - text: "Autovalutazione: a ogni modifica, la suite di test automatici in"
       - code: tests/a11y
       - text: controlla ogni pagina dell'interfaccia web v2 in un browser reale (Chromium, con axe-core e controlli propri) in ogni lingua dell'interfaccia e nel tema chiaro e scuro. Ogni test indica i passi di verifica che decide.
-    - paragraph: "Ultima esecuzione dei test: 4 ottobre 2026 alle ore 19:42. Non è ancora stata fatta una revisione manuale, anche con lettori di schermo."
+    - paragraph: "Ultima esecuzione dei test: <report date>. Non è ancora stata fatta una revisione manuale, anche con lettori di schermo."
     - heading "Segnalazioni" [level=3]
     - paragraph:
       - text: "Hai trovato una barriera o qualcosa è difficile da usare con le tecnologie assistive? Segnalacelo:"

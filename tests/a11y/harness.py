@@ -170,11 +170,25 @@ def open_page(browser: Browser, base_url: str) -> Iterator[Opener]:
     opener.close()
 
 
+FINISH_ANIMATIONS_JS = """
+() => Promise.race([
+  Promise.all(document.getAnimations()
+    .filter(a => a.effect && a.effect.getComputedTiming().iterations !== Infinity)
+    .map(a => a.finished.catch(() => null))),
+  new Promise(r => setTimeout(r, 3000)),
+])
+"""
+
+
 def settle(page: Page) -> None:
     """Let rendering, fetches and transitions finish."""
     with contextlib.suppress(Exception):
         page.wait_for_load_state("networkidle", timeout=5000)
     page.wait_for_timeout(150)
+    # finite transitions/animations (panel fade-ins) must end before anything
+    # is measured, or contrast is read at partial opacity on a busy machine
+    with contextlib.suppress(Exception):
+        page.evaluate(FINISH_ANIMATIONS_JS)
 
 
 # --------------------------------------------------------------------------- #

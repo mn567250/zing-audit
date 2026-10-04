@@ -662,7 +662,7 @@
     } else if (ev.type === "detector_start") {
       if (!state.seen[ev.id]) state.seen[ev.id] = addDet(ev);
       clock.li = state.seen[ev.id];
-      clock.start = performance.now();
+      clock.start = Date.now();
       if (ev.total) { progress.total = ev.total; renderCount(); }
       setNow(function () { return detName(ev) + " …"; });
     } else if (ev.type === "detector_done") {

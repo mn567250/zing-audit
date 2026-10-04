@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -573,3 +575,218 @@ def test_destructive_actions_ask_first(open_page, page_id: str) -> None:
         if not any(re.search(pattern, x) for x in checked):
             issues.append(f"no control found that sends {pattern!r}: destructive action missing or not checked")
     assert_no_issues(issues, f"{page_id} [en]", "error-prevention")
+
+
+# --------------------------------------------------------------------------- #
+# 9.1.3.3 sensory characteristics (heuristic: the step stays "partial")
+# --------------------------------------------------------------------------- #
+# A sentence is reported when it holds all three of
+#   * an instruction verb (click, wählen, cliquez, 点击, ...),
+#   * a sensory cue: side (left/right, not above/below: those follow the
+#     reading order, which test_reading_order_matches_visual_order checks),
+#     colour, shape, size or sound,
+#   * a UI object noun (button, icon, field, ...),
+# and does not also name the control by its label (quoted text or <b>,
+# <strong>, <code>, <kbd>). "Click the green button on the right" fails;
+# 'Click the green "Save" button' and "Use the form above" pass.
+_SENSE: dict[str, tuple[str, str, str]] = {
+    # lang: (verbs, sensory cues, objects) as regex alternatives
+    "en": (
+        r"click|tap|press|select|choose|use|hit|push|pick|look for|find|follow|open|enter|type|check",
+        r"left|right|left-hand|right-hand|red|green|blue|yellow|orange|grey|gray|purple|round|square|circular|"
+        r"triangular|star-shaped|big|large|small|tiny|beep|chime|tone",
+        r"buttons?|icons?|links?|fields?|box(es)?|symbols?|arrows?|dots?|circles?|lights?|tabs?|menus?|columns?|"
+        r"corners?|sides?|panels?|badges?|switch(es)?|toggles?|bars?",
+    ),
+    "de": (
+        r"klicken|klicke|klick|tippen|tippe|drücken|drücke|wählen|wähle|nutzen|nutze|verwenden|verwende|öffnen|öffne|"
+        r"geben sie|gib|suchen|suche|achten|beachten",
+        r"links|rechts|linken|rechten|rot\w*|grün\w*|blau\w*|gelb\w*|orange\w*|grau\w*|rund\w*|eckig\w*|quadratisch\w*|"
+        r"dreieckig\w*|groß\w*|klein\w*|piep\w*|signalton",
+        r"schaltfläche\w*|button\w*|knopf|knöpfe|symbol\w*|icon\w*|link\w*|feld\w*|kästchen|pfeil\w*|punkt\w*|kreis\w*|"
+        r"menü\w*|spalte\w*|ecke\w*|seite|leiste\w*|reiter|schalter\w*",
+    ),
+    "fr": (
+        r"cliquez|cliquer|appuyez|appuyer|touchez|sélectionnez|choisissez|utilisez|ouvrez|saisissez|cherchez",
+        r"gauche|droite|rouge|vert|verte|bleu|bleue|jaune|orange|gris|grise|rond|ronde|carré|carrée|triangulaire|"
+        r"grand|grande|petit|petite|bip|signal sonore",
+        r"bouton|boutons|icône|icônes|lien|liens|champ|champs|case|cases|symbole|flèche|point|cercle|menu|colonne|"
+        r"coin|côté|panneau|onglet|interrupteur|barre",
+    ),
+    "es": (
+        r"haga clic|haz clic|pulse|pulsa|presione|presiona|toque|toca|seleccione|selecciona|elija|elige|use|usa|"
+        r"utilice|abra|abre|introduzca|busque",
+        r"izquierda|derecha|rojo|roja|verde|azul|amarillo|amarilla|naranja|gris|redondo|redonda|cuadrado|cuadrada|"
+        r"triangular|grande|pequeño|pequeña|pitido|sonido",
+        r"botón|botones|icono|iconos|enlace|enlaces|campo|campos|casilla|símbolo|flecha|punto|círculo|menú|columna|"
+        r"esquina|lado|panel|pestaña|interruptor|barra",
+    ),
+    "pt": (
+        r"clique|clica|toque|toca|pressione|prima|selecione|seleciona|escolha|escolhe|use|usa|utilize|abra|abre|"
+        r"insira|introduza|digite|procure",
+        r"esquerda|direita|vermelho|vermelha|verde|azul|amarelo|amarela|laranja|cinza|cinzento|redondo|redonda|"
+        r"quadrado|quadrada|triangular|grande|pequeno|pequena|bipe|som",
+        r"botão|botões|ícone|ícones|link|links|campo|campos|caixa|símbolo|seta|ponto|círculo|menu|coluna|canto|lado|"
+        r"painel|separador|aba|interruptor|barra",
+    ),
+    "it": (
+        r"clicca|cliccare|fai clic|premi|premere|tocca|seleziona|scegli|usa|utilizza|apri|inserisci|cerca",
+        r"sinistra|destra|rosso|rossa|verde|blu|giallo|gialla|arancione|grigio|grigia|rotondo|rotonda|quadrato|"
+        r"quadrata|triangolare|grande|piccolo|piccola|bip|segnale acustico",
+        r"pulsante|pulsanti|bottone|icona|icone|link|campo|campi|casella|simbolo|freccia|punto|cerchio|menu|colonna|"
+        r"angolo|lato|pannello|scheda|interruttore|barra",
+    ),
+    "zh": (
+        r"点击|单击|点按|按下|轻触|选择|使用|打开|输入|查找",
+        r"左侧|右侧|左边|右边|左上角|右上角|左下角|右下角|红色|绿色|蓝色|黄色|橙色|灰色|圆形|方形|三角形|大的|小的|"
+        r"提示音|蜂鸣",
+        r"按钮|图标|链接|输入框|框|符号|箭头|圆点|圆圈|菜单|标签页|栏|角|开关|面板",
+    ),
+}
+_LABEL_REF = re.compile(r"[\"“”„«»‘’「」『』]|'[^']+'|<(b|strong|code|kbd)\b|class=['\"][^'\"]*\bkbd\b")
+_SENTENCE_END = re.compile(r"(?<=[.!?。！？；;])\s*|\n+")
+
+
+def _sense_patterns(lang: str) -> tuple[re.Pattern[str], ...]:
+    verbs, cues, objects = _SENSE[lang]
+    if lang == "zh":
+        return tuple(re.compile(f"(?:{p})") for p in (verbs, cues, objects))
+    return tuple(re.compile(rf"(?<![\w-])(?:{p})(?![\w-])", re.I) for p in (verbs, cues, objects))
+
+
+def sensory_instructions(text: str, lang: str) -> list[str]:
+    """Sentences of `text` (in `lang`) that give an instruction by a sensory
+    cue alone; markup counts as a label reference."""
+    verbs, cues, objects = _sense_patterns(lang)
+    found = []
+    for sentence in _SENTENCE_END.split(text):
+        cued = verbs.search(sentence) and cues.search(sentence) and objects.search(sentence)
+        if cued and not _LABEL_REF.search(sentence):
+            found.append(re.sub(r"<[^>]+>", "", sentence).strip())
+    return found
+
+
+SENSORY_SAMPLES = {
+    # lang: (instructions by a sensory cue alone, ones that are fine)
+    "en": (["Click the green button on the right to continue.", "Press the round icon to start."],
+           ['Click the green "Save" button.', "Use the form above to add your first one.", "Latency above 30 s."]),
+    "de": (["Klicken Sie auf den roten Knopf rechts.", "Wähle das runde Symbol."],
+           ["Legen Sie die erste mit dem Formular oben an.", "Klicken Sie auf die grüne Schaltfläche „Speichern“."]),
+    "fr": (["Cliquez sur le bouton rouge à droite."], ["Cliquez sur le bouton « Enregistrer »."]),
+    "es": (["Haga clic en el botón verde de la derecha."], ["Use el formulario de arriba."]),
+    "pt": (["Clique no botão vermelho à direita."], ["Clique no botão <b>Guardar</b>."]),
+    "it": (["Clicca il pulsante rosso a destra."], ["Il modello è più piccolo."]),
+    "zh": (["请点击右侧的绿色按钮。"], ["点击“保存”按钮。", "使用上面的表单添加第一个监控。"]),
+}  # fmt: skip
+
+
+@pytest.mark.bitv("9.1.3.3")
+def test_sensory_heuristic_self_check() -> None:
+    """The word lists catch a sensory-only instruction in every language and
+    let a labelled or reading-order reference pass (guards the heuristic)."""
+    issues = []
+    for lang in LANGS:
+        bad, good = SENSORY_SAMPLES.get(lang, ([], []))
+        if not bad:
+            issues.append(f"no samples for {lang!r}")
+        issues += [f"[{lang}] not caught: {s!r}" for s in bad if not sensory_instructions(s, lang)]
+        issues += [f"[{lang}] false alarm: {s!r}" for s in good if sensory_instructions(s, lang)]
+    assert_no_issues(issues, "sensory heuristic", "sensory-characteristics")
+
+
+LOCALES = Path(__file__).resolve().parents[2] / "zing" / "i18n" / "locales"
+STATIC = Path(__file__).resolve().parents[2] / "zing" / "web" / "static"
+
+
+def _locale_strings() -> Iterator[tuple[str, str, str]]:
+    """(lang, string, where) for every string of the UI: locale files and
+    fragments (keys are the English source), and the Chinese/English pairs
+    written into the pages (data-en attributes, T("zh", "en") calls)."""
+
+    def walk(node: Any, lang: str, where: str) -> Iterator[tuple[str, str, str]]:
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if isinstance(v, str):
+                    yield "en", k, where
+                    yield lang, v, where
+                else:
+                    yield from walk(v, lang, where)
+        elif isinstance(node, list):
+            for v in node:
+                yield from walk(v, lang, where)
+
+    for f in sorted([*LOCALES.glob("*.json"), *LOCALES.glob("fragments/*/*.json")]):
+        data = json.loads(f.read_text(encoding="utf-8"))
+        yield from walk({k: v for k, v in data.items() if k != "meta"}, f.stem, str(f.relative_to(LOCALES.parents[2])))
+    pair = re.compile(r"""T[f]?\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*""")
+    attr = re.compile(r"""data-en(?:-[\w-]+)?=["']([^"']*)["']""")
+    for f in sorted([*STATIC.glob("*.js"), *STATIC.glob("*.html"), *STATIC.glob("v2/*")]):
+        if f.suffix not in {".js", ".html"}:
+            continue
+        src = f.read_text(encoding="utf-8")
+        where = str(f.relative_to(STATIC.parents[2]))
+        for zh, en in pair.findall(src):
+            yield "zh", zh, where
+            yield "en", en, where
+        for en in attr.findall(src):
+            yield "en", en, where
+
+
+@pytest.mark.bitv("9.1.3.3")
+def test_no_sensory_only_instructions_in_strings() -> None:
+    """9.1.3.3 Sensory characteristics: no UI string, in any language, tells
+    the user to find or use something only by side, colour, shape, size or
+    sound (heuristic, see _SENSE)."""
+    strings = list(_locale_strings())
+    issues = sorted(
+        {
+            f"[{lang}] {hit!r} ({where})"
+            for lang, text, where in strings
+            if lang in _SENSE
+            for hit in sensory_instructions(text, lang)
+        }
+    )
+    issues += [f"no sensory word list for {lang!r} in _SENSE" for lang in LANGS if lang not in _SENSE]
+    scanned = {lang for lang, _, _ in strings}
+    issues += [f"no strings found for {lang!r}: the scan misses its locale files" for lang in LANGS if lang not in scanned]
+    assert_no_issues(issues, "locale files and page sources", "sensory-characteristics")
+
+
+VISIBLE_TEXT_JS = """
+() => {
+  const out = [];
+  const seen = new Set();
+  const vis = el => { const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden'; };
+  // innerText of each element that has text of its own; markup that names a
+  // label (<b>, <code>, ...) is kept as a tag so it counts as a reference
+  for (const el of document.body.querySelectorAll('*')) {
+    if (/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(el.tagName) || !vis(el)) continue;
+    if (![...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue;
+    let t = el.innerText.trim();
+    if (el.querySelector('b, strong, code, kbd')) t += ' <b>';
+    if (t && !seen.has(t)) { seen.add(t); out.push(t); }
+  }
+  for (const el of document.querySelectorAll('[aria-label], [title], [placeholder]'))
+    for (const a of ['aria-label', 'title', 'placeholder']) {
+      const v = el.getAttribute(a); if (v && !seen.has(v)) { seen.add(v); out.push(v); }
+    }
+  return out;
+}
+"""
+
+
+@pytest.mark.bitv("9.1.3.3")
+@pytest.mark.parametrize("lang", LANGS)
+@pytest.mark.parametrize("page_id", PAGE_IDS)
+def test_no_sensory_only_instructions_on_page(open_page, page_id: str, lang: str) -> None:
+    """9.1.3.3 Sensory characteristics: the same heuristic on what each page
+    shows (generated text included), every disclosure open."""
+    page = open_page(PAGES[page_id], lang)
+    expand_all(page)
+    texts: list[str] = page.evaluate(VISIBLE_TEXT_JS)
+    if lang not in _SENSE:
+        issues = [f"no sensory word list for {lang!r} in _SENSE"]
+    else:
+        issues = sorted({repr(hit) for t in texts for hit in sensory_instructions(t, lang)})
+    assert_no_issues(issues, f"{page_id} [{lang}]", "sensory-characteristics")

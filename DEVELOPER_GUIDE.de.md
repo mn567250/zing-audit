@@ -478,7 +478,7 @@ Container-Laufzeit erkannt wird.
 | `ZING_CONTAINER` | nicht gesetzt (`1` im Image) | Erlaubt in einem erkannten Container eine Bindung außerhalb von Loopback |
 | `ZING_HOST` | `127.0.0.1` (`0.0.0.0` im Image) | Bindungsadresse; `--host` hat Vorrang |
 | `ZING_PORT` | `8000` | Port; `--port` hat Vorrang |
-| `ZING_DATA_DIR` | `~/.zing` (`/data` im Image) | Verlauf, Überwachungen (ihre Schlüssel verschlüsselt) und Ihre Wissensbasis-Einträge; hier ein Volume einhängen |
+| `ZING_DATA_DIR` | `~/.zing` (`/data` im Image) | Verlauf, Überwachungen (ihre Schlüssel verschlüsselt) und Ihre Wissensbasis-Einträge; hier ein Volume einhängen. `--data-dir` hat Vorrang |
 | `ZING_SECRET_KEY` | nicht gesetzt | Hauptschlüssel der gespeicherten API-Schlüssel der Überwachungen (ein Schlüssel oder `file:/run/secrets/…` / `env:VAR`); nicht gesetzt, fragt die Seite Überwachung nach jedem Start danach. Nie in `ZING_DATA_DIR` gespeichert |
 | `ZING_KB_DIR` | nicht gesetzt | Zusätzliches YAML-Verzeichnis der Wissensbasis, z. B. `-v ./profiles:/kb:ro -e ZING_KB_DIR=/kb` |
 | `ZING_NO_USER_KB` | nicht gesetzt | `1` ignoriert Ihre eigenen Wissensbasis-Einträge (`kb.db`) |

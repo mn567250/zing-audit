@@ -681,6 +681,11 @@ sonda. O texto controlado pelo relay é ocultado e escapado antes de ser escrito
   ficheiros com `0600`: `history.db` (histórico de auditorias), `watches.db`
   (monitores, com as suas chaves encriptadas) e `kb.db` (as suas entradas da
   base de conhecimento). Apague o diretório para remover tudo.
+  `zing data-dir` mostra onde está; `--data-dir CAMINHO` escolhe outro para uma
+  execução, p. ex. `zing serve --data-dir .` guarda as bases de dados na pasta
+  atual. São ficheiros SQLite normais que pode abrir para as suas próprias
+  análises (de preferência só leitura enquanto o zing corre). Não faça commit
+  de `watches.db` se essa pasta for um repositório.
 
 ## Utilização responsável
 

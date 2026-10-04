@@ -555,6 +555,9 @@ Qwen、GLM 和 Moonshot（用 `zing kb` 查看）。共有三层，后面的优�
 - **数据目录。** `~/.zing`（或 `ZING_DATA_DIR`），以 `0700` 创建，文件为 `0600`：
   `history.db`（检测历史）、`watches.db`（监控，含加密后的密钥）和 `kb.db`（你的知识库条目）。
   删除该目录即可清除全部数据。
+  `zing data-dir` 会显示它的位置；`--data-dir 路径` 可为单次运行另选目录，例如
+  `zing serve --data-dir .` 把数据库放在当前文件夹。它们是普通的 SQLite 文件，可自行打开分析
+  （zing 运行时最好只读打开）。如果该文件夹是代码仓库，请勿提交 `watches.db`。
 
 ## 负责任使用
 

@@ -641,7 +641,11 @@ redacted and escaped before it is written.
 - **Data directory.** `~/.zing` (or `ZING_DATA_DIR`), created `0700` with `0600`
   files: `history.db` (audit history), `watches.db` (monitors, with their keys
   encrypted) and `kb.db` (your knowledge-base entries). Delete the directory to
-  remove everything.
+  remove everything. `zing data-dir` prints where it is; `--data-dir PATH`
+  picks another one for a single run, e.g. `zing serve --data-dir .` keeps the
+  databases in the current folder. They are plain SQLite files, so you can open
+  them (read-only is safest while zing runs) for your own analysis. Don't
+  commit `watches.db` if that folder is a repository.
 
 ## Responsible use
 

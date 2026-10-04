@@ -823,6 +823,35 @@
       });
     } catch (e) {}
   }
+  // /v2/?rerun=<history id> (from History): fill the form with that run's
+  // configuration. The API key is never stored in history, so the key field
+  // keeps its default / the browser's saved credential for the URL.
+  (function () {
+    var id = null;
+    try { id = new URLSearchParams(location.search).get("rerun"); } catch (e) {}
+    if (!id) return;
+    function seg(group, v) {
+      var btns = $$("#" + group + " button");
+      if (!btns.some(function (b) { return b.getAttribute("data-v") === v; })) return;
+      btns.forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-v") === v)); });
+    }
+    fetch("/api/history/" + encodeURIComponent(id))
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (rep) {
+        var t = rep.target || {};
+        $("#i-url").value = t.base_url || "";
+        $("#i-model").value = t.model || "";
+        $("#i-claimed").value = t.claimed_model && t.claimed_model !== t.model ? t.claimed_model : "";
+        $("#i-prov").value = t.declared_provider || "";
+        seg("api", t.api_auto === false && t.api ? t.api : "auto");
+        seg("suite", rep.suite || "standard");
+        if (rep.suite === "custom") dims.set(rep.dimensions_selected);
+        seg("pmode", rep.stream_mode === "non_stream" ? "non_stream" : "stream");
+        syncProbeMode();
+      })
+      .catch(function () {});
+  })();
+
   // Re-attach to a background audit: /v2/?job=<id> (from History, or a reload).
   (function () {
     var id = null;

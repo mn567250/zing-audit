@@ -15,6 +15,12 @@ What these checks decide and where a person is still needed:
 * Consistent identification keys controls by what they do (href, function
   data attributes, the shared header's classes), never by their label, and
   compares accessible name and role computed by axe-core.
+* Multiple ways: each page by its URL and from every other page's navigation.
+* Error prevention clicks every destructive control on a fresh page. Delete
+  and reset requests are intercepted in the test's own browser context and
+  answered with a fake success, so the shared fixture data is never touched;
+  the data that makes every destructive action appear (a locked master key,
+  a knowledge base entry of the user's) is mocked the same way.
 * Sensory characteristics is a word-list heuristic (step stays partial).
 * Use of colour renders the same component in every state and compares what
   is left without colour (text, icons, shapes): two states may not differ by
@@ -23,6 +29,7 @@ What these checks decide and where a person is still needed:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 from collections.abc import Iterator
@@ -492,10 +499,24 @@ NEW_CONTROLS_JS = (
 )
 
 
+@pytest.fixture
+def open_routed_page(open_page: Any) -> Iterator[Any]:
+    """open_page for tests that mock requests: the mocks are removed (pending
+    ones ignored) before the contexts close, so none fails into the next test."""
+    yield open_page
+    for ctx in open_page.contexts:
+        with contextlib.suppress(Exception):
+            ctx.unroute_all(behavior="ignoreErrors")
+
+
 def _guarded_page(open_page: Any, page_id: str, log: list[str], dialogs: list[str]) -> Page:
     """The page with destructive requests intercepted, and the data seeded
     (for this browser context only) that makes every destructive action show."""
+    import httpx
+
     page: Page = open_page(PAGES[page_id], "en")
+    kb = httpx.get(open_page.base_url + "/api/kb/profiles", timeout=10).json()
+    kb["entries"] = [FAKE_KB_ENTRY, *(kb.get("entries") or [])]
 
     def handle(route: Any) -> None:
         req = route.request
@@ -506,10 +527,7 @@ def _guarded_page(open_page: Any, page_id: str, log: list[str], dialogs: list[st
         elif req.method == "GET" and path == "/api/secret":
             route.fulfill(status=200, content_type="application/json", body=json.dumps(LOCKED_VAULT))
         elif req.method == "GET" and path == "/api/kb/profiles":
-            resp = route.fetch()
-            data = resp.json()
-            data["entries"] = [FAKE_KB_ENTRY, *(data.get("entries") or [])]
-            route.fulfill(response=resp, body=json.dumps(data), content_type="application/json")
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(kb))
         else:
             route.fallback()
 
@@ -531,7 +549,7 @@ def _guarded_page(open_page: Any, page_id: str, log: list[str], dialogs: list[st
 
 @pytest.mark.bitv("9.3.3.4")
 @pytest.mark.parametrize("page_id", PAGE_IDS)
-def test_destructive_actions_ask_first(open_page, page_id: str) -> None:
+def test_destructive_actions_ask_first(open_routed_page, page_id: str) -> None:
     """9.3.3.4 Error prevention (data): every action that deletes or resets
     data asks first (a confirm() dialog or an inline confirmation step) or can
     be undone. Each destructive-looking control is clicked on a fresh page: a
@@ -541,7 +559,7 @@ def test_destructive_actions_ask_first(open_page, page_id: str) -> None:
     endpoint of the app must be met this way."""
     log: list[str] = []
     dialogs: list[str] = []
-    page = _guarded_page(open_page, page_id, log, dialogs)
+    page = _guarded_page(open_routed_page, page_id, log, dialogs)
     names: list[str] = page.evaluate(CANDIDATES_JS, [DESTRUCTIVE_WORDS])
     issues: list[str] = []
     checked: list[str] = []
@@ -549,7 +567,7 @@ def test_destructive_actions_ask_first(open_page, page_id: str) -> None:
         if i:
             log.clear()
             dialogs.clear()
-            page = _guarded_page(open_page, page_id, log, dialogs)
+            page = _guarded_page(open_routed_page, page_id, log, dialogs)
             page.evaluate(CANDIDATES_JS, [DESTRUCTIVE_WORDS])
         target = page.locator(f'[data-a11y-d="{i}"]')
         if not target.count():
@@ -925,7 +943,7 @@ def _mock_list(page: Page, path: str, rows: Any) -> None:
 
 @pytest.mark.bitv("9.1.4.1")
 @pytest.mark.parametrize("lang", LANGS)
-def test_list_states_not_by_colour_alone(open_page, base_url: str, lang: str) -> None:
+def test_list_states_not_by_colour_alone(open_routed_page, base_url: str, lang: str) -> None:
     """9.1.4.1 Use of colour: history rows (risk badge) and monitor cards
     (status badge) in every state, from mocked lists that differ only there."""
     import httpx
@@ -934,7 +952,7 @@ def test_list_states_not_by_colour_alone(open_page, base_url: str, lang: str) ->
     # history: one row per risk level, everything else equal
     first = httpx.get(base_url + "/api/history?limit=1&perf=1", timeout=10).json()[0]
     rows = [dict(first, id=900001 + k, risk_level=v) for k, v in enumerate(RISKS)]
-    page = open_page(PAGES["history"], lang)
+    page = open_routed_page(PAGES["history"], lang)
     _mock_list(page, "/api/history", rows)
     states = [(r["risk_level"], page.evaluate(SIGNATURE_JS, f'li.row[data-id="{r["id"]}"] .rmain')) for r in rows]
     issues += colour_only_pairs(states, "history row")
@@ -944,7 +962,7 @@ def test_list_states_not_by_colour_alone(open_page, base_url: str, lang: str) ->
     cards = {f"last risk {v}": dict(base, last_risk=v, last_run_ts=1790000000) for v in RISKS}
     cards |= {"not run yet": base, "no result": dict(base, last_run_ts=1790000000), "needs setup": dict(base, interval_sec=None)}
     watches = [dict(w, id=900001 + k) for k, w in enumerate(cards.values())]
-    page = open_page(PAGES["monitors"], lang)
+    page = open_routed_page(PAGES["monitors"], lang)
     _mock_list(page, "/api/watches", watches)
     states = [(name, page.evaluate(SIGNATURE_JS, f'#w-{w["id"]} .mon-title .badge')) for name, w in zip(cards, watches, strict=True)]
     issues += colour_only_pairs(states, "monitor status badge")
@@ -969,10 +987,10 @@ SUBMIT_EMBED_JS = """
 
 @pytest.mark.bitv("9.1.4.1")
 @pytest.mark.parametrize("lang", LANGS)
-def test_tool_result_states_not_by_colour_alone(open_page, lang: str) -> None:
+def test_tool_result_states_not_by_colour_alone(open_routed_page, lang: str) -> None:
     """9.1.4.1 Use of colour: the embedding check's result card (verdict badge,
     check status) in every state, from a mocked /api/embed answer."""
-    page = open_page(PAGES["tools"], lang)
+    page = open_routed_page(PAGES["tools"], lang)
     page.add_style_tag(content=NO_TRANSITIONS_CSS)
     answer: dict[str, Any] = {}
 

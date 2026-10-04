@@ -8,6 +8,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Choose and find the data directory.** A new `--data-dir PATH` option
+  (global, and on `zing serve`) puts `history.db`, `watches.db` and `kb.db` in
+  another folder for that run, e.g. `zing serve --data-dir .` for the current
+  folder; it overrides `ZING_DATA_DIR`. `zing serve` prints the data directory
+  at startup, and the new `zing data-dir` command prints it for scripts
+  (`sqlite3 "$(zing data-dir)/history.db"`). The default stays `~/.zing`.
 - **Monitor API keys are encrypted at rest.** `zing serve` now stores each
   watch's API key in `watches.db` as a Fernet token (`enc:v1:…`, AES with an
   HMAC check) instead of plain text; `env:VAR` / `file:/path` references stay

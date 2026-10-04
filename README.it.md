@@ -679,6 +679,11 @@ testo controllato dal relay viene oscurato ed escapato prima di essere scritto.
   file con `0600`: `history.db` (cronologia delle verifiche), `watches.db`
   (monitor, chiavi cifrate comprese) e `kb.db` (le tue voci della base di
   conoscenza). Elimina la directory per rimuovere tutto.
+  `zing data-dir` mostra dove si trova; `--data-dir PERCORSO` ne sceglie
+  un'altra per una singola esecuzione, ad es. `zing serve --data-dir .` tiene
+  i database nella cartella corrente. Sono normali file SQLite che puoi aprire
+  per le tue analisi (meglio in sola lettura mentre zing è in esecuzione). Non
+  fare commit di `watches.db` se quella cartella è un repository.
 
 ## Uso responsabile
 

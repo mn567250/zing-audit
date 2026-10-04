@@ -470,7 +470,7 @@ viene rilevato un ambiente container.
 | `ZING_CONTAINER` | non impostata (`1` nell'immagine) | Consente l'ascolto fuori da loopback in un container rilevato |
 | `ZING_HOST` | `127.0.0.1` (`0.0.0.0` nell'immagine) | Indirizzo di ascolto; `--host` prevale |
 | `ZING_PORT` | `8000` | Porta; `--port` prevale |
-| `ZING_DATA_DIR` | `~/.zing` (`/data` nell'immagine) | Cronologia, monitor (con le loro chiavi cifrate) e le tue voci della base di conoscenza; monta qui un volume |
+| `ZING_DATA_DIR` | `~/.zing` (`/data` nell'immagine) | Cronologia, monitor (con le loro chiavi cifrate) e le tue voci della base di conoscenza; monta qui un volume. `--data-dir` ha la precedenza |
 | `ZING_SECRET_KEY` | non impostata | Chiave principale delle chiavi API salvate dei monitor (una chiave, oppure `file:/run/secrets/…` / `env:VAR`); se non impostata, la pagina Monitor la chiede dopo ogni avvio. Mai salvata in `ZING_DATA_DIR` |
 | `ZING_KB_DIR` | non impostata | Directory YAML aggiuntiva per la base di conoscenza, per es. `-v ./profiles:/kb:ro -e ZING_KB_DIR=/kb` |
 | `ZING_NO_USER_KB` | non impostata | `1` ignora le tue voci della base di conoscenza (`kb.db`) |

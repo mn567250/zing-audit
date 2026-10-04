@@ -8,12 +8,14 @@ Commands:
   zing kb        inspect the knowledge base (packaged, ZING_KB_DIR, your entries)
   zing kb-prompt / kb-import / kb-export   add your own model profiles
   zing secret    the master key encrypting the API keys `zing serve` stores
+  zing data-dir  print where the SQLite databases live (choose it with --data-dir)
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
@@ -798,11 +800,24 @@ def kb_export_command(
     print(export_yaml(provider), end="")
 
 
+_DATA_DIR_HELP = (
+    "Where zing keeps history.db, watches.db and kb.db (default ~/.zing). "
+    "Env: ZING_DATA_DIR."
+)
+
+
+def _apply_data_dir(path: Path | None) -> None:
+    """Point every store at ``path`` (absolute, so later reads don't depend on the cwd)."""
+    if path is not None:
+        os.environ["ZING_DATA_DIR"] = str(path.expanduser().resolve())
+
+
 @app.command("serve")
 def serve_command(
     host: Annotated[str | None, typer.Option("--host", help="Loopback bind address: 127.0.0.1 (default), ::1 or localhost. Env: ZING_HOST.")] = None,
     port: Annotated[int | None, typer.Option("--port", "-p", help="Port to serve on (default 8000). Env: ZING_PORT.")] = None,
     open_browser: Annotated[bool | None, typer.Option("--open/--no-open", help="Open the UI in a browser (default: yes, except in a container).")] = None,
+    data_dir: Annotated[Path | None, typer.Option("--data-dir", help=_DATA_DIR_HELP)] = None,
 ) -> None:
     """Serve the local web UI — a point-and-click front end for `zing check`.
 
@@ -824,6 +839,7 @@ def serve_command(
         )
         raise typer.Exit(code=2) from exc
 
+    _apply_data_dir(data_dir)
     try:
         host, port = resolve_bind(host, port)
     except BindError as exc:
@@ -832,6 +848,9 @@ def serve_command(
     loopback = host in ("127.0.0.1", "::1", "localhost")
     url = f"http://localhost:{port}"
     console.print(f"[green]zing[/green] web UI → [bold]{url}[/bold]   (Ctrl-C to stop)")
+    from zing import datadir
+
+    console.print(f"[dim]Data: {datadir.data_dir()}[/dim]")
     if not loopback:
         err_console.print(
             f"[yellow]![/yellow] Container mode: listening on {host} inside the container. "
@@ -1266,7 +1285,9 @@ def audio_command(
 def main(
     ctx: typer.Context,
     version: Annotated[bool, typer.Option("--version", help="Show version and exit.")] = False,
+    data_dir: Annotated[Path | None, typer.Option("--data-dir", help=_DATA_DIR_HELP)] = None,
 ) -> None:
+    _apply_data_dir(data_dir)
     if version:
         console.print(f"zing {__version__}")
         raise typer.Exit()
@@ -1274,6 +1295,14 @@ def main(
         console.print(ctx.get_help())
         raise typer.Exit()
 
+
+
+@app.command("data-dir")
+def data_dir_command() -> None:
+    """Print the data directory: history.db, watches.db and kb.db (plain SQLite)."""
+    from zing import datadir
+
+    print(datadir.data_dir().expanduser())
 
 
 secret_app = typer.Typer(

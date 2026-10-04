@@ -683,6 +683,11 @@ escribirse.
   archivos con `0600`: `history.db` (historial de auditorías), `watches.db`
   (monitores, con sus claves cifradas) y `kb.db` (tus entradas de la base de
   conocimiento). Borra el directorio para eliminarlo todo.
+  `zing data-dir` muestra dónde está; `--data-dir RUTA` elige otro para una
+  ejecución, p. ej. `zing serve --data-dir .` guarda las bases de datos en la
+  carpeta actual. Son archivos SQLite normales que puedes abrir para tus
+  propios análisis (mejor solo lectura mientras zing se ejecuta). No hagas
+  commit de `watches.db` si esa carpeta es un repositorio.
 
 ## Uso responsable
 

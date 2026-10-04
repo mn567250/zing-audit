@@ -684,6 +684,12 @@ sonde. Le texte contrôlé par le relais est expurgé et échappé avant d'être
   des fichiers en `0600` : `history.db` (historique des audits), `watches.db`
   (surveillances, clés chiffrées comprises) et `kb.db` (vos entrées de la base
   de connaissances). Supprimez le répertoire pour tout effacer.
+  `zing data-dir` indique où il se trouve ; `--data-dir CHEMIN` en choisit un
+  autre le temps d'une exécution, par ex. `zing serve --data-dir .` place les
+  bases dans le dossier courant. Ce sont des fichiers SQLite ordinaires que
+  vous pouvez ouvrir pour vos propres analyses (en lecture seule de préférence
+  pendant que zing tourne). Ne committez pas `watches.db` si ce dossier est un
+  dépôt.
 
 ## Utilisation responsable
 

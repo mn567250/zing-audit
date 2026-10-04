@@ -298,7 +298,10 @@ the backend (detector names, recommendations, verdict sentences).
 with `0600` SQLite files: `history.db` (`web/history.py`), `watches.db`
 (`web/watches.py`, which holds the monitors' API keys, encrypted) and `kb.db`
 (`knowledge/store.py`). Each call opens a short-lived connection, so the stores
-are safe on FastAPI's thread pool.
+are safe on FastAPI's thread pool. The global `--data-dir` option (also on
+`zing serve`) just sets `ZING_DATA_DIR` to the absolute path, and
+`zing data-dir` prints the resolved directory. A directory that already exists
+keeps its mode; only the default `~/.zing` is tightened to `0700`.
 
 Stored API keys are encrypted by `zing/secretbox.py` (Fernet, stored as
 `enc:v1:…`; `env:`/`file:` references stay as they are). The master key itself
@@ -452,7 +455,7 @@ detected.
 | `ZING_CONTAINER` | unset (`1` in the image) | Allows a non-loopback bind inside a detected container |
 | `ZING_HOST` | `127.0.0.1` (`0.0.0.0` in the image) | Bind address; `--host` wins |
 | `ZING_PORT` | `8000` | Port; `--port` wins |
-| `ZING_DATA_DIR` | `~/.zing` (`/data` in the image) | History, monitors (their keys encrypted) and your knowledge-base entries; mount a volume here |
+| `ZING_DATA_DIR` | `~/.zing` (`/data` in the image) | History, monitors (their keys encrypted) and your knowledge-base entries; mount a volume here. `--data-dir` wins |
 | `ZING_SECRET_KEY` | unset | Master key of the monitors' stored API keys (a key, or `file:/run/secrets/…` / `env:VAR`); unset, the Monitors page asks for it after every start. Never stored in `ZING_DATA_DIR` |
 | `ZING_KB_DIR` | unset | Extra knowledge-base YAML directory, e.g. `-v ./profiles:/kb:ro -e ZING_KB_DIR=/kb` |
 | `ZING_NO_USER_KB` | unset | `1` ignores your own knowledge-base entries (`kb.db`) |

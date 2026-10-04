@@ -479,7 +479,7 @@ qu'un environnement de conteneur est détecté.
 | `ZING_CONTAINER` | non défini (`1` dans l'image) | Autorise une écoute hors boucle locale dans un conteneur détecté |
 | `ZING_HOST` | `127.0.0.1` (`0.0.0.0` dans l'image) | Adresse d'écoute ; `--host` l'emporte |
 | `ZING_PORT` | `8000` | Port ; `--port` l'emporte |
-| `ZING_DATA_DIR` | `~/.zing` (`/data` dans l'image) | Historique, surveillances (leurs clés chiffrées) et vos entrées de la base de connaissances ; montez-y un volume |
+| `ZING_DATA_DIR` | `~/.zing` (`/data` dans l'image) | Historique, surveillances (leurs clés chiffrées) et vos entrées de la base de connaissances ; montez-y un volume. `--data-dir` l'emporte |
 | `ZING_SECRET_KEY` | non défini | Clé maîtresse des clés API enregistrées des surveillances (une clé, ou `file:/run/secrets/…` / `env:VAR`) ; non définie, la page Surveillances la demande après chaque démarrage. Jamais stockée dans `ZING_DATA_DIR` |
 | `ZING_KB_DIR` | non défini | Répertoire YAML supplémentaire pour la base de connaissances, p. ex. `-v ./profiles:/kb:ro -e ZING_KB_DIR=/kb` |
 | `ZING_NO_USER_KB` | non défini | `1` ignore vos propres entrées de la base de connaissances (`kb.db`) |

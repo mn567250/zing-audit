@@ -468,7 +468,7 @@ ambiente de contentor.
 | `ZING_CONTAINER` | não definida (`1` na imagem) | Permite escutar fora de loopback dentro de um contentor detetado |
 | `ZING_HOST` | `127.0.0.1` (`0.0.0.0` na imagem) | Endereço de escuta; `--host` prevalece |
 | `ZING_PORT` | `8000` | Porta; `--port` prevalece |
-| `ZING_DATA_DIR` | `~/.zing` (`/data` na imagem) | Histórico, monitores (com as suas chaves encriptadas) e as suas entradas da base de conhecimento; monte aqui um volume |
+| `ZING_DATA_DIR` | `~/.zing` (`/data` na imagem) | Histórico, monitores (com as suas chaves encriptadas) e as suas entradas da base de conhecimento; monte aqui um volume. `--data-dir` tem prioridade |
 | `ZING_SECRET_KEY` | não definida | Chave mestra das chaves API guardadas dos monitores (uma chave, ou `file:/run/secrets/…` / `env:VAR`); não definida, a página Monitores pede-a após cada arranque. Nunca guardada em `ZING_DATA_DIR` |
 | `ZING_KB_DIR` | não definida | Diretório YAML adicional da base de conhecimento, p. ex. `-v ./profiles:/kb:ro -e ZING_KB_DIR=/kb` |
 | `ZING_NO_USER_KB` | não definida | `1` ignora as suas próprias entradas da base de conhecimento (`kb.db`) |

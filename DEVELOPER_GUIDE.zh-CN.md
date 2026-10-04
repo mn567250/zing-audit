@@ -367,7 +367,7 @@ docker run --rm -p 127.0.0.1:8000:8000 -v zing-data:/data zing
 | `ZING_CONTAINER` | 未设置（镜像中为 `1`） | 在检测到的容器内允许绑定非回环地址 |
 | `ZING_HOST` | `127.0.0.1`（镜像中为 `0.0.0.0`） | 绑定地址；`--host` 优先 |
 | `ZING_PORT` | `8000` | 端口；`--port` 优先 |
-| `ZING_DATA_DIR` | `~/.zing`（镜像中为 `/data`） | 检测历史、监控（含加密后的密钥）和你的知识库条目；在此挂载数据卷 |
+| `ZING_DATA_DIR` | `~/.zing`（镜像中为 `/data`） | 检测历史、监控（含加密后的密钥）和你的知识库条目；在此挂载数据卷。`--data-dir` 优先 |
 | `ZING_SECRET_KEY` | 未设置 | 监控已保存 API 密钥的主密钥（一个密钥，或 `file:/run/secrets/…` / `env:VAR`）；未设置时，每次启动后监控页面都会请求它。从不保存在 `ZING_DATA_DIR` 中 |
 | `ZING_KB_DIR` | 未设置 | 额外的知识库 YAML 目录，例如 `-v ./profiles:/kb:ro -e ZING_KB_DIR=/kb` |
 | `ZING_NO_USER_KB` | 未设置 | 设为 `1` 时忽略你自己的知识库条目（`kb.db`） |

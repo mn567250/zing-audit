@@ -690,6 +690,11 @@ Relay kontrollierter Text wird vor dem Schreiben geschwärzt und maskiert.
   und Dateien mit `0600`: `history.db` (Prüfverlauf), `watches.db`
   (Überwachungen samt verschlüsselter Schlüssel) und `kb.db` (Ihre
   Wissensbasis-Einträge). Löschen Sie das Verzeichnis, um alles zu entfernen.
+  `zing data-dir` zeigt, wo es liegt; `--data-dir PFAD` wählt für einen Lauf
+  ein anderes, z. B. legt `zing serve --data-dir .` die Datenbanken im
+  aktuellen Ordner ab. Es sind normale SQLite-Dateien, die Sie für eigene
+  Auswertungen öffnen können (während zing läuft, am besten nur lesend).
+  Committen Sie `watches.db` nicht, falls der Ordner ein Repository ist.
 
 ## Verantwortungsvoller Einsatz
 

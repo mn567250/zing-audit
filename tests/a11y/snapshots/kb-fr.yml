@@ -210,6 +210,7 @@
           - cell "—"
           - cell "Fourni"
         # … more rows of the same shape
+  - status
 - contentinfo:
   - paragraph:
     - text: zing · vérification des relais · les profils fournis se trouvent dans

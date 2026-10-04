@@ -210,6 +210,7 @@
           - cell "—"
           - cell "Packaged"
         # … more rows of the same shape
+  - status
 - contentinfo:
   - paragraph:
     - text: zing · relay reality check · packaged profiles live in

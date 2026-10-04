@@ -32,7 +32,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   until you choose **Move it out**, which switches to a new key and deletes
   the file. A running server notices when `zing secret rotate` changes the
   key and locks itself. `zing secret status | export | rotate` follow the
-  same rules (`rotate` also creates the first key and prints it once).
+  same rules (`rotate` also creates the first key and prints it once). The
+  dialogs and the Monitors page's key texts are translated into every UI
+  language, and the READMEs and developer guides in all languages describe
+  the encrypted storage.
 - **Background audits in the new UI.** An audit is now a job owned by the
   `zing serve` process instead of the browser tab: switching pages, reloading
   or closing the tab no longer stops it, and **Continue in background** on the

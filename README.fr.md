@@ -492,10 +492,25 @@ exécution dans l'**Historique** et envoie les mêmes alertes webhook :
   **Surveillances** puis **Ajouter la surveillance**.
 
 Chaque surveillance a sa propre langue d'alerte (par défaut celle de
-l'interface), peut être exécutée maintenant, mise en pause ou supprimée, et reste
-liée au profil de la base de connaissances avec lequel elle a été créée jusqu'à ce
-que vous la reliiez à nouveau. Les clés ne sont stockées que dans votre
-répertoire de données local et ne sont jamais renvoyées au navigateur.
+l'interface), peut être exécutée maintenant, mise en pause ou supprimée, et
+reste liée au profil de la base de connaissances avec lequel elle a été créée
+jusqu'à ce que vous la reliiez à nouveau. Les clés sont stockées chiffrées dans
+votre répertoire de données local et ne sont jamais renvoyées au navigateur.
+
+**Clé maîtresse.** Les clés API des surveillances sont chiffrées avec une clé
+maîtresse que zing n'écrit jamais sur le disque. La première fois que vous
+enregistrez une clé API, la page **Surveillances** la crée et l'affiche une
+seule fois : copiez-la ou téléchargez-la, conservez-la dans un gestionnaire de
+mots de passe (votre navigateur peut l'enregistrer), puis collez-la pour
+confirmer. Après chaque redémarrage de `zing serve`, la page la redemande (le
+navigateur peut la remplir) ; d'ici là, les surveillances qui en ont besoin
+attendent, tandis que celles sans clé ou avec des clés `env:`/`file:` continuent
+de s'exécuter. La barre d'état de la page propose aussi **Verrouiller**,
+**Renouveler** et **Clé oubliée ?** (supprime les clés API chiffrées pour que
+vous puissiez les saisir à nouveau). Pour un usage sans intervention ou sous
+Docker, passez la clé dans `ZING_SECRET_KEY` (voir
+[docs/DOCKER.md](docs/DOCKER.md)) ; `zing secret status | export | rotate` la
+gèrent en ligne de commande.
 
 ## Audits d'embedding, de rerank, d'images et d'audio
 
@@ -660,12 +675,15 @@ sonde. Le texte contrôlé par le relais est expurgé et échappé avant d'être
   votre machine ne peut l'atteindre. zing ne contacte que les endpoints que vous
   configurez (cible, référence, juge, webhooks).
 - **Clés.** Les rapports et l'historique ne gardent qu'une empreinte d'une clé
-  API. Les clés des surveillances sont stockées en clair dans votre répertoire de
-  données, raison pour laquelle il n'est accessible qu'à vous.
+  API. Les clés des surveillances sont stockées chiffrées dans `watches.db` ; la
+  clé maîtresse qui les déchiffre n'est jamais écrite dans le répertoire de
+  données (vous la conservez, voir **Surveillance** plus haut), si bien qu'une
+  copie du répertoire ne révèle aucune clé API. Le répertoire reste accessible à
+  vous seul.
 - **Répertoire de données.** `~/.zing` (ou `ZING_DATA_DIR`), créé en `0700` avec
   des fichiers en `0600` : `history.db` (historique des audits), `watches.db`
-  (surveillances, clés comprises) et `kb.db` (vos entrées de la base de
-  connaissances). Supprimez le répertoire pour tout effacer.
+  (surveillances, clés chiffrées comprises) et `kb.db` (vos entrées de la base
+  de connaissances). Supprimez le répertoire pour tout effacer.
 
 ## Utilisation responsable
 

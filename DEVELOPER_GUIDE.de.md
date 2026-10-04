@@ -107,6 +107,7 @@ zing/
   media_audit.py       eigenständiger Prüfer für Bild und Audio (TTS)
   notify.py            Webhook-Warnungen (Slack / Feishu / DingTalk / generisches JSON)
   datadir.py           das lokale Datenverzeichnis und seine SQLite-Dateien
+  secretbox.py         Verschlüsselung gespeicherter Geheimnisse; der Hauptschlüssel im Speicher
   i18n/                Übersetzungen, geteilt von Weboberfläche und Warnungen
     locales/           <code>.json je Sprache, fragments/<feature>/<code>.json
   utils/               Schwärzung, SSE-Parsing, Statistik, Token-Schätzung
@@ -116,6 +117,7 @@ zing/
     security.py        Loopback-Bindung, Host-Allowlist, Origin-/JSON-Prüfung, Header
     history.py         Speicher des Prüfverlaufs (history.db)
     watches.py         Speicher der Überwachungen (watches.db)
+    masterkey.py       Zustände und Aktionen des Hauptschlüssels (Server und `zing secret`)
     static/            Seiten der klassischen Oberfläche und gemeinsame Skripte (lang.js, i18n.js, …)
     static/v2/         Seiten, Styles und Skripte der neuen Oberfläche
 tests/                 pytest-Suite; conftest.py enthält das Mock-Relay
@@ -311,9 +313,20 @@ dynamischen Text und `ZING_LANG.server(text)` für Text aus dem Backend
 
 `zing/datadir.py` verwaltet `$ZING_DATA_DIR` (Standard `~/.zing`), angelegt mit
 `0700` und SQLite-Dateien mit `0600`: `history.db` (`web/history.py`),
-`watches.db` (`web/watches.py`, enthält die API-Schlüssel der Überwachungen im
-Klartext) und `kb.db` (`knowledge/store.py`). Jeder Aufruf öffnet eine
+`watches.db` (`web/watches.py`, enthält die API-Schlüssel der Überwachungen,
+verschlüsselt) und `kb.db` (`knowledge/store.py`). Jeder Aufruf öffnet eine
 kurzlebige Verbindung, daher sind die Speicher im Threadpool von FastAPI sicher.
+
+Gespeicherte API-Schlüssel verschlüsselt `zing/secretbox.py` (Fernet,
+gespeichert als `enc:v1:…`; `env:`/`file:`-Verweise bleiben unverändert). Der
+Hauptschlüssel selbst wird nie gespeichert: `web/masterkey.py` (`Vault`,
+gemeinsam genutzt von Server und `zing secret`) hält ihn im Speicher des
+Servers, sobald er aus `ZING_SECRET_KEY`, einer alten `secret.key` oder vom
+Benutzer auf der Seite Überwachung kommt; `watches.db` enthält nur einen
+Prüfwert (`secret_meta`), der einen falschen Schlüssel abweist. Ein neuer
+Schlüssel verschlüsselt jeden gespeicherten Schlüssel neu und schreibt den
+Prüfwert in einer einzigen Transaktion. Der Schlüssel liegt im Speicher eines
+Prozesses, betreiben Sie daher einen Server pro Datenverzeichnis.
 
 ## Mitwirken
 
@@ -465,7 +478,8 @@ Container-Laufzeit erkannt wird.
 | `ZING_CONTAINER` | nicht gesetzt (`1` im Image) | Erlaubt in einem erkannten Container eine Bindung außerhalb von Loopback |
 | `ZING_HOST` | `127.0.0.1` (`0.0.0.0` im Image) | Bindungsadresse; `--host` hat Vorrang |
 | `ZING_PORT` | `8000` | Port; `--port` hat Vorrang |
-| `ZING_DATA_DIR` | `~/.zing` (`/data` im Image) | Verlauf, Überwachungen (mit ihren Schlüsseln) und Ihre Wissensbasis-Einträge; hier ein Volume einhängen |
+| `ZING_DATA_DIR` | `~/.zing` (`/data` im Image) | Verlauf, Überwachungen (ihre Schlüssel verschlüsselt) und Ihre Wissensbasis-Einträge; hier ein Volume einhängen |
+| `ZING_SECRET_KEY` | nicht gesetzt | Hauptschlüssel der gespeicherten API-Schlüssel der Überwachungen (ein Schlüssel oder `file:/run/secrets/…` / `env:VAR`); nicht gesetzt, fragt die Seite Überwachung nach jedem Start danach. Nie in `ZING_DATA_DIR` gespeichert |
 | `ZING_KB_DIR` | nicht gesetzt | Zusätzliches YAML-Verzeichnis der Wissensbasis, z. B. `-v ./profiles:/kb:ro -e ZING_KB_DIR=/kb` |
 | `ZING_NO_USER_KB` | nicht gesetzt | `1` ignoriert Ihre eigenen Wissensbasis-Einträge (`kb.db`) |
 | `ZING_ALLOWED_HOSTS` | nicht gesetzt | Zusätzliche Hostnamen, unter denen die Oberfläche antwortet, kommagetrennt |

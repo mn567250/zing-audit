@@ -225,7 +225,6 @@
   "Enable right after creating": "Activer dès la création",
   "Webhook URLs (one per line, optional)": "URL de webhook (une par ligne, facultatif)",
   "Add monitor": "Ajouter la surveillance",
-  "Everything <b>runs locally</b>. The API key is stored only in the local database under <b>~/.zing</b> on this machine; it <b>never</b> appears in the monitor list and is never sent to the browser.": "Tout <b>s'exécute en local</b>. La clé API est stockée uniquement dans la base de données locale sous <b>~/.zing</b> sur cette machine ; elle n'apparaît <b>jamais</b> dans la liste des surveillances et n'est jamais envoyée au navigateur.",
   "Configured monitors": "Surveillances configurées",
   "Loading…": "Chargement…",
   "zing · relay reality check · monitors are scheduled in the background by the <code>zing serve</code> process": "zing · vérification de relais · les surveillances sont planifiées en arrière-plan par le processus <code>zing serve</code>",

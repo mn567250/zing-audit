@@ -104,6 +104,7 @@ zing/
   media_audit.py       standalone image and audio (TTS) auditor
   notify.py            webhook alerts (Slack / Feishu / DingTalk / generic JSON)
   datadir.py           the local data directory and its SQLite files
+  secretbox.py         encryption of stored secrets; the master key held in memory
   i18n/                translations shared by the web UI and the alerts
     locales/           <code>.json per language, fragments/<feature>/<code>.json
   utils/               redaction, SSE parsing, statistics, token estimation
@@ -113,6 +114,7 @@ zing/
     security.py        loopback bind, Host allowlist, Origin/JSON checks, headers
     history.py         audit history store (history.db)
     watches.py         monitor store (watches.db)
+    masterkey.py       the master key's states and actions (server and `zing secret`)
     static/            classic UI pages and the shared scripts (lang.js, i18n.js, …)
     static/v2/         the new UI's pages, styles and scripts
 tests/                 pytest suite; conftest.py holds the mock relay
@@ -294,9 +296,19 @@ the backend (detector names, recommendations, verdict sentences).
 
 `zing/datadir.py` owns `$ZING_DATA_DIR` (default `~/.zing`), created `0700`,
 with `0600` SQLite files: `history.db` (`web/history.py`), `watches.db`
-(`web/watches.py`, which holds monitor API keys in plain text) and `kb.db`
+(`web/watches.py`, which holds the monitors' API keys, encrypted) and `kb.db`
 (`knowledge/store.py`). Each call opens a short-lived connection, so the stores
 are safe on FastAPI's thread pool.
+
+Stored API keys are encrypted by `zing/secretbox.py` (Fernet, stored as
+`enc:v1:…`; `env:`/`file:` references stay as they are). The master key itself
+is never stored: `web/masterkey.py` (`Vault`, shared by the server and
+`zing secret`) holds it in the server's memory once it comes from
+`ZING_SECRET_KEY`, a legacy `secret.key` or the user on the Monitors page, and
+`watches.db` keeps only a check value (`secret_meta`) that rejects a wrong key.
+A new key re-encrypts every stored key and rewrites the check value in one
+transaction. The key lives in one process's memory, so run one server per data
+directory.
 
 ## Contributing
 
@@ -440,7 +452,8 @@ detected.
 | `ZING_CONTAINER` | unset (`1` in the image) | Allows a non-loopback bind inside a detected container |
 | `ZING_HOST` | `127.0.0.1` (`0.0.0.0` in the image) | Bind address; `--host` wins |
 | `ZING_PORT` | `8000` | Port; `--port` wins |
-| `ZING_DATA_DIR` | `~/.zing` (`/data` in the image) | History, monitors (with their keys) and your knowledge-base entries; mount a volume here |
+| `ZING_DATA_DIR` | `~/.zing` (`/data` in the image) | History, monitors (their keys encrypted) and your knowledge-base entries; mount a volume here |
+| `ZING_SECRET_KEY` | unset | Master key of the monitors' stored API keys (a key, or `file:/run/secrets/…` / `env:VAR`); unset, the Monitors page asks for it after every start. Never stored in `ZING_DATA_DIR` |
 | `ZING_KB_DIR` | unset | Extra knowledge-base YAML directory, e.g. `-v ./profiles:/kb:ro -e ZING_KB_DIR=/kb` |
 | `ZING_NO_USER_KB` | unset | `1` ignores your own knowledge-base entries (`kb.db`) |
 | `ZING_ALLOWED_HOSTS` | unset | Extra host names the UI answers to, comma-separated |

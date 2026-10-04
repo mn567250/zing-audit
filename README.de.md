@@ -498,10 +498,25 @@ und sendet dieselben Webhook-Warnungen:
   und **Überwachung hinzufügen**.
 
 Jede Überwachung hat ihre eigene Warnsprache (standardmäßig die Sprache der
-Oberfläche), lässt sich sofort ausführen, pausieren oder löschen und bleibt an das
-Wissensbasis-Profil gebunden, mit dem sie angelegt wurde, bis Sie es neu binden.
-Schlüssel werden nur in Ihrem lokalen Datenverzeichnis gespeichert und nie an den
-Browser zurückgegeben.
+Oberfläche), lässt sich sofort ausführen, pausieren oder löschen und bleibt an
+das Wissensbasis-Profil gebunden, mit dem sie angelegt wurde, bis Sie es neu
+binden. Schlüssel werden verschlüsselt in Ihrem lokalen Datenverzeichnis
+gespeichert und nie an den Browser zurückgegeben.
+
+**Hauptschlüssel.** Die API-Schlüssel der Überwachungen sind mit einem
+Hauptschlüssel verschlüsselt, den zing nie auf die Festplatte schreibt. Wenn Sie
+zum ersten Mal einen API-Schlüssel speichern, erstellt die Seite **Überwachung**
+ihn und zeigt ihn ein einziges Mal: kopieren oder herunterladen, in einem
+Passwortmanager aufbewahren (Ihr Browser kann ihn speichern) und zur Bestätigung
+wieder einfügen. Nach jedem Neustart von `zing serve` fragt die Seite erneut
+danach (der Browser kann ihn ausfüllen); bis dahin warten Überwachungen, die ihn
+brauchen, während Überwachungen ohne Schlüssel oder mit
+`env:`/`file:`-Schlüsseln weiterlaufen. Die Statusleiste der Seite bietet
+außerdem **Sperren**, **Wechseln** und **Schlüssel vergessen?** (verwirft die
+verschlüsselten API-Schlüssel, damit Sie sie neu eingeben können). Für
+unbeaufsichtigten Betrieb oder Docker übergeben Sie den Schlüssel als
+`ZING_SECRET_KEY` (siehe [docs/DOCKER.md](docs/DOCKER.md));
+`zing secret status | export | rotate` verwalten ihn auf der Kommandozeile.
 
 ## Prüfungen für Embedding, Rerank, Bild und Audio
 
@@ -665,13 +680,16 @@ Relay kontrollierter Text wird vor dem Schreiben geschwärzt und maskiert.
   seitenübergreifende Anfragen ab; es hat keine Anmeldung, weil nichts außerhalb
   Ihres Rechners es erreichen kann. zing kontaktiert nur die Endpunkte, die Sie
   konfigurieren (Ziel, Referenz, Richter, Webhooks).
-- **Schlüssel.** Berichte und Verlauf speichern von einem API-Schlüssel nur einen
-  Fingerabdruck. Die Schlüssel der Überwachungen liegen im Klartext in Ihrem
-  Datenverzeichnis, weshalb nur Sie Zugriff darauf haben.
-- **Datenverzeichnis.** `~/.zing` (oder `ZING_DATA_DIR`), angelegt mit `0700` und
-  Dateien mit `0600`: `history.db` (Prüfverlauf), `watches.db` (Überwachungen samt
-  Schlüsseln) und `kb.db` (Ihre Wissensbasis-Einträge). Löschen Sie das
-  Verzeichnis, um alles zu entfernen.
+- **Schlüssel.** Berichte und Verlauf speichern von einem API-Schlüssel nur
+  einen Fingerabdruck. Die Schlüssel der Überwachungen liegen verschlüsselt in
+  `watches.db`; der Hauptschlüssel, der sie entschlüsselt, wird nie im
+  Datenverzeichnis gespeichert (Sie bewahren ihn auf, siehe **Überwachung**
+  oben), sodass eine Kopie des Verzeichnisses keinen API-Schlüssel preisgibt.
+  Zugriff auf das Verzeichnis haben trotzdem nur Sie.
+- **Datenverzeichnis.** `~/.zing` (oder `ZING_DATA_DIR`), angelegt mit `0700`
+  und Dateien mit `0600`: `history.db` (Prüfverlauf), `watches.db`
+  (Überwachungen samt verschlüsselter Schlüssel) und `kb.db` (Ihre
+  Wissensbasis-Einträge). Löschen Sie das Verzeichnis, um alles zu entfernen.
 
 ## Verantwortungsvoller Einsatz
 

@@ -24,12 +24,15 @@ visit states only a running app reaches, all without network access:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import time
+from collections.abc import Callable
 from typing import Any
 
 import pytest
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page, Route
 
 from tests.a11y.harness import PAGES, REPORT_FIXTURE, THEMES, assert_no_issues, expand_all, settle
@@ -142,6 +145,17 @@ def _fulfill_json(route: Route, data: Any) -> None:
     route.fulfill(status=200, content_type="application/json", body=json.dumps(data))
 
 
+def _quiet(handler: Callable[[Route], None]) -> Callable[[Route], None]:
+    """A route handler that ignores a closed page: a poll still in flight when
+    the test's context closes must not fail the next test on this worker."""
+
+    def run(route: Route) -> None:
+        with contextlib.suppress(PlaywrightError):
+            handler(route)
+
+    return run
+
+
 def _route_history_charts(page: Page) -> None:
     """Three runs of one relay (trend sparklines) whose reports carry performance data."""
     report = _report_with_performance()
@@ -157,8 +171,8 @@ def _route_history_charts(page: Page) -> None:
                             latency_p50_ms=lat, decode_tps_p50=tps, ts=r0.get("ts")))
         _fulfill_json(route, out)
 
-    page.route(re.compile(r"/api/history(\?.*)?$"), history_list)
-    page.route(re.compile(r"/api/history/[^/?]+$"), lambda route: _fulfill_json(route, report))
+    page.route(re.compile(r"/api/history(\?.*)?$"), _quiet(history_list))
+    page.route(re.compile(r"/api/history/[^/?]+$"), _quiet(lambda route: _fulfill_json(route, report)))
 
 
 def _route_history_jobs(page: Page) -> None:
@@ -169,7 +183,7 @@ def _route_history_jobs(page: Page) -> None:
         {"id": "a11y-j2", "kind": "audit", "status": "queued", "waiting_for": ["relay.example.test"],
          "claimed_model": "other-model", "model": "other-model", "base_url": "https://relay.example.test/v1", "suite": "quick"},
     ]}
-    page.route(re.compile(r"/api/jobs$"), lambda route: _fulfill_json(route, jobs) if route.request.method == "GET" else route.continue_())
+    page.route(re.compile(r"/api/jobs$"), _quiet(lambda route: _fulfill_json(route, jobs) if route.request.method == "GET" else route.continue_()))
 
 
 def _route_monitors_running(page: Page) -> None:
@@ -179,7 +193,7 @@ def _route_monitors_running(page: Page) -> None:
         rows = route.fetch().json()
         _fulfill_json(route, [dict(w, running=True, progress=40) for w in rows])
 
-    page.route(re.compile(r"/api/watches$"), watches)
+    page.route(re.compile(r"/api/watches$"), _quiet(watches))
 
 
 def open_state(

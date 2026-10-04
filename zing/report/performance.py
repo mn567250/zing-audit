@@ -300,16 +300,22 @@ def _esc(value: object) -> str:
     return html.escape(str(value), quote=True)
 
 
-def nice_ceiling(value: float) -> float:
-    """Round up to 1, 2, 2.5 or 5 x 10^n so the axis ticks are clean numbers."""
+def nice_axis(value: float) -> tuple[float, float, int]:
+    """A tight axis for ``value``: ``(max, step, intervals)``.
+
+    The step is the smallest 1, 2, 2.5 or 5 x 10^n that covers ``value`` in at
+    most 6 intervals, and the maximum the next multiple of it (510 -> 0..600 by
+    100, not 0..1000). Same as niceAxis in zing/web/static/perf.js.
+    """
     if value <= 0:
-        return 1.0
-    exp = math.floor(math.log10(value))
-    base = 10**exp
-    for step in (1, 2, 2.5, 5, 10):
-        if value <= step * base:
-            return step * base
-    return 10 * base
+        return 1.0, 0.25, 4
+    base = 10 ** math.floor(math.log10(value / 6))
+    for mult in (1, 2, 2.5, 5, 10):  # value / 6 < 10 * base: the last one always fits
+        step = mult * base
+        n = math.ceil(value / step - 1e-9)
+        if n <= 6:
+            return n * step, step, n
+    raise AssertionError("unreachable")
 
 
 _W, _H = 860, 260
@@ -333,8 +339,8 @@ def timeline_svg(
         return f'<p class="muted">No {_esc(label)} samples.</p>'
 
     end_s = max((r.start_ms + (r.duration_ms or 0)) / 1000 for r in calls) or 1.0
-    x_max = nice_ceiling(end_s)
-    y_max = nice_ceiling(max(v for _, v in plotted) * 1.05)
+    x_max, x_step, x_n = nice_axis(end_s)
+    y_max, y_step, y_n = nice_axis(max(v for _, v in plotted) * 1.05)
     pw, ph = _W - _ML - _MR, _H - _MT - _MB
 
     def x(sec: float) -> float:
@@ -347,16 +353,16 @@ def timeline_svg(
         f'<svg class="perf-chart" viewBox="0 0 {_W} {_H}" role="img" '
         f'aria-label="{_esc(label)} per request over the audit">'
     ]
-    for i in range(5):
-        v = y_max * i / 4
+    for i in range(y_n + 1):
+        v = y_step * i
         yy = y(v)
         out.append(f'<line class="grid" x1="{_ML}" x2="{_W - _MR}" y1="{yy:.1f}" y2="{yy:.1f}"/>')
         out.append(
             f'<text class="tick" x="{_ML - 6}" y="{yy + 4:.1f}" text-anchor="end">{fmt_num(v)}</text>'
         )
-    for i in range(5):
-        s = x_max * i / 4
-        anchor = "start" if i == 0 else "end" if i == 4 else "middle"
+    for i in range(x_n + 1):
+        s = x_step * i
+        anchor = "start" if i == 0 else "end" if i == x_n else "middle"
         out.append(
             f'<text class="tick" x="{x(s):.1f}" y="{_H - _MB + 16}" text-anchor="{anchor}">{fmt_num(s)}s</text>'
         )

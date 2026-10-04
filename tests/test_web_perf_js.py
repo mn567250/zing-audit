@@ -187,3 +187,31 @@ def test_live_tiles_fall_back_to_end_to_end_speed_without_streamed_calls():
     ])
     assert "TTFT p50</div><div class=\"zp-tv\">—<" in html  # no first token without streaming
     assert "End-to-end speed p50</div><div class=\"zp-tv\">42.0 tok/s" in html
+
+
+_AXIS_JS = r"""
+const path = require("path");
+global.window = {};
+global.document = undefined;
+require(path.join(process.argv[1], "perf.js"));
+const recs = JSON.parse(process.argv[2]);
+console.log(JSON.stringify({chart: window.ZingPerf.chart(recs, "ttft"), axis: window.ZingPerf.niceAxis(510)}));
+"""
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to evaluate the UI's JS")
+def test_perf_js_axes_fit_the_data():
+    # An audit ending around 500 s with TTFT up to 350 ms: the live chart used
+    # to stretch to 1000 s and 500 ms, leaving much of the plot empty.
+    recs = [{"seq": i, "op": "complete", "endpoint": "target", "phase": "probe", "ok": True,
+             "stream": True, "start_ms": i * 50_000.0, "duration_ms": 900.0, "ttft_ms": 300.0 + i * 5}
+            for i in range(11)]
+    static = Path(__file__).resolve().parent.parent / "zing" / "web" / "static"
+    out = json.loads(subprocess.run(
+        ["node", "-e", _AXIS_JS, str(static), json.dumps(recs)],
+        capture_output=True, text=True, check=True,
+    ).stdout)
+    assert out["axis"] == {"max": 600, "step": 100, "n": 6}
+    chart = out["chart"]
+    assert 'text-anchor="end">600s</text>' in chart and "1,000s" not in chart and "1000s" not in chart
+    assert 'text-anchor="end">400</text>' in chart and ">500</text>" not in chart  # 350 x 1.05 -> 0..400

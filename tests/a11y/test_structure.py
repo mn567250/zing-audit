@@ -38,6 +38,8 @@ from tests.a11y.harness import (
     DESKTOP,
     LANGS,
     PAGES,
+    REPORT_FIXTURE,
+    THEMES,
     assert_no_issues,
     expand_all,
     settle,
@@ -790,3 +792,299 @@ def test_no_sensory_only_instructions_on_page(open_page, page_id: str, lang: str
     else:
         issues = sorted({repr(hit) for t in texts for hit in sensory_instructions(t, lang)})
     assert_no_issues(issues, f"{page_id} [{lang}]", "sensory-characteristics")
+
+
+# --------------------------------------------------------------------------- #
+# 9.1.4.1 use of colour
+# --------------------------------------------------------------------------- #
+# Each status component is rendered once per state with everything else
+# equal. What is left without colour (visible text, icon shapes, images,
+# pseudo-element content, border style, font weight/style, decoration) must
+# differ between two states whose colours differ: otherwise the states are
+# told apart by colour alone. Screen-reader-only text does not count.
+NO_TRANSITIONS_CSS = "*, *::before, *::after { transition: none !important; animation: none !important; }"
+
+SIGNATURE_JS = """
+(sel) => {
+  const root = document.querySelector(sel);
+  if (!root) return null;
+  // the same disclosures open in every state
+  for (let k = 0; k < 2; k++)
+    for (const b of root.querySelectorAll('[aria-expanded="false"]')) if (b.getBoundingClientRect().width > 0) b.click();
+  const shown = el => { const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+    return r.width > 2 && r.height > 2 && s.visibility !== 'hidden' && parseFloat(s.opacity) > 0; };
+  const plain = [], colour = [];
+  const walk = el => {
+    if (!shown(el)) return;
+    const s = getComputedStyle(el);
+    for (const p of ['::before', '::after']) {
+      const c = getComputedStyle(el, p).content;
+      if (c && c !== 'none' && c !== 'normal' && c !== '""') plain.push(p + c);
+    }
+    const bw = ['Top', 'Right', 'Bottom', 'Left'].filter(sd => parseFloat(s['border' + sd + 'Width']) > 0);
+    plain.push(`<${el.tagName.toLowerCase()} ${s.fontWeight} ${s.fontStyle} ${s.textDecorationLine} ${bw.map(sd => s['border' + sd + 'Style']).join('/')}>`);
+    colour.push([s.color, s.backgroundColor, s.backgroundImage, ...bw.map(sd => s['border' + sd + 'Color']), s.fill, s.stroke, s.opacity].join(' '));
+    if (el.tagName.toLowerCase() === 'svg') { plain.push('svg:' + el.innerHTML.replace(/\\s+/g, ' ')); return; }
+    if (el.tagName.toLowerCase() === 'img') { plain.push('img:' + el.getAttribute('src')); return; }
+    for (const n of el.childNodes) {
+      if (n.nodeType === 3 && n.textContent.trim()) plain.push(n.textContent.trim());
+      else if (n.nodeType === 1) walk(n);
+    }
+  };
+  walk(root);
+  return { plain: plain.join('|'), colour: colour.join('|') };
+}
+"""
+
+
+def colour_only_pairs(states: list[tuple[str, dict[str, str] | None]], what: str) -> list[str]:
+    """Groups of states whose colour-free rendering is identical although their
+    colours differ (states identical in colour too are not a colour problem)."""
+    issues = [f"{what} {name}: not rendered" for name, sig in states if sig is None]
+    groups: dict[str, list[tuple[str, str]]] = {}
+    for name, sig in states:
+        if sig is not None:
+            groups.setdefault(sig["plain"], []).append((name, sig["colour"]))
+    for same in groups.values():
+        if len({colour for _, colour in same}) > 1:
+            names = ", ".join(repr(name) for name, _ in same)
+            issues.append(f"{what}: states {names} differ only by colour (same text, icons and shapes)")
+    return issues
+
+
+RENDER_REPORT_JS = """
+(report) => {
+  let host = document.getElementById('a11y-states');
+  if (host) host.remove();
+  host = document.createElement('div');
+  host.id = 'a11y-states';
+  (document.querySelector('main') || document.body).appendChild(host);
+  ZingReport.render(host, report, {});
+}
+"""
+
+RISKS = ["clean", "low", "medium", "high", "inconclusive"]
+STATUSES = ["pass", "info", "warn", "fail", "error", "inconclusive", "not_run"]
+SEVERITIES = ["critical", "high", "medium", "low", "info"]
+
+
+def _report_state_sets(report: dict[str, Any]) -> dict[str, list[tuple[str, dict[str, Any]]]]:
+    """Copies of the fixture report that differ in one status field each."""
+
+    def variant(path: list[Any], value: Any) -> dict[str, Any]:
+        r = json.loads(json.dumps(report))
+        node = r
+        for k in path[:-1]:
+            node = node[k]
+        node[path[-1]] = value
+        return r
+
+    return {
+        "verdict risk level": [(v, variant(["verdict", "risk_level"], v)) for v in RISKS],
+        "dimension status": [(v, variant(["dimensions", 0, "status"], v)) for v in STATUSES],
+        "detector status": [(v, variant(["detectors", 0, "status"], v)) for v in STATUSES],
+        "finding status": [(v, variant(["detectors", 0, "findings", 0, "status"], v)) for v in STATUSES],
+        "finding severity": [(v, variant(["detectors", 0, "findings", 0, "severity"], v)) for v in SEVERITIES],
+    }
+
+
+@pytest.mark.bitv("9.1.4.1")
+@pytest.mark.parametrize("lang", LANGS)
+def test_report_states_not_by_colour_alone(open_page, lang: str) -> None:
+    """9.1.4.1 Use of colour: the rendered report (risk badge, verdict banner,
+    dimension meters and status, detector and finding chips) shows each
+    state by text or icon too, not by colour alone."""
+    page = open_page(PAGES["history"], lang)
+    page.add_style_tag(content=NO_TRANSITIONS_CSS)
+    report = json.loads(REPORT_FIXTURE.read_text(encoding="utf-8"))
+    issues: list[str] = []
+    for what, variants in _report_state_sets(report).items():
+        states = []
+        for name, rep in variants:
+            page.evaluate(RENDER_REPORT_JS, rep)
+            settle(page)
+            states.append((name, page.evaluate(SIGNATURE_JS, "#a11y-states")))
+        issues += colour_only_pairs(states, what)
+    assert_no_issues(issues, f"report [{lang}]", "use-of-colour")
+
+
+def _mock_list(page: Page, path: str, rows: Any) -> None:
+    body = json.dumps(rows)
+
+    def handle(route: Any) -> None:
+        if route.request.method == "GET" and urlparse(route.request.url).path == path:
+            route.fulfill(status=200, content_type="application/json", body=body)
+        else:
+            route.fallback()
+
+    page.context.route("**/api/**", handle)
+    page.reload(wait_until="networkidle")
+    settle(page)
+    page.add_style_tag(content=NO_TRANSITIONS_CSS)
+
+
+@pytest.mark.bitv("9.1.4.1")
+@pytest.mark.parametrize("lang", LANGS)
+def test_list_states_not_by_colour_alone(open_page, base_url: str, lang: str) -> None:
+    """9.1.4.1 Use of colour: history rows (risk badge) and monitor cards
+    (status badge) in every state, from mocked lists that differ only there."""
+    import httpx
+
+    issues: list[str] = []
+    # history: one row per risk level, everything else equal
+    first = httpx.get(base_url + "/api/history?limit=1&perf=1", timeout=10).json()[0]
+    rows = [dict(first, id=900001 + k, risk_level=v) for k, v in enumerate(RISKS)]
+    page = open_page(PAGES["history"], lang)
+    _mock_list(page, "/api/history", rows)
+    states = [(r["risk_level"], page.evaluate(SIGNATURE_JS, f'li.row[data-id="{r["id"]}"] .rmain')) for r in rows]
+    issues += colour_only_pairs(states, "history row")
+    # monitors: every badge state of a card
+    mon = httpx.get(base_url + "/api/watches", timeout=10).json()[0]
+    base = dict(mon, interval_sec=3600, enabled=False, running=False, last_risk=None, last_run_ts=None)
+    cards = {f"last risk {v}": dict(base, last_risk=v, last_run_ts=1790000000) for v in RISKS}
+    cards |= {"not run yet": base, "no result": dict(base, last_run_ts=1790000000), "needs setup": dict(base, interval_sec=None)}
+    watches = [dict(w, id=900001 + k) for k, w in enumerate(cards.values())]
+    page = open_page(PAGES["monitors"], lang)
+    _mock_list(page, "/api/watches", watches)
+    states = [(name, page.evaluate(SIGNATURE_JS, f'#w-{w["id"]} .mon-title .badge')) for name, w in zip(cards, watches, strict=True)]
+    issues += colour_only_pairs(states, "monitor status badge")
+    assert_no_issues(issues, f"history + monitors [{lang}]", "use-of-colour")
+
+
+EMBED_RESULT = {
+    "risk_level": "high", "score": 50,
+    "target": {"base_url": "http://relay.invalid/v1", "model": "text-embedding-3-small"},
+    "findings": [{"id": "embed.dimension", "status": "fail", "title": "Vector dimension", "summary": "Vector dimension check.",
+                  "evidence": {"returned": 1536, "claimed": 1536}}],
+}  # fmt: skip
+
+SUBMIT_EMBED_JS = """
+() => {
+  document.getElementById('e-url').value = 'http://relay.invalid/v1';
+  document.getElementById('e-model').value = 'text-embedding-3-small';
+  document.getElementById('embed-form').requestSubmit();
+}
+"""
+
+
+@pytest.mark.bitv("9.1.4.1")
+@pytest.mark.parametrize("lang", LANGS)
+def test_tool_result_states_not_by_colour_alone(open_page, lang: str) -> None:
+    """9.1.4.1 Use of colour: the embedding check's result card (verdict badge,
+    check status) in every state, from a mocked /api/embed answer."""
+    page = open_page(PAGES["tools"], lang)
+    page.add_style_tag(content=NO_TRANSITIONS_CSS)
+    answer: dict[str, Any] = {}
+
+    def handle(route: Any) -> None:
+        if route.request.method == "POST" and urlparse(route.request.url).path == "/api/embed":
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(answer))
+        else:
+            route.fallback()
+
+    page.context.route("**/api/**", handle)
+    sets = {
+        "verdict badge": [(v, dict(EMBED_RESULT, risk_level=v)) for v in RISKS],
+        "check status": [
+            (v, dict(EMBED_RESULT, findings=[dict(EMBED_RESULT["findings"][0], status=v)])) for v in STATUSES
+        ],
+    }
+    issues: list[str] = []
+    for what, variants in sets.items():
+        states = []
+        for name, data in variants:
+            answer.clear()
+            answer.update(data)
+            page.evaluate("() => { document.getElementById('e-out').innerHTML = ''; }")
+            with page.expect_response("**/api/embed"):
+                page.evaluate(SUBMIT_EMBED_JS)
+            page.wait_for_selector("#e-out .res")
+            settle(page)
+            states.append((name, page.evaluate(SIGNATURE_JS, "#e-out .res")))
+        issues += colour_only_pairs(states, what)
+    assert_no_issues(issues, f"tools [{lang}]", "use-of-colour")
+
+
+# links inside running text: underlined, or 3:1 against the text around them
+# plus an underline on hover and focus (WCAG technique G183, failure F73)
+INLINE_LINKS_JS = (
+    """
+() => {
+  const parse = c => { const m = /rgba?\\(([^)]+)\\)/.exec(c || ''); if (!m) return null;
+    const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; };
+  const lum = ([r, g, b]) => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+  const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  """
+    + DESCRIBE
+    + """
+  const out = [];
+  let i = 0;
+  for (const a of document.querySelectorAll('a[href]')) {
+    const s = getComputedStyle(a), r = a.getBoundingClientRect();
+    if (r.width === 0 || s.visibility === 'hidden' || !s.display.startsWith('inline') || s.display === 'inline-flex') continue;
+    if (a.closest('nav, [role=navigation], [aria-hidden=true]')) continue;
+    let block = a.parentElement;
+    while (block && getComputedStyle(block).display.startsWith('inline')) block = block.parentElement;
+    if (!block) continue;
+    // text of the block outside links and controls: is the link part of a sentence?
+    let around = '';
+    const walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode())
+      if (!n.parentElement.closest('a, button, [role=button], select, label') && !n.parentElement.closest('[aria-hidden=true]')) around += n.textContent;
+    if ((around.match(/[\\p{L}\\p{N}]/gu) || []).length < 3) continue;
+    a.setAttribute('data-a11y-link', String(i++));
+    out.push({ i: a.getAttribute('data-a11y-link'), desc: describeEl(a),
+               ratio: ratio(parse(s.color), parse(getComputedStyle(block).color)) });
+  }
+  return out;
+}
+"""
+)
+
+UNDERLINED_JS = """
+(i) => {
+  const a = document.querySelector(`[data-a11y-link="${i}"]`);
+  const marked = el => { const s = getComputedStyle(el);
+    return s.textDecorationLine.includes('underline') ||
+      (parseFloat(s.borderBottomWidth) >= 1 && s.borderBottomStyle !== 'none' && !/rgba\\(.*, 0\\)$/.test(s.borderBottomColor)) ||
+      /gradient|url\\(/.test(s.backgroundImage); };
+  if (marked(a) || [...a.querySelectorAll('*')].some(marked)) return true;
+  // text-decoration drawn by an inline ancestor reaches the link too
+  for (let p = a.parentElement; p && getComputedStyle(p).display.startsWith('inline'); p = p.parentElement)
+    if (getComputedStyle(p).textDecorationLine.includes('underline')) return true;
+  return false;
+}
+"""
+
+
+@pytest.mark.bitv("9.1.4.1")
+@pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize("page_id", PAGE_IDS)
+def test_links_in_text_not_by_colour_alone(open_page, page_id: str, theme: str) -> None:
+    """9.1.4.1 Use of colour: a link inside running text is underlined (or
+    otherwise marked), or has 3:1 contrast to the surrounding text and gets
+    an underline on hover and on keyboard focus."""
+    page = open_page(PAGES[page_id], "en", theme)
+    expand_all(page)
+    page.add_style_tag(content=NO_TRANSITIONS_CSS)
+    issues: list[str] = []
+    for link in page.evaluate(INLINE_LINKS_JS):
+        if page.evaluate(UNDERLINED_JS, link["i"]):
+            continue
+        if link["ratio"] < 3:
+            issues.append(
+                f"link in text is not underlined and its colour has {link['ratio']:.2f}:1 < 3:1 to the text: {link['desc']}"
+            )
+            continue
+        loc = page.locator(f'[data-a11y-link="{link["i"]}"]')
+        loc.hover()
+        hover = page.evaluate(UNDERLINED_JS, link["i"])
+        page.mouse.move(0, 0)
+        loc.focus()
+        focus = page.evaluate(UNDERLINED_JS, link["i"])
+        loc.blur()
+        if not (hover and focus):
+            missing = " and ".join(x for x, ok in (("hover", hover), ("focus", focus)) if not ok)
+            issues.append(f"link in text is told apart by colour only, no underline on {missing}: {link['desc']}")
+    assert_no_issues(issues, f"{page_id} [en, {theme}]", "use-of-colour")

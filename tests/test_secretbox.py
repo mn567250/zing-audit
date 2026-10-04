@@ -1,14 +1,14 @@
 """Encryption at rest for the monitors' stored API keys (zing/secretbox.py).
 
-Covers the box itself, master-key resolution, the watch store's encryption,
-legacy plain-text migration, an unreadable key in the scheduler and the
-`zing secret` commands.
+Covers the box itself, where the master key comes from, the watch store's
+encryption, legacy plain-text migration, an unreadable key in the scheduler and
+the `zing secret` commands. The key's life cycle (create, unlock, lock, rotate,
+reset) is in test_masterkey.py.
 """
 
 from __future__ import annotations
 
 import sqlite3
-import stat
 import time
 
 import pytest
@@ -19,17 +19,21 @@ from typer.testing import CliRunner  # noqa: E402
 
 from zing import secretbox  # noqa: E402
 from zing.cli import app  # noqa: E402
+from zing.web.masterkey import vault  # noqa: E402
 
 SECRET = "sk-super-secret-123"
 
 
 @pytest.fixture(autouse=True)
 def _fresh(tmp_path, monkeypatch):
+    # conftest holds a fresh master key in memory for every test.
     monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
-    monkeypatch.delenv("ZING_SECRET_KEY", raising=False)
-    secretbox.clear_cache()
-    yield
-    secretbox.clear_cache()
+
+
+def _restart():
+    """What a server restart does to the key: memory is gone, startup reloads."""
+    vault.reset_state()
+    return vault.startup()
 
 
 def _box(*keys: str) -> secretbox.SecretBox:
@@ -91,47 +95,53 @@ def test_older_keys_still_open_and_reseal_moves_to_first():
 
 
 # --------------------------------------------------------------------------- #
-# Master key resolution
+# Where the master key comes from
 # --------------------------------------------------------------------------- #
-def test_key_file_created_owner_only_and_reused(tmp_path):
-    box = secretbox.default()
-    path = tmp_path / "secret.key"
-    assert box.source == str(path) and secretbox.default_created()
-    assert stat.S_IMODE(path.stat().st_mode) == 0o600
-    secretbox.clear_cache()
-    assert secretbox.default().keys == box.keys
-    assert not secretbox.default_created()
-
-
-def test_concurrent_creation_agrees_on_one_key(tmp_path):
-    path = tmp_path / "secret.key"
-    assert secretbox._create_key_file(path) is True
-    first = path.read_text()
-    assert secretbox._create_key_file(path) is False  # the loser reads the winner's
-    assert path.read_text() == first
-
-
-def test_corrupt_key_file_raises_and_is_never_overwritten(tmp_path):
-    path = tmp_path / "secret.key"
-    path.write_text("garbage")
-    with pytest.raises(secretbox.SecretError):
+def test_no_key_file_is_ever_created(tmp_path):
+    vault.reset_state()
+    assert vault.startup()["state"] == "uninitialized"
+    with pytest.raises(secretbox.SecretLocked):
         secretbox.default()
-    assert path.read_text() == "garbage"
-    path.write_text("")
-    with pytest.raises(secretbox.SecretError):
-        secretbox.default()
+    _watch(api_key="")  # a keyless watch needs no master key
+    assert not (tmp_path / "secret.key").exists()
+    assert not any(p.name.endswith(".key") for p in tmp_path.iterdir())
 
 
 def test_env_key_literal_and_file_reference(tmp_path, monkeypatch):
     key = secretbox.generate_key()
     monkeypatch.setenv("ZING_SECRET_KEY", key)
-    assert secretbox.default().keys == [key] and secretbox.default().source == "ZING_SECRET_KEY"
+    st = _restart()
+    assert st["state"] == "unlocked" and st["source"] == "ZING_SECRET_KEY"
+    assert secretbox.default().keys == [key]
     assert not (tmp_path / "secret.key").exists()
 
-    other = tmp_path / "elsewhere"
+    other = tmp_path.parent / f"{tmp_path.name}-elsewhere"
     other.write_text(key + "\n")
     monkeypatch.setenv("ZING_SECRET_KEY", f"file:{other}")
-    assert secretbox.default().keys == [key]
+    assert _restart()["state"] == "unlocked" and secretbox.default().keys == [key]
+
+
+def test_env_key_inside_the_data_dir_is_flagged(tmp_path, monkeypatch):
+    inside = tmp_path / "k"
+    inside.write_text(secretbox.generate_key())
+    monkeypatch.setenv("ZING_SECRET_KEY", f"file:{inside}")
+    assert "env_in_data_dir" in _restart()["warnings"]
+
+
+def test_parse_key_trims_and_never_echoes():
+    key = secretbox.generate_key()
+    assert secretbox.parse_key(f"  {key[:20]}\n{key[20:]} ") == key
+    with pytest.raises(secretbox.SecretError) as err:
+        secretbox.parse_key("sk-not-a-master-key")
+    assert "sk-not-a-master-key" not in str(err.value)
+
+
+def test_canary_round_trip():
+    box, other = _box(), _box()
+    canary = secretbox.make_canary(box)
+    assert secretbox.check_canary(box, canary)
+    assert not secretbox.check_canary(other, canary)
+    assert not secretbox.check_canary(box, None)
 
 
 # --------------------------------------------------------------------------- #
@@ -176,6 +186,7 @@ def test_init_migrates_legacy_plain_text_and_scrubs_it():
     from zing.web import watches
 
     watches.init()
+    vault.reset_state()  # an old install: no key yet, plain keys in the DB
     path = watches._db_path()
     with sqlite3.connect(path) as conn:
         conn.execute(
@@ -187,8 +198,10 @@ def test_init_migrates_legacy_plain_text_and_scrubs_it():
             " VALUES ('ref', 'https://x/v1', 'env:K', 'm', '[]', 3600)"
         )
     assert watches.list_all()[-1]["key_status"] == "plain"
-    assert watches.init() == 1
-    assert watches.init() == 0  # idempotent
+    box = _box()
+    assert watches.migrate_keys(box) == 1
+    assert watches.migrate_keys(box) == 0  # idempotent
+    secretbox.unlock(box)
     raw = _raw_keys(path)
     assert raw[0].startswith("enc:v1:") and raw[1] == "env:K"
     for p in (path, path.with_name(path.name + "-wal")):
@@ -201,8 +214,7 @@ def test_lost_master_key_is_reported_not_guessed(tmp_path):
     from zing.web import watches
 
     wid = _watch()
-    (tmp_path / "secret.key").write_text(secretbox.generate_key())  # key "lost"
-    secretbox.clear_cache()
+    secretbox.unlock(_box())  # another key than the one the store used
     row = watches.get(wid)
     assert row["api_key"] is None and row["key_error"]
     assert watches.list_all()[0]["key_status"] == "unreadable"
@@ -217,8 +229,7 @@ async def test_scheduler_skips_a_watch_whose_key_is_unreadable(tmp_path, monkeyp
 
     wid = _watch()
     watches.mark_run(wid, "low", 90.0, None, 1.0)
-    (tmp_path / "secret.key").write_text(secretbox.generate_key())
-    secretbox.clear_cache()
+    secretbox.unlock(_box())
 
     async def boom(*_a, **_k):  # the audit must never start
         raise AssertionError("audited without a key")
@@ -233,30 +244,53 @@ async def test_scheduler_skips_a_watch_whose_key_is_unreadable(tmp_path, monkeyp
 # --------------------------------------------------------------------------- #
 # zing secret
 # --------------------------------------------------------------------------- #
-def test_cli_status_and_export(tmp_path):
-    _watch()
+def test_cli_status_never_prompts_and_reports_the_state():
+    vault.reset_state()
     res = CliRunner().invoke(app, ["secret", "status"])
     assert res.exit_code == 0, res.output
-    assert str(tmp_path / "secret.key") in res.output and "1 encrypted" in res.output
-    res = CliRunner().invoke(app, ["secret", "export"])
-    assert res.exit_code == 0
-    assert (tmp_path / "secret.key").read_text().strip() in res.output
+    assert "uninitialized" in res.output
 
 
-def test_cli_rotate_key_file(tmp_path):
+def test_cli_rotate_creates_prints_once_and_stores_nothing(tmp_path):
     from zing.web import watches
 
-    wid = _watch()
-    before = (tmp_path / "secret.key").read_text()
+    vault.reset_state()
     res = CliRunner().invoke(app, ["secret", "rotate"])
     assert res.exit_code == 0, res.output
-    after = (tmp_path / "secret.key").read_text()
-    assert after != before and "," not in after
-    assert stat.S_IMODE((tmp_path / "secret.key").stat().st_mode) == 0o600
-    secretbox.clear_cache()
+    key = res.stdout.strip().splitlines()[-1]
+    assert key not in "".join(p.read_text(errors="ignore") for p in tmp_path.iterdir() if p.is_file())
+    assert secretbox.check_canary(_box(key), watches.get_canary())
+
+    # Later: locked; status works, rotate asks for the current key.
+    vault.reset_state()
+    res = CliRunner().invoke(app, ["secret", "status"])
+    assert "locked" in res.output and "1 encrypted" not in res.output
+    res = CliRunner().invoke(app, ["secret", "rotate"], input="wrong-key\n")
+    assert res.exit_code == 2
+    vault.reset_state()
+    res = CliRunner().invoke(app, ["secret", "rotate"], input=key + "\n")
+    assert res.exit_code == 0, res.output
+    new = res.stdout.strip().splitlines()[-1]
+    assert new != key and secretbox.check_canary(_box(new), watches.get_canary())
+
+
+def test_cli_rotate_moves_a_legacy_key_file_out(tmp_path):
+    from zing.web import watches
+
+    old = secretbox.generate_key()
+    secretbox.unlock(_box(old))
+    wid = _watch()
+    (tmp_path / "secret.key").write_text(old + "\n")
+    vault.reset_state()
+    res = CliRunner().invoke(app, ["secret", "export"])
+    assert res.exit_code == 0 and old in res.stdout
+    res = CliRunner().invoke(app, ["secret", "rotate"])
+    assert res.exit_code == 0, res.output
+    new = res.stdout.strip().splitlines()[-1]
+    assert new != old and not (tmp_path / "secret.key").exists()
     assert watches.get(wid)["api_key"] == SECRET
     with pytest.raises(secretbox.SecretError):
-        _box(before.strip()).open(_raw_keys(watches._db_path())[0])
+        _box(old).open(_raw_keys(watches._db_path())[0])
 
 
 def test_cli_rotate_env_key_in_two_steps(monkeypatch):
@@ -264,6 +298,7 @@ def test_cli_rotate_env_key_in_two_steps(monkeypatch):
 
     old = secretbox.generate_key()
     monkeypatch.setenv("ZING_SECRET_KEY", old)
+    _restart()
     wid = _watch()
     res = CliRunner().invoke(app, ["secret", "rotate"])
     assert res.exit_code == 0
@@ -271,7 +306,9 @@ def test_cli_rotate_env_key_in_two_steps(monkeypatch):
     new = pair.split(",")[0]
     assert pair == f"{new},{old}"
     monkeypatch.setenv("ZING_SECRET_KEY", pair)
+    vault.reset_state()
     res = CliRunner().invoke(app, ["secret", "rotate"])
     assert res.exit_code == 0, res.output
     monkeypatch.setenv("ZING_SECRET_KEY", new)
+    assert _restart()["state"] == "unlocked"
     assert watches.get(wid)["api_key"] == SECRET

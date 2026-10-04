@@ -12,13 +12,27 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   watch's API key in `watches.db` as a Fernet token (`enc:v1:…`, AES with an
   HMAC check) instead of plain text; `env:VAR` / `file:/path` references stay
   as they are. Existing plain-text keys are encrypted (and scrubbed from the
-  database file) the first time the server starts. The master key comes from
-  `ZING_SECRET_KEY` (a key, or `env:`/`file:` reference; comma-separated to
-  rotate) or is generated in `<data dir>/secret.key` (`0600`). New commands:
-  `zing secret status | export | rotate`. A watch whose key no longer decrypts
-  is shown as "Unreadable – re-enter" and skipped instead of run without a key.
+  database file) as soon as a master key is available. A watch whose key no
+  longer decrypts is shown as "Unreadable – re-enter" and skipped instead of
+  run without a key.
   The `web` extra now depends on `cryptography`. Downgrading to an older zing
   leaves the stored keys unusable (re-enter them there).
+- **The master key stays out of the data folder, managed on the Monitors
+  page.** zing never writes the master key to disk. The first time a monitor
+  gets an API key, the new UI shows a fresh master key once (copy, download,
+  then paste it back to confirm, which also lets the browser's password
+  manager save it). After each restart of `zing serve` the page asks for it
+  (the password manager fills it in) and monitors that need it wait until
+  then; keyless and `env:`/`file:` monitors keep running. The status bar on
+  the Monitors page also offers **Lock**, **Rotate** (new key, every API key
+  re-encrypted in one transaction, the old key stops working) and **Forgot
+  the key?** (drops the encrypted API keys, monitors pause until they are
+  entered again). `ZING_SECRET_KEY` still unlocks headless and Docker setups
+  automatically. A `secret.key` written by an earlier build keeps working
+  until you choose **Move it out**, which switches to a new key and deletes
+  the file. A running server notices when `zing secret rotate` changes the
+  key and locks itself. `zing secret status | export | rotate` follow the
+  same rules (`rotate` also creates the first key and prints it once).
 - **Background audits in the new UI.** An audit is now a job owned by the
   `zing serve` process instead of the browser tab: switching pages, reloading
   or closing the tab no longer stops it, and **Continue in background** on the

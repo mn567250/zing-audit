@@ -15,12 +15,14 @@ row must never crash the scheduler loop.
 
 Secret handling: the stored ``api_key`` is what the scheduler needs to actually
 run the audit, so it is kept in the DB — encrypted with :mod:`zing.secretbox`
-(``enc:v1:…``); ``env:``/``file:`` references are kept as they are. :func:`init`
-encrypts keys left in plain text by older versions. :func:`list_all` (the
-listing the browser sees) NEVER returns the key, only whether one is stored and
-can be decrypted; :func:`get` and :func:`due`, used server-side by the
-scheduler, return it decrypted. A key that no longer decrypts (lost or changed
-master key) comes back as ``None`` with ``key_error`` set, never as a guess.
+(``enc:v1:…``); ``env:``/``file:`` references are kept as they are. The master
+key itself is never stored here, only its check value (``secret_meta``), which
+:func:`adopt_key` rewrites in the same transaction as the keys it re-encrypts.
+:func:`list_all` (the listing the browser sees) NEVER returns the key, only
+whether one is stored and can be decrypted; :func:`get` and :func:`due`, used
+server-side by the scheduler, return it decrypted. A key that cannot be
+decrypted comes back as ``None`` with ``key_error`` set, never as a guess, and
+``key_locked`` when that is only because the master key is not entered yet.
 
 Pinned knowledge-base profile: when a watch is created, the profile its
 claimed model resolves to is snapshotted into this database (``kb_snapshots``,
@@ -138,36 +140,51 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
     # no monitor is scheduled more often than that.
     if "run_duration_sec" not in cols:
         conn.execute("ALTER TABLE watches ADD COLUMN run_duration_sec REAL")
+    # The master key's check value (see zing.secretbox.make_canary).
+    conn.execute("CREATE TABLE IF NOT EXISTS secret_meta (name TEXT PRIMARY KEY, value TEXT)")
     kb_snapshot.ensure_table(conn)
     kb_snapshot.add_link_columns(
         conn, "watches", {"kb_snapshot_id": "INTEGER", "kb_usage": "TEXT", "kb_pinned_ts": "REAL"}
     )
 
 
-def init(box: secretbox.SecretBox | None = None) -> int:
-    """Create the table and encrypt plain-text keys; return how many were.
-
-    Idempotent; safe to call often.
-    """
+def init() -> None:
+    """Create the tables. Idempotent; safe to call often."""
     with _connect():
         pass
-    return migrate_keys(box)
 
 
-def migrate_keys(box: secretbox.SecretBox | None = None) -> int:
+def get_canary() -> str | None:
+    """The stored check value of the master key, or None before there is one."""
+    with _connect() as conn:
+        row = conn.execute("SELECT value FROM secret_meta WHERE name = 'canary'").fetchone()
+    return row["value"] if row else None
+
+
+def _set_canary(conn: sqlite3.Connection, value: str | None) -> None:
+    if value is None:
+        conn.execute("DELETE FROM secret_meta WHERE name = 'canary'")
+    else:
+        conn.execute(
+            "INSERT OR REPLACE INTO secret_meta (name, value) VALUES ('canary', ?)", (value,)
+        )
+
+
+_SECRET_ROWS = (
+    "SELECT id, api_key FROM watches WHERE COALESCE(api_key, '') != ''"
+    " AND api_key NOT LIKE 'env:%' AND api_key NOT LIKE 'file:%'"
+)
+
+
+def migrate_keys(box: secretbox.SecretBox) -> int:
     """Encrypt every ``api_key`` still stored in plain text; return the count.
 
     The old plain text is then scrubbed from SQLite's free pages and WAL.
     """
     with _connect() as conn:
-        rows = conn.execute(
-            "SELECT id, api_key FROM watches WHERE COALESCE(api_key, '') != ''"
-            " AND api_key NOT LIKE 'enc:%' AND api_key NOT LIKE 'env:%'"
-            " AND api_key NOT LIKE 'file:%'"
-        ).fetchall()
+        rows = [r for r in conn.execute(_SECRET_ROWS).fetchall() if secretbox.needs_seal(r["api_key"])]
         if not rows:
             return 0
-        box = box or secretbox.default()
         conn.executemany(
             "UPDATE watches SET api_key = ? WHERE id = ?",
             [(box.seal(r["api_key"]), r["id"]) for r in rows],
@@ -176,20 +193,49 @@ def migrate_keys(box: secretbox.SecretBox | None = None) -> int:
     return len(rows)
 
 
-def reseal_keys(box: secretbox.SecretBox) -> int:
-    """Re-encrypt every stored key with ``box``'s first key (rotation).
+def adopt_key(box: secretbox.SecretBox, opener: secretbox.SecretBox | None = None) -> int:
+    """Make ``box`` the master key of this store, in one transaction.
 
-    All-or-nothing: a key that does not decrypt aborts before anything is written.
+    Every stored key is re-encrypted with ``box``'s first key (plain-text ones
+    are encrypted) and the check value is rewritten. ``opener`` decrypts the
+    stored keys (rotation; ``box`` itself when it holds the old keys too) and
+    then the change is all-or-nothing: a key it cannot open aborts before
+    anything is written. Without an opener (no previous key) values sealed
+    with an unknown key are left as they are: they stay unreadable until the
+    user enters them again. Returns how many keys were written.
     """
     with _connect() as conn:
-        rows = conn.execute(
-            "SELECT id, api_key FROM watches WHERE COALESCE(api_key, '') != ''"
-            " AND api_key NOT LIKE 'env:%' AND api_key NOT LIKE 'file:%'"
-        ).fetchall()
-        updates = [(box.reseal(r["api_key"]), r["id"]) for r in rows]
+        updates = []
+        for r in conn.execute(_SECRET_ROWS).fetchall():
+            stored = r["api_key"]
+            if secretbox.is_sealed(stored):
+                if opener is None:
+                    continue
+                updates.append((box.seal(opener.open(stored)), r["id"]))
+            else:
+                updates.append((box.seal(stored), r["id"]))
         conn.executemany("UPDATE watches SET api_key = ? WHERE id = ?", updates)
+        _set_canary(conn, secretbox.make_canary(box))
+    _status_cache.clear()
     _scrub()
     return len(updates)
+
+
+def forget_keys() -> int:
+    """Drop every encrypted key and the check value (the master key is lost).
+
+    The watches stay, paused, until their keys are entered again. Returns how
+    many keys were dropped.
+    """
+    with _connect() as conn:
+        cur = conn.execute(
+            "UPDATE watches SET api_key = '', enabled = 0 WHERE api_key LIKE 'enc:%'"
+        )
+        _set_canary(conn, None)
+        n = cur.rowcount
+    _status_cache.clear()
+    _scrub()
+    return n
 
 
 def _scrub() -> None:
@@ -203,8 +249,9 @@ def _scrub() -> None:
 
 
 def key_counts(box: secretbox.SecretBox | None = None) -> dict[str, int]:
-    """How many stored keys are encrypted, references, plain or unreadable."""
-    counts = {"encrypted": 0, "reference": 0, "plain": 0, "unreadable": 0}
+    """How many stored keys are encrypted, references, plain, locked or unreadable."""
+    counts = {"encrypted": 0, "reference": 0, "plain": 0, "locked": 0, "unreadable": 0}
+    box = box or secretbox.current()
     with _connect() as conn:
         rows = conn.execute(
             "SELECT api_key FROM watches WHERE COALESCE(api_key, '') != ''"
@@ -215,30 +262,67 @@ def key_counts(box: secretbox.SecretBox | None = None) -> dict[str, int]:
     return counts
 
 
-def _key_status(stored: str | None, box: secretbox.SecretBox | None = None) -> str:
-    """none | encrypted | reference | plain | unreadable — never the key itself."""
+# Whether a box opens a sealed value, memoized: the monitors page polls the
+# listing every few seconds and each check is a decryption. Keyed by the
+# ciphertext's hash and the box's key list, so a new key never sees old answers.
+_status_cache: dict[tuple[str, str], bool] = {}
+_STATUS_CACHE_MAX = 2048
+
+
+def _can_open(box: secretbox.SecretBox, stored: str) -> bool:
+    import hashlib
+
+    key = (hashlib.sha256(stored.encode("utf-8")).hexdigest(), box.cache_id())
+    ok = _status_cache.get(key)
+    if ok is None:
+        if len(_status_cache) >= _STATUS_CACHE_MAX:
+            _status_cache.clear()
+        ok = _status_cache[key] = box.can_open(stored)
+    return ok
+
+
+def _key_status(stored: str | None, box: secretbox.SecretBox | None) -> str:
+    """none | encrypted | reference | plain | locked | unreadable — never the key."""
     if not stored:
         return "none"
     if secretbox.is_reference(stored):
         return "reference"
     if not secretbox.is_sealed(stored):
         return "plain"
-    try:
-        ok = (box or secretbox.default()).can_open(stored)
-    except secretbox.SecretError:
-        ok = False
-    return "encrypted" if ok else "unreadable"
+    if box is None:
+        return "locked"
+    return "encrypted" if _can_open(box, stored) else "unreadable"
 
 
 def _open_key(d: dict[str, Any]) -> None:
-    """Decrypt ``d["api_key"]`` in place; on failure set ``key_error`` instead."""
+    """Decrypt ``d["api_key"]`` in place; on failure set ``key_error`` instead.
+
+    ``key_locked`` says the failure is only a master key not entered yet.
+    """
     d["key_error"] = None
+    d["key_locked"] = False
+    stored = d.get("api_key")
+    if not secretbox.is_sealed(stored):
+        d["api_key"] = stored or ""
+        return
     try:
-        d["api_key"] = secretbox.default().open(d.get("api_key"))
+        d["api_key"] = secretbox.default().open(stored)
+    except secretbox.SecretLocked as exc:
+        d["api_key"] = None
+        d["key_error"] = str(exc)
+        d["key_locked"] = True
     except secretbox.SecretError as exc:
         _log.warning("watch %s: %s", d.get("id"), exc)
         d["api_key"] = None
         d["key_error"] = str(exc)
+
+
+def _seal(value: str | None) -> str:
+    """Encrypt a key for storage. Only a real secret needs the master key
+    (raises SecretLocked without one); keyless watches and references don't."""
+    if not secretbox.needs_seal(value):
+        return str(value or "")
+    return secretbox.default().seal(value)
 
 
 def _row_to_dict(row: sqlite3.Row, *, include_key: bool) -> dict[str, Any]:
@@ -362,7 +446,7 @@ def create(
     row = (
         cfg.get("name") or "watch",
         cfg.get("base_url"),
-        secretbox.default().seal(cfg.get("api_key") or ""),
+        _seal(cfg.get("api_key")),
         cfg.get("model"),
         cfg.get("claimed_model") or None,
         cfg.get("api") or "auto",
@@ -398,7 +482,8 @@ def list_all() -> list[dict[str, Any]]:
     """All watches, newest first, WITHOUT api_key (safe for the browser).
 
     ``has_key`` says whether a key is stored and ``key_status`` how (see
-    :func:`_key_status`; ``unreadable`` means it must be re-entered), without
+    :func:`_key_status`; ``locked`` waits for the master key, ``unreadable``
+    must be re-entered), without
     revealing it.
     """
     cols = ", ".join(_LIST_COLS)
@@ -406,12 +491,13 @@ def list_all() -> list[dict[str, Any]]:
         rows = conn.execute(
             f"SELECT {cols}, api_key AS _stored_key FROM watches ORDER BY id DESC"
         ).fetchall()
+    box = secretbox.current()
     out = []
     for r in rows:
         d = _row_to_dict(r, include_key=False)
         stored = d.pop("_stored_key", None)
         d["has_key"] = bool(stored)
-        d["key_status"] = _key_status(stored)
+        d["key_status"] = _key_status(stored, box)
         out.append(d)
     return out
 
@@ -466,7 +552,7 @@ def update(
         vals.append(int(interval_sec))
     if api_key is not None:
         sets.append("api_key = ?")
-        vals.append(secretbox.default().seal(api_key))
+        vals.append(_seal(api_key))
     if alert_on is not None:
         sets.append("alert_on = ?")
         vals.append(alert_on)

@@ -124,16 +124,20 @@
       <p data-en="Every monitor re-runs an audit you already ran, on your machine, at the interval you set. To add one, open a run in <a href='/v2/history'>History</a> and choose <b>Schedule as monitor</b> — then set its interval here and switch it on. When the risk crosses your threshold or gets worse than last time, zing alerts your webhooks (Slack / Feishu / DingTalk / generic JSON).">每个监控都会在你本地、按设定的间隔重跑一次你已经跑过的检测。添加方式：在<a href="/v2/history">检测历史</a>中打开一次运行，选择<b>设为监控</b>，然后在这里设置间隔并启用。一旦风险越线或较上次恶化，zing 就向你配置的 Webhook（Slack / 飞书 / 钉钉 / 通用 JSON）推送告警。</p>
     </div>
 
+    <!-- the master key that encrypts the stored API keys -->
+    <div id="mk-bar" aria-live="polite"></div>
+
     <!-- list -->
     <h2 class="section-title" id="list-title" tabindex="-1" style="margin-top:24px"><span data-en="Configured monitors">已配置的监控</span> <span class="count" id="count"></span></h2>
     <div class="mons" id="list" aria-live="polite"><p class="empty" data-en="Loading…">加载中…</p></div>
-    <p class="reassure"><span class="pico" id="lock-icon"></span> <span data-en="Everything <b>runs locally</b>. The API key is stored <b>encrypted</b>, only in the local database under <b>~/.zing</b> on this machine; it <b>never</b> appears in the monitor list and is never sent to the browser.">全程<b>本地运行</b>。API Key 仅<b>加密</b>保存在本机 <b>~/.zing</b> 的本地数据库里，<b>绝不</b>出现在监控列表里、也不会发给浏览器。</span></p>
+    <p class="reassure"><span class="pico" id="lock-icon"></span> <span data-en="Everything <b>runs locally</b>. The API key is stored <b>encrypted</b>, only in the local database under <b>~/.zing</b> on this machine; it <b>never</b> appears in the monitor list and is never sent to the browser. The master key that decrypts it is <b>never written to disk</b>: you keep it, and enter it after each restart.">全程<b>本地运行</b>。API Key 仅<b>加密</b>保存在本机 <b>~/.zing</b> 的本地数据库里，<b>绝不</b>出现在监控列表里、也不会发给浏览器。用于解密的主密钥<b>从不写入磁盘</b>：由你保管，每次重启后再输入。</span></p>
   </main>
   <p class="foot" data-en="zing · relay reality check · monitors are scheduled in the background by the <code>zing serve</code> process">zing · 中转站验真 · 监控由 <code>zing serve</code> 进程在后台调度</p>
 </div>
 <script src="/i18n.js"></script>
 <script src="/icons.js"></script>
 <script src="/secretfield.js"></script>
+<script src="/v2/static/masterkey.js"></script>
 <script src="/v2/static/nav.js"></script>
 <script>
 (function () {
@@ -358,6 +362,10 @@
   }
   function keyCell(w, s) {
     if (s.edit === "key") return '<form class="edit" data-id="' + w.id + '" novalidate>' + keyInput(w, s, true) + saveCancel("key", w.id) + "</form>";
+    if (w.key_status === "locked") {
+      return '<span style="color:var(--warn)" title="' + esc(T("输入主密钥后即可使用", "Enter the master key to use it")) + '">' +
+        esc(T("已加密 · 已锁定", "Encrypted · locked")) + "</span>" + linkBtn("edit-key", w.id, T("更换", "Replace"));
+    }
     if (w.key_status === "unreadable") {
       return '<span style="color:var(--warn)" title="' + esc(T("主密钥已丢失或更换，无法解密已保存的密钥", "The master key was lost or changed, so the stored key cannot be decrypted")) + '">' +
         esc(T("无法读取，请重新输入", "Unreadable – re-enter")) + "</span>" + linkBtn("edit-key", w.id, T("输入", "Enter"));
@@ -562,11 +570,18 @@
       });
   }
 
+  // Saving or using an API key may need the master key first: ZingMasterKey
+  // turns a 423 into the create / unlock dialog, then retries once.
+  function withKey(doFetch) {
+    return window.ZingMasterKey ? window.ZingMasterKey.withKey(doFetch) : doFetch();
+  }
   function patch(id, body) {
-    return fetch("/api/watches/" + id, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+    return withKey(function () {
+      return fetch("/api/watches/" + id, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (!r.ok) {
@@ -724,7 +739,7 @@
       focusAct("stop", id);
       // pick up the server's progress soon; polling carries on from there
       setTimeout(load, 500);
-      fetch("/api/watches/" + id + "/run", { method: "POST" })
+      withKey(function () { return fetch("/api/watches/" + id + "/run", { method: "POST" }); })
         .then(function (r) {
           return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
         })
@@ -732,6 +747,11 @@
           if (!res.ok) {
             var e = res.body && res.body.error;
             if (res.status === 409) { s.msg = null; return; }
+            if (res.status === 423) {
+              s.msgKind = "bad";
+              s.msg = function () { return T("主密钥已锁定：请先输入主密钥。", "The master key is locked — enter it first."); };
+              return;
+            }
             s.msgKind = "bad";
             s.msg = function () { return e ? T("运行失败", "Run failed") + ": " + L.server(e) : T("运行失败", "Run failed"); };
             return;
@@ -876,6 +896,7 @@
   }
 
   $("lock-icon").innerHTML = icon("lock");
+  if (window.ZingMasterKey) window.ZingMasterKey.mountBar($("mk-bar"), function () { load(); });
   // language switch: re-render everything in place
   window.addEventListener("zing:lang", render);
   load();

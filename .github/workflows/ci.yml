@@ -45,6 +45,9 @@ jobs:
     name: accessibility (informational)
     runs-on: ubuntu-latest
     continue-on-error: true
+    env:
+      # only whether the secret exists; the key itself is passed to one step
+      HAS_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -72,6 +75,21 @@ jobs:
             a11y-report*.json
             a11y-results.json
             bitv-report.json
+          if-no-files-found: ignore
+      # Optional advisory LLM review of texts (tests/a11y/README.md); runs
+      # only when the ANTHROPIC_API_KEY secret is configured, never blocks.
+      - name: LLM review (advisory)
+        if: always() && env.HAS_ANTHROPIC_API_KEY == 'true'
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -m tests.a11y.llm_review --out a11y-llm-review.json
+      - name: Upload LLM review
+        if: always() && env.HAS_ANTHROPIC_API_KEY == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: a11y-llm-review
+          path: a11y-llm-review.json
           if-no-files-found: ignore
 
   build:

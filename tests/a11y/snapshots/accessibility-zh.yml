@@ -35,9 +35,9 @@
   - region "结论":
     - heading "结论" [level=2]
     - paragraph: 部分符合
-    - paragraph: 适用的 44 个步骤中：20 个通过，0 个未通过，10 个待人工审核，14 个尚未测试。
+    - paragraph: 适用的 44 个步骤中：27 个通过，0 个未通过，17 个待人工审核，0 个尚未测试。
     - term: 生成时间
-    - definition: 2026年10月4日 18:04
+    - definition: 2026年10月4日 19:42
     - term: 提交
     - definition:
       - code: <id>
@@ -46,7 +46,7 @@
     - term: axe-core 版本
     - definition: 4.13.0
     - term: 测试
-    - definition: 698 个已运行，698 个通过，0 个失败，0 个跳过
+    - definition: 1,109 个已运行，1,109 个通过，0 个失败，0 个跳过
     - term: 语言
     - definition: English, Deutsch, Español, Français, Italiano, Português, 中文
     - term: 主题
@@ -63,16 +63,16 @@
     - heading "覆盖范围" [level=2]
     - heading "步骤的测试方式" [level=3]
     - list:
-      - listitem: 自动 30 / 44 · 68.2 %
-      - listitem: 部分自动 14 / 44 · 31.8 %
+      - listitem: 自动 27 / 44 · 61.4 %
+      - listitem: 部分自动 17 / 44 · 38.6 %
       - listitem: 人工 0 / 44 · 0 %
       - listitem: 不适用 6
     - heading "结果" [level=3]
     - list:
-      - listitem: 通过 20 / 44 · 45.5 %
+      - listitem: 通过 27 / 44 · 61.4 %
       - listitem: 未通过 0 / 44 · 0 %
-      - listitem: 待人工审核 10 / 44 · 22.7 %
-      - listitem: 未测试 14 / 44 · 31.8 %
+      - listitem: 待人工审核 17 / 44 · 38.6 %
+      - listitem: 未测试 0 / 44 · 0 %
       - listitem: 不适用 6
     - paragraph: 百分比基于适用的步骤；界面中没有音频和视频，因此相关步骤不适用。
     - paragraph: WCAG 之外还检查了： 用户偏好设置：强制颜色模式（EN 301 549 第 11.7 条） — 通过
@@ -127,40 +127,31 @@
     - heading "符合状态" [level=3]
     - paragraph: zing 网页界面 v2 与 BITV 2.0、EN 301 549 和 WCAG 2.1 AA 级部分符合。
     - heading "已知限制" [level=3]
-    - paragraph: 以下步骤尚未测试：
-    - list:
-      - listitem: 9.1.3.2 有意义的顺序
-      - listitem: 9.1.3.3 感官特征
-      - listitem: 9.1.4.5 文本图像
-      - listitem: 9.2.1.4 字符键快捷键
-      - listitem: 9.2.2.1 可调整的时间
-      - listitem: 9.2.3.1 三次闪烁或低于阈值
-      - listitem: 9.2.4.5 多种方式
-      - listitem: 9.2.5.1 指针手势
-      - listitem: 9.2.5.2 指针取消
-      - listitem: 9.2.5.4 动作激活
-      - listitem: 9.3.2.2 输入时
-      - listitem: 9.3.3.4 错误预防（法律、财务、数据）
-      - listitem: 9.4.1.1 解析
-      - listitem: 9.4.1.3 状态消息
     - paragraph: 以下步骤的自动化部分已通过，其余部分仍需人工审核：
     - list:
       - listitem: 9.1.1.1 非文本内容
       - listitem: 9.1.3.1 信息和关系
+      - listitem: 9.1.3.2 有意义的顺序
+      - listitem: 9.1.3.3 感官特征
       - listitem: 9.1.4.1 颜色的使用
       - listitem: 9.1.4.11 非文本对比度
+      - listitem: 9.1.4.13 悬停或聚焦时的内容
+      - listitem: 9.2.2.2 暂停、停止、隐藏
       - listitem: 9.2.4.3 焦点顺序
       - listitem: 9.2.4.4 链接目的（在上下文中）
       - listitem: 9.2.4.6 标题和标签
+      - listitem: 9.2.5.1 指针手势
+      - listitem: 9.3.2.2 输入时
       - listitem: 9.3.3.1 错误识别
       - listitem: 9.3.3.2 标签或说明
       - listitem: 9.3.3.3 错误建议
+      - listitem: 9.4.1.3 状态消息
     - heading "评估方式" [level=3]
     - paragraph:
       - text: 自我评估：每次变更时，
       - code: tests/a11y
       - text: 中的自动化测试套件都会在真实浏览器（Chromium，使用 axe-core 和自有检查）中，以每种界面语言、浅色与深色主题检查网页界面 v2 的每个页面。每个测试都标明它所判定的检查步骤。
-    - paragraph: 最近一次测试：2026年10月4日 18:04。尚未进行包括屏幕阅读器在内的人工审核。
+    - paragraph: 最近一次测试：2026年10月4日 19:42。尚未进行包括屏幕阅读器在内的人工审核。
     - heading "反馈" [level=3]
     - paragraph:
       - text: 发现了障碍，或者某些功能难以通过辅助技术使用？请告诉我们：

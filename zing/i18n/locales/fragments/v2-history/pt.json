@@ -1,9 +1,11 @@
 {
  "strings": {
   "(no suite)": "(sem suíte)",
+  "Ad-hoc": "Manual",
   "All": "Todos",
   "Cancel": "Cancelar",
   "Could not delete: ": "Não foi possível eliminar: ",
+  "Execution": "Execução",
   "Filters": "Filtros",
   "Health score trend across {n} audits: from {first} to {last}, {dir}.": "Evolução da pontuação de saúde em {n} auditorias: de {first} para {last}, {dir}.",
   "History lives only in a local SQLite file under <code>~/.zing</code> — nothing is uploaded.": "O histórico fica apenas num ficheiro SQLite local em <code>~/.zing</code> — nada é enviado.",
@@ -11,6 +13,7 @@
   "Last 7 days": "Últimos 7 dias",
   "Last 90 days": "Últimos 90 dias",
   "Min. score": "Pontuação mín.",
+  "Monitor": "Monitor",
   "No audits match these filters.": "Nenhuma auditoria corresponde a estes filtros.",
   "Period": "Período",
   "Re-run audit": "Executar auditoria novamente",

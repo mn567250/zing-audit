@@ -4,7 +4,10 @@
  *   <header class="znav" data-page="audit|tools|history|monitors|kb"></header>
  * and loads, right after /icons.js and before its own page script:
  *   <script src="/v2/static/nav.js"></script>
- * Optional: data-trust on the header adds the "runs locally" line under it.
+ * Optional: data-trust on the header adds the "runs locally" line under it
+ * (inside the header, so it stays in the banner landmark).
+ * The header starts with a skip link to the page's <main id="main"
+ * tabindex="-1"> (BITV 9.2.4.1 bypass blocks), visible only on focus.
  *
  * The markup follows the i18n convention of the whole UI (Chinese inline,
  * English in data-en), so lang.js translates it at boot and on every switch;
@@ -44,6 +47,7 @@
       );
     }).join("");
     header.innerHTML =
+      '<a class="skip-link" href="#main" data-en="Skip to main content">跳到主要内容</a>' +
       '<a class="logo" href="/v2/" aria-label="zing"><span class="b">' + ico("bolt", { size: 16 }) +
       "</span><span>zing<b>.</b></span></a>" +
       '<nav class="links" aria-label="主导航" data-en-aria-label="Main navigation">' + links + "</nav>" +
@@ -61,7 +65,7 @@
       p.innerHTML =
         ico("lock") +
         ' <span data-en="Runs locally · keys <b>never leave</b>">本地运行 · 密钥<b>不经手</b></span>';
-      header.parentNode.insertBefore(p, header.nextSibling);
+      header.appendChild(p);
     }
     var ts = header.querySelector("select.theme-sel");
     if (window.ZING_THEME) {
@@ -70,12 +74,14 @@
     } else {
       ts.remove(); // page without theme.js
     }
-    // keep the active tab visible when the link row scrolls (phones)
+    // keep the active tab visible when the link row scrolls (phones). Scroll
+    // the row itself: scrollIntoView() would also move Chromium's sequential
+    // focus starting point to the active link, so the first Tab would jump
+    // past the skip link.
     var active = header.querySelector('[aria-current="page"]');
-    if (active && active.scrollIntoView) {
-      try {
-        active.scrollIntoView({ block: "nearest", inline: "center" });
-      } catch (e) {}
+    var row = active && active.parentNode;
+    if (row && row.scrollWidth > row.clientWidth) {
+      row.scrollLeft = active.offsetLeft - row.offsetLeft - (row.clientWidth - active.offsetWidth) / 2;
     }
   }
 

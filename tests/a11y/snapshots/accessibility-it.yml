@@ -35,9 +35,9 @@
   - region "Stato":
     - heading "Stato" [level=2]
     - paragraph: Parzialmente conforme
-    - paragraph: Dei 44 passi applicabili, 20 sono superati, 0 non superati, 10 attendono una revisione manuale e 14 non sono ancora verificati.
+    - paragraph: Dei 44 passi applicabili, 27 sono superati, 0 non superati, 17 attendono una revisione manuale e 0 non sono ancora verificati.
     - term: Generato
-    - definition: 4 ottobre 2026 alle ore 18:04
+    - definition: 4 ottobre 2026 alle ore 19:42
     - term: Commit
     - definition:
       - code: <id>
@@ -46,7 +46,7 @@
     - term: Versione di axe-core
     - definition: 4.13.0
     - term: Test
-    - definition: 698 eseguiti, 698 superati, 0 falliti, 0 saltati
+    - definition: 1.109 eseguiti, 1.109 superati, 0 falliti, 0 saltati
     - term: Lingue
     - definition: English, Deutsch, Español, Français, Italiano, Português, 中文
     - term: Temi
@@ -63,16 +63,16 @@
     - heading "Copertura" [level=2]
     - heading "Come vengono verificati i passi" [level=3]
     - list:
-      - listitem: Automatico 30 su 44 · 68,2 %
-      - listitem: Parzialmente automatico 14 su 44 · 31,8 %
+      - listitem: Automatico 27 su 44 · 61,4 %
+      - listitem: Parzialmente automatico 17 su 44 · 38,6 %
       - listitem: Manuale 0 su 44 · 0 %
       - listitem: Non applicabile 6
     - heading "Risultati" [level=3]
     - list:
-      - listitem: Superato 20 su 44 · 45,5 %
+      - listitem: Superato 27 su 44 · 61,4 %
       - listitem: Fallito 0 su 44 · 0 %
-      - listitem: Revisione manuale in sospeso 10 su 44 · 22,7 %
-      - listitem: Non verificato 14 su 44 · 31,8 %
+      - listitem: Revisione manuale in sospeso 17 su 44 · 38,6 %
+      - listitem: Non verificato 0 su 44 · 0 %
       - listitem: Non applicabile 6
     - paragraph: Le percentuali si riferiscono ai passi applicabili; i passi su audio e video non si applicano perché l'interfaccia non ne contiene.
     - paragraph: "Verificato anche oltre le WCAG: Preferenze dell'utente: modalità colori forzati (EN 301 549 clausola 11.7) — Superato"
@@ -127,40 +127,31 @@
     - heading "Stato di conformità" [level=3]
     - paragraph: L'interfaccia web v2 di zing è parzialmente conforme a BITV 2.0, EN 301 549 e WCAG 2.1 livello AA.
     - heading "Limitazioni note" [level=3]
-    - paragraph: "Questi passi non sono ancora verificati:"
-    - list:
-      - listitem: 9.1.3.2 Sequenza significativa
-      - listitem: 9.1.3.3 Caratteristiche sensoriali
-      - listitem: 9.1.4.5 Immagini di testo
-      - listitem: 9.2.1.4 Tasti di scelta rapida a carattere singolo
-      - listitem: 9.2.2.1 Regolazione dei tempi
-      - listitem: 9.2.3.1 Tre lampeggiamenti o inferiore alla soglia
-      - listitem: 9.2.4.5 Differenti modalità
-      - listitem: 9.2.5.1 Gesti del puntatore
-      - listitem: 9.2.5.2 Cancellazione delle azioni del puntatore
-      - listitem: 9.2.5.4 Azionamento da movimento
-      - listitem: 9.3.2.2 All'input
-      - listitem: 9.3.3.4 Prevenzione degli errori (legali, finanziari, dati)
-      - listitem: 9.4.1.1 Analisi sintattica
-      - listitem: 9.4.1.3 Messaggi di stato
     - paragraph: "La parte automatica di questi passi è superata; il resto richiede ancora una revisione manuale:"
     - list:
       - listitem: 9.1.1.1 Contenuti non testuali
       - listitem: 9.1.3.1 Informazioni e correlazioni
+      - listitem: 9.1.3.2 Sequenza significativa
+      - listitem: 9.1.3.3 Caratteristiche sensoriali
       - listitem: 9.1.4.1 Uso del colore
       - listitem: 9.1.4.11 Contrasto in contenuti non testuali
+      - listitem: 9.1.4.13 Contenuto con hover o focus
+      - listitem: 9.2.2.2 Pausa, stop, nascondi
       - listitem: 9.2.4.3 Ordine del focus
       - listitem: 9.2.4.4 Scopo del collegamento (nel contesto)
       - listitem: 9.2.4.6 Intestazioni ed etichette
+      - listitem: 9.2.5.1 Gesti del puntatore
+      - listitem: 9.3.2.2 All'input
       - listitem: 9.3.3.1 Identificazione di errori
       - listitem: 9.3.3.2 Etichette o istruzioni
       - listitem: 9.3.3.3 Suggerimenti per gli errori
+      - listitem: 9.4.1.3 Messaggi di stato
     - heading "Come è stata valutata" [level=3]
     - paragraph:
       - text: "Autovalutazione: a ogni modifica, la suite di test automatici in"
       - code: tests/a11y
       - text: controlla ogni pagina dell'interfaccia web v2 in un browser reale (Chromium, con axe-core e controlli propri) in ogni lingua dell'interfaccia e nel tema chiaro e scuro. Ogni test indica i passi di verifica che decide.
-    - paragraph: "Ultima esecuzione dei test: 4 ottobre 2026 alle ore 18:04. Non è ancora stata fatta una revisione manuale, anche con lettori di schermo."
+    - paragraph: "Ultima esecuzione dei test: 4 ottobre 2026 alle ore 19:42. Non è ancora stata fatta una revisione manuale, anche con lettori di schermo."
     - heading "Segnalazioni" [level=3]
     - paragraph:
       - text: "Hai trovato una barriera o qualcosa è difficile da usare con le tecnologie assistive? Segnalacelo:"

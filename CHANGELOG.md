@@ -6,6 +6,19 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **PDF reports no longer need a system library.** The PDF is typeset natively
+  with ReportLab (pure Python, BSD-licensed) instead of converting the HTML
+  report with WeasyPrint, which needed Pango. ReportLab is a core dependency, so
+  `--format pdf`, `--format all` and the web UI's PDF download work on every
+  install, Linux, macOS and Windows alike, and the CLI and the web UI produce
+  the same document. It carries the HTML report's content (all dimension
+  details expanded, findings with evidence, performance charts and tables) and
+  writes Chinese with a standard PDF font the viewer supplies, so no fonts are
+  shipped. The `pdf` extra is now empty and kept only so older install commands
+  still work; the Docker image drops Pango and its fonts.
+
 ### Documentation
 
 - **READMEs split into user and developer documentation, in all seven

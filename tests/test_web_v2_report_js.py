@@ -142,8 +142,8 @@ global.Blob = class { constructor(parts, o) { this.text = parts.join(""); this.t
 const saved = [], posted = [];
 global.fetch = (url, init) => {
   posted.push({ url, method: init.method, type: init.headers["Content-Type"], body: JSON.parse(init.body) });
-  if (url.endsWith("pdf")) return Promise.resolve({ ok: false, status: 501,
-    json: () => Promise.resolve({ error: "PDF export needs WeasyPrint" }) });
+  if (url.endsWith("pdf")) return Promise.resolve({ ok: false, status: 500,
+    json: () => Promise.resolve({ error: "PDF rendering failed: boom" }) });
   return Promise.resolve({ ok: true, blob: () => Promise.resolve(new Blob(["x"], { type: "t" })) });
 };
 require(path.join(dir, "locales.js"));
@@ -181,7 +181,7 @@ def test_download_saves_every_format_in_the_ui_language(tmp_path):
     assert body.keys() == report.keys()
     assert out["posted"][0]["title"] != report["detectors"][0]["findings"][0]["title"]
     # a server refusal (no PDF support) comes back as the error message
-    assert out["err"] == "PDF export needs WeasyPrint"
+    assert out["err"] == "PDF rendering failed: boom"
 
 
 async def _scored_report() -> dict:

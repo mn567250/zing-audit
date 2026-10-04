@@ -104,17 +104,18 @@ También puedes instalarlo directamente desde el repositorio Git sin clonarlo:
 
 - `tokenizers` — conteo preciso de tokens de la familia OpenAI en la auditoría de facturación.
 - `web` — la interfaz web local (`zing serve`).
-- `pdf` — informes PDF (`--format pdf` y la descarga en PDF de la interfaz web),
-  generados a partir del informe HTML por [WeasyPrint](https://weasyprint.org/),
-  que necesita la biblioteca del sistema Pango (preinstalada en la mayoría de
-  escritorios Linux; `brew install pango` en macOS).
 
 ```bash
-pip install 'zing-audit[tokenizers,web,pdf]'      # pip, desde PyPI
-pip install -e '.[tokenizers,web,pdf]'            # pip, desde el código fuente
-uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, desde PyPI
-uv pip install -e '.[tokenizers,web,pdf]'         # uv, desde el código fuente
+pip install 'zing-audit[tokenizers,web]'      # pip, desde PyPI
+pip install -e '.[tokenizers,web]'            # pip, desde el código fuente
+uv tool install 'zing-audit[tokenizers,web]'  # uv, desde PyPI
+uv pip install -e '.[tokenizers,web]'         # uv, desde el código fuente
 ```
+
+Los informes PDF (`--format pdf` y la descarga en PDF de la interfaz web) no
+necesitan ningún extra: se componen con
+[ReportLab](https://www.reportlab.com/opensource/), una dependencia en Python puro
+que no requiere bibliotecas del sistema en Linux, macOS ni Windows.
 
 ### Con Docker (solo la interfaz web)
 
@@ -615,9 +616,9 @@ cambie la base de conocimiento.
 ## Informes
 
 `zing check` y `zing compare` imprimen un veredicto y escriben el informe en
-`reports/` (`--out-dir`) como JSON, Markdown y HTML, más PDF si el extra `pdf`
-está instalado (`--format all`, el valor por defecto); `--format json|md|html|pdf`
-escribe un solo formato. `--json` y `--compact` imprimen en stdout en su lugar.
+`reports/` (`--out-dir`) como JSON, Markdown, HTML y PDF (`--format all`, el valor
+por defecto); `--format json|md|html|pdf` escribe un solo formato. `--json` y
+`--compact` imprimen en stdout en su lugar.
 
 ```text
 ╭─ ✗ HIGH RISK — Strong evidence the relay does not deliver the claimed model… ─╮

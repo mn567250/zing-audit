@@ -105,17 +105,18 @@ Vous pouvez aussi installer directement depuis le dépôt Git sans le cloner :
 
 - `tokenizers` — comptage précis des tokens de la famille OpenAI dans l'audit de facturation.
 - `web` — l'interface web locale (`zing serve`).
-- `pdf` — rapports PDF (`--format pdf` et le téléchargement PDF de l'interface
-  web), produits à partir du rapport HTML par [WeasyPrint](https://weasyprint.org/),
-  qui nécessite la bibliothèque système Pango (préinstallée sur la plupart des
-  bureaux Linux ; `brew install pango` sous macOS).
 
 ```bash
-pip install 'zing-audit[tokenizers,web,pdf]'      # pip, depuis PyPI
-pip install -e '.[tokenizers,web,pdf]'            # pip, depuis les sources
-uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, depuis PyPI
-uv pip install -e '.[tokenizers,web,pdf]'         # uv, depuis les sources
+pip install 'zing-audit[tokenizers,web]'      # pip, depuis PyPI
+pip install -e '.[tokenizers,web]'            # pip, depuis les sources
+uv tool install 'zing-audit[tokenizers,web]'  # uv, depuis PyPI
+uv pip install -e '.[tokenizers,web]'         # uv, depuis les sources
 ```
+
+Les rapports PDF (`--format pdf` et le téléchargement PDF de l'interface web) ne
+demandent aucun extra : ils sont composés avec
+[ReportLab](https://www.reportlab.com/opensource/), une dépendance en pur Python,
+sans bibliothèque système sous Linux, macOS ou Windows.
 
 ### Avec Docker (interface web uniquement)
 
@@ -616,9 +617,9 @@ modification de la base de connaissances.
 ## Rapports
 
 `zing check` et `zing compare` affichent un verdict et écrivent le rapport dans
-`reports/` (`--out-dir`) en JSON, Markdown et HTML, plus PDF lorsque l'extra
-`pdf` est installé (`--format all`, par défaut) ; `--format json|md|html|pdf`
-écrit un seul format. `--json` et `--compact` écrivent plutôt sur stdout.
+`reports/` (`--out-dir`) en JSON, Markdown, HTML et PDF (`--format all`, par
+défaut) ; `--format json|md|html|pdf` écrit un seul format. `--json` et `--compact`
+écrivent plutôt sur stdout.
 
 ```text
 ╭─ ✗ HIGH RISK — Strong evidence the relay does not deliver the claimed model… ─╮

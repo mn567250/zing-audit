@@ -104,17 +104,18 @@ Também pode instalar diretamente a partir do repositório Git sem o clonar:
 
 - `tokenizers` — contagem precisa de tokens da família OpenAI na auditoria de faturação.
 - `web` — a interface web local (`zing serve`).
-- `pdf` — relatórios PDF (`--format pdf` e a transferência em PDF da interface
-  web), gerados a partir do relatório HTML pelo [WeasyPrint](https://weasyprint.org/),
-  que precisa da biblioteca de sistema Pango (pré-instalada na maioria dos
-  ambientes de trabalho Linux; `brew install pango` no macOS).
 
 ```bash
-pip install 'zing-audit[tokenizers,web,pdf]'      # pip, a partir do PyPI
-pip install -e '.[tokenizers,web,pdf]'            # pip, a partir do código-fonte
-uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, a partir do PyPI
-uv pip install -e '.[tokenizers,web,pdf]'         # uv, a partir do código-fonte
+pip install 'zing-audit[tokenizers,web]'      # pip, a partir do PyPI
+pip install -e '.[tokenizers,web]'            # pip, a partir do código-fonte
+uv tool install 'zing-audit[tokenizers,web]'  # uv, a partir do PyPI
+uv pip install -e '.[tokenizers,web]'         # uv, a partir do código-fonte
 ```
+
+Os relatórios PDF (`--format pdf` e a transferência em PDF da interface web) não
+precisam de nenhum extra: são compostos com
+[ReportLab](https://www.reportlab.com/opensource/), uma dependência em Python puro
+que não precisa de bibliotecas de sistema em Linux, macOS ou Windows.
 
 ### Com Docker (apenas a interface web)
 
@@ -614,9 +615,9 @@ conhecimento mudar.
 ## Relatórios
 
 `zing check` e `zing compare` imprimem um veredito e escrevem o relatório em
-`reports/` (`--out-dir`) como JSON, Markdown e HTML, mais PDF quando o extra
-`pdf` está instalado (`--format all`, a predefinição); `--format json|md|html|pdf`
-escreve um único formato. `--json` e `--compact` imprimem antes em stdout.
+`reports/` (`--out-dir`) como JSON, Markdown, HTML e PDF (`--format all`, a
+predefinição); `--format json|md|html|pdf` escreve um único formato. `--json` e
+`--compact` imprimem antes em stdout.
 
 ```text
 ╭─ ✗ HIGH RISK — Strong evidence the relay does not deliver the claimed model… ─╮

@@ -61,14 +61,13 @@ zing 是黑盒审计辅助工具：正确性以及**不冤枉诚实的中转站*
 ```bash
 git clone https://github.com/cenbonew/zing
 cd zing
-pip install -e '.[dev,tokenizers,web,pdf]'   # 以可编辑模式安装全部附加项
+pip install -e '.[dev,tokenizers,web]'   # 以可编辑模式安装全部附加项
 pytest                                       # 测试套件
 ruff check zing tests                        # 代码检查
 mypy zing                                    # 类型检查
 ```
 
-使用 uv：`uv venv && uv pip install -e '.[dev,tokenizers,web,pdf]'`。`pdf` 附加项需要系统库
-Pango（macOS 上 `brew install pango`；大多数 Linux 桌面已自带）；不涉及 PDF 报告时可以不装。
+使用 uv：`uv venv && uv pip install -e '.[dev,tokenizers,web]'`。无需任何系统库，PDF 报告也不例外。
 
 从源码运行：`zing …` 或 `python -m zing …`。`zing serve` 直接从 `zing/web/static/` 提供
 Web 界面，刷新浏览器即可看到前端改动；没有构建步骤。
@@ -189,7 +188,8 @@ zing 发给 LLM API 的每一段文本——对话探测、裁判提示词、工
 
 `zing/report/render.py` 把 `AuditReport` 渲染为 JSON、面向 Agent 的精简 JSON、Markdown 和 HTML；
 `dimensions.py` 和 `performance.py` 渲染 **Dimension details** 和性能部分；`pdf.py` 用
-WeasyPrint 把 HTML 排版成 PDF（可选的 `pdf` 附加项，绝不加载外部资源）；`writer.py` 负责写文件。
+ReportLab 基于同样的数据和辅助函数排版 PDF（纯 Python；只使用 PDF 标准字体，中文用 CID 字体
+STSong-Light，因此不嵌入任何字体；绝不加载外部资源），命令行和 Web 界面共用它；`writer.py` 负责写文件。
 所有由中转站控制的文本在输出前都会脱敏并转义（HTML / Markdown）。Web 界面的
 `POST /api/report/export` 复用这些渲染器来实现**下载报告**，并把面向人阅读的文本翻译成界面语言。
 
@@ -334,8 +334,7 @@ pytest -k streaming          # 按关键字
 
 ## Docker
 
-`Dockerfile` 构建 Web 界面的镜像（Python 3.12 slim、`web` 与 `pdf` 附加项、Pango，以及用于
-PDF 报告的 CJK 字体）。镜像以非特权用户运行，数据目录位于 `/data`。
+`Dockerfile` 构建 Web 界面的镜像（Python 3.12 slim，带 `web` 附加项；PDF 报告不需要任何系统软件包）。镜像以非特权用户运行，数据目录位于 `/data`。
 
 ```bash
 docker build -t zing .

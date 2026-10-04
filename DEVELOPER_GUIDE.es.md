@@ -70,16 +70,14 @@ navegador se ejecutan con `node` y se omiten sin él.
 ```bash
 git clone https://github.com/cenbonew/zing
 cd zing
-pip install -e '.[dev,tokenizers,web,pdf]'   # instalación editable con todos los extras
+pip install -e '.[dev,tokenizers,web]'   # instalación editable con todos los extras
 pytest                                       # suite de pruebas
 ruff check zing tests                        # lint
 mypy zing                                    # comprobación de tipos
 ```
 
-Con uv: `uv venv && uv pip install -e '.[dev,tokenizers,web,pdf]'`. El extra
-`pdf` necesita la biblioteca del sistema Pango (`brew install pango` en macOS; la
-mayoría de escritorios Linux la tienen); omítelo si no trabajas en los informes
-PDF.
+Con uv: `uv venv && uv pip install -e '.[dev,tokenizers,web]'`. No hace falta
+ninguna biblioteca del sistema, tampoco para los informes PDF.
 
 Ejecuta desde el código fuente con `zing …` o `python -m zing …`. `zing serve`
 sirve la interfaz web directamente desde `zing/web/static/`, así que recargar el
@@ -233,8 +231,11 @@ y un motivo `language_bound`. El runner registra los idiomas usados en
 
 `zing/report/render.py` renderiza un `AuditReport` como JSON, JSON compacto para
 agentes, Markdown y HTML; `dimensions.py` y `performance.py` renderizan los
-**Dimension details** y la sección de rendimiento; `pdf.py` compone el HTML como
-PDF con WeasyPrint (extra opcional `pdf`, sin cargar nunca recursos externos);
+**Dimension details** y la sección de rendimiento; `pdf.py` compone el PDF con
+ReportLab a partir de los mismos datos y funciones (Python puro; solo las fuentes
+estándar de PDF, con la fuente CID STSong-Light para el chino, así que no se
+incrusta nada; sin cargar nunca recursos externos), y la CLI y la interfaz web
+lo comparten;
 `writer.py` escribe los archivos. Todo texto controlado por el relay se censura y
 se escapa (HTML / Markdown) antes de la salida. `POST /api/report/export` de la
 interfaz web reutiliza estos renderizadores para la fila **Descargar informe**,
@@ -424,8 +425,8 @@ pytest -k streaming          # por palabra clave
 
 ## Docker
 
-El `Dockerfile` construye una imagen de la interfaz web (Python 3.12 slim, los
-extras `web` y `pdf`, Pango y fuentes CJK para los informes PDF). Se ejecuta con
+El `Dockerfile` construye una imagen de la interfaz web (Python 3.12 slim con el
+extra `web`; los informes PDF no necesitan paquetes del sistema). Se ejecuta con
 un usuario sin privilegios y el directorio de datos en `/data`.
 
 ```bash

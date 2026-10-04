@@ -14,7 +14,7 @@ rules — is in the **[Developer guide](DEVELOPER_GUIDE.md)**
 In short:
 
 ```bash
-pip install -e '.[dev,tokenizers,web,pdf]'
+pip install -e '.[dev,tokenizers,web]'
 pytest && ruff check zing tests && mypy zing
 ```
 

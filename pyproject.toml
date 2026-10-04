@@ -38,6 +38,8 @@ dependencies = [
     "rich>=13.7",
     "pydantic>=2.6",
     "pyyaml>=6.0",
+    # PDF reports: pure Python, BSD-licensed, no system libraries.
+    "reportlab>=4.0",
 ]
 
 [project.optional-dependencies]
@@ -48,9 +50,9 @@ web = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
 ]
-# PDF reports (`--format pdf`, PDF download in the web UI): the HTML report
-# typeset by WeasyPrint, which needs the Pango system library.
-pdf = ["weasyprint>=60"]
+# PDF reports are part of the core install now; the empty extra keeps
+# `pip install 'zing-audit[pdf]'` from older instructions working.
+pdf = []
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
@@ -58,6 +60,8 @@ dev = [
     "ruff>=0.5",
     "mypy>=1.10",
     "types-PyYAML>=6.0",
+    # reads exported PDFs back in the tests
+    "pypdf>=4.0",
 ]
 
 [project.urls]

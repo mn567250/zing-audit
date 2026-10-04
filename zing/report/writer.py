@@ -14,8 +14,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from zing.models import AuditReport
-from zing.report.pdf import PdfUnavailableError, pdf_available, render_pdf
 from zing.report.render import render_html, render_json, render_markdown
+
+
+def render_pdf(report: AuditReport) -> bytes:
+    """The report as PDF bytes (:func:`zing.report.pdf.render_pdf`).
+
+    ReportLab is imported on first use, so commands that never write a PDF do
+    not pay for loading it.
+    """
+    from zing.report.pdf import render_pdf as render
+
+    return render(report)
+
 
 # format selector -> (extension, renderer); text renderers return str, PDF bytes
 _RENDERERS: dict[str, tuple[str, Callable[[AuditReport], str | bytes]]] = {
@@ -53,9 +64,7 @@ def report_stem(report: AuditReport) -> str:
 def write_reports(report: AuditReport, out_dir: Path, fmt: str) -> list[Path]:
     """Write the report in ``fmt`` to ``out_dir`` and return the written paths.
 
-    ``fmt`` is one of ``json``, ``md``, ``html``, ``pdf`` or ``all``. ``all``
-    includes PDF only when WeasyPrint (the ``pdf`` extra) is installed and
-    loads; ``pdf`` alone raises :class:`PdfUnavailableError` without it. The
+    ``fmt`` is one of ``json``, ``md``, ``html``, ``pdf`` or ``all``. The
     directory is created if missing. Filenames are
     ``zing-<sanitized target.name>-<YYYYmmddTHHMMSS>.<ext>``.
     """
@@ -63,7 +72,7 @@ def write_reports(report: AuditReport, out_dir: Path, fmt: str) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if fmt == "all":
-        formats: tuple[str, ...] = ("json", "md", "html") + (("pdf",) if pdf_available() else ())
+        formats: tuple[str, ...] = ("json", "md", "html", "pdf")
     else:
         formats = (fmt,)
 
@@ -76,12 +85,7 @@ def write_reports(report: AuditReport, out_dir: Path, fmt: str) -> list[Path]:
             continue
         ext, renderer = spec
         path = out_dir / f"{stem}.{ext}"
-        try:
-            content = renderer(report)
-        except PdfUnavailableError:
-            if fmt == "all":  # best-effort extra; an explicit --format pdf still fails
-                continue
-            raise
+        content = renderer(report)
         if isinstance(content, bytes):
             path.write_bytes(content)
         else:

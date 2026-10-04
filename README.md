@@ -102,16 +102,17 @@ You can also install straight from the Git repository without cloning:
 
 - `tokenizers` — accurate OpenAI-family token counting in the billing audit.
 - `web` — the local web UI (`zing serve`).
-- `pdf` — PDF reports (`--format pdf`, and the PDF download in the web UI), rendered
-  from the HTML report by [WeasyPrint](https://weasyprint.org/), which needs the Pango
-  system library (preinstalled on most Linux desktops; `brew install pango` on macOS).
 
 ```bash
-pip install 'zing-audit[tokenizers,web,pdf]'      # pip, from PyPI
-pip install -e '.[tokenizers,web,pdf]'            # pip, from source
-uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, from PyPI
-uv pip install -e '.[tokenizers,web,pdf]'         # uv, from source
+pip install 'zing-audit[tokenizers,web]'      # pip, from PyPI
+pip install -e '.[tokenizers,web]'            # pip, from source
+uv tool install 'zing-audit[tokenizers,web]'  # uv, from PyPI
+uv pip install -e '.[tokenizers,web]'         # uv, from source
 ```
+
+PDF reports (`--format pdf`, and the PDF download in the web UI) need no extra: they
+are typeset with [ReportLab](https://www.reportlab.com/opensource/), a pure Python
+dependency that needs no system libraries on Linux, macOS or Windows.
 
 ### With Docker (web UI only)
 
@@ -579,10 +580,10 @@ hash), so a report stays verifiable after the knowledge base changes.
 
 ## Reports
 
-`zing check` and `zing compare` print a verdict and write the report to
-`reports/` (`--out-dir`) as JSON, Markdown and HTML, plus PDF when the `pdf`
-extra is installed (`--format all`, the default); `--format json|md|html|pdf`
-writes one format. `--json` and `--compact` print to stdout instead.
+`zing check` and `zing compare` print a verdict and write the report to `reports/`
+(`--out-dir`) as JSON, Markdown, HTML and PDF (`--format all`, the default);
+`--format json|md|html|pdf` writes one format. `--json` and `--compact` print to
+stdout instead.
 
 ```text
 ╭─ ✗ HIGH RISK — Strong evidence the relay does not deliver the claimed model… ─╮

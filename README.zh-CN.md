@@ -98,16 +98,17 @@ source .venv/bin/activate       # Windows：.venv\Scripts\activate
 
 - `tokenizers` —— 在计费审计中对 OpenAI 系列模型做精确的 token 计数。
 - `web` —— 本地 Web 界面（`zing serve`）。
-- `pdf` —— PDF 报告（`--format pdf` 以及 Web 界面中的 PDF 下载），由
-  [WeasyPrint](https://weasyprint.org/) 从 HTML 报告生成，需要系统库 Pango
-  （大多数 Linux 桌面已预装；macOS 上 `brew install pango`）。
 
 ```bash
-pip install 'zing-audit[tokenizers,web,pdf]'      # pip，从 PyPI
-pip install -e '.[tokenizers,web,pdf]'            # pip，从源码
-uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv，从 PyPI
-uv pip install -e '.[tokenizers,web,pdf]'         # uv，从源码
+pip install 'zing-audit[tokenizers,web]'      # pip，从 PyPI
+pip install -e '.[tokenizers,web]'            # pip，从源码
+uv tool install 'zing-audit[tokenizers,web]'  # uv，从 PyPI
+uv pip install -e '.[tokenizers,web]'         # uv，从源码
 ```
+
+PDF 报告（`--format pdf` 以及 Web 界面中的 PDF 下载）无需任何附加项：由
+[ReportLab](https://www.reportlab.com/opensource/) 排版，这是一个纯 Python 依赖，在 Linux、macOS 和
+Windows 上都不需要系统库。
 
 ### 使用 Docker（仅 Web 界面）
 
@@ -508,8 +509,8 @@ Qwen、GLM 和 Moonshot（用 `zing kb` 查看）。共有三层，后面的优�
 
 ## 报告
 
-`zing check` 和 `zing compare` 会输出结论，并把报告以 JSON、Markdown 和 HTML 写入 `reports/`
-（`--out-dir`），安装了 `pdf` 附加项时还会写出 PDF（`--format all`，默认）；
+`zing check` 和 `zing compare` 会输出结论，并把报告以 JSON、Markdown、HTML 和 PDF 写入
+`reports/`（`--out-dir`，`--format all`，默认）；
 `--format json|md|html|pdf` 只写一种格式。`--json` 和 `--compact` 则改为输出到 stdout。
 
 ```text

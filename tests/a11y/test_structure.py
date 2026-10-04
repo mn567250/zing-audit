@@ -336,7 +336,9 @@ def test_consistent_identification(open_page, lang: str) -> None:
 # --------------------------------------------------------------------------- #
 NAV_LINKS_JS = """
 () => {
-  const navs = [...document.querySelectorAll('nav, [role=navigation]')];
+  // site-wide navigation: the nav landmark and the page footer (contentinfo)
+  const navs = [...document.querySelectorAll('nav, [role=navigation], [role=contentinfo]')].concat(
+    [...document.querySelectorAll('footer')].filter(f => !f.closest('article, aside, main, nav, section')));
   const out = {};
   for (const nav of navs) for (const a of nav.querySelectorAll('a[href]')) {
     const u = new URL(a.href, location.href);
@@ -359,8 +361,9 @@ def _norm_path(path: str) -> str:
 @pytest.mark.parametrize("viewport", list(VIEWPORTS))
 def test_every_page_reachable_from_every_page(open_page, base_url: str, viewport: str) -> None:
     """9.2.4.5 Multiple ways: every v2 page can be opened by its own URL and
-    from a usable link in the navigation landmark of every other page (two
-    ways; the app is too small to need search or a site map)."""
+    from a usable link in the site-wide navigation (nav landmark or page
+    footer) of every other page (two ways; the app is too small to need
+    search or a site map)."""
     import httpx
 
     issues: list[str] = []
@@ -376,7 +379,7 @@ def test_every_page_reachable_from_every_page(open_page, base_url: str, viewport
                 continue
             got = links.get(_norm_path(other))
             if got is None:
-                issues.append(f"{page_id}: its navigation has no link to {other_id} ({other})")
+                issues.append(f"{page_id}: its navigation/footer has no link to {other_id} ({other})")
             elif not got:
                 issues.append(f"{page_id}: the navigation link to {other_id} ({other}) is hidden")
     assert_no_issues(issues, f"all pages [en, {viewport}]", "multiple-ways")

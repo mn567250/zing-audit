@@ -360,3 +360,7 @@
               - button "PDF"
   - text: 共 1 条记录
   - button "清空历史"
+- contentinfo:
+  - paragraph:
+    - link "无障碍":
+      - /url: /v2/accessibility

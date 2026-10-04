@@ -122,3 +122,7 @@
     - alert
     - status
     - text: zing fornisce prove riproducibili di rischio e scostamento, non un verdetto legale.
+- contentinfo:
+  - paragraph:
+    - link "Accessibilità":
+      - /url: /v2/accessibility

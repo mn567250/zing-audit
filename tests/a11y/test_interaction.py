@@ -155,6 +155,7 @@ INSTRUMENT_JS = r"""
     requestAnimationFrame(() => requestAnimationFrame(f));
     oST(f, 120);
   });
+  A.frames = frames;
   // two frames, every short timer set so far has run, finite animations ended
   A.quiet = async (max = 2500) => {
     const t0 = performance.now();
@@ -202,6 +203,12 @@ INSTRUMENT_JS = r"""
   };
   // content shown before that the revealed box now covers (it is on top there)
   const covers = root => {
+    // an overlay with pointer-events: none still covers what is under it
+    const pe = root.style.getPropertyValue('pointer-events'), prio = root.style.getPropertyPriority('pointer-events');
+    root.style.setProperty('pointer-events', 'auto', 'important');
+    try { return coveredBy(root); } finally { root.style.setProperty('pointer-events', pe, prio); }
+  };
+  const coveredBy = root => {
     const box = root.getBoundingClientRect();
     for (const el of elements()) {
       if (!A.before.content.has(idOf(el)) || root.contains(el) || el.contains(root) || !A.shown(el)) continue;
@@ -220,7 +227,7 @@ INSTRUMENT_JS = r"""
   // content that is visible now but was not at A.snap(), grouped by the
   // outermost newly visible box; a trigger that itself only became visible
   // (an off-screen skip link getting focus) does not count as revealed content
-  A.diff = trig => {
+  const revealed = trig => {
     const B = A.before, roots = new Set();
     const trigWas = trig && B.all.has(idOf(trig));
     for (const el of elements()) {
@@ -234,10 +241,23 @@ INSTRUMENT_JS = r"""
       if (trig && root.contains(trig)) continue;
       roots.add(root);
     }
-    return [...roots].filter(r => ![...roots].some(o => o !== r && o.contains(r))).map((root, k) => {
-      root.setAttribute('data-a11y-rv', String(k));
-      return { k, desc: A.desc(root), text: root.textContent.trim().replace(/\s+/g, ' ').slice(0, 60), covers: covers(root) };
-    });
+    return [...roots].filter(r => ![...roots].some(o => o !== r && o.contains(r)));
+  };
+  const info = root => ({ desc: A.desc(root), text: root.textContent.trim().replace(/\s+/g, ' ').slice(0, 60) });
+  // right after the hover/focus, before waiting for timers: content that
+  // shows only briefly is gone again by the time A.diff runs
+  A.diffEarly = trig => { A.early = revealed(trig); };
+  A.diff = trig => {
+    const roots = revealed(trig);
+    const vanished = (A.early || []).filter(r => !roots.some(o => o === r || o.contains(r)) && !A.shown(r)).map(info);
+    A.early = [];
+    return {
+      vanished,
+      shown: roots.map((root, k) => {
+        root.setAttribute('data-a11y-rv', String(k));
+        return { k, ...info(root), covers: covers(root) };
+      }),
+    };
   };
   A.revealedShown = k => A.shown(document.querySelector(`[data-a11y-rv="${k}"]`));
   A.pointIn = k => {
@@ -302,6 +322,24 @@ def instrumented(open_page: Any, page_id: str, lang: str = "en", expand: bool = 
 
 def quiet(page: Page) -> None:
     page.evaluate("() => window.__a11y.quiet()")
+
+
+def take_reactions(page: Page) -> list[dict[str, str]]:
+    """Listener reactions recorded so far (cleared, so a reload loses none)."""
+    return list(page.evaluate("() => window.__a11y.reactions.splice(0)"))
+
+
+def _reopen(page: Page, url: str) -> None:
+    """Back to the page under test after a navigation, in the same state."""
+    page.goto(url, wait_until="networkidle")
+    settle(page)
+    expand_all(page)
+    page.mouse.move(*NEUTRAL)
+    quiet(page)
+
+
+def _navigated(changes: list[str] | None) -> bool:
+    return any(c.startswith("navigated") for c in changes or [])
 
 
 # --------------------------------------------------------------------------- #
@@ -429,9 +467,17 @@ def hover_focus_issues(page: Page) -> list[str]:
                 page.mouse.move(*point)
             else:
                 page.evaluate("s => document.querySelector(s).focus({ preventScroll: true })", sel)
+            page.evaluate(
+                "async s => { await window.__a11y.frames(); window.__a11y.diffEarly(document.querySelector(s)); }", sel
+            )
             quiet(page)
-            revealed = page.evaluate("s => window.__a11y.diff(document.querySelector(s))", sel)
-            for rev in revealed:
+            found = page.evaluate("s => window.__a11y.diff(document.querySelector(s))", sel)
+            for rev in found["vanished"]:
+                issues.append(
+                    f"{rev['desc']} \"{rev['text']}\" shown on {how} of {cand['desc']} disappears by itself"
+                    f" while the {how} stays (not persistent)"
+                )
+            for rev in found["shown"]:
                 issues += _check_revealed(page, how, cand["desc"], point or None, rev)
             page.mouse.move(*NEUTRAL)
             page.evaluate(
@@ -515,8 +561,7 @@ def _press(page: Page, sel: str | None, keys: str) -> list[str] | None:
     changes: list[str] = []
     if page.url != url:
         changes.append(f"navigated to {page.url}")
-        page.goto(url, wait_until="networkidle")
-        settle(page)
+        _reopen(page, url)
     else:
         changes += page.evaluate(KEY_END_JS, sel)
     if len(page.context.pages) > n_pages:
@@ -531,22 +576,43 @@ PAGE_LEVEL = ("window", "document", "<html", "<body")
 
 def character_key_issues(page: Page) -> list[str]:
     issues: list[str] = []
+    reactions: list[dict[str, str]] = []
+
+    def press(sel: str | None, keys: str) -> list[str]:
+        changes = _press(page, sel, keys) or []
+        reactions.extend(take_reactions(page))
+        if _navigated(changes):
+            page.evaluate(KEY_TARGETS_JS)  # the reopened page needs its markers again
+        return changes
+
     targets = [{"sel": None, "desc": "<body> (nothing focused)"}, *page.evaluate(KEY_TARGETS_JS)]
     for t in targets:
-        if not _press(page, t["sel"], PRINTABLE):
+        changes = press(t["sel"], PRINTABLE)
+        if not changes:
             continue
-        # find the keys responsible; a change that no single key repeats was
-        # background noise, not a shortcut
+        # what also changes in the same time without any key is background
+        # activity, not a shortcut
+        noise = set(press(t["sel"], ""))
+        changes = [c for c in changes if c not in noise]
+        if not changes:
+            continue
+        # name the keys where a single press repeats the change (a one-shot
+        # change, like opening a panel, does not repeat)
         hits: dict[str, list[str]] = {}
         for ch in PRINTABLE:
-            got = _press(page, t["sel"], ch)
+            got = [c for c in press(t["sel"], ch) if c not in noise]
             if got:
                 hits[ch] = got
             if len(hits) >= 4:
                 break
         for ch, got in hits.items():
             issues.append(f"key {ch!r} with focus on {t['desc']}: {'; '.join(got[:3])} (single-key shortcut)")
-    for r in page.evaluate("() => window.__a11y.reactions"):
+        if not hits:
+            issues.append(
+                f"printable keys with focus on {t['desc']}: {'; '.join(changes[:3])} (single-key shortcut;"
+                " see the listener findings for the key)"
+            )
+    for r in reactions:
         if r["type"] in ("keydown", "keypress", "keyup") and r["target"].startswith(PAGE_LEVEL):
             issues.append(
                 f"{r['type']} listener on {r['target']} reacts to the unmodified key {r['key']!r}: {r['what']}"
@@ -679,8 +745,7 @@ def _slide_off(page: Page, pts: dict[str, list[float]], press: bool) -> list[str
     changes: list[str] = []
     if page.url != url:
         changes.append(f"navigated to {page.url}")
-        page.goto(url, wait_until="networkidle")
-        settle(page)
+        _reopen(page, url)
     else:
         changes += page.evaluate(PRESS_END_JS)
     if len(page.context.pages) > n_pages:
@@ -693,14 +758,19 @@ def _slide_off(page: Page, pts: dict[str, list[float]], press: bool) -> list[str
 def pointer_cancellation_issues(page: Page) -> list[str]:
     issues: list[str] = []
     dialogs: list[str] = []
+    reactions: list[dict[str, str]] = []
     page.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
     for t in page.evaluate(CLICK_TARGETS_JS):
         pts = page.evaluate(PRESS_POINTS_JS, t["sel"])
         if not pts:
             continue
         quiet(page)
+        reactions += take_reactions(page)
         changes = _slide_off(page, pts, press=True)
-        if changes and not any(c.startswith(("navigated", "opened")) for c in changes):
+        reactions += take_reactions(page)
+        if _navigated(changes):
+            page.evaluate(CLICK_TARGETS_JS)  # the reopened page needs its markers again
+        elif changes and "opened a new window" not in changes:
             # the same pointer path without pressing: hover effects are not the press
             page.evaluate(PRESS_POINTS_JS, t["sel"])
             quiet(page)
@@ -712,7 +782,7 @@ def pointer_cancellation_issues(page: Page) -> list[str]:
         if changes:
             issues.append(f"press on {t['desc']} and release outside it: {'; '.join(changes[:4])} (action not cancelled)")
         page.mouse.move(*NEUTRAL)
-    for r in page.evaluate("() => window.__a11y.reactions"):
+    for r in reactions:
         if r["type"] in ("mousedown", "pointerdown", "touchstart"):
             issues.append(f"{r['type']} listener on {r['target']} acts on the down-event: {r['what']}")
     return sorted(set(issues))
@@ -771,7 +841,7 @@ CONTEXT_JS = r"""
     .filter(d => d.matches(':modal') || (A.shown(d) && (d.open || d.getAttribute('role'))))
     .map(d => A.desc(d));
   const live = [...document.querySelectorAll('[role=status], [role=alert], [role=log], [aria-live]:not([aria-live=off]), output')]
-    .map(e => e.textContent.trim()).join('|');
+    .map(e => e.textContent.trim()).filter(Boolean);
   return { sig: Object.fromEntries(sig), dialogs, live };
 }
 """
@@ -858,12 +928,6 @@ def _restore(page: Page, f: dict[str, Any], token: str) -> None:
     quiet(page)
 
 
-def _reopen(page: Page, url: str) -> None:
-    page.goto(url, wait_until="networkidle")
-    settle(page)
-    expand_all(page)
-
-
 def on_input_issues(page: Page) -> list[str]:
     issues: list[str] = []
     dialogs: list[str] = []
@@ -888,6 +952,7 @@ def on_input_issues(page: Page) -> list[str]:
         if page.url.split("#")[0] != url.split("#")[0]:
             issues.append(f"changing {f['desc']}: navigated to {page.url} (change of context on input)")
             _reopen(page, url)
+            page.evaluate(INPUTS_JS)  # markers for the remaining fields
             continue
         if not page.evaluate(IS_FIELD_JS, sel):
             active = page.evaluate("() => window.__a11y.desc(document.activeElement)")
@@ -908,16 +973,25 @@ def on_input_issues(page: Page) -> list[str]:
             dialogs.clear()
         if page.url.split("#")[0] != url.split("#")[0]:
             _reopen(page, url)
+            page.evaluate(INPUTS_JS)
         else:
             after = page.evaluate(CONTEXT_JS)
             opened = [d for d in after["dialogs"] if d not in before["dialogs"]]
             if opened:
                 found.append(f"opened the dialog {opened[0]}")
             share = _replaced_share(before["sig"], after["sig"])
-            if share > 0.5 and after["live"] == before["live"]:
+            # announced = a live region now says something it did not say before
+            announced = any(t not in before["live"] for t in after["live"])
+            if share > 0.5 and not announced:
                 found.append(f"replaced {share:.0%} of the main content without a status message")
             if token is not None:
                 _restore(page, f, token)
+            if opened:
+                # close it (restoring may have opened it again), or every
+                # remaining field is inert behind it
+                page.keyboard.press("Escape")
+                page.evaluate("() => document.querySelectorAll('dialog[open]').forEach(d => d.close())")
+                settle(page)
         issues += [f"changing {f['desc']}: {what} (change of context on input)" for what in found]
     return issues
 

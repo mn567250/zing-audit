@@ -210,6 +210,7 @@
           - cell "—"
           - cell "内置"
         # … more rows of the same shape
+  - status
 - contentinfo:
   - paragraph:
     - text: zing · 中转站验真 · 内置资料位于

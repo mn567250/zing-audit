@@ -210,6 +210,7 @@
           - cell "—"
           - cell "Incluido"
         # … more rows of the same shape
+  - status
 - contentinfo:
   - paragraph:
     - text: zing · verificación de relays · los perfiles incluidos están en

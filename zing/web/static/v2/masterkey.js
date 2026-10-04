@@ -404,10 +404,20 @@
           '<button type="submit" class="btn sm danger" data-mk="reset-yes">' + esc(T("重置", "Reset")) + "</button>" +
           btn("reset-no", T("取消", "Cancel")) + "</div></form>";
       }
+      // keep focus on the equivalent control across the re-render (Lock
+      // becomes Unlock and back), else it would fall to <body>
+      var a = document.activeElement, keep = a && el.contains(a) ? a.getAttribute("data-mk") : null;
       el.className = "zmk-bar " + kind;
       el.innerHTML = '<div class="zmk-line"><span class="zmk-ico">' + icon("lock") + "</span><div class=\"zmk-text\">" + html + "</div>" +
         '<div class="zmk-btns">' + buttons + "</div></div>" + warn + reset +
         '<p class="zmk-msg" role="status">' + esc(msg) + "</p>";
+      if (keep) {
+        var alt = { lock: "unlock", unlock: "lock", "reset-no": "reset", "reset-yes": "reset", "reset-in": "reset",
+          setup: "lock", migrate: "lock", rotate: "lock" }[keep];
+        var to = el.querySelector('[data-mk="' + keep + '"]') || (alt && el.querySelector('[data-mk="' + alt + '"]')) ||
+          el.querySelector("button[data-mk]");
+        if (to) to.focus();
+      }
     }
     el.addEventListener("click", function (ev) {
       var b = ev.target.closest("[data-mk]");

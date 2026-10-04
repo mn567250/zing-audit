@@ -551,7 +551,13 @@
     setJobParam(null);
   }
 
+  // While the job is being created #go stays focusable (aria-disabled, not
+  // disabled): disabling the focused button would drop focus to <body>.
+  function setGoBusy(busy) {
+    if (busy) $("#go").setAttribute("aria-disabled", "true"); else $("#go").removeAttribute("aria-disabled");
+  }
   async function startAudit() {
+    if ($("#go").getAttribute("aria-disabled") === "true") return;
     setFormErr(null);
     setFormNote(null);
     Object.keys(FIELD_MSG).forEach(function (x) { fieldErr(x, false); });
@@ -589,7 +595,7 @@
     if (bUrl && bModel) payload.baseline = { base_url: bUrl, api_key: $("#b-key").value.trim(), model: bModel, api: segVal("b-api") };
     if (window.ZingSecret) ZingSecret.remember($("#form"));
 
-    $("#go").disabled = true;
+    setGoBusy(true);
     var job;
     try {
       var resp = await fetch("/api/jobs", {
@@ -608,7 +614,7 @@
       setFormErr(function () { return esc(T("连接本地服务失败：", "Could not reach the local service: ")) + esc(msg); });
       return;
     } finally {
-      $("#go").disabled = false;
+      setGoBusy(false);
     }
     follow(job);
   }

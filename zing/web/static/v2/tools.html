@@ -400,10 +400,13 @@
   });
 
   // ---------- submit ----------
+  // While busy the button stays focusable (aria-disabled, not disabled):
+  // disabling the focused button would drop keyboard focus to <body>.
   function setBusy(btn, busy) {
-    btn.disabled = busy;
+    if (busy) btn.setAttribute("aria-disabled", "true"); else btn.removeAttribute("aria-disabled");
     btn.setAttribute("aria-busy", String(busy));
   }
+  function isBusy(btn) { return btn.getAttribute("aria-disabled") === "true"; }
   async function postAudit(url, payload, btn, sel) {
     $(sel).innerHTML = "";
     delete OUT[sel];
@@ -430,7 +433,7 @@
 
   $("#embed-form").addEventListener("submit", function (e) {
     e.preventDefault();
-    if ($("#e-go").disabled) return;
+    if (isBusy($("#e-go"))) return;
     var payload = {
       base_url: $("#e-url").value.trim(), api_key: $("#e-key").value.trim(),
       model: $("#e-model").value.trim(), claimed_model: $("#e-claimed").value.trim(),
@@ -445,7 +448,7 @@
 
   $("#rerank-form").addEventListener("submit", function (e) {
     e.preventDefault();
-    if ($("#r-go").disabled) return;
+    if (isBusy($("#r-go"))) return;
     var payload = { base_url: $("#r-url").value.trim(), api_key: $("#r-key").value.trim(), model: $("#r-model").value.trim(), api: segVal("r-api") };
     if (!payload.base_url || !payload.model) { showErr("#r-out", needTarget); (payload.base_url ? $("#r-model") : $("#r-url")).focus(); return; }
     var q = $("#r-query").value.trim();

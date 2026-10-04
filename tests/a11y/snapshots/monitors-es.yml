@@ -4,17 +4,6 @@
   - link "zing":
     - /url: /v2/
     - text: zing.
-  - navigation "Navegación principal":
-    - link "Auditoría":
-      - /url: /v2/
-    - link "Herramientas":
-      - /url: /v2/tools
-    - link "Historial":
-      - /url: /v2/history
-    - link "Monitores":
-      - /url: /v2/watches
-    - link "Modelos":
-      - /url: /v2/kb
   - link "Interfaz clásica":
     - /url: "?ui=v1"
   - combobox "Tema":
@@ -29,6 +18,17 @@
     - option "Português"
     - option "Italiano"
     - option "Deutsch"
+  - navigation "Navegación principal":
+    - link "Auditoría":
+      - /url: /v2/
+    - link "Herramientas":
+      - /url: /v2/tools
+    - link "Historial":
+      - /url: /v2/history
+    - link "Monitores":
+      - /url: /v2/watches
+    - link "Modelos":
+      - /url: /v2/kb
   - paragraph: Se ejecuta en local · las claves nunca salen
 - main:
   - heading "Ponga un centinela programado en su intermediario" [level=1]

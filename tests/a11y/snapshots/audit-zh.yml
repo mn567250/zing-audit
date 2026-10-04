@@ -4,17 +4,6 @@
   - link "zing":
     - /url: /v2/
     - text: zing.
-  - navigation "主导航":
-    - link "检测":
-      - /url: /v2/
-    - link "工具":
-      - /url: /v2/tools
-    - link "检测历史":
-      - /url: /v2/history
-    - link "监控":
-      - /url: /v2/watches
-    - link "模型库":
-      - /url: /v2/kb
   - link "经典界面":
     - /url: "?ui=v1"
   - combobox "主题":
@@ -29,6 +18,17 @@
     - option "Português"
     - option "Italiano"
     - option "Deutsch"
+  - navigation "主导航":
+    - link "检测":
+      - /url: /v2/
+    - link "工具":
+      - /url: /v2/tools
+    - link "检测历史":
+      - /url: /v2/history
+    - link "监控":
+      - /url: /v2/watches
+    - link "模型库":
+      - /url: /v2/kb
   - paragraph: 本地运行 · 密钥不经手
 - main:
   - list "检测进度":

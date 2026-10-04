@@ -4,17 +4,6 @@
   - link "zing":
     - /url: /v2/
     - text: zing.
-  - navigation "Navegação principal":
-    - link "Auditoria":
-      - /url: /v2/
-    - link "Ferramentas":
-      - /url: /v2/tools
-    - link "Histórico":
-      - /url: /v2/history
-    - link "Monitores":
-      - /url: /v2/watches
-    - link "Modelos":
-      - /url: /v2/kb
   - link "Interface clássica":
     - /url: "?ui=v1"
   - combobox "Tema":
@@ -29,6 +18,17 @@
     - option "Português" [selected]
     - option "Italiano"
     - option "Deutsch"
+  - navigation "Navegação principal":
+    - link "Auditoria":
+      - /url: /v2/
+    - link "Ferramentas":
+      - /url: /v2/tools
+    - link "Histórico":
+      - /url: /v2/history
+    - link "Monitores":
+      - /url: /v2/watches
+    - link "Modelos":
+      - /url: /v2/kb
 - main:
   - heading "Relatório de conformidade de acessibilidade" [level=1]
   - paragraph: "Cada passo de teste da BITV 2.0 e da EN 301 549 (capítulo 9, equivalente às WCAG 2.1 níveis A e AA): como é testado e o resultado mais recente dos testes automatizados de acessibilidade."

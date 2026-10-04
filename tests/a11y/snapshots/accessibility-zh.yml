@@ -4,17 +4,6 @@
   - link "zing":
     - /url: /v2/
     - text: zing.
-  - navigation "主导航":
-    - link "检测":
-      - /url: /v2/
-    - link "工具":
-      - /url: /v2/tools
-    - link "检测历史":
-      - /url: /v2/history
-    - link "监控":
-      - /url: /v2/watches
-    - link "模型库":
-      - /url: /v2/kb
   - link "经典界面":
     - /url: "?ui=v1"
   - combobox "主题":
@@ -29,6 +18,17 @@
     - option "Português"
     - option "Italiano"
     - option "Deutsch"
+  - navigation "主导航":
+    - link "检测":
+      - /url: /v2/
+    - link "工具":
+      - /url: /v2/tools
+    - link "检测历史":
+      - /url: /v2/history
+    - link "监控":
+      - /url: /v2/watches
+    - link "模型库":
+      - /url: /v2/kb
 - main:
   - heading "无障碍符合性报告" [level=1]
   - paragraph: 这里列出 BITV 2.0 与 EN 301 549（第 9 章，即 WCAG 2.1 A 级与 AA 级）的每个检查步骤：它是如何测试的，以及自动化无障碍测试的最新结果。

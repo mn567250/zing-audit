@@ -381,8 +381,9 @@ select.in {
   font-family: var(--disp); font-weight: 600; font-size: 17px; color: var(--on-ink); background: var(--ink);
   display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.16s;
 }
-.cta:hover:not(:disabled) { background: var(--teal); }
-.cta:disabled { opacity: 0.55; cursor: wait; }
+.cta:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--teal); }
+/* aria-disabled: busy but still focusable (focus must not fall to <body>) */
+.cta:disabled, .cta[aria-disabled="true"] { opacity: 0.55; cursor: wait; }
 .cta .zicon { width: 1em; height: 1em; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer; text-decoration: none;
@@ -390,13 +391,13 @@ select.in {
   border: 1.5px solid var(--line); background: var(--field); color: var(--ink);
   transition: border-color 0.15s, background 0.15s;
 }
-.btn:hover:not(:disabled) { border-color: var(--line-strong); }
+.btn:hover:not(:disabled):not([aria-disabled="true"]) { border-color: var(--line-strong); }
 .btn.pri { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
-.btn.pri:hover:not(:disabled) { background: var(--teal); border-color: var(--teal); }
+.btn.pri:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--teal); border-color: var(--teal); }
 .btn.danger { color: var(--bad); }
-.btn.danger:hover:not(:disabled) { background: var(--badbg); border-color: var(--bad); }
+.btn.danger:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--badbg); border-color: var(--bad); }
 .btn.sm { padding: 6px 11px; font-size: 12.5px; border-radius: 10px; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 .btn .zicon { width: 1em; height: 1em; }
 .linkbtn {
   background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--sans); font-weight: 700;

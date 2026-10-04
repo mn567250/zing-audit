@@ -8,3 +8,8 @@ zing is a black-box auditing aid. It gathers reproducible evidence of behavioral
 divergence and risk — not cryptographic proof of model identity or fraud. See
 README.md ("Responsible use") and docs/METHODOLOGY.md before publishing any
 report that names a vendor.
+
+Third-party test tooling: tests/a11y/vendor/axe.min.js is axe-core 4.13.0
+(https://github.com/dequelabs/axe-core), Copyright (c) Deque Systems, Inc.,
+licensed under the Mozilla Public License 2.0. It is used only by the test
+suite and is not part of the distributed package.

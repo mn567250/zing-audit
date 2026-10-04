@@ -431,6 +431,12 @@ pytest -k streaming          # by keyword
   `v2/report.js`, the locales) are evaluated under `node` in
   `test_web_*_js.py` and `test_web_locales.py`; they are skipped without Node.js.
 - No test may reach the network.
+- `tests/a11y/` checks web UI v2 against BITV 2.0 / EN 301 549 / WCAG 2.1 AA
+  in a real browser (Playwright + axe-core), in every UI language and both
+  themes: `pip install -e '.[web,a11y]' && playwright install chromium`, then
+  `pytest -m a11y`. Without Playwright the directory is skipped. What is
+  automated and what still needs a manual BITV review is in
+  [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md).
 
 ## Docker
 
@@ -468,7 +474,7 @@ the UI.
 
 | Workflow | Runs | Does |
 |---|---|---|
-| `.github/workflows/ci.yml` | push and pull request to `main` | `ruff`, `mypy` and `pytest` on Python 3.10–3.13 with every extra; builds the wheel and sdist and checks that the wheel installs and loads the knowledge base |
+| `.github/workflows/ci.yml` | push and pull request to `main` (and `a11y/integration`) | `ruff`, `mypy` and `pytest` on Python 3.10–3.13 with every extra; builds the wheel and sdist and checks that the wheel installs and loads the knowledge base; runs the accessibility suite (informational, never fails the run) and uploads its findings |
 | `.github/workflows/release.yml` | a `v*` tag | builds, runs `twine check` and publishes to PyPI (Trusted Publishing) |
 | `.github/workflows/example-audit.yml` | daily schedule, manual | example of a scheduled relay audit with the action |
 

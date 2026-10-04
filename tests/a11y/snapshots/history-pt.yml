@@ -1,0 +1,362 @@
+- banner:
+  - link "Saltar para o conteúdo principal":
+    - /url: "#main"
+  - link "zing":
+    - /url: /v2/
+    - text: zing.
+  - navigation "Navegação principal":
+    - link "Auditoria":
+      - /url: /v2/
+    - link "Ferramentas":
+      - /url: /v2/tools
+    - link "Histórico":
+      - /url: /v2/history
+    - link "Monitores":
+      - /url: /v2/watches
+    - link "Modelos":
+      - /url: /v2/kb
+  - link "Interface clássica":
+    - /url: "?ui=v1"
+  - combobox "Tema":
+    - option "Automático"
+    - option "Claro" [selected]
+    - option "Escuro"
+  - combobox "Idioma":
+    - option "English"
+    - option "中文"
+    - option "Français"
+    - option "Español"
+    - option "Português" [selected]
+    - option "Italiano"
+    - option "Deutsch"
+- main:
+  - heading "Histórico e tendências das auditorias" [level=1]
+  - paragraph: Todas as verificações que executou neste computador, agrupadas por «intermediário + modelo declarado», com uma linha de tendência da pontuação de saúde; clique numa linha para expandir esse relatório.
+  - paragraph:
+    - text: O histórico fica apenas num ficheiro SQLite local em
+    - code: ~/.zing
+    - text: — nada é enviado.
+  - region "Filtros":
+    - text: Pesquisar
+    - searchbox "Pesquisar"
+    - text: Relay / provedor
+    - combobox "Relay / provedor":
+      - option "Todos" [selected]
+      - option "127.0.0.1:9099"
+    - text: Modelo declarado
+    - combobox "Modelo declarado":
+      - option "Todos" [selected]
+      - option "gpt-4o"
+    - text: Suite
+    - combobox "Suite":
+      - option "Todos" [selected]
+      - option "standard"
+    - text: Modo
+    - combobox "Modo":
+      - option "Todos" [selected]
+      - option "check"
+    - text: Protocolo
+    - combobox "Protocolo":
+      - option "Todos" [selected]
+      - option "(desconhecido)"
+    - text: Detecção do protocolo
+    - combobox "Detecção do protocolo":
+      - option "Todos" [selected]
+      - option "(desconhecido)"
+    - text: Requisições de sondagem
+    - combobox "Requisições de sondagem":
+      - option "Todos" [selected]
+      - option "(desconhecido)"
+    - text: Risco
+    - combobox "Risco":
+      - option "Todos" [selected]
+      - option "Gato por lebre"
+    - text: Pontuação mín.
+    - spinbutton "Pontuação mín."
+    - text: Período
+    - combobox "Período":
+      - option "Todos" [selected]
+      - option "Últimos 7 dias"
+      - option "Últimos 30 dias"
+      - option "Últimos 90 dias"
+    - text: Execução
+    - combobox "Execução":
+      - option "Todos" [selected]
+      - option "Manual"
+      - option "Monitor"
+    - group "Tendências":
+      - text: Tendências
+      - button "Pontuação" [pressed]
+      - button "Nota"
+      - button "Latência p50" [pressed]
+      - button "Tokens/s"
+    - text: Mostrando 1 de 1 auditorias
+  - region "gpt-4o":
+    - heading "gpt-4o" [level=2]
+    - code: base_url
+    - text: http://127.0.0.1:9099/v1 Pontuação 53
+    - list:
+      - listitem:
+        - button "27/09/2026, 07:47 Gato por lebre Pontuação 53 Nota F check · standard" [expanded]
+        - button "Executar auditoria novamente"
+        - button "Agendar como monitor"
+        - button "Eliminar entrada" [expanded]
+        - group "Eliminar esta entrada do histórico?":
+          - text: Eliminar esta entrada do histórico?
+          - button "Eliminar"
+          - button "Cancelar"
+        - region "27/09/2026, 07:47 Gato por lebre Pontuação 53 Nota F check · standard":
+          - article "Não está a servir o modelo que declara":
+            - text: Gato por lebre
+            - heading "Não está a servir o modelo que declara" [level=2]
+            - paragraph: "Constatações: 4 alto(s), 5 médio(s). Execute `zing compare` contra uma referência de confiança para reforçar o veredito."
+            - text: Pontuação de saúde global 52,6/100 (Classificação F) Confiança do veredito Média
+            - term: Alvo
+            - definition:
+              - code: http://127.0.0.1:9099/v1
+            - term: Modelo declarado
+            - definition:
+              - code: gpt-4o
+            - term: Modo
+            - definition:
+              - code: check
+            - term: Suite
+            - definition:
+              - code: standard
+            - term: Data
+            - definition: 27/09/2026, 07:47
+            - term: Versão
+            - definition:
+              - code: zing v<version>
+            - heading "Verificações por dimensão 8 de 10 dimensões executadas" [level=3]
+            - button "Conectividade" [expanded]
+            - text: Acessível de forma fiável?
+            - meter "Conectividade Acessível de forma fiável?"
+            - region "Conectividade Acessível de forma fiável?":
+              - paragraph: Pontuação de um único detector.
+              - heading "Conectividade e conclusão básica Pontuação 92,5" [level=4]
+              - list "Conectividade e conclusão básica Pontuação 92,5":
+                - listitem:
+                  - text: "Resultado: Aprovado. Lista /v1/models 1 modelos listados; o modelo declarado está na lista: sim."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "model_count: 1 claimed_listed: true"
+                - listitem:
+                  - text: "Resultado: Aprovado. Conclusão de chat básica Devolveu conteúdo em <duration>; modelo devolvido: gpt-4o-mini."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "duration_ms: 2.0326839999142976 model_returned: gpt-4o-mini canary_echoed: false"
+            - button "Conformidade do protocolo" [expanded]
+            - text: A API cumpre a especificação?
+            - meter "Conformidade do protocolo A API cumpre a especificação?"
+            - region "Conformidade do protocolo A API cumpre a especificação?":
+              - paragraph: Pontuação de um único detector.
+              - heading "Conformidade de compatibilidade com a OpenAI Pontuação 75" [level=4]
+              - list "Conformidade de compatibilidade com a OpenAI Pontuação 75":
+                - listitem:
+                  - text: "Resultado: Aprovado. Memória multi-turno Verificação de contexto multi-turno; recordou a cor mencionada antes: sim."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "recalled_blue: true content_preview: Blue. The answer is 42."
+                - listitem:
+                  - text: "Resultado: Aviso. Tratamento de sequências stop Verificação da sequência stop; finish_reason=stop."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "contains_alpha: false contains_beta: false finish_reason: stop content_preview: Blue. The answer is 42."
+                - listitem:
+                  - text: "Resultado: Aprovado. Conformidade da estrutura da resposta finish_reason=stop; usage completo: sim."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "finish_reason: stop has_usage: true prompt_tokens: 900 completion_tokens: 400 total_tokens: 1300"
+                - listitem:
+                  - text: "Resultado: Falha. Estrutura das respostas de erro Um pedido inválido devolve HTTP 200; corpo de erro ao estilo OpenAI: não. · Recomendação: Um intermediário conforme deve rejeitar entradas inválidas com um 4xx e um corpo {'error': {...}}."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "status_code: 200 conforming_error_body: false raw_error_keys: null accepted_invalid: true"
+            - button "Janela de contexto" [expanded]
+            - text: Lembra-se mesmo de entradas longas? Não executado
+            - region "Janela de contexto Lembra-se mesmo de entradas longas?":
+              - paragraph: Nenhum detector desta dimensão foi executado nesta auditoria.
+            - button "Identidade do modelo" [expanded]
+            - text: É o modelo que diz ser?
+            - meter "Identidade do modelo É o modelo que diz ser?"
+            - region "Identidade do modelo É o modelo que diz ser?":
+              - paragraph: Pontuação de um único detector.
+              - heading "Identidade do modelo e impressão digital de degradação Pontuação 20" [level=4]
+              - list "Identidade do modelo e impressão digital de degradação Pontuação 20":
+                - listitem:
+                  - text: "Resultado: Falha. Autoidentificação Identifica-se como uma marca rival (claude, anthropic) sem mencionar a marca verdadeira. · Recomendação: Uma resposta que menciona outro fornecedor sugere fortemente uma substituição de modelo."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "prompt: self-id target_answer: I am Claude, a model made by Anthropic. forbidden_hits: [\"claude\",\"anthropic\"]"
+                - listitem:
+                  - text: "Resultado: Falha. Verificação de impressão digital de comportamento Verificação de impressão digital de comportamento apenas de código para self-id."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "probe: self-id native_expected: Genuine OpenAI models identify as an OpenAI model (a GPT/ChatGPT/GPT-5-family model trained by OpenAI). They do NOT claim to be Claude, Gemini, Llama, Qwen, or DeepSeek. downgrade_signal: A substituted backend self-identifies as Claude/Anthropic, Gemini/Google, Llama/Meta, Qwen/Alibaba, or DeepSeek — an immediate tell. Note exact OpenAI version self-ID is unreliable (models are not reliably aware of their own minor version), observed: I am Claude, a model made by Anthropic. weight: 1"
+                - listitem:
+                  - text: "Resultado: Aviso. Verificação de impressão digital de comportamento Verificação de impressão digital de comportamento apenas de código para max-output-truncation."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "probe: max-output-truncation native_expected: Genuine GPT-5.x/4.1 honors a very large max_completion_tokens; with max set to e.g. 40000 it streams tens of thousands of tokens before stopping. Reaching well past 16384 output tokens proves it is not a 4o-class (16384 cap) or a quietly ca downgrade_signal: A relay fronting gpt-4o/4o-mini hard-stops at 16384 output tokens; a context-truncating relay stops far earlier. Set max_completion_tokens=40000 and check the emitted line count / completion_tokens. observed: Blue. The answer is 42. weight: 1"
+                - listitem:
+                  - text: "Resultado: Aviso. Campo model devolvido O campo model da resposta é gpt-4o-mini; foi pedido gpt-4o. · Recomendação: Um id de modelo de gama inferior ou de outra família na resposta sugere encaminhamento para um substituto."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "requested: gpt-4o returned: gpt-4o-mini"
+            - button "Capacidades declaradas" [expanded]
+            - text: Ferramentas/JSON realmente suportados?
+            - meter "Capacidades declaradas Ferramentas/JSON realmente suportados?"
+            - region "Capacidades declaradas Ferramentas/JSON realmente suportados?":
+              - paragraph: Pontuação de um único detector.
+              - heading "Verificação das capacidades declaradas Pontuação 25" [level=4]
+              - list "Verificação das capacidades declaradas Pontuação 25":
+                - listitem:
+                  - text: "Resultado: Falha. Chamada de ferramentas (function calling) Sonda de chamada de ferramentas; finish_reason=stop. · Recomendação: Confirme que o motor servido suporta realmente chamadas de funções."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "finish_reason: stop had_content: true"
+                - listitem:
+                  - text: "Resultado: Falha. Modo JSON (json_object) Sonda do modo JSON; objeto analisado: não; valor pedido respeitado: não. · Recomendação: Verifique se o motor servido respeita response_format=json_object."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "parsed: false value_matched: false"
+                - listitem:
+                  - text: "Resultado: Aviso. JSON Schema estrito Sonda de JSON schema estrito; cumpre o esquema: não."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "conforms: false parsed: false"
+                - listitem:
+                  - text: "Resultado: Aviso. Comprimento máximo de saída Sonda de saída máxima: max_output declarado=16384, 2048 tokens pedidos; ~1 linhas produzidas, finish_reason=stop. · Recomendação: A geração longa pode ficar aquém do máximo declarado; confirme com uma sonda mais longa."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "declared_max_output: 16384 requested_max_tokens: 2048 finish_reason: stop line_count: 1 char_count: 23 note: probe capped at 2048 tokens; full declared ceiling not exercised"
+            - button "Autenticidade do streaming" [expanded]
+            - text: Streaming real ou simulado?
+            - meter "Autenticidade do streaming Streaming real ou simulado?"
+            - region "Autenticidade do streaming Streaming real ou simulado?":
+              - paragraph: Pontuação de um único detector.
+              - heading "Autenticidade do streaming Pontuação 100" [level=4]
+              - list "Autenticidade do streaming Pontuação 100":
+                - listitem:
+                  - text: "Resultado: Aprovado. Streaming autêntico 2 fragmentos em <duration>, primeiro token aos <duration>."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "chunk_count: 2 duration_ms: 3 ttft_ms: 1.8"
+            - button "Faturação e utilização" [expanded]
+            - text: O consumo de tokens está inflacionado?
+            - meter "Faturação e utilização O consumo de tokens está inflacionado?"
+            - region "Faturação e utilização O consumo de tokens está inflacionado?":
+              - paragraph: Pontuação de um único detector.
+              - heading "Auditoria de faturação de tokens Pontuação 55" [level=4]
+              - list "Auditoria de faturação de tokens Pontuação 55":
+                - listitem:
+                  - text: "Resultado: Falha. Tokens de prompt declarados muito acima da estimativa Tokens de prompt declarados (900) muito acima da estimativa independente (~135, rácio 6.667); suspeita de sobrefaturação por token. · Recomendação: Confronte a faturação com um prompt de tamanho conhecido; possível sobrefaturação por token."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
+                - listitem:
+                  - text: "Resultado: Aviso. Tokens de conclusão declarados muito acima da estimativa Tokens de conclusão declarados (400) muito acima da estimativa independente (~7, rácio 57.14); suspeita de sobrefaturação por token. · Recomendação: Compare a contagem de tokens com uma referência de confiança do mesmo modelo."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "reported_completion: 400 estimated_completion: 7 ratio: 57.14 exact_tokenizer: false"
+            - button "Fiabilidade em concorrência" [expanded]
+            - text: Estável sob carga?
+            - meter "Fiabilidade em concorrência Estável sob carga?"
+            - region "Fiabilidade em concorrência Estável sob carga?":
+              - paragraph: Pontuação de um único detector.
+              - heading "Fiabilidade e latência em concorrência Pontuação 100" [level=4]
+              - list "Fiabilidade e latência em concorrência Pontuação 100":
+                - listitem:
+                  - text: "Resultado: Aprovado. Taxa de sucesso dos pedidos concorrentes Com concorrência 2, 4 pedidos com sucesso (de 4, 0 limitados por taxa)."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "requests: 4 successes: 4 rate_limited: 0 concurrency: 2 success_rate: 1"
+            - button "Segurança do transporte" [expanded]
+            - text: As chaves são tratadas com segurança?
+            - meter "Segurança do transporte As chaves são tratadas com segurança?"
+            - region "Segurança do transporte As chaves são tratadas com segurança?":
+              - paragraph: Pontuação de um único detector.
+              - heading "Sinais de transporte e gestão de segredos Pontuação 40" [level=4]
+              - list "Sinais de transporte e gestão de segredos Pontuação 40":
+                - listitem:
+                  - text: "Resultado: Falha. Transporte em HTTPS? Protocolo de transporte: http. · Recomendação: Use um base_url https:// para que o token bearer não circule exposto."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "scheme: http"
+                - listitem:
+                  - text: "Resultado: Info. Cabeçalhos de resposta do upstream/proxy Cabeçalhos de resposta reveladores: server. Informativo — pode corroborar a identidade do upstream, não é uma falha."
+                  - button "Ocultar evidências" [expanded]
+                  - text: "revealing_headers: {\"server\":\"uvicorn\"}"
+                - listitem: "Resultado: Aprovado. A resposta devolve a chave API? Verificação de eco da chave API."
+                - listitem: "Resultado: Info. Limites da deteção de caixa preta O registo de prompts ou a reutilização de uma chave upstream partilhada não podem ser provados em caixa preta do lado do cliente; as dimensões de fiabilidade e tempos de streaming servem como sinais indiretos."
+            - button "Desempenho" [expanded]
+            - text: A velocidade é constante? Não executado
+            - region "Desempenho A velocidade é constante?":
+              - paragraph: Nenhum detector desta dimensão foi executado nesta auditoria.
+            - heading "Constatações 13 constatações" [level=3]
+            - heading "Alta 4 constatações" [level=4]
+            - list "Alta 4 constatações":
+              - listitem:
+                - text: "Gravidade: Alta. Tokens de prompt declarados muito acima da estimativa Tokens de prompt declarados (900) muito acima da estimativa independente (~135, rácio 6.667); suspeita de sobrefaturação por token. · Recomendação: Confronte a faturação com um prompt de tamanho conhecido; possível sobrefaturação por token."
+                - button "Ocultar evidências" [expanded]
+                - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
+              - listitem:
+                - text: "Gravidade: Alta. Autoidentificação Identifica-se como uma marca rival (claude, anthropic) sem mencionar a marca verdadeira. · Recomendação: Uma resposta que menciona outro fornecedor sugere fortemente uma substituição de modelo."
+                - button "Ocultar evidências" [expanded]
+                - text: "prompt: self-id target_answer: I am Claude, a model made by Anthropic. forbidden_hits: [\"claude\",\"anthropic\"]"
+              - listitem:
+                - text: "Gravidade: Alta. Verificação de impressão digital de comportamento Verificação de impressão digital de comportamento apenas de código para self-id."
+                - button "Ocultar evidências" [expanded]
+                - text: "probe: self-id native_expected: Genuine OpenAI models identify as an OpenAI model (a GPT/ChatGPT/GPT-5-family model trained by OpenAI). They do NOT claim to be Claude, Gemini, Llama, Qwen, or DeepSeek. downgrade_signal: A substituted backend self-identifies as Claude/Anthropic, Gemini/Google, Llama/Meta, Qwen/Alibaba, or DeepSeek — an immediate tell. Note exact OpenAI version self-ID is unreliable (models are not reliably aware of their own minor version), observed: I am Claude, a model made by Anthropic. weight: 1"
+              - listitem:
+                - text: "Gravidade: Alta. Transporte em HTTPS? Protocolo de transporte: http. · Recomendação: Use um base_url https:// para que o token bearer não circule exposto."
+                - button "Ocultar evidências" [expanded]
+                - text: "scheme: http"
+            - heading "Média 5 constatações" [level=4]
+            - list "Média 5 constatações":
+              - listitem:
+                - text: "Gravidade: Média. Tokens de conclusão declarados muito acima da estimativa Tokens de conclusão declarados (400) muito acima da estimativa independente (~7, rácio 57.14); suspeita de sobrefaturação por token. · Recomendação: Compare a contagem de tokens com uma referência de confiança do mesmo modelo."
+                - button "Ocultar evidências" [expanded]
+                - text: "reported_completion: 400 estimated_completion: 7 ratio: 57.14 exact_tokenizer: false"
+              - listitem:
+                - text: "Gravidade: Média. Chamada de ferramentas (function calling) Sonda de chamada de ferramentas; finish_reason=stop. · Recomendação: Confirme que o motor servido suporta realmente chamadas de funções."
+                - button "Ocultar evidências" [expanded]
+                - text: "finish_reason: stop had_content: true"
+              - listitem:
+                - text: "Gravidade: Média. Modo JSON (json_object) Sonda do modo JSON; objeto analisado: não; valor pedido respeitado: não. · Recomendação: Verifique se o motor servido respeita response_format=json_object."
+                - button "Ocultar evidências" [expanded]
+                - text: "parsed: false value_matched: false"
+              - listitem:
+                - text: "Gravidade: Média. Campo model devolvido O campo model da resposta é gpt-4o-mini; foi pedido gpt-4o. · Recomendação: Um id de modelo de gama inferior ou de outra família na resposta sugere encaminhamento para um substituto."
+                - button "Ocultar evidências" [expanded]
+                - text: "requested: gpt-4o returned: gpt-4o-mini"
+              - listitem:
+                - text: "Gravidade: Média. Estrutura das respostas de erro Um pedido inválido devolve HTTP 200; corpo de erro ao estilo OpenAI: não. · Recomendação: Um intermediário conforme deve rejeitar entradas inválidas com um 4xx e um corpo {'error': {...}}."
+                - button "Ocultar evidências" [expanded]
+                - text: "status_code: 200 conforming_error_body: false raw_error_keys: null accepted_invalid: true"
+            - heading "Baixa 4 constatações" [level=4]
+            - list "Baixa 4 constatações":
+              - listitem:
+                - text: "Gravidade: Baixa. JSON Schema estrito Sonda de JSON schema estrito; cumpre o esquema: não."
+                - button "Ocultar evidências" [expanded]
+                - text: "conforms: false parsed: false"
+              - listitem:
+                - text: "Gravidade: Baixa. Comprimento máximo de saída Sonda de saída máxima: max_output declarado=16384, 2048 tokens pedidos; ~1 linhas produzidas, finish_reason=stop. · Recomendação: A geração longa pode ficar aquém do máximo declarado; confirme com uma sonda mais longa."
+                - button "Ocultar evidências" [expanded]
+                - text: "declared_max_output: 16384 requested_max_tokens: 2048 finish_reason: stop line_count: 1 char_count: 23 note: probe capped at 2048 tokens; full declared ceiling not exercised"
+              - listitem:
+                - text: "Gravidade: Baixa. Verificação de impressão digital de comportamento Verificação de impressão digital de comportamento apenas de código para max-output-truncation."
+                - button "Ocultar evidências" [expanded]
+                - text: "probe: max-output-truncation native_expected: Genuine GPT-5.x/4.1 honors a very large max_completion_tokens; with max set to e.g. 40000 it streams tens of thousands of tokens before stopping. Reaching well past 16384 output tokens proves it is not a 4o-class (16384 cap) or a quietly ca downgrade_signal: A relay fronting gpt-4o/4o-mini hard-stops at 16384 output tokens; a context-truncating relay stops far earlier. Set max_completion_tokens=40000 and check the emitted line count / completion_tokens. observed: Blue. The answer is 42. weight: 1"
+              - listitem:
+                - text: "Gravidade: Baixa. Tratamento de sequências stop Verificação da sequência stop; finish_reason=stop."
+                - button "Ocultar evidências" [expanded]
+                - text: "contains_alpha: false contains_beta: false finish_reason: stop content_preview: Blue. The answer is 42."
+            - heading "Registro de execução 8 verificações · <duration> no total" [level=3]
+            - paragraph: As verificações são executadas uma após a outra; a mais lenta foi Auditoria de faturação de tokens (<duration>).
+            - button "Mostrar menos" [expanded]
+            - list:
+              - listitem: Auditoria de faturação de tokens Faturação e utilização Falha · Pontuação 55 <duration>
+              - listitem: Verificação das capacidades declaradas Capacidades declaradas Falha · Pontuação 25 <duration>
+              - listitem: Conectividade e conclusão básica Conectividade Aprovado · Pontuação 92,5 <duration>
+              - listitem: Identidade do modelo e impressão digital de degradação Identidade do modelo Falha · Pontuação 20 <duration>
+              - listitem: Conformidade de compatibilidade com a OpenAI Conformidade do protocolo Falha · Pontuação 75 <duration>
+              - listitem: Fiabilidade e latência em concorrência Fiabilidade em concorrência Aprovado · Pontuação 100 <duration>
+              - listitem: Sinais de transporte e gestão de segredos Segurança do transporte Falha · Pontuação 40 <duration>
+              - listitem: Autenticidade do streaming Autenticidade do streaming Aprovado · Pontuação 100 <duration>
+            - paragraph:
+              - text: O zing fornece
+              - strong: evidências reprodutíveis de desvio de comportamento e de risco
+              - text: ", não uma prova jurídica ou criptográfica de fraude. Os intermediários podem encaminhar de forma probabilística; pondere por si o tamanho da amostra, as definições de faturação e a lei local, e nunca acuse publicamente um fornecedor com base numa única execução."
+            - button "Agendar como monitor"
+            - button "Executar auditoria novamente"
+            - group "Transferir relatório":
+              - text: Transferir relatório
+              - button "JSON"
+              - button "Markdown"
+              - button "HTML"
+              - button "PDF"
+  - text: "Auditorias guardadas: 1"
+  - button "Limpar histórico"

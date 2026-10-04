@@ -273,18 +273,54 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
         "since": time.time(),
         **_watch_protocol(row),
     }
+    # The run's event log, so the live view can follow a monitor like an audit.
+    job = jobs.Job(
+        {
+            "kind": "monitor",
+            "watch_id": wid,
+            "base_url": state["base_url"],
+            "model": state["model"],
+            "claimed_model": state["claimed_model"],
+            "suite": state["suite"],
+            "api": state.get("api_resolved"),
+            "api_auto": state.get("api_auto"),
+            "stream_mode": state.get("stream_mode"),
+        },
+        frozenset(),
+    )
+    job.id = f"monitor-{wid}"
+    job.created = state["since"]
+    state["job"] = job
     _running_watches[wid] = state
+    outcome, error = "done", None
     try:
         task = asyncio.create_task(_run_one_watch_inner(row, state))
         state["task"] = task
         try:
             await task
         except asyncio.CancelledError:
+            outcome = "cancelled"
             if state["cancelled"]:
                 raise WatchCancelled(wid) from None
             raise
+        except Exception as exc:
+            outcome, error = "error", f"{type(exc).__name__}: {exc}"
+            raise
     finally:
+        job.close(outcome, error)
         _running_watches.pop(wid, None)
+
+
+def _find_job(job_id: str) -> jobs.Job | None:
+    """A background audit job, or the live job of a running monitor (``monitor-<id>``)."""
+    job = jobs.manager.get(job_id)
+    if job is None and job_id.startswith("monitor-"):
+        try:
+            state = _running_watches.get(int(job_id[len("monitor-"):]))
+        except ValueError:
+            state = None
+        job = state.get("job") if state else None
+    return job
 
 
 def _cancel_watch(wid: int) -> bool:
@@ -351,15 +387,30 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
                 previous = history.get(int(item["id"]))
                 break
 
-        on_event = (lambda ev: _track_progress(state, ev)) if state is not None else None
+        job = state.get("job") if state is not None else None
+
+        def on_event(ev: dict[str, Any]) -> None:
+            if state is not None:
+                _track_progress(state, ev)
+            if job is not None:
+                job.emit(ev)
+
         # One audit per relay at a time: wait while another audit uses it.
         keys = [jobs.relay_key(target.base_url)]
         if state is not None:
             state["waiting_for"] = jobs.gate.busy_with(keys)
+        if job is not None and state is not None and jobs.gate.would_wait(keys):
+            job.waiting_for = list(state["waiting_for"])
+            job.emit({"type": "queued", "job": job.id, "waiting_for": job.waiting_for})
         async with jobs.gate.hold(keys, label=f"monitor:{wid}"):
             if state is not None:
                 state["waiting_for"] = []
                 state["started"] = True
+            if job is not None:
+                job.status = "running"
+                job.started = time.time()
+                job.waiting_for = []
+                job.emit({"type": "running", "job": job.id})
             started = time.perf_counter()
             report = await run_audit(
                 target, options, baseline=None, mode="check", pinned=pinned, on_event=on_event
@@ -369,6 +420,9 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
         report_id = history.save(report_dict, watch_id=wid)
         if report_id is not None and report_id < 0:
             report_id = None
+        if job is not None:
+            job.report_id = report_id
+            job.emit({"type": "report", "report": report_dict, "report_id": report_id})
 
         verdict = report_dict.get("verdict") or {}
         # report_dict came through model_dump_json, so risk_level is a plain str.
@@ -888,7 +942,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/jobs/{job_id}")
     async def jobs_get(job_id: str) -> Any:
-        job = jobs.manager.get(job_id)
+        job = _find_job(job_id)
         if job is None:
             return JSONResponse({"error": "not found"}, status_code=404)
         return JSONResponse(job.info())
@@ -897,14 +951,21 @@ def create_app() -> FastAPI:
     async def jobs_events(job_id: str) -> Any:
         # Replays the job's whole log, then follows it live. Disconnecting
         # only detaches this page: the audit runs on.
-        job = jobs.manager.get(job_id)
+        job = _find_job(job_id)
         if job is None:
             return JSONResponse({"error": "not found"}, status_code=404)
         return _job_stream(job)
 
     @app.post("/api/jobs/{job_id}/cancel")
     async def jobs_cancel(job_id: str) -> Any:
-        if not jobs.manager.cancel(job_id):
+        if job_id.startswith("monitor-"):
+            try:
+                stopped = _cancel_watch(int(job_id[len("monitor-"):]))
+            except ValueError:
+                stopped = False
+        else:
+            stopped = jobs.manager.cancel(job_id)
+        if not stopped:
             return JSONResponse({"error": "not running"}, status_code=409)
         return JSONResponse({"ok": True})
 

@@ -262,8 +262,9 @@ EXTRACT_JS = r"""
   };
   const SKIP = ['SELECT', 'OPTION', 'INPUT', 'TEXTAREA', 'SCRIPT', 'STYLE', 'TEMPLATE', 'NOSCRIPT'];
   const isBlock = el => {
+    // inline-block/-flex boxes (buttons, badges) are separate words; plain inline is not
     const d = getComputedStyle(el).display;
-    return !(d.startsWith('inline') || d === 'contents' || d === 'ruby');
+    return !(d === 'inline' || d === 'contents' || d.startsWith('ruby'));
   };
   // Text as the accessibility tree computes it from content: CSS-hidden,
   // [hidden] and aria-hidden descendants are skipped, embedded images give

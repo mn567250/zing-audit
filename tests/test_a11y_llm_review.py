@@ -748,6 +748,7 @@ HTML = """<!doctype html><html lang="en"><head><title>T</title><style>
 <input id="ph" placeholder="Only a placeholder">
 <label for="u">Relay URL</label><input id="u" placeholder="https://">
 <p>历史只保存在本机。</p>
+<dd>No webhooks<button type="button" style="display:inline-block">Edit</button></dd>
 <button aria-expanded="false" class="rdel" aria-controls="c1">Delete entry</button><div id="c1" hidden>Really delete?</div>
 <button aria-expanded="false" aria-controls="m1" class="more">More</button><div id="m1" hidden>More text here, a lot.</div>
 <button aria-expanded="false" data-act="del">x</button>
@@ -768,6 +769,7 @@ def test_extraction_uses_real_accessible_names(chromium: Any) -> None:
         # bug 3: no spaces around inline elements, CSS-hidden text skipped
         assert "Is this the real thing? Read the third party." in texts
         assert "Rerank-check runs fast." in texts
+        assert "No webhooks Edit" in texts  # an inline-block box is a word boundary
         assert "历史只保存在本机。" in texts  # bug 2: kept in the page payload
         assert "历史只保存在本机。" in lr.page_payload(rec)["instructions"]
         # bug 5: placeholder-only field vs. visually hidden label vs. visible label

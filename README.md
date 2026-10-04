@@ -239,7 +239,7 @@ choice is remembered per browser.
 | **Models** | — | `/v2/kb` | Browse the knowledge base and add your own model profiles |
 
 The new UI adds: filters and configurable trends (score, grade, latency p50,
-tokens/s) on **History**; **Schedule as monitor** on every History run; **Download
+tokens/s) on **History**; **Schedule as monitor** and **Re-run audit** on every History run; **Download
 report** in every format; a theme switch (Auto theme / Light / Dark); and the
 **Models** page.
 

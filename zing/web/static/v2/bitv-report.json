@@ -5,10 +5,10 @@
   "en": "EN 301 549 V3.2.1, chapter 9",
   "wcag": "WCAG 2.1 level A + AA"
  },
- "generated_at": "2026-10-04T17:34:31+00:00",
- "tests_run_at": "2026-10-04T17:26:33+00:00",
+ "generated_at": "2026-10-04T18:04:27+00:00",
+ "tests_run_at": "2026-10-04T18:04:20+00:00",
  "zing_version": "0.11.0",
- "commit": "be7b34b19fb7",
+ "commit": "c0203a683e14",
  "axe_version": "4.13.0",
  "tested": {
   "languages": [
@@ -29,7 +29,8 @@
    "history": "/v2/history",
    "monitors": "/v2/watches",
    "tools": "/v2/tools",
-   "kb": "/v2/kb"
+   "kb": "/v2/kb",
+   "accessibility": "/v2/accessibility"
   }
  },
  "conformance": {
@@ -59,20 +60,20 @@
   },
   "status": {
    "pass": {
-    "count": 9,
-    "percent": 20.5
+    "count": 20,
+    "percent": 45.5
    },
    "fail": {
     "count": 0,
     "percent": 0.0
    },
    "not tested": {
-    "count": 30,
-    "percent": 68.2
+    "count": 14,
+    "percent": 31.8
    },
    "manual review pending": {
-    "count": 5,
-    "percent": 11.4
+    "count": 10,
+    "percent": 22.7
    },
    "n/a": {
     "count": 6,
@@ -80,8 +81,8 @@
    }
   },
   "tests": {
-   "run": 9,
-   "passed": 9,
+   "run": 698,
+   "passed": 698,
    "failed": 0,
    "skipped": 0
   }
@@ -94,15 +95,17 @@
    "title": "Non-text Content",
    "automation": "partial",
    "how": "Images, icons, SVGs and controls have a text alternative. Whether each alternative is meaningful is judged by a person.",
-   "status": "not tested",
+   "status": "manual review pending",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 14,
+    "passed": 14,
     "failed": 0,
-    "skipped": 1
+    "skipped": 166
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -200,14 +203,18 @@
    "how": "ARIA, lists, tables, form labels, landmarks and heading levels are checked. Whether the structure matches the visual meaning is judged by a person.",
    "status": "manual review pending",
    "tests": {
-    "run": 2,
-    "passed": 2,
+    "run": 261,
+    "passed": 261,
     "failed": 0,
-    "skipped": 0
+    "skipped": 10
    },
    "test_names": [
     "test_best_practices",
-    "test_wcag_rules_as_loaded"
+    "test_consistent_navigation_and_landmarks",
+    "test_heading_structure",
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -252,14 +259,16 @@
    "title": "Orientation",
    "automation": "auto",
    "how": "Every page works in portrait and landscape phone sizes and does not lock the orientation.",
-   "status": "not tested",
+   "status": "pass",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 6,
+    "passed": 6,
     "failed": 0,
     "skipped": 0
    },
-   "test_names": [],
+   "test_names": [
+    "test_orientation_not_locked"
+   ],
    "failures": []
   },
   {
@@ -271,13 +280,15 @@
    "how": "Fields that ask for data about the user carry a valid autocomplete token.",
    "status": "pass",
    "tests": {
-    "run": 1,
-    "passed": 1,
+    "run": 170,
+    "passed": 170,
     "failed": 0,
-    "skipped": 0
+    "skipped": 10
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -288,15 +299,17 @@
    "title": "Use of Color",
    "automation": "partial",
    "how": "Links in text are distinguishable without colour. Whether colour alone carries other information is judged by a person.",
-   "status": "not tested",
+   "status": "manual review pending",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 56,
+    "passed": 56,
     "failed": 0,
-    "skipped": 1
+    "skipped": 124
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -326,13 +339,15 @@
    "how": "Text contrast is measured on every page, in every language, in the light and the dark theme.",
    "status": "pass",
    "tests": {
-    "run": 1,
-    "passed": 1,
+    "run": 170,
+    "passed": 170,
     "failed": 0,
-    "skipped": 0
+    "skipped": 10
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -345,13 +360,16 @@
    "how": "At 200 % zoom nothing scrolls sideways or is cut off, in every language.",
    "status": "pass",
    "tests": {
-    "run": 1,
-    "passed": 1,
+    "run": 212,
+    "passed": 212,
     "failed": 0,
-    "skipped": 0
+    "skipped": 10
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_resize_text_200_percent",
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -379,14 +397,16 @@
    "title": "Reflow",
    "automation": "auto",
    "how": "At 320 CSS px width the page needs no horizontal scrolling and loses no content, in every language.",
-   "status": "not tested",
+   "status": "pass",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 42,
+    "passed": 42,
     "failed": 0,
     "skipped": 0
    },
-   "test_names": [],
+   "test_names": [
+    "test_reflow_at_320_css_px"
+   ],
    "failures": []
   },
   {
@@ -396,14 +416,17 @@
    "title": "Non-text Contrast",
    "automation": "partial",
    "how": "Form control borders and focus indicators reach 3:1. Charts and icons are judged by a person.",
-   "status": "not tested",
+   "status": "manual review pending",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 24,
+    "passed": 24,
     "failed": 0,
     "skipped": 0
    },
-   "test_names": [],
+   "test_names": [
+    "test_focus_indicator_contrast",
+    "test_form_control_boundaries_contrast"
+   ],
    "failures": []
   },
   {
@@ -415,13 +438,16 @@
    "how": "The WCAG text spacing values are applied and no content is cut off.",
    "status": "pass",
    "tests": {
-    "run": 1,
-    "passed": 1,
+    "run": 210,
+    "passed": 210,
     "failed": 0,
-    "skipped": 0
+    "skipped": 12
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_text_spacing_override",
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -432,14 +458,17 @@
    "title": "Content on Hover or Focus",
    "automation": "auto",
    "how": "Tooltips and popups appear on focus, close with Escape and stay while the pointer is on them.",
-   "status": "not tested",
+   "status": "pass",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 12,
+    "passed": 12,
     "failed": 0,
     "skipped": 0
    },
-   "test_names": [],
+   "test_names": [
+    "test_popups_close_with_escape_and_return_focus",
+    "test_tooltips_dismissible_hoverable_persistent"
+   ],
    "failures": []
   },
   {
@@ -449,15 +478,21 @@
    "title": "Keyboard",
    "automation": "auto",
    "how": "Every control is reached with the Tab key; popups, dialogs and tabs work with the keyboard.",
-   "status": "not tested",
+   "status": "pass",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 60,
+    "passed": 60,
     "failed": 0,
-    "skipped": 1
+    "skipped": 180
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_dialogs_close_with_escape",
+    "test_every_control_reachable_by_tab_without_trap",
+    "test_popups_close_with_escape_and_return_focus",
+    "test_tabs_follow_arrow_key_pattern",
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -468,14 +503,16 @@
    "title": "No Keyboard Trap",
    "automation": "auto",
    "how": "Tabbing through the page always leaves it again.",
-   "status": "not tested",
+   "status": "pass",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 42,
+    "passed": 42,
     "failed": 0,
     "skipped": 0
    },
-   "test_names": [],
+   "test_names": [
+    "test_every_control_reachable_by_tab_without_trap"
+   ],
    "failures": []
   },
   {
@@ -507,10 +544,12 @@
     "run": 0,
     "passed": 0,
     "failed": 0,
-    "skipped": 1
+    "skipped": 180
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -521,15 +560,19 @@
    "title": "Pause, Stop, Hide",
    "automation": "auto",
    "how": "Nothing moves, blinks or updates endlessly on an idle page, and reduced motion is respected.",
-   "status": "not tested",
+   "status": "pass",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 12,
+    "passed": 12,
     "failed": 0,
-    "skipped": 1
+    "skipped": 180
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_no_endless_animation_at_rest",
+    "test_reduced_motion_is_respected",
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -559,14 +602,17 @@
    "how": "Every page has landmarks and a skip link to the main content.",
    "status": "pass",
    "tests": {
-    "run": 2,
-    "passed": 2,
+    "run": 219,
+    "passed": 219,
     "failed": 0,
-    "skipped": 0
+    "skipped": 10
    },
    "test_names": [
     "test_best_practices",
-    "test_wcag_rules_as_loaded"
+    "test_consistent_navigation_and_landmarks",
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -579,14 +625,16 @@
    "how": "Every page has its own title, translated into every language.",
    "status": "pass",
    "tests": {
-    "run": 8,
-    "passed": 8,
+    "run": 177,
+    "passed": 177,
     "failed": 0,
-    "skipped": 0
+    "skipped": 10
    },
    "test_names": [
     "test_page_titles",
-    "test_wcag_rules_as_loaded"
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -599,13 +647,15 @@
    "how": "Nothing hidden takes focus and no positive tabindex is used. Whether the order is logical is judged by a person.",
    "status": "manual review pending",
    "tests": {
-    "run": 1,
-    "passed": 1,
+    "run": 54,
+    "passed": 54,
     "failed": 0,
     "skipped": 0
    },
    "test_names": [
-    "test_best_practices"
+    "test_best_practices",
+    "test_dialogs_close_with_escape",
+    "test_focused_element_is_on_screen"
    ],
    "failures": []
   },
@@ -618,13 +668,15 @@
    "how": "Every link has an accessible name. Whether it describes the target is judged by a person.",
    "status": "manual review pending",
    "tests": {
-    "run": 1,
-    "passed": 1,
+    "run": 170,
+    "passed": 170,
     "failed": 0,
-    "skipped": 0
+    "skipped": 10
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -654,13 +706,14 @@
    "how": "Headings and labels exist and are not empty. Whether they are descriptive is judged by a person.",
    "status": "manual review pending",
    "tests": {
-    "run": 1,
-    "passed": 1,
+    "run": 84,
+    "passed": 84,
     "failed": 0,
     "skipped": 0
    },
    "test_names": [
-    "test_best_practices"
+    "test_best_practices",
+    "test_heading_structure"
    ],
    "failures": []
   },
@@ -671,14 +724,17 @@
    "title": "Focus Visible",
    "automation": "auto",
    "how": "Every Tab stop looks different with and without focus, in the light and the dark theme.",
-   "status": "not tested",
+   "status": "pass",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 18,
+    "passed": 18,
     "failed": 0,
     "skipped": 0
    },
-   "test_names": [],
+   "test_names": [
+    "test_focus_is_visible",
+    "test_focused_element_is_on_screen"
+   ],
    "failures": []
   },
   {
@@ -722,14 +778,16 @@
    "title": "Label in Name",
    "automation": "auto",
    "how": "The visible label of every control is part of its accessible name.",
-   "status": "not tested",
+   "status": "pass",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 42,
+    "passed": 42,
     "failed": 0,
     "skipped": 0
    },
-   "test_names": [],
+   "test_names": [
+    "test_label_in_name"
+   ],
    "failures": []
   },
   {
@@ -758,13 +816,16 @@
    "how": "The lang attribute of the page names the language shown, on load and after switching language.",
    "status": "pass",
    "tests": {
-    "run": 1,
-    "passed": 1,
+    "run": 212,
+    "passed": 212,
     "failed": 0,
-    "skipped": 0
+    "skipped": 10
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_page_language",
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -777,13 +838,16 @@
    "how": "Text in another language than the page is marked with its own lang attribute.",
    "status": "pass",
    "tests": {
-    "run": 1,
-    "passed": 1,
+    "run": 88,
+    "passed": 88,
     "failed": 0,
-    "skipped": 0
+    "skipped": 128
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_language_of_parts",
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -794,14 +858,16 @@
    "title": "On Focus",
    "automation": "auto",
    "how": "Moving the focus never navigates, opens a window or otherwise changes the context.",
-   "status": "not tested",
+   "status": "pass",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 42,
+    "passed": 42,
     "failed": 0,
     "skipped": 0
    },
-   "test_names": [],
+   "test_names": [
+    "test_every_control_reachable_by_tab_without_trap"
+   ],
    "failures": []
   },
   {
@@ -828,14 +894,16 @@
    "title": "Consistent Navigation",
    "automation": "auto",
    "how": "The navigation is the same, in the same order, on every page.",
-   "status": "not tested",
+   "status": "pass",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 7,
+    "passed": 7,
     "failed": 0,
     "skipped": 0
    },
-   "test_names": [],
+   "test_names": [
+    "test_consistent_navigation_and_landmarks"
+   ],
    "failures": []
   },
   {
@@ -845,14 +913,16 @@
    "title": "Consistent Identification",
    "automation": "auto",
    "how": "Controls with the same function have the same name on every page.",
-   "status": "not tested",
+   "status": "pass",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 7,
+    "passed": 7,
     "failed": 0,
     "skipped": 0
    },
-   "test_names": [],
+   "test_names": [
+    "test_consistent_navigation_and_landmarks"
+   ],
    "failures": []
   },
   {
@@ -862,14 +932,16 @@
    "title": "Error Identification",
    "automation": "partial",
    "how": "Submitting empty or invalid forms marks the fields and links a visible message in the page language. Whether the message is clear is judged by a person.",
-   "status": "not tested",
+   "status": "manual review pending",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 42,
+    "passed": 42,
     "failed": 0,
     "skipped": 0
    },
-   "test_names": [],
+   "test_names": [
+    "test_error_identification"
+   ],
    "failures": []
   },
   {
@@ -881,13 +953,15 @@
    "how": "Every field has a label. Whether the instructions are sufficient is judged by a person.",
    "status": "manual review pending",
    "tests": {
-    "run": 1,
-    "passed": 1,
+    "run": 170,
+    "passed": 170,
     "failed": 0,
-    "skipped": 0
+    "skipped": 10
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -898,14 +972,16 @@
    "title": "Error Suggestion",
    "automation": "partial",
    "how": "Error messages are present and translated. Whether they suggest a fix is judged by a person.",
-   "status": "not tested",
+   "status": "manual review pending",
    "tests": {
-    "run": 0,
-    "passed": 0,
+    "run": 42,
+    "passed": 42,
     "failed": 0,
     "skipped": 0
    },
-   "test_names": [],
+   "test_names": [
+    "test_error_identification"
+   ],
    "failures": []
   },
   {
@@ -951,13 +1027,16 @@
    "how": "Every control has a name, a valid role and the states it needs.",
    "status": "pass",
    "tests": {
-    "run": 1,
-    "passed": 1,
+    "run": 176,
+    "passed": 176,
     "failed": 0,
-    "skipped": 0
+    "skipped": 10
    },
    "test_names": [
-    "test_wcag_rules_as_loaded"
+    "test_tabs_follow_arrow_key_pattern",
+    "test_wcag_rules_as_loaded",
+    "test_wcag_rules_every_tab_panel",
+    "test_wcag_rules_expanded"
    ],
    "failures": []
   },
@@ -979,6 +1058,21 @@
    "failures": []
   }
  ],
- "beyond": [],
+ "beyond": [
+  {
+   "step": "11.7",
+   "status": "pass",
+   "tests": {
+    "run": 6,
+    "passed": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "test_names": [
+    "test_forced_colors_mode"
+   ],
+   "failures": []
+  }
+ ],
  "review": null
 }

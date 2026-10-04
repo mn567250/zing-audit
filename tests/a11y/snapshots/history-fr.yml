@@ -236,7 +236,7 @@
               - heading "Audit de facturation des tokens Score 55" [level=4]
               - list "Audit de facturation des tokens Score 55":
                 - listitem:
-                  - text: "Résultat : Échec. Tokens de prompt déclarés bien au-dessus de l'estimation Tokens de prompt déclarés (900) bien au-dessus de l'estimation indépendante (~135, ratio 6.667) ; surfacturation par token suspectée. · Recommandation : Recoupez la facturation avec un prompt de taille connue ; surfacturation par token possible."
+                  - text: "Résultat : Échec. Tokens de prompt déclarés bien au-dessus de l'estimation Tokens de prompt déclarés (900) bien au-dessus de l'estimation indépendante (~135, ratio 6667) ; surfacturation par token suspectée. · Recommandation : Recoupez la facturation avec un prompt de taille connue ; surfacturation par token possible."
                   - button "Masquer les preuves" [expanded]
                   - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
                 - listitem:
@@ -279,7 +279,7 @@
             - heading "Élevée 4 constats" [level=4]
             - list "Élevée 4 constats":
               - listitem:
-                - text: "Gravité : Élevée. Tokens de prompt déclarés bien au-dessus de l'estimation Tokens de prompt déclarés (900) bien au-dessus de l'estimation indépendante (~135, ratio 6.667) ; surfacturation par token suspectée. · Recommandation : Recoupez la facturation avec un prompt de taille connue ; surfacturation par token possible."
+                - text: "Gravité : Élevée. Tokens de prompt déclarés bien au-dessus de l'estimation Tokens de prompt déclarés (900) bien au-dessus de l'estimation indépendante (~135, ratio 6667) ; surfacturation par token suspectée. · Recommandation : Recoupez la facturation avec un prompt de taille connue ; surfacturation par token possible."
                 - button "Masquer les preuves" [expanded]
                 - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
               - listitem:

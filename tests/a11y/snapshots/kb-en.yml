@@ -85,12 +85,12 @@
           - columnheader "Max output"
           - columnheader "Source"
       - rowgroup:
-        - row "claude-opus-4-8claude-opus-4-8, opus, opus 4.8, most powerful 1,000,000 128,000 Packaged":
+        - row "claude-opus-4-8claude-opus-4-8, opus, opus 4.8, most powerful 1000000128000 Packaged":
           - cell "claude-opus-4-8claude-opus-4-8, opus, opus 4.8, most powerful":
             - code: claude-opus-4-8
             - text: claude-opus-4-8, opus, opus 4.8, most powerful
-          - cell "1,000,000"
-          - cell "128,000"
+          - cell "1000000"
+          - cell "128000"
           - cell "Packaged"
         # … more rows of the same shape
   - group:
@@ -105,12 +105,12 @@
           - columnheader "Max output"
           - columnheader "Source"
       - rowgroup:
-        - row "deepseek-chatdeepseek-v3, V3 lineage non-thinking 128,000 8,192 Packaged":
+        - row "deepseek-chatdeepseek-v3, V3 lineage non-thinking 128000 8192 Packaged":
           - cell "deepseek-chatdeepseek-v3, V3 lineage non-thinking":
             - code: deepseek-chat
             - text: deepseek-v3, V3 lineage non-thinking
-          - cell "128,000"
-          - cell "8,192"
+          - cell "128000"
+          - cell "8192"
           - cell "Packaged"
         # … more rows of the same shape
   - group:
@@ -125,12 +125,12 @@
           - columnheader "Max output"
           - columnheader "Source"
       - rowgroup:
-        - row "gemini-3.1-pro-previewgemini-3.1-pro, Gemini 3.1 Pro 1,048,576 65,536 Packaged":
+        - row "gemini-3.1-pro-previewgemini-3.1-pro, Gemini 3.1 Pro 1048576 65536 Packaged":
           - cell "gemini-3.1-pro-previewgemini-3.1-pro, Gemini 3.1 Pro":
             - code: gemini-3.1-pro-preview
             - text: gemini-3.1-pro, Gemini 3.1 Pro
-          - cell "1,048,576"
-          - cell "65,536"
+          - cell "1048576"
+          - cell "65536"
           - cell "Packaged"
         # … more rows of the same shape
   - group:
@@ -145,11 +145,11 @@
           - columnheader "Max output"
           - columnheader "Source"
       - rowgroup:
-        - row "glm-5.1 204,800 131,072 Packaged":
+        - row "glm-5.1204800131072 Packaged":
           - cell "glm-5.1":
             - code: glm-5.1
-          - cell "204,800"
-          - cell "131,072"
+          - cell "204800"
+          - cell "131072"
           - cell "Packaged"
         # … more rows of the same shape
   - group:
@@ -164,12 +164,12 @@
           - columnheader "Max output"
           - columnheader "Source"
       - rowgroup:
-        - row "kimi-k2.6kimi-k2-6, moonshotai/Kimi-K2.6, Kimi-K2.6 262,144 32,768 Packaged":
+        - row "kimi-k2.6kimi-k2-6, moonshotai/Kimi-K2.6, Kimi-K2.6262144 32768 Packaged":
           - cell "kimi-k2.6kimi-k2-6, moonshotai/Kimi-K2.6, Kimi-K2.6":
             - code: kimi-k2.6
             - text: kimi-k2-6, moonshotai/Kimi-K2.6, Kimi-K2.6
-          - cell "262,144"
-          - cell "32,768"
+          - cell "262144"
+          - cell "32768"
           - cell "Packaged"
         # … more rows of the same shape
   - group:
@@ -184,10 +184,10 @@
           - columnheader "Max output"
           - columnheader "Source"
       - rowgroup:
-        - row "text-embedding-3-small 8,191 — Packaged":
+        - row "text-embedding-3-small 8191 — Packaged":
           - cell "text-embedding-3-small":
             - code: text-embedding-3-small
-          - cell "8,191"
+          - cell "8191"
           - cell "—"
           - cell "Packaged"
         # … more rows of the same shape
@@ -203,10 +203,10 @@
           - columnheader "Max output"
           - columnheader "Source"
       - rowgroup:
-        - row "text-embedding-v4 8,192 — Packaged":
+        - row "text-embedding-v4 8192 — Packaged":
           - cell "text-embedding-v4":
             - code: text-embedding-v4
-          - cell "8,192"
+          - cell "8192"
           - cell "—"
           - cell "Packaged"
         # … more rows of the same shape

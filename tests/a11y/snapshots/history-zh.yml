@@ -236,7 +236,7 @@
               - heading "Token 计费用量审计 55 分" [level=4]
               - list "Token 计费用量审计 55 分":
                 - listitem:
-                  - text: 结果：失败。 上报的 prompt token 远超估算 上报 prompt token（900）远超独立估算（~135，比值 6.667）；疑似按 token 多计费。 · 建议：用已知长度的提示词核对计费；可能存在按 token 多计费。
+                  - text: 结果：失败。 上报的 prompt token 远超估算 上报 prompt token（900）远超独立估算（~135，比值 6667）；疑似按 token 多计费。 · 建议：用已知长度的提示词核对计费；可能存在按 token 多计费。
                   - button "收起证据" [expanded]
                   - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
                 - listitem:
@@ -279,7 +279,7 @@
             - heading "高 4 项" [level=4]
             - list "高 4 项":
               - listitem:
-                - text: 严重程度：高。 上报的 prompt token 远超估算 上报 prompt token（900）远超独立估算（~135，比值 6.667）；疑似按 token 多计费。 · 建议：用已知长度的提示词核对计费；可能存在按 token 多计费。
+                - text: 严重程度：高。 上报的 prompt token 远超估算 上报 prompt token（900）远超独立估算（~135，比值 6667）；疑似按 token 多计费。 · 建议：用已知长度的提示词核对计费；可能存在按 token 多计费。
                 - button "收起证据" [expanded]
                 - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
               - listitem:

@@ -236,7 +236,7 @@
               - heading "Auditoria de faturação de tokens Pontuação 55" [level=4]
               - list "Auditoria de faturação de tokens Pontuação 55":
                 - listitem:
-                  - text: "Resultado: Falha. Tokens de prompt declarados muito acima da estimativa Tokens de prompt declarados (900) muito acima da estimativa independente (~135, rácio 6.667); suspeita de sobrefaturação por token. · Recomendação: Confronte a faturação com um prompt de tamanho conhecido; possível sobrefaturação por token."
+                  - text: "Resultado: Falha. Tokens de prompt declarados muito acima da estimativa Tokens de prompt declarados (900) muito acima da estimativa independente (~135, rácio 6667); suspeita de sobrefaturação por token. · Recomendação: Confronte a faturação com um prompt de tamanho conhecido; possível sobrefaturação por token."
                   - button "Ocultar evidências" [expanded]
                   - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
                 - listitem:
@@ -279,7 +279,7 @@
             - heading "Alta 4 constatações" [level=4]
             - list "Alta 4 constatações":
               - listitem:
-                - text: "Gravidade: Alta. Tokens de prompt declarados muito acima da estimativa Tokens de prompt declarados (900) muito acima da estimativa independente (~135, rácio 6.667); suspeita de sobrefaturação por token. · Recomendação: Confronte a faturação com um prompt de tamanho conhecido; possível sobrefaturação por token."
+                - text: "Gravidade: Alta. Tokens de prompt declarados muito acima da estimativa Tokens de prompt declarados (900) muito acima da estimativa independente (~135, rácio 6667); suspeita de sobrefaturação por token. · Recomendação: Confronte a faturação com um prompt de tamanho conhecido; possível sobrefaturação por token."
                 - button "Ocultar evidências" [expanded]
                 - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
               - listitem:

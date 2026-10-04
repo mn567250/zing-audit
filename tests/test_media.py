@@ -111,6 +111,7 @@ class ImageMock:
         self.fixed = fixed
         self.garbage = garbage
         self.requests: list[dict] = []
+        self._prompt_colors: dict[str, int] = {}
 
     @property
     def transport(self) -> httpx.MockTransport:
@@ -130,8 +131,13 @@ class ImageMock:
             payload = b"<html><body>error</body></html>"
         else:
             # A distinct color per prompt unless fixed (so distinctness varies).
+            # Colours are handed out in first-seen order: str hash() is salted
+            # per process, so hash(prompt) % 256 made two prompts collide in
+            # ~1 of 256 runs (e.g. PYTHONHASHSEED=82) and the audit saw
+            # identical images.
             prompt = body.get("prompt", "")
-            rgb = (255, 140, 0) if self.fixed else (abs(hash(prompt)) % 256, 140, 0)
+            idx = self._prompt_colors.setdefault(prompt, len(self._prompt_colors))
+            rgb = (255, 140, 0) if self.fixed else ((37 * idx + 11) % 256, 140, 0)
             payload = make_png(self.width, self.height, rgb)
         b64 = base64.b64encode(payload).decode("ascii")
         return httpx.Response(

@@ -36,6 +36,13 @@
   .tabs [role="tab"]:hover { color: var(--ink); }
   .tabs [role="tab"][aria-selected="true"] { color: var(--on-ink); background: var(--ink); box-shadow: var(--shadow-pop); }
   .tabs [role="tab"] .zicon { width: 15px; height: 15px; flex: none; }
+  /* forced colours (Windows high contrast) drop backgrounds and shadows: give the
+     tabs a system-coloured border so their shape stays visible and mark the
+     selected one with the system highlight colours */
+  @media (forced-colors: active) {
+    .tabs [role="tab"] { border: 1px solid ButtonText; padding: 10px 9px; }
+    .tabs [role="tab"][aria-selected="true"] { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
+  }
   /* phones: two long tab labels (e.g. ES "Auditoría de embeddings") no longer fit
      side by side, so the tabs stack instead of breaking mid-label */
   @media (max-width: 480px) {

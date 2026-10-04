@@ -218,6 +218,20 @@ class Job:
         for q in self._subscribers:
             q.put_nowait(event)
 
+    def close(self, status: str, error: str | None = None) -> None:
+        """End a job that is not driven by :class:`JobManager` (a running monitor)."""
+        if not self.active:
+            return
+        self.status = status
+        self.error = error
+        self.finished = time.time()
+        if status == "cancelled":
+            self.emit({"type": "cancelled"})
+        elif status == "error":
+            self.emit({"type": "error", "message": error or "error"})
+        self.emit({"type": "done"})
+        self._subscribers.clear()
+
     def subscribe(self) -> asyncio.Queue[dict[str, Any]]:
         """A queue holding the log so far, then every new event until "done"."""
         q: asyncio.Queue[dict[str, Any]] = asyncio.Queue()

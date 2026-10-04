@@ -106,17 +106,18 @@ Sie können auch direkt aus dem Git-Repository installieren, ohne es zu klonen:
 
 - `tokenizers` — genaue Token-Zählung für die OpenAI-Familie in der Abrechnungsprüfung.
 - `web` — die lokale Weboberfläche (`zing serve`).
-- `pdf` — PDF-Berichte (`--format pdf` und der PDF-Download in der Weboberfläche),
-  aus dem HTML-Bericht mit [WeasyPrint](https://weasyprint.org/) erzeugt; benötigt
-  die Systembibliothek Pango (auf den meisten Linux-Desktops vorinstalliert; unter
-  macOS `brew install pango`).
 
 ```bash
-pip install 'zing-audit[tokenizers,web,pdf]'      # pip, von PyPI
-pip install -e '.[tokenizers,web,pdf]'            # pip, aus dem Quellcode
-uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, von PyPI
-uv pip install -e '.[tokenizers,web,pdf]'         # uv, aus dem Quellcode
+pip install 'zing-audit[tokenizers,web]'      # pip, von PyPI
+pip install -e '.[tokenizers,web]'            # pip, aus dem Quellcode
+uv tool install 'zing-audit[tokenizers,web]'  # uv, von PyPI
+uv pip install -e '.[tokenizers,web]'         # uv, aus dem Quellcode
 ```
+
+PDF-Berichte (`--format pdf` und der PDF-Download in der Weboberfläche) brauchen
+kein Extra: Sie werden mit [ReportLab](https://www.reportlab.com/opensource/)
+gesetzt, einer reinen Python-Abhängigkeit ohne Systembibliotheken unter Linux, macOS
+und Windows.
 
 ### Mit Docker (nur Weboberfläche)
 
@@ -621,11 +622,10 @@ Wissensbasis überprüfbar bleibt.
 
 ## Berichte
 
-`zing check` und `zing compare` geben ein Urteil aus und schreiben den Bericht
-nach `reports/` (`--out-dir`) als JSON, Markdown und HTML, plus PDF, wenn das
-Extra `pdf` installiert ist (`--format all`, der Standard); `--format json|md|html|pdf`
-schreibt ein einzelnes Format. `--json` und `--compact` geben stattdessen auf
-stdout aus.
+`zing check` und `zing compare` geben ein Urteil aus und schreiben den Bericht nach
+`reports/` (`--out-dir`) als JSON, Markdown, HTML und PDF (`--format all`, der
+Standard); `--format json|md|html|pdf` schreibt ein einzelnes Format. `--json` und
+`--compact` geben stattdessen auf stdout aus.
 
 ```text
 ╭─ ✗ HIGH RISK — Strong evidence the relay does not deliver the claimed model… ─╮

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import io
 import json
 from pathlib import Path
 
@@ -9,21 +11,9 @@ import pytest
 
 from zing.config import ConfigError, validate_format
 from zing.models import AuditReport
-from zing.report import PdfUnavailableError, pdf_available, render_pdf, write_reports
-from zing.report import pdf as pdf_mod
+from zing.report import render_pdf, write_reports
 
 _FIXTURE = Path(__file__).resolve().parent / "fixtures" / "web_report.json"
-
-
-def _pdf_works() -> bool:
-    try:
-        import weasyprint  # noqa: F401  (also loads the native Pango libraries)
-    except (ImportError, OSError):
-        return False
-    return True
-
-
-needs_pdf = pytest.mark.skipif(not _pdf_works(), reason="needs WeasyPrint (the pdf extra)")
 
 
 @pytest.fixture
@@ -36,49 +26,68 @@ def report(report_dict) -> AuditReport:
     return AuditReport.model_validate(report_dict)
 
 
-def _no_weasyprint(monkeypatch):
-    import builtins
+def _text(data: bytes) -> str:
+    """The PDF's text, page after page (whitespace collapsed)."""
+    from pypdf import PdfReader
 
-    real_import = builtins.__import__
-
-    def fake_import(name, *args, **kwargs):
-        if name == "weasyprint":
-            raise ImportError("No module named 'weasyprint'")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-    monkeypatch.setattr(pdf_mod, "pdf_available", lambda: False)
-    monkeypatch.setattr("zing.report.writer.pdf_available", lambda: False)
+    pages = PdfReader(io.BytesIO(data)).pages
+    return " ".join(" ".join((p.extract_text() or "").split()) for p in pages)
 
 
-@needs_pdf
-def test_render_pdf_is_the_html_report(report):
+def test_render_pdf_carries_the_whole_report(report):
     data = render_pdf(report)
     assert data.startswith(b"%PDF-") and len(data) > 5000
+    text = _text(data)
+    for section in ("Verdict", "Dimensions", "Dimension details", "Findings", "Reliability",
+                    "Notes", "Disclaimer."):
+        assert section in text
+    assert report.verdict.headline in text
+    assert "Reported prompt tokens far exceed estimate" in text
+    assert "HIGH RISK" in text and "page 2" in text
 
 
-@needs_pdf
-def test_render_pdf_never_fetches_resources(report, monkeypatch):
-    # relay text is escaped, but even an <img> slipping through must not load
-    fetched = []
-
-    def fake_html(r):
-        return '<html><body><img src="http://example.invalid/x.png"><p>hi</p></body></html>'
-
-    monkeypatch.setattr(pdf_mod, "render_html", fake_html)
-    orig = pdf_mod._refuse_fetch
-    monkeypatch.setattr(pdf_mod, "_refuse_fetch", lambda url, *a, **k: fetched.append(url) or orig(url))
-    assert render_pdf(report).startswith(b"%PDF-")
-    assert fetched == ["http://example.invalid/x.png"]
+def test_render_pdf_escapes_relay_text_and_loads_nothing(report_dict):
+    # relay-controlled text must stay text: no markup, no images, no links
+    title = "<img src='http://example.invalid/x.png'/> <b>&amp;</b> <a href='http://x.invalid'>y</a>"
+    report_dict["detectors"][0]["findings"][0]["title"] = title
+    data = render_pdf(AuditReport.model_validate(report_dict))
+    assert " ".join(title.split()) in _text(data)
+    assert b"/Subtype /Image" not in data and b"/URI" not in data
 
 
-def test_render_pdf_without_weasyprint_says_how_to_install(report, monkeypatch):
-    _no_weasyprint(monkeypatch)
-    with pytest.raises(PdfUnavailableError, match=r"zing-audit\[pdf\]"):
-        render_pdf(report)
+def test_render_pdf_writes_chinese_and_marks(report_dict):
+    report_dict["verdict"]["headline"] = "中转站返回的模型与声明不符 ✓ ✗ → Δ"
+    report_dict["warnings"] = ["长文本" * 80]
+    data = render_pdf(AuditReport.model_validate(report_dict))
+    text = _text(data)
+    assert "中转站返回的模型与声明不符" in text and "✓" in text and "→" in text
+    assert b"STSong-Light" in data  # a standard CID font: nothing embedded or shipped
 
 
-@needs_pdf
+def test_render_pdf_splits_text_longer_than_a_page(report_dict):
+    # relay text is unbounded: a finding or warning taller than a page must flow
+    # on to the next one (no LayoutError, no endless re-wrapping)
+    report_dict["detectors"][0]["findings"][0]["summary"] = "word " * 8000
+    report_dict["detectors"][0]["findings"][0]["title"] = "长" * 3000
+    report_dict["warnings"] = ["long warning " * 2000]
+    text = _text(render_pdf(AuditReport.model_validate(report_dict)))
+    assert text.count("warning") == 2000 and "Disclaimer." in text  # every word, footers between
+
+
+def test_render_pdf_has_scales_groups_and_performance():
+    from tests.test_performance_render import _report as perf_report
+    from tests.test_scoring_transparency import _attr_report, _report
+
+    text = _text(render_pdf(asyncio.run(_report())))
+    assert "Scoring scale" in text and "not counted" in text
+    assert "The invalid request was accepted (2xx)." in text
+    text = _text(render_pdf(asyncio.run(_attr_report())))
+    assert "Core response attributes: all 8" in text and "7 of 8 OK" in text
+    text = _text(render_pdf(perf_report()))
+    assert "Performance measurements" in text and "Target vs baseline" in text
+    assert "Latency (ms)" in text and "failed request" in text
+
+
 def test_write_reports_pdf_and_all(report, tmp_path):
     [pdf] = write_reports(report, tmp_path / "one", "pdf")
     assert pdf.suffix == ".pdf" and pdf.read_bytes().startswith(b"%PDF-")
@@ -87,25 +96,11 @@ def test_write_reports_pdf_and_all(report, tmp_path):
     assert [p.suffix for p in written] == [".json", ".md", ".html", ".pdf"]
 
 
-def test_write_reports_all_skips_pdf_without_weasyprint(report, tmp_path, monkeypatch):
-    _no_weasyprint(monkeypatch)
-    written = write_reports(report, tmp_path, "all")
-    assert [p.suffix for p in written] == [".json", ".md", ".html"]
-    with pytest.raises(PdfUnavailableError):
-        write_reports(report, tmp_path, "pdf")
-
-
-def test_validate_format_checks_pdf_support_up_front(monkeypatch):
+def test_validate_format_accepts_pdf():
     assert validate_format("md") == "md"
-    monkeypatch.setattr(pdf_mod, "pdf_available", lambda: False)
-    with pytest.raises(ConfigError, match=r"zing-audit\[pdf\]"):
-        validate_format("pdf")
-    monkeypatch.setattr(pdf_mod, "pdf_available", lambda: True)
     assert validate_format("pdf") == "pdf"
-
-
-def test_pdf_available_matches_the_import():
-    assert pdf_available() == (__import__("importlib").util.find_spec("weasyprint") is not None)
+    with pytest.raises(ConfigError):
+        validate_format("docx")
 
 
 # --------------------------------------------------------------------------- #
@@ -141,20 +136,21 @@ def test_export_renders_the_text_it_is_given(client, report_dict):
     assert "Gemeldete Prompt-Tokens weit über der Schätzung" in r.text
 
 
-@needs_pdf
-def test_export_pdf(client, report_dict):
+def test_export_pdf_is_the_cli_pdf(client, report_dict, report):
+    # the web UI and the CLI share one renderer: same input, same document
     r = client.post("/api/report/export?format=pdf", json=report_dict)
     assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
-    assert r.content.startswith(b"%PDF-")
+    assert r.headers["content-disposition"] == 'attachment; filename="zing-target-20260927T074704.pdf"'
+    assert _text(r.content) == _text(render_pdf(report))
 
 
-def test_export_pdf_unavailable_is_501(client, report_dict, monkeypatch):
-    def unavailable(_report):
-        raise PdfUnavailableError("PDF export needs WeasyPrint: pip install 'zing-audit[pdf]'")
+def test_export_pdf_failure_is_json(client, report_dict, monkeypatch):
+    def broken(_report):
+        raise ValueError("boom")
 
-    monkeypatch.setattr("zing.report.render_pdf", unavailable)
+    monkeypatch.setattr("zing.report.render_pdf", broken)
     r = client.post("/api/report/export?format=pdf", json=report_dict)
-    assert r.status_code == 501 and "zing-audit[pdf]" in r.json()["error"]
+    assert r.status_code == 500 and r.json()["error"] == "PDF rendering failed: boom"
 
 
 def test_export_rejects_bad_input(client, report_dict):

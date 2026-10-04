@@ -771,7 +771,7 @@ def create_app() -> FastAPI:
         from pydantic import ValidationError
 
         from zing.models import AuditReport
-        from zing.report import PdfUnavailableError, render_pdf, report_stem
+        from zing.report import render_pdf, report_stem
         from zing.report.render import render_html, render_json, render_markdown
 
         media = {
@@ -795,8 +795,8 @@ def create_app() -> FastAPI:
             try:
                 # CPU-bound typesetting: keep the event loop (and live audits) responsive.
                 body = await asyncio.to_thread(render_pdf, report)
-            except PdfUnavailableError as exc:
-                return JSONResponse({"error": str(exc)}, status_code=501)
+            except Exception as exc:  # a layout failure must still reach the UI as JSON
+                return JSONResponse({"error": f"PDF rendering failed: {exc}"[:500]}, status_code=500)
         else:
             body = {"json": render_json, "md": render_markdown, "html": render_html}[format](report)
         fname = f"{report_stem(report)}.{format}"

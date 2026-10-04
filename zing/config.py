@@ -193,11 +193,6 @@ def validate_dimensions(suite: str, value: str | list[str] | tuple[str, ...] | N
 def validate_format(value: str) -> str:
     if value not in FORMATS:
         raise ConfigError(f"Unknown format {value!r}. Choose from: {', '.join(FORMATS)}")
-    if value == "pdf":
-        from zing.report.pdf import PDF_INSTALL_HINT, pdf_available
-
-        if not pdf_available():
-            raise ConfigError(PDF_INSTALL_HINT)
     return value
 
 

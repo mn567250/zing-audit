@@ -73,16 +73,14 @@ navigateur s'exécutent sous `node` et sont ignorés sans lui.
 ```bash
 git clone https://github.com/cenbonew/zing
 cd zing
-pip install -e '.[dev,tokenizers,web,pdf]'   # installation éditable avec tous les extras
+pip install -e '.[dev,tokenizers,web]'   # installation éditable avec tous les extras
 pytest                                       # suite de tests
 ruff check zing tests                        # lint
 mypy zing                                    # vérification de types
 ```
 
-Avec uv : `uv venv && uv pip install -e '.[dev,tokenizers,web,pdf]'`. L'extra
-`pdf` nécessite la bibliothèque système Pango (`brew install pango` sous macOS ;
-la plupart des bureaux Linux l'ont) ; omettez-le si vous ne travaillez pas sur les
-rapports PDF.
+Avec uv : `uv venv && uv pip install -e '.[dev,tokenizers,web]'`. Aucune
+bibliothèque système n'est nécessaire, rapports PDF compris.
 
 Lancez depuis les sources avec `zing …` ou `python -m zing …`. `zing serve` sert
 l'interface web directement depuis `zing/web/static/`, donc un rechargement du
@@ -236,9 +234,11 @@ motif `language_bound`. Le runner consigne les langues utilisées dans
 
 `zing/report/render.py` rend un `AuditReport` en JSON, en JSON compact pour
 agents, en Markdown et en HTML ; `dimensions.py` et `performance.py` rendent les
-**Dimension details** et la section performance ; `pdf.py` compose le HTML en PDF
-avec WeasyPrint (extra `pdf` facultatif, sans jamais charger de ressource
-externe) ; `writer.py` écrit les fichiers. Tout texte contrôlé par le relais est
+**Dimension details** et la section performance ; `pdf.py` compose le PDF avec
+ReportLab à partir des mêmes données et fonctions (pur Python ; uniquement les
+polices PDF standard, avec la police CID STSong-Light pour le chinois, donc rien
+d'incorporé ; sans jamais charger de ressource externe), partagé par la CLI et
+l'interface web ; `writer.py` écrit les fichiers. Tout texte contrôlé par le relais est
 expurgé et échappé (HTML / Markdown) avant la sortie. `POST /api/report/export`
 de l'interface web réutilise ces rendus pour la rangée **Télécharger le rapport**,
 avec les textes lisibles traduits dans la langue de l'interface.
@@ -432,8 +432,8 @@ pytest -k streaming          # par mot-clé
 
 ## Docker
 
-Le `Dockerfile` construit une image de l'interface web (Python 3.12 slim, les
-extras `web` et `pdf`, Pango et des polices CJK pour les rapports PDF). Elle
+Le `Dockerfile` construit une image de l'interface web (Python 3.12 slim avec
+l'extra `web` ; les rapports PDF ne demandent aucun paquet système). Elle
 s'exécute sous un utilisateur non privilégié, avec le répertoire de données dans
 `/data`.
 

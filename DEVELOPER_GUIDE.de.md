@@ -72,16 +72,14 @@ laufen unter `node` und werden ohne es übersprungen.
 ```bash
 git clone https://github.com/cenbonew/zing
 cd zing
-pip install -e '.[dev,tokenizers,web,pdf]'   # editierbare Installation mit allen Extras
+pip install -e '.[dev,tokenizers,web]'   # editierbare Installation mit allen Extras
 pytest                                       # Testsuite
 ruff check zing tests                        # Lint
 mypy zing                                    # Typprüfung
 ```
 
-Mit uv: `uv venv && uv pip install -e '.[dev,tokenizers,web,pdf]'`. Das Extra
-`pdf` benötigt die Systembibliothek Pango (unter macOS `brew install pango`; die
-meisten Linux-Desktops haben sie); lassen Sie es weg, wenn Sie nicht an
-PDF-Berichten arbeiten.
+Mit uv: `uv venv && uv pip install -e '.[dev,tokenizers,web]'`. Systembibliotheken
+sind nicht nötig, auch nicht für PDF-Berichte.
 
 Aus dem Quellcode starten Sie mit `zing …` oder `python -m zing …`. `zing serve`
 liefert die Weboberfläche direkt aus `zing/web/static/` aus, ein Neuladen im
@@ -234,8 +232,11 @@ verwendeten Sprachen in `prompt_languages`.
 
 `zing/report/render.py` rendert einen `AuditReport` als JSON, kompaktes
 Agenten-JSON, Markdown und HTML; `dimensions.py` und `performance.py` rendern
-**Dimension details** und den Leistungsabschnitt; `pdf.py` setzt das HTML mit
-WeasyPrint als PDF (optionales Extra `pdf`, lädt nie externe Ressourcen);
+**Dimension details** und den Leistungsabschnitt; `pdf.py` setzt das PDF mit
+ReportLab aus denselben Daten und Hilfsfunktionen (reines Python; nur die
+PDF-Standardschriften, für Chinesisch die CID-Schrift STSong-Light, also nichts
+eingebettet; lädt nie externe Ressourcen), und CLI und Weboberfläche nutzen es
+gemeinsam;
 `writer.py` schreibt die Dateien. Vom Relay kontrollierter Text wird vor der
 Ausgabe geschwärzt und maskiert (HTML / Markdown). `POST /api/report/export` der
 Weboberfläche nutzt diese Renderer für die Zeile **Bericht herunterladen**, mit in
@@ -429,8 +430,8 @@ pytest -k streaming          # nach Stichwort
 
 ## Docker
 
-Das `Dockerfile` baut ein Image der Weboberfläche (Python 3.12 slim, die Extras
-`web` und `pdf`, Pango und CJK-Schriften für PDF-Berichte). Es läuft als
+Das `Dockerfile` baut ein Image der Weboberfläche (Python 3.12 slim mit dem Extra
+`web`; PDF-Berichte brauchen keine Systempakete). Es läuft als
 unprivilegierter Nutzer mit dem Datenverzeichnis unter `/data`.
 
 ```bash

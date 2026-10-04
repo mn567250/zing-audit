@@ -69,15 +69,14 @@ run under `node` and are skipped without it.
 ```bash
 git clone https://github.com/cenbonew/zing
 cd zing
-pip install -e '.[dev,tokenizers,web,pdf]'   # editable install with every extra
+pip install -e '.[dev,tokenizers,web]'   # editable install with every extra
 pytest                                       # test suite
 ruff check zing tests                        # lint
 mypy zing                                    # type-check
 ```
 
-With uv: `uv venv && uv pip install -e '.[dev,tokenizers,web,pdf]'`. The `pdf`
-extra needs the Pango system library (`brew install pango` on macOS; most Linux
-desktops have it); leave it out if you do not work on PDF reports.
+With uv: `uv venv && uv pip install -e '.[dev,tokenizers,web]'`. No system
+libraries are needed, PDF reports included.
 
 Run from source with `zing …` or `python -m zing …`. `zing serve` serves the
 web UI from `zing/web/static/` directly, so a browser reload picks up front-end
@@ -223,8 +222,10 @@ languages used in `prompt_languages`.
 
 `zing/report/render.py` renders an `AuditReport` to JSON, the compact agent JSON,
 Markdown and HTML; `dimensions.py` and `performance.py` render the
-**Dimension details** and the performance section; `pdf.py` typesets the HTML
-with WeasyPrint (optional `pdf` extra, never fetching external resources);
+**Dimension details** and the performance section; `pdf.py` typesets the PDF
+with ReportLab from the same data and helpers (pure Python; only the standard PDF
+fonts, with the CID font STSong-Light for Chinese, so nothing is embedded; never
+loading external resources), and the CLI and the web UI share it;
 `writer.py` writes the files. All relay-controlled text is redacted and escaped
 (HTML / Markdown) before output. The web UI's `POST /api/report/export` reuses
 these renderers for its **Download report** row, with the human-readable text
@@ -407,8 +408,8 @@ pytest -k streaming          # by keyword
 
 ## Docker
 
-The `Dockerfile` builds an image of the web UI (Python 3.12 slim, the `web` and
-`pdf` extras, Pango and CJK fonts for PDF reports). It runs as an unprivileged
+The `Dockerfile` builds an image of the web UI (Python 3.12 slim with the `web`
+extra; PDF reports need no system packages). It runs as an unprivileged
 user with the data directory at `/data`.
 
 ```bash

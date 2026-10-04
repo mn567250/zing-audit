@@ -104,17 +104,18 @@ Puoi anche installarlo direttamente dal repository Git senza clonarlo:
 
 - `tokenizers` — conteggio preciso dei token della famiglia OpenAI nella verifica della fatturazione.
 - `web` — l'interfaccia web locale (`zing serve`).
-- `pdf` — rapporti PDF (`--format pdf` e il download PDF dell'interfaccia web),
-  generati dal rapporto HTML con [WeasyPrint](https://weasyprint.org/), che
-  richiede la libreria di sistema Pango (preinstallata sulla maggior parte dei
-  desktop Linux; `brew install pango` su macOS).
 
 ```bash
-pip install 'zing-audit[tokenizers,web,pdf]'      # pip, da PyPI
-pip install -e '.[tokenizers,web,pdf]'            # pip, dai sorgenti
-uv tool install 'zing-audit[tokenizers,web,pdf]'  # uv, da PyPI
-uv pip install -e '.[tokenizers,web,pdf]'         # uv, dai sorgenti
+pip install 'zing-audit[tokenizers,web]'      # pip, da PyPI
+pip install -e '.[tokenizers,web]'            # pip, dai sorgenti
+uv tool install 'zing-audit[tokenizers,web]'  # uv, da PyPI
+uv pip install -e '.[tokenizers,web]'         # uv, dai sorgenti
 ```
+
+I rapporti PDF (`--format pdf` e il download PDF dell'interfaccia web) non
+richiedono alcun extra: sono composti con
+[ReportLab](https://www.reportlab.com/opensource/), una dipendenza in puro Python
+che non richiede librerie di sistema su Linux, macOS o Windows.
 
 ### Con Docker (solo l'interfaccia web)
 
@@ -613,9 +614,9 @@ dopo che la base di conoscenza è cambiata.
 ## Rapporti
 
 `zing check` e `zing compare` stampano un verdetto e scrivono il rapporto in
-`reports/` (`--out-dir`) come JSON, Markdown e HTML, più PDF quando l'extra `pdf`
-è installato (`--format all`, il predefinito); `--format json|md|html|pdf` scrive
-un solo formato. `--json` e `--compact` stampano invece su stdout.
+`reports/` (`--out-dir`) come JSON, Markdown, HTML e PDF (`--format all`, il
+predefinito); `--format json|md|html|pdf` scrive un solo formato. `--json` e
+`--compact` stampano invece su stdout.
 
 ```text
 ╭─ ✗ HIGH RISK — Strong evidence the relay does not deliver the claimed model… ─╮

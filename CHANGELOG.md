@@ -371,6 +371,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Web UI v2: the running check's clock showed a huge time** (e.g.
+  "1.791.104.830 s"). It subtracted a `performance.now()` start from
+  `Date.now()`, i.e. it counted from 1970; both now use `Date.now()`.
 - **Performance: the error rate ignored failed audit requests** when the
   dedicated probe ran. It was computed over the probe requests only, so the report
   showed 0.0% and "100/100 succeeded" while the chart showed failed requests. Error,

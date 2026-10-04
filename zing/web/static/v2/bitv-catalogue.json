@@ -162,8 +162,8 @@
    "wcag": "1.4.13",
    "level": "AA",
    "title": "Content on Hover or Focus",
-   "automation": "auto",
-   "how": "Tooltips and popups appear on focus, close with Escape and stay while the pointer is on them."
+   "automation": "partial",
+   "how": "Every element is hovered and focused; content it reveals must close with Escape, stay while the pointer is on it and persist. Whether new content counts as additional content is judged by a person."
   },
   {
    "step": "9.2.1.1",
@@ -202,8 +202,8 @@
    "wcag": "2.2.2",
    "level": "A",
    "title": "Pause, Stop, Hide",
-   "automation": "auto",
-   "how": "Nothing moves, blinks or updates endlessly on an idle page, and reduced motion is respected."
+   "automation": "partial",
+   "how": "Nothing moves, blinks or updates endlessly on an idle page, auto-updating content can be paused, and reduced motion is respected. Whether an update is essential is judged by a person."
   },
   {
    "step": "9.2.3.1",
@@ -250,8 +250,8 @@
    "wcag": "2.4.5",
    "level": "AA",
    "title": "Multiple Ways",
-   "automation": "partial",
-   "how": "Every page is linked from the navigation of every page. Further ways are judged by a person."
+   "automation": "auto",
+   "how": "Every page opens by its own URL and is linked from the site-wide navigation (nav or footer) of every other page."
   },
   {
    "step": "9.2.4.6",
@@ -274,8 +274,8 @@
    "wcag": "2.5.1",
    "level": "A",
    "title": "Pointer Gestures",
-   "automation": "auto",
-   "how": "No control needs a multipoint or path-based gesture; a single click is enough."
+   "automation": "partial",
+   "how": "No path-based, multipoint, drag or motion handlers are registered and no element is draggable. If one appears, a person checks the single-pointer alternative."
   },
   {
    "step": "9.2.5.2",
@@ -330,8 +330,8 @@
    "wcag": "3.2.2",
    "level": "A",
    "title": "On Input",
-   "automation": "auto",
-   "how": "Changing a field or a selection does not navigate or change the context unexpectedly."
+   "automation": "partial",
+   "how": "Every select, checkbox, switch and field is changed: no navigation, new window, focus jump or unannounced replacement of the content. Whether a change was announced beforehand is judged by a person."
   },
   {
    "step": "9.3.2.3",

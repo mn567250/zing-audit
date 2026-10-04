@@ -31,7 +31,7 @@
       - /url: /v2/kb
 - main:
   - heading "无障碍符合性报告" [level=1]
-  - paragraph: 这里列出 BITV 2.0 与 EN 301 549（第 9 章，即 WCAG 2.1 A 级与 AA 级）的每个检查步骤：它是如何测试的，以及自动化无障碍测试的最新结果。
+  - paragraph: 这里列出 BITV 2.0 与 EN 301549（第 9 章，即 WCAG 2.1 A 级与 AA 级）的每个检查步骤：它是如何测试的，以及自动化无障碍测试的最新结果。
   - region "结论":
     - heading "结论" [level=2]
     - paragraph: 部分符合
@@ -46,7 +46,7 @@
     - term: axe-core 版本
     - definition: 4.13.0
     - term: 测试
-    - definition: 1,109 个已运行，1,109 个通过，0 个失败，0 个跳过
+    - definition: 1109 个已运行，1109 个通过，0 个失败，0 个跳过
     - term: 语言
     - definition: English, Deutsch, Español, Français, Italiano, Português, 中文
     - term: 主题
@@ -75,7 +75,7 @@
       - listitem: 未测试 0 / 44 · 0 %
       - listitem: 不适用 6
     - paragraph: 百分比基于适用的步骤；界面中没有音频和视频，因此相关步骤不适用。
-    - paragraph: WCAG 之外还检查了： 用户偏好设置：强制颜色模式（EN 301 549 第 11.7 条） — 通过
+    - paragraph: WCAG 之外还检查了： 用户偏好设置：强制颜色模式（EN 301549 第 11.7 条） — 通过
   - region "检查步骤":
     - heading "检查步骤" [level=2]
     - text: 状态
@@ -96,9 +96,9 @@
     - text: 搜索
     - searchbox "搜索"
     - status: 显示 50 / 50 个步骤
-    - region "BITV / EN 301 549 检查步骤及其自动化程度与结果":
-      - table "BITV / EN 301 549 检查步骤及其自动化程度与结果":
-        - caption: BITV / EN 301 549 检查步骤及其自动化程度与结果
+    - region "BITV / EN 301549 检查步骤及其自动化程度与结果":
+      - table "BITV / EN 301549 检查步骤及其自动化程度与结果":
+        - caption: BITV / EN 301549 检查步骤及其自动化程度与结果
         - rowgroup:
           - row "步骤 标题 级别 自动化程度 状态":
             - columnheader "步骤"
@@ -125,7 +125,7 @@
   - region "无障碍声明":
     - heading "无障碍声明" [level=2]
     - heading "符合状态" [level=3]
-    - paragraph: zing 网页界面 v2 与 BITV 2.0、EN 301 549 和 WCAG 2.1 AA 级部分符合。
+    - paragraph: zing 网页界面 v2 与 BITV 2.0、EN 301549 和 WCAG 2.1 AA 级部分符合。
     - heading "已知限制" [level=3]
     - paragraph: 以下步骤的自动化部分已通过，其余部分仍需人工审核：
     - list:

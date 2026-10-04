@@ -236,7 +236,7 @@
               - heading "Prüfung der Token-Abrechnung Bewertung 55" [level=4]
               - list "Prüfung der Token-Abrechnung Bewertung 55":
                 - listitem:
-                  - text: "Ergebnis: Fehlgeschlagen. Gemeldete Prompt-Tokens weit über der Schätzung Gemeldete Prompt-Tokens (900) weit über der unabhängigen Schätzung (~135, Verhältnis 6.667); Verdacht auf Überabrechnung pro Token. · Empfehlung: Gleichen Sie die Abrechnung mit einem Prompt bekannter Größe ab; mögliche Überabrechnung pro Token."
+                  - text: "Ergebnis: Fehlgeschlagen. Gemeldete Prompt-Tokens weit über der Schätzung Gemeldete Prompt-Tokens (900) weit über der unabhängigen Schätzung (~135, Verhältnis 6667); Verdacht auf Überabrechnung pro Token. · Empfehlung: Gleichen Sie die Abrechnung mit einem Prompt bekannter Größe ab; mögliche Überabrechnung pro Token."
                   - button "Belege ausblenden" [expanded]
                   - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
                 - listitem:
@@ -279,7 +279,7 @@
             - heading "Hoch 4 Befunde" [level=4]
             - list "Hoch 4 Befunde":
               - listitem:
-                - text: "Schweregrad: Hoch. Gemeldete Prompt-Tokens weit über der Schätzung Gemeldete Prompt-Tokens (900) weit über der unabhängigen Schätzung (~135, Verhältnis 6.667); Verdacht auf Überabrechnung pro Token. · Empfehlung: Gleichen Sie die Abrechnung mit einem Prompt bekannter Größe ab; mögliche Überabrechnung pro Token."
+                - text: "Schweregrad: Hoch. Gemeldete Prompt-Tokens weit über der Schätzung Gemeldete Prompt-Tokens (900) weit über der unabhängigen Schätzung (~135, Verhältnis 6667); Verdacht auf Überabrechnung pro Token. · Empfehlung: Gleichen Sie die Abrechnung mit einem Prompt bekannter Größe ab; mögliche Überabrechnung pro Token."
                 - button "Belege ausblenden" [expanded]
                 - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
               - listitem:

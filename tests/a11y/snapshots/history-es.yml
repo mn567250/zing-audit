@@ -236,7 +236,7 @@
               - heading "Auditoría de facturación de tokens Puntuación 55" [level=4]
               - list "Auditoría de facturación de tokens Puntuación 55":
                 - listitem:
-                  - text: "Resultado: Fallo. Tokens de prompt declarados muy por encima de la estimación Tokens de prompt declarados (900) muy por encima de la estimación independiente (~135, proporción 6.667); se sospecha sobrefacturación por token. · Recomendación: Contraste la facturación con un prompt de tamaño conocido; posible sobrefacturación por token."
+                  - text: "Resultado: Fallo. Tokens de prompt declarados muy por encima de la estimación Tokens de prompt declarados (900) muy por encima de la estimación independiente (~135, proporción 6667); se sospecha sobrefacturación por token. · Recomendación: Contraste la facturación con un prompt de tamaño conocido; posible sobrefacturación por token."
                   - button "Ocultar evidencia" [expanded]
                   - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
                 - listitem:
@@ -279,7 +279,7 @@
             - heading "Alta 4 hallazgos" [level=4]
             - list "Alta 4 hallazgos":
               - listitem:
-                - text: "Gravedad: Alta. Tokens de prompt declarados muy por encima de la estimación Tokens de prompt declarados (900) muy por encima de la estimación independiente (~135, proporción 6.667); se sospecha sobrefacturación por token. · Recomendación: Contraste la facturación con un prompt de tamaño conocido; posible sobrefacturación por token."
+                - text: "Gravedad: Alta. Tokens de prompt declarados muy por encima de la estimación Tokens de prompt declarados (900) muy por encima de la estimación independiente (~135, proporción 6667); se sospecha sobrefacturación por token. · Recomendación: Contraste la facturación con un prompt de tamaño conocido; posible sobrefacturación por token."
                 - button "Ocultar evidencia" [expanded]
                 - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
               - listitem:

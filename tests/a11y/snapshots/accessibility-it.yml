@@ -31,7 +31,7 @@
       - /url: /v2/kb
 - main:
   - heading "Rapporto di conformità sull'accessibilità" [level=1]
-  - paragraph: "Ogni passo di verifica di BITV 2.0 ed EN 301 549 (capitolo 9, equivalente a WCAG 2.1 livelli A e AA): come viene verificato e l'ultimo risultato dei test di accessibilità automatici."
+  - paragraph: "Ogni passo di verifica di BITV 2.0 ed EN 301549 (capitolo 9, equivalente a WCAG 2.1 livelli A e AA): come viene verificato e l'ultimo risultato dei test di accessibilità automatici."
   - region "Stato":
     - heading "Stato" [level=2]
     - paragraph: Parzialmente conforme
@@ -46,7 +46,7 @@
     - term: Versione di axe-core
     - definition: 4.13.0
     - term: Test
-    - definition: 1.109 eseguiti, 1.109 superati, 0 falliti, 0 saltati
+    - definition: 1109 eseguiti, 1109 superati, 0 falliti, 0 saltati
     - term: Lingue
     - definition: English, Deutsch, Español, Français, Italiano, Português, 中文
     - term: Temi
@@ -75,7 +75,7 @@
       - listitem: Non verificato 0 su 44 · 0 %
       - listitem: Non applicabile 6
     - paragraph: Le percentuali si riferiscono ai passi applicabili; i passi su audio e video non si applicano perché l'interfaccia non ne contiene.
-    - paragraph: "Verificato anche oltre le WCAG: Preferenze dell'utente: modalità colori forzati (EN 301 549 clausola 11.7) — Superato"
+    - paragraph: "Verificato anche oltre le WCAG: Preferenze dell'utente: modalità colori forzati (EN 301549 clausola 11.7) — Superato"
   - region "Passi di verifica":
     - heading "Passi di verifica" [level=2]
     - text: Stato
@@ -96,9 +96,9 @@
     - text: Cerca
     - searchbox "Cerca"
     - status: Visualizzati 50 di 50 passi
-    - region "Passi di verifica BITV / EN 301 549 con livello di automazione e risultato":
-      - table "Passi di verifica BITV / EN 301 549 con livello di automazione e risultato":
-        - caption: Passi di verifica BITV / EN 301 549 con livello di automazione e risultato
+    - region "Passi di verifica BITV / EN 301549 con livello di automazione e risultato":
+      - table "Passi di verifica BITV / EN 301549 con livello di automazione e risultato":
+        - caption: Passi di verifica BITV / EN 301549 con livello di automazione e risultato
         - rowgroup:
           - row "Passo Titolo Livello Automazione Stato":
             - columnheader "Passo"
@@ -125,7 +125,7 @@
   - region "Dichiarazione di accessibilità":
     - heading "Dichiarazione di accessibilità" [level=2]
     - heading "Stato di conformità" [level=3]
-    - paragraph: L'interfaccia web v2 di zing è parzialmente conforme a BITV 2.0, EN 301 549 e WCAG 2.1 livello AA.
+    - paragraph: L'interfaccia web v2 di zing è parzialmente conforme a BITV 2.0, EN 301549 e WCAG 2.1 livello AA.
     - heading "Limitazioni note" [level=3]
     - paragraph: "La parte automatica di questi passi è superata; il resto richiede ancora una revisione manuale:"
     - list:

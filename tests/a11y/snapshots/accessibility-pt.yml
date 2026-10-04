@@ -31,7 +31,7 @@
       - /url: /v2/kb
 - main:
   - heading "Relatório de conformidade de acessibilidade" [level=1]
-  - paragraph: "Cada passo de teste da BITV 2.0 e da EN 301 549 (capítulo 9, equivalente às WCAG 2.1 níveis A e AA): como é testado e o resultado mais recente dos testes automatizados de acessibilidade."
+  - paragraph: "Cada passo de teste da BITV 2.0 e da EN 301549 (capítulo 9, equivalente às WCAG 2.1 níveis A e AA): como é testado e o resultado mais recente dos testes automatizados de acessibilidade."
   - region "Estado":
     - heading "Estado" [level=2]
     - paragraph: Parcialmente conforme
@@ -75,7 +75,7 @@
       - listitem: Não testado 0 de 44 · 0 %
       - listitem: Não aplicável 6
     - paragraph: As percentagens referem-se aos passos aplicáveis; os passos sobre áudio e vídeo não se aplicam porque a interface não os tem.
-    - paragraph: "Também verificado além das WCAG: Preferências do utilizador: modo de cores forçadas (EN 301 549 cláusula 11.7) — Aprovado"
+    - paragraph: "Também verificado além das WCAG: Preferências do utilizador: modo de cores forçadas (EN 301549 cláusula 11.7) — Aprovado"
   - region "Passos de teste":
     - heading "Passos de teste" [level=2]
     - text: Estado
@@ -96,9 +96,9 @@
     - text: Pesquisar
     - searchbox "Pesquisar"
     - status: A mostrar 50 de 50 passos
-    - region "Passos de teste BITV / EN 301 549 com nível de automação e resultado":
-      - table "Passos de teste BITV / EN 301 549 com nível de automação e resultado":
-        - caption: Passos de teste BITV / EN 301 549 com nível de automação e resultado
+    - region "Passos de teste BITV / EN 301549 com nível de automação e resultado":
+      - table "Passos de teste BITV / EN 301549 com nível de automação e resultado":
+        - caption: Passos de teste BITV / EN 301549 com nível de automação e resultado
         - rowgroup:
           - row "Passo Título Nível Automação Estado":
             - columnheader "Passo"
@@ -125,7 +125,7 @@
   - region "Declaração de acessibilidade":
     - heading "Declaração de acessibilidade" [level=2]
     - heading "Estado de conformidade" [level=3]
-    - paragraph: A interface web v2 do zing é parcialmente conforme com a BITV 2.0, a EN 301 549 e as WCAG 2.1 nível AA.
+    - paragraph: A interface web v2 do zing é parcialmente conforme com a BITV 2.0, a EN 301549 e as WCAG 2.1 nível AA.
     - heading "Limitações conhecidas" [level=3]
     - paragraph: "A parte automatizada destes passos é aprovada; o resto ainda precisa de uma revisão manual:"
     - list:

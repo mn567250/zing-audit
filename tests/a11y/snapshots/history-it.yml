@@ -236,7 +236,7 @@
               - heading "Verifica della fatturazione dei token Punteggio 55" [level=4]
               - list "Verifica della fatturazione dei token Punteggio 55":
                 - listitem:
-                  - text: "Esito: Fallito. Token di prompt dichiarati molto sopra la stima Token di prompt dichiarati (900) molto sopra la stima indipendente (~135, rapporto 6.667); sospetta sovrafatturazione per token. · Raccomandazione: Verifica la fatturazione con un prompt di dimensione nota; possibile sovrafatturazione per token."
+                  - text: "Esito: Fallito. Token di prompt dichiarati molto sopra la stima Token di prompt dichiarati (900) molto sopra la stima indipendente (~135, rapporto 6667); sospetta sovrafatturazione per token. · Raccomandazione: Verifica la fatturazione con un prompt di dimensione nota; possibile sovrafatturazione per token."
                   - button "Nascondi prove" [expanded]
                   - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
                 - listitem:
@@ -279,7 +279,7 @@
             - heading "Alta 4 rilievi" [level=4]
             - list "Alta 4 rilievi":
               - listitem:
-                - text: "Gravità: Alta. Token di prompt dichiarati molto sopra la stima Token di prompt dichiarati (900) molto sopra la stima indipendente (~135, rapporto 6.667); sospetta sovrafatturazione per token. · Raccomandazione: Verifica la fatturazione con un prompt di dimensione nota; possibile sovrafatturazione per token."
+                - text: "Gravità: Alta. Token di prompt dichiarati molto sopra la stima Token di prompt dichiarati (900) molto sopra la stima indipendente (~135, rapporto 6667); sospetta sovrafatturazione per token. · Raccomandazione: Verifica la fatturazione con un prompt di dimensione nota; possibile sovrafatturazione per token."
                 - button "Nascondi prove" [expanded]
                 - text: "reported_prompt: 900 estimated_prompt: 135 ratio: 6.666666666666667 exact_tokenizer: false"
               - listitem:

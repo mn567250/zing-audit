@@ -31,7 +31,7 @@
       - /url: /v2/kb
 - main:
   - heading "Konformitätsbericht Barrierefreiheit" [level=1]
-  - paragraph: "Jeder Prüfschritt der BITV 2.0 und der EN 301 549 (Kapitel 9, entspricht WCAG 2.1 Stufe A und AA): wie er geprüft wird und das letzte Ergebnis der automatisierten Barrierefreiheitstests."
+  - paragraph: "Jeder Prüfschritt der BITV 2.0 und der EN 301549 (Kapitel 9, entspricht WCAG 2.1 Stufe A und AA): wie er geprüft wird und das letzte Ergebnis der automatisierten Barrierefreiheitstests."
   - region "Status":
     - heading "Status" [level=2]
     - paragraph: Teilweise vereinbar
@@ -46,7 +46,7 @@
     - term: axe-core-Version
     - definition: 4.13.0
     - term: Tests
-    - definition: 1.109 ausgeführt, 1.109 bestanden, 0 fehlgeschlagen, 0 übersprungen
+    - definition: 1109 ausgeführt, 1109 bestanden, 0 fehlgeschlagen, 0 übersprungen
     - term: Sprachen
     - definition: English, Deutsch, Español, Français, Italiano, Português, 中文
     - term: Designs
@@ -75,7 +75,7 @@
       - listitem: Nicht geprüft 0 von 44 · 0 %
       - listitem: Nicht anwendbar 6
     - paragraph: Die Prozentwerte beziehen sich auf die anwendbaren Schritte; Schritte zu Audio und Video sind nicht anwendbar, weil die Oberfläche keine enthält.
-    - paragraph: "Über WCAG hinaus geprüft: Benutzereinstellungen: erzwungene Farben (EN 301 549 Abschnitt 11.7) — Bestanden"
+    - paragraph: "Über WCAG hinaus geprüft: Benutzereinstellungen: erzwungene Farben (EN 301549 Abschnitt 11.7) — Bestanden"
   - region "Prüfschritte":
     - heading "Prüfschritte" [level=2]
     - text: Status
@@ -96,9 +96,9 @@
     - text: Suche
     - searchbox "Suche"
     - status: 50 von 50 Schritten angezeigt
-    - region "Prüfschritte nach BITV / EN 301 549 mit Automatisierungsgrad und Ergebnis":
-      - table "Prüfschritte nach BITV / EN 301 549 mit Automatisierungsgrad und Ergebnis":
-        - caption: Prüfschritte nach BITV / EN 301 549 mit Automatisierungsgrad und Ergebnis
+    - region "Prüfschritte nach BITV / EN 301549 mit Automatisierungsgrad und Ergebnis":
+      - table "Prüfschritte nach BITV / EN 301549 mit Automatisierungsgrad und Ergebnis":
+        - caption: Prüfschritte nach BITV / EN 301549 mit Automatisierungsgrad und Ergebnis
         - rowgroup:
           - row "Schritt Titel Stufe Automatisierung Status":
             - columnheader "Schritt"
@@ -125,7 +125,7 @@
   - region "Erklärung zur Barrierefreiheit":
     - heading "Erklärung zur Barrierefreiheit" [level=2]
     - heading "Stand der Vereinbarkeit" [level=3]
-    - paragraph: Die Web-Oberfläche v2 von zing ist mit BITV 2.0, EN 301 549 und WCAG 2.1 Stufe AA teilweise vereinbar.
+    - paragraph: Die Web-Oberfläche v2 von zing ist mit BITV 2.0, EN 301549 und WCAG 2.1 Stufe AA teilweise vereinbar.
     - heading "Bekannte Einschränkungen" [level=3]
     - paragraph: "Der automatisierte Teil dieser Schritte ist bestanden; der Rest braucht noch eine manuelle Prüfung:"
     - list:

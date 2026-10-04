@@ -636,6 +636,9 @@ VOLATILE = [
     (re.compile(r"\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\d)[0-9a-f]{8,}\b"), "<id>"),
     # measured times
     (re.compile(r"\b\d+(?:[.,]\d+)?\s?(?:ms|s)\b"), "<duration>"),
+    # thousands separators: whether 4-digit numbers are grouped ("8.192" vs
+    # "8192" in Italian) depends on the browser's ICU/CLDR version
+    (re.compile("(?<=\\d)[.,\u00a0\u202f '\u2019](?=\\d{3}(?!\\d))"), ""),
 ]
 # roles that must carry a name (an empty one is announced as just "button", …)
 NAMED_ROLES = {

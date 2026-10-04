@@ -259,7 +259,7 @@ button { font: inherit; color: inherit; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .hero h1 .u { background: linear-gradient(transparent 62%, rgba(199, 242, 90, 0.35) 0); }
 }
-.hero p { color: var(--ink2); font-size: 15.5px; line-height: 1.6; margin: 12px 0 0; max-width: 58ch; }
+.hero p { color: var(--ink2); font-size: 15.5px; line-height: 1.6; margin: 12px 0 0; }
 
 /* ---------- cards ---------- */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--shadow-card); }

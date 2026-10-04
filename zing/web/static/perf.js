@@ -130,12 +130,17 @@
     return pct(s, 50);
   }
 
-  function niceCeil(v) {
-    if (!(v > 0)) return 1;
-    var base = Math.pow(10, Math.floor(Math.log10(v)));
-    var steps = [1, 2, 2.5, 5, 10];
-    for (var i = 0; i < steps.length; i++) if (v <= steps[i] * base) return steps[i] * base;
-    return 10 * base;
+  // A tight axis: the smallest 1/2/2.5/5 x 10^n tick step that covers `v` in at
+  // most 6 intervals, and the maximum rounded up to the next multiple of it
+  // (510 -> 0..600 by 100, not 0..1000). Same as nice_axis in zing/report/performance.py.
+  function niceAxis(v) {
+    if (!(v > 0)) return { max: 1, step: 0.25, n: 4 };
+    var base = Math.pow(10, Math.floor(Math.log10(v / 6)));
+    var steps = [1, 2, 2.5, 5, 10]; // v / 6 < 10 * base, so the last one always fits
+    for (var i = 0; ; i++) {
+      var step = steps[i] * base, n = Math.ceil(v / step - 1e-9);
+      if (n <= 6) return { max: n * step, step: step, n: n };
+    }
   }
 
   // ---- timeline chart ------------------------------------------------- //
@@ -150,20 +155,22 @@
       return '<div class="zp-empty">' + esc(T("暂无数据", "No samples yet")) + "</div>";
     var end = 1;
     calls.forEach(function (r) { end = Math.max(end, (r.start_ms + (r.duration_ms || 0)) / 1000); });
-    var xMax = niceCeil(end);
-    var yMax = niceCeil(Math.max.apply(null, pts.map(m.get).concat([1])) * 1.05);
+    var xa = niceAxis(end), xMax = xa.max;
+    var ya = niceAxis(Math.max.apply(null, pts.map(m.get).concat([1])) * 1.05), yMax = ya.max;
     var pw = W - ML - MR, ph = H - MT - MB;
     var x = function (s) { return ML + (s / xMax) * pw; };
     var y = function (v) { return MT + ph - (v / yMax) * ph; };
     var o = ['<svg class="zp-chart" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' +
       esc(summary(m, pts, failed)) + '">'];
-    for (var i = 0; i <= 4; i++) {
-      var v = (yMax * i) / 4, yy = y(v).toFixed(1);
+    for (var i = 0; i <= ya.n; i++) {
+      var v = ya.step * i, yy = y(v).toFixed(1);
       o.push('<line class="zp-grid" x1="' + ML + '" x2="' + (W - MR) + '" y1="' + yy + '" y2="' + yy + '"/>');
       o.push('<text class="zp-tick" x="' + (ML - 6) + '" y="' + (+yy + 4) + '" text-anchor="end">' + num(v) + "</text>");
-      var s = (xMax * i) / 4;
+    }
+    for (var j = 0; j <= xa.n; j++) {
+      var s = xa.step * j;
       o.push('<text class="zp-tick" x="' + x(s).toFixed(1) + '" y="' + (H - MB + 16) +
-        '" text-anchor="' + (i === 0 ? "start" : i === 4 ? "end" : "middle") + '">' + num(s) + "s</text>");
+        '" text-anchor="' + (j === 0 ? "start" : j === xa.n ? "end" : "middle") + '">' + num(s) + "s</text>");
     }
     pts.forEach(function (r) {
       var cls = "zp-pt " + (r.endpoint === "baseline" ? "b" : "t") +
@@ -631,6 +638,7 @@
     section: section,
     wireSection: wireSection,
     chart: chart,
+    niceAxis: niceAxis,
     CSS: CSS,
   };
 })();

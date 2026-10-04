@@ -5,13 +5,14 @@ from __future__ import annotations
 import io
 import re
 
+import pytest
 from rich.console import Console
 
 from zing import cli
 from zing.models import AuditReport, RedactedTarget, RequestRecord, Verdict
 from zing.perf import build_performance
 from zing.report import compact_dict, render_html, render_markdown
-from zing.report.performance import fmt_num, nice_ceiling, timeline_svg
+from zing.report.performance import fmt_num, nice_axis, timeline_svg
 
 
 def _rec(seq: int, endpoint: str, **kw) -> RequestRecord:
@@ -105,13 +106,26 @@ def test_cli_summary_prints_performance(monkeypatch):
 
 
 def test_helpers():
-    assert nice_ceiling(0) == 1.0
-    assert nice_ceiling(3.2) == 5
-    assert nice_ceiling(1300) == 2000
-    assert nice_ceiling(250) == 250
+    assert nice_axis(0) == (1.0, 0.25, 4)
+    assert nice_axis(3.2) == (4, 1, 4)
+    assert nice_axis(110) == (120, 20, 6)
+    assert nice_axis(250) == (250, 50, 5)
+    assert nice_axis(441) == (500, 100, 5)
+    assert nice_axis(510) == (600, 100, 6)  # not 0..1000: no half-empty plot
+    assert nice_axis(1300) == (1500, 250, 6)
+    top, step, n = nice_axis(0.3)  # float noise must not add an interval
+    assert n == 6 and step == pytest.approx(0.05) and top == pytest.approx(0.3)
     assert fmt_num(None) == "—" and fmt_num(0.0) == "0" and fmt_num(1234.5) == "1,234"
     assert fmt_num(0.031, "ratio") == "3.1%"
     assert "No Latency samples" in timeline_svg([], ("latency", "Latency", "ms", lambda r: r.duration_ms))
+
+
+def test_timeline_axes_fit_the_data():
+    recs = [RequestRecord(seq=i, endpoint="target", phase="probe", ok=True, stream=True,
+                          start_ms=i * 50_000.0, duration_ms=420.0) for i in range(11)]  # ends ~500.4 s
+    svg = timeline_svg(recs, ("latency", "Latency", "ms", lambda r: r.duration_ms))
+    assert ">600s</text>" in svg and "1,000s" not in svg
+    assert ">500</text>" in svg and ">1,000</text>" not in svg  # 420 ms x 1.05 -> 0..500
 
 
 def test_every_dimension_is_listed_even_if_not_run():

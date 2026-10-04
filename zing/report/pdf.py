@@ -623,8 +623,9 @@ def _timeline(perf: PerformanceReport, metric: tuple[str, str, str, Callable[...
     w, h = (_WIDTH - 10) / 2 - 8, 120.0
     ml, mr, mt, mb = 34.0, 6.0, 6.0, 24.0
     pw, ph = w - ml - mr, h - mt - mb
-    x_max = perf_render.nice_ceiling(max((r.start_ms + (r.duration_ms or 0)) / 1000 for r in calls) or 1.0)
-    y_max = perf_render.nice_ceiling(max(v for _, v in plotted) * 1.05)
+    x_max, x_step, x_n = perf_render.nice_axis(
+        max((r.start_ms + (r.duration_ms or 0)) / 1000 for r in calls) or 1.0)
+    y_max, y_step, y_n = perf_render.nice_axis(max(v for _, v in plotted) * 1.05)
 
     def x(sec: float) -> float:
         return ml + sec / x_max * pw
@@ -634,14 +635,14 @@ def _timeline(perf: PerformanceReport, metric: tuple[str, str, str, Callable[...
 
     d = Drawing(w, h)
     grid, tick = colors.HexColor(_HAIR), colors.HexColor(_MUTED)
-    for i in range(5):
-        v = y_max * i / 4
+    for i in range(y_n + 1):
+        v = y_step * i
         d.add(Line(ml, y(v), w - mr, y(v), strokeColor=grid, strokeWidth=0.6))
         d.add(String(ml - 4, y(v) - 2.5, perf_render.fmt_num(v), fontName="Helvetica",
                      fontSize=6.5, fillColor=tick, textAnchor="end"))
-    for i in range(5):
-        s = x_max * i / 4
-        anchor = "start" if i == 0 else "end" if i == 4 else "middle"
+    for i in range(x_n + 1):
+        s = x_step * i
+        anchor = "start" if i == 0 else "end" if i == x_n else "middle"
         d.add(String(x(s), mb - 10, f"{perf_render.fmt_num(s)}s", fontName="Helvetica",
                      fontSize=6.5, fillColor=tick, textAnchor=anchor))
     d.add(String(ml, 2, f"seconds since audit start · {unit}", fontName="Helvetica",

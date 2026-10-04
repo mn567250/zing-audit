@@ -23,7 +23,7 @@ def test_catalogue_is_the_wcag_21_a_aa_scope():
         assert s["step"] == "9." + s["wcag"]
         assert s["title"] and s["how"] and s["level"] in ("A", "AA")
     assert levels["n/a"] == {"1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.4.2"}
-    assert len(levels["auto"]) == 30 and len(levels["partial"]) == 14
+    assert len(levels["auto"]) == 27 and len(levels["partial"]) == 17
     # bitv_map keeps its API and reads its titles from the catalogue
     assert CRITERIA["1.4.3"] == "Contrast (Minimum)" and criterion_of("wcag1410") == "1.4.10"
 
@@ -101,8 +101,8 @@ def test_report_statuses_totals_and_review_notes():
     assert rep["review"] == {"model": "x"}
     assert rep["beyond"][0]["step"] == "11.7" and rep["beyond"][0]["status"] == "pass"
     t = rep["totals"]
-    assert t["applicable"] == 44 and t["automation"]["auto"]["count"] == 30
-    assert t["automation"]["auto"]["percent"] == 68.2
+    assert t["applicable"] == 44 and t["automation"]["auto"]["count"] == 27
+    assert t["automation"]["auto"]["percent"] == 61.4
     assert t["status"]["fail"]["count"] == 1
     assert t["tests"] == {"run": 3, "passed": 2, "failed": 1, "skipped": 0}
     assert rep["conformance"]["status"] == "partially conformant"

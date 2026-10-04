@@ -360,3 +360,7 @@
               - button "PDF"
   - text: "Auditorias guardadas: 1"
   - button "Limpar histórico"
+- contentinfo:
+  - paragraph:
+    - link "Acessibilidade":
+      - /url: /v2/accessibility

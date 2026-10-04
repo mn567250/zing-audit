@@ -360,3 +360,7 @@
               - button "PDF"
   - text: "Audits enregistrés : 1"
   - button "Effacer l'historique"
+- contentinfo:
+  - paragraph:
+    - link "Accessibilité":
+      - /url: /v2/accessibility

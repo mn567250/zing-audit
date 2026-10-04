@@ -123,3 +123,6 @@
   - paragraph:
     - text: zing · verificación de intermediarios · los monitores los programa en segundo plano el proceso
     - code: zing serve
+  - paragraph:
+    - link "Accesibilidad":
+      - /url: /v2/accessibility

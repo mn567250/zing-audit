@@ -360,3 +360,7 @@
               - button "PDF"
   - text: "Audit salvati: 1"
   - button "Cancella cronologia"
+- contentinfo:
+  - paragraph:
+    - link "Accessibilità":
+      - /url: /v2/accessibility

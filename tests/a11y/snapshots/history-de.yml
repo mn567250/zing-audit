@@ -360,3 +360,7 @@
               - button "PDF"
   - text: "Gespeicherte Audits: 1"
   - button "Verlauf löschen"
+- contentinfo:
+  - paragraph:
+    - link "Barrierefreiheit":
+      - /url: /v2/accessibility

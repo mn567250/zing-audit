@@ -124,3 +124,6 @@
     - text: zing · Relay-Echtheitsprüfung · Überwachungen werden vom Prozess
     - code: zing serve
     - text: im Hintergrund geplant
+  - paragraph:
+    - link "Barrierefreiheit":
+      - /url: /v2/accessibility

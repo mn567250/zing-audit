@@ -123,3 +123,6 @@
   - paragraph:
     - text: zing · verifica degli intermediari · i monitor sono pianificati in background dal processo
     - code: zing serve
+  - paragraph:
+    - link "Accessibilità":
+      - /url: /v2/accessibility

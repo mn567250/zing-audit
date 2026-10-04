@@ -122,3 +122,7 @@
     - alert
     - status
     - text: O zing fornece evidências reprodutíveis de risco e desvio, não um veredito jurídico.
+- contentinfo:
+  - paragraph:
+    - link "Acessibilidade":
+      - /url: /v2/accessibility

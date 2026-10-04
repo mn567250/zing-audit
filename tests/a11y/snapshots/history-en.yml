@@ -360,3 +360,7 @@
               - button "PDF"
   - text: "Saved audits: 1"
   - button "Clear history"
+- contentinfo:
+  - paragraph:
+    - link "Accessibility":
+      - /url: /v2/accessibility

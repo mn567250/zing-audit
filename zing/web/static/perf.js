@@ -500,11 +500,25 @@
     var target = calls.filter(function (r) { return r.endpoint !== "baseline" && r.ok && !r.cached; });
     var probeDone = calls.filter(function (r) { return r.endpoint !== "baseline" && r.phase === "probe"; }).length;
     var tps = target.map(function (r) { return r.decode_tps_local != null ? r.decode_tps_local : r.decode_tps_reported; });
+    var ttftP50 = p50(target.map(function (r) { return r.ttft_ms; }));
+    var tpsP50 = p50(tps);
+    var decodeLabel = T("解码速度 p50", "Decode speed p50");
+    // Non-streamed calls have no first token, so no TTFT and no decode speed
+    // (it needs the first-token time). Until a streamed call lands, show the
+    // end-to-end speed instead, as the final report does.
+    if (tpsP50 == null) {
+      var e2e = p50(target.map(function (r) { return r.e2e_tps_local != null ? r.e2e_tps_local : r.e2e_tps_reported; }));
+      if (e2e != null) {
+        tpsP50 = e2e;
+        decodeLabel = T("端到端速度 p50", "End-to-end speed p50");
+      }
+    }
+    function withUnit(v, unit) { return v == null ? "—" : num(v) + " " + unit; }
     var head = [
       [T("请求数", "Requests"), int(calls.length)],
-      [T("延迟 p50", "Latency p50"), num(p50(target.map(function (r) { return r.duration_ms; }))) + " ms"],
-      ["TTFT p50", num(p50(target.map(function (r) { return r.ttft_ms; }))) + " ms"],
-      [T("解码速度 p50", "Decode speed p50"), num(p50(tps)) + " tok/s"],
+      [T("延迟 p50", "Latency p50"), withUnit(p50(target.map(function (r) { return r.duration_ms; })), "ms")],
+      ["TTFT p50", withUnit(ttftP50, "ms")],
+      [decodeLabel, withUnit(tpsP50, "tok/s")],
     ];
     var o = ['<div class="zp-live"><div class="zp-live-h">' + esc(T("性能 · 实时", "Performance · live")) + "</div>"];
     o.push('<div class="zp-tiles">' + head.map(function (x) {

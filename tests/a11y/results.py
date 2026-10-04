@@ -22,7 +22,9 @@ its steps gets the outcome of the rules that map to it:
 
 A test that failed for any other reason fails every step it is marked with. A
 passing test passes its steps, except steps whose axe rules were all
-inapplicable or incomplete (nothing was checked) -> skipped. Works with and
+inapplicable or incomplete (nothing was checked) -> skipped. Tests marked
+``bitv(..., axe=True)`` decide their steps through axe alone: a step without
+a passing axe rule in that test (e.g. no tab panel to check) -> skipped. Works with and
 without pytest-xdist (markers and rule outcomes travel in
 ``report.user_properties``).
 
@@ -109,6 +111,14 @@ def steps_of(item: pytest.Item) -> list[str]:
     return out
 
 
+def axe_only(item: pytest.Item) -> bool:
+    """``@pytest.mark.bitv(..., axe=True)``: the test decides its steps only
+    through axe rules (an axe-only test). A step then passes only when an axe
+    rule for it passed; a run without axe (no tab panel to check, say) or
+    without a rule for the step decides nothing."""
+    return any(m.kwargs.get("axe") for m in item.iter_markers("bitv"))
+
+
 def _merge_axe(runs: list[list[dict[str, Any]]]) -> dict[str, Any]:
     """All axe runs of one test -> per rule: counts per outcome, worst outcome,
     help text and a few failing targets."""
@@ -141,6 +151,8 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[Any]) -> 
         steps = steps_of(item)
         if steps and not any(k == "bitv" for k, _ in item.user_properties):
             item.user_properties.append(("bitv", steps))
+            if axe_only(item):
+                item.user_properties.append(("bitv_axe_only", True))
     elif call.when == "call" and _AXE_RUNS:
         item.user_properties.append(("axe", _merge_axe(_AXE_RUNS)))
         if _AXE_VERSION:
@@ -173,7 +185,10 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
     steps = props.get("bitv")
     if not steps:
         return
-    rec = _TESTS.setdefault(report.nodeid, {"steps": list(steps), "outcome": None, "message": "", "axe": None})
+    rec = _TESTS.setdefault(
+        report.nodeid,
+        {"steps": list(steps), "outcome": None, "message": "", "axe": None, "axe_only": bool(props.get("bitv_axe_only"))},
+    )
     if "axe" in props:
         rec["axe"] = props["axe"]
     if "axe_version" in props:
@@ -218,7 +233,9 @@ def step_outcomes(rec: dict[str, Any]) -> dict[str, dict[str, Any]]:
             else:
                 out[step] = {"outcome": "skipped", "message": "no applicable axe rule for this step"}
         else:  # passed
-            if rules and not any(e["outcome"] in ("pass", "violation") for e in rules.values()):
+            if rec.get("axe_only") and not any(e["outcome"] == "pass" for e in rules.values()):
+                out[step] = {"outcome": "skipped", "message": "no axe rule for this step ran in this test"}
+            elif rules and not any(e["outcome"] in ("pass", "violation") for e in rules.values()):
                 out[step] = {"outcome": "skipped", "message": "no applicable axe rule for this step"}
             else:
                 out[step] = {"outcome": "passed", "message": ""}

@@ -33,7 +33,7 @@ AXE_WCAG_STEPS = (
 )
 
 
-@pytest.mark.bitv(*AXE_WCAG_STEPS)
+@pytest.mark.bitv(*AXE_WCAG_STEPS, axe=True)
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
@@ -42,7 +42,7 @@ def test_wcag_rules_as_loaded(open_page, page_id: str, lang: str, theme: str) ->
     assert_no_violations(run_axe(page, WCAG_TAGS), f"{page_id} [{lang}, {theme}] as loaded")
 
 
-@pytest.mark.bitv(*AXE_WCAG_STEPS)
+@pytest.mark.bitv(*AXE_WCAG_STEPS, axe=True)
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
@@ -52,7 +52,7 @@ def test_wcag_rules_expanded(open_page, page_id: str, lang: str, theme: str) -> 
     assert_no_violations(run_axe(page, WCAG_TAGS), f"{page_id} [{lang}, {theme}] with disclosures open")
 
 
-@pytest.mark.bitv(*AXE_WCAG_STEPS)
+@pytest.mark.bitv(*AXE_WCAG_STEPS, axe=True)
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_wcag_rules_every_tab_panel(open_page, page_id: str, theme: str) -> None:
@@ -65,7 +65,7 @@ def test_wcag_rules_every_tab_panel(open_page, page_id: str, theme: str) -> None
     assert_no_violations(found, f"{page_id} [en, {theme}] each tab panel")
 
 
-@pytest.mark.bitv("9.1.3.1", "9.2.4.1", "9.2.4.3", "9.2.4.6")
+@pytest.mark.bitv("9.1.3.1", "9.2.4.1", "9.2.4.3", "9.2.4.6", axe=True)
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_best_practices(open_page, page_id: str, lang: str) -> None:

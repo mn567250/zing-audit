@@ -54,6 +54,15 @@ def test_passing_axe_test_does_not_pass_steps_it_could_not_check():
     assert out["9.2.2.1"]["outcome"] == "skipped" and out["9.1.1.1"]["outcome"] == "passed"
 
 
+def test_axe_only_test_without_axe_run_decides_nothing():
+    # e.g. "every tab panel" on a page without tabs: no axe run, no verdict
+    out = results.step_outcomes({"steps": ["9.1.4.3"], "outcome": "passed", "axe": None, "axe_only": True})
+    assert out["9.1.4.3"]["outcome"] == "skipped"
+    axe = results._merge_axe([[_rule("color-contrast", "pass", ["wcag2aa", "wcag143"])]])
+    out = results.step_outcomes({"steps": ["9.1.4.3", "9.4.1.2"], "outcome": "passed", "axe": axe, "axe_only": True})
+    assert out["9.1.4.3"]["outcome"] == "passed" and out["9.4.1.2"]["outcome"] == "skipped"
+
+
 def test_non_axe_failure_fails_every_marked_step():
     rec = {"steps": ["9.2.1.1", "9.2.1.2"], "outcome": "failed", "when": "call", "axe": None,
            "message": "1 keyboard issue(s) on kb [en]:\n  not reachable with Tab: <button>"}

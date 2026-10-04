@@ -304,3 +304,24 @@ async def audit_context(
             profile=knowledge_base.resolve(target_config.model),
         )
         yield ctx
+
+
+@pytest.fixture(autouse=True)
+def _master_key(monkeypatch):
+    """Each test starts with a fresh master key held in memory (as after the
+    user entered it), and ZING_SECRET_KEY unset. Tests of the locked or
+    first-run states call ``vault.reset_state()`` themselves."""
+    monkeypatch.delenv("ZING_SECRET_KEY", raising=False)
+    try:
+        from zing import secretbox
+        from zing.web.masterkey import vault
+    except ImportError:  # pragma: no cover - the web extra is not installed
+        yield
+        return
+    import contextlib
+
+    vault.reset_state()
+    with contextlib.suppress(secretbox.SecretError):  # cryptography missing
+        secretbox.unlock(secretbox.SecretBox([secretbox.generate_key()], "test"))
+    yield
+    vault.reset_state()

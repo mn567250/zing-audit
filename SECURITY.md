@@ -25,14 +25,21 @@ zing is a local-first auditing tool. The security properties that matter most:
   in-scope vulnerability.
 - **Stored monitor keys.** `zing serve` keeps each monitor's API key in
   `watches.db`, encrypted with Fernet (`zing/secretbox.py`). The master key is
-  `ZING_SECRET_KEY` (a key, or an `env:`/`file:` reference) or else
-  `<data dir>/secret.key`, created `0600`. With the default key file next to
-  the database, a copy of the database alone (backup, synced folder, support
-  bundle) reveals no key; anyone who can read the whole data directory or run
-  code as your user still can. For real separation, pass the key through
-  `ZING_SECRET_KEY` (e.g. `file:/run/secrets/zing_key`) and keep it out of the
-  data directory. Back it up with `zing secret export`; without it the stored
-  keys must be re-entered. `zing secret rotate` replaces it.
+  **never written to the data directory**: the Monitors page shows it once
+  when it is created, the user keeps it (password manager, the browser's
+  vault) and enters it again after every restart; until then the server holds
+  it only in memory and monitors that need it wait. Headless setups pass it as
+  `ZING_SECRET_KEY` (a key, or an `env:`/`file:` reference such as
+  `file:/run/secrets/zing_key`), kept outside the data directory. Only a check
+  value sealed with the key is stored, to reject a wrong key. A copy of the
+  data directory (backup, synced folder, support bundle) therefore reveals no
+  API key. Not covered: someone who can read the running server's memory or
+  is root on its host. A `secret.key` left by an older version is still read,
+  until the user moves it out, which replaces it with a new key so old backups
+  holding it become useless. A lost key can only be reset, which drops the
+  stored API keys. The key-handling routes (`/api/secret/*`) answer with
+  `Cache-Control: no-store`, never echo a submitted key, and sit behind the
+  same local-only checks as the rest of the UI.
 - **Untrusted input.** Relay responses are untrusted by design. Report renderers
   must neutralize relay-controlled text (HTML-escape, Markdown-escape) so it
   cannot inject markup or spoof report structure.

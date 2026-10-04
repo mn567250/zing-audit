@@ -1283,43 +1283,74 @@ secret_app = typer.Typer(
 app.add_typer(secret_app, name="secret")
 
 
-def _secret_box() -> SecretBox:
+def _secret_box(*, prompt: bool = True) -> SecretBox:
+    """The master key: ZING_SECRET_KEY, a legacy key file, or typed at a prompt."""
     from zing import secretbox
+    from zing.web.masterkey import VaultError, vault
 
+    st = vault.startup()
+    if st["state"] == "locked" and prompt:
+        typed = typer.prompt("Master key", hide_input=True)
+        try:
+            vault.unlock(typed)
+        except VaultError as exc:
+            err_console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=2) from exc
     try:
         return secretbox.default()
     except secretbox.SecretError as exc:
-        err_console.print(f"[red]{exc}[/red]")
+        msg = st.get("error") or (
+            "no master key yet: create one on the Monitors page of `zing serve`, "
+            "or with `zing secret rotate`"
+            if st["state"] == "uninitialized" else str(exc)
+        )
+        err_console.print(f"[red]{msg}[/red]")
         raise typer.Exit(code=2) from exc
 
 
 @secret_app.command("status")
 def secret_status() -> None:
-    """Where the master key comes from, its fingerprint, and the stored keys' state."""
-    from zing.web import watches
+    """Whether the master key is set up and where it comes from, and the stored keys' state."""
+    from zing.web.masterkey import vault
 
-    box = _secret_box()
-    console.print(f"master key: [bold]{box.source}[/bold]  (fingerprint {box.fingerprint()})")
-    if len(box.keys) > 1:
-        console.print(f"  + {len(box.keys) - 1} older key(s), used only to decrypt")
-    counts = watches.key_counts(box)
-    console.print(
-        "watch API keys: "
-        + ", ".join(f"{n} {k}" for k, n in counts.items())
-    )
+    st = vault.startup()
+    line = f"master key: [bold]{st['state']}[/bold]"
+    if st["source"]:
+        line += f"  from {st['source']} (fingerprint {st['fingerprint']})"
+    console.print(line)
+    if st.get("error"):
+        err_console.print(f"[red]{st['error']}[/red]")
+    counts = st["counts"]
+    console.print("watch API keys: " + ", ".join(f"{n} {k}" for k, n in counts.items()))
+    if st["state"] == "locked":
+        console.print("Enter the key on the Monitors page of `zing serve` to run monitors.")
+    if "legacy_key_file" in st["warnings"]:
+        err_console.print(
+            "[yellow]![/yellow] The master key is still stored next to the databases "
+            "(secret.key): move it out on the Monitors page, or with `zing secret rotate`."
+        )
+    if "env_in_data_dir" in st["warnings"]:
+        err_console.print(
+            "[yellow]![/yellow] ZING_SECRET_KEY points into the data directory: keep the key elsewhere."
+        )
     if counts.get("unreadable"):
         err_console.print(
             "[yellow]![/yellow] Unreadable keys were encrypted with another master key: "
             "restore it, or re-enter those keys in the web UI."
         )
     if counts.get("plain"):
-        console.print("Plain-text keys are encrypted the next time `zing serve` starts.")
+        console.print("Plain-text keys are encrypted as soon as the master key is entered.")
 
 
 @secret_app.command("export")
 def secret_export() -> None:
-    """Print the master key, to back it up (password manager, Docker secret)."""
-    box = _secret_box()
+    """Print the master key from ZING_SECRET_KEY or a legacy key file, to back it up."""
+    from zing.web.masterkey import SOURCE_UI
+
+    box = _secret_box(prompt=False)
+    if box.source == SOURCE_UI:  # pragma: no cover - the CLI never holds a typed key here
+        console.print("You entered this key yourself: keep your copy of it.")
+        return
     err_console.print(
         "[yellow]![/yellow] This is a secret: anyone with it and your watches.db can read "
         "the stored API keys."
@@ -1329,11 +1360,17 @@ def secret_export() -> None:
 
 @secret_app.command("rotate")
 def secret_rotate() -> None:
-    """Generate a new master key and re-encrypt every stored API key with it."""
-    from zing import secretbox
+    """Generate a new master key and re-encrypt every stored API key with it.
 
-    box = _secret_box()
-    if box.source == secretbox.ENV:
+    Also creates the first key, and moves a legacy key file out of the data
+    directory (the file is deleted). The new key is printed once: store it.
+    """
+    from zing import secretbox
+    from zing.web.masterkey import VaultError, vault
+
+    st = vault.startup()
+    box = _secret_box() if st["state"] != "uninitialized" else None
+    if box is not None and box.source == secretbox.ENV:
         # zing cannot change an environment variable: rotate in two steps.
         if len(box.keys) == 1:
             new_key = secretbox.generate_key()
@@ -1344,36 +1381,31 @@ def secret_rotate() -> None:
             )
             typer.echo(f"{new_key},{box.keys[0]}")
             return
-        n = _reseal(box)
+        try:
+            from zing.web import watches
+
+            n = watches.adopt_key(box, opener=box)
+        except secretbox.SecretError as exc:
+            err_console.print(f"[red]Nothing re-encrypted:[/red] {exc}")
+            raise typer.Exit(code=1) from exc
         console.print(
             f"[green]Re-encrypted[/green] {n} key(s) with the first key in ZING_SECRET_KEY "
             f"(fingerprint {box.fingerprint()}); the older key(s) can now be removed from it."
         )
         return
-    # Key file: every step leaves a key set that opens every stored key, so a
-    # crash part-way loses nothing. 1) new + old keys, 2) re-encrypt, 3) new only.
-    new_key = secretbox.generate_key()
-    path = Path(box.source)
-    secretbox.write_key_file(",".join([new_key, *box.keys]), path)
-    secretbox.clear_cache()
-    n = _reseal(secretbox.default())
-    secretbox.write_key_file(new_key, path)
-    secretbox.clear_cache()
-    console.print(
-        f"[green]Rotated.[/green] {n} key(s) re-encrypted; new master key in {path} "
-        f"(fingerprint {secretbox.default().fingerprint()}). Back it up with `zing secret export`."
-    )
-
-
-def _reseal(box: SecretBox) -> int:
-    from zing import secretbox
-    from zing.web import watches
-
     try:
-        return watches.reseal_keys(box)
-    except secretbox.SecretError as exc:
-        err_console.print(f"[red]Nothing re-encrypted:[/red] {exc}")
+        key = vault.begin_new()
+        st = vault.confirm_new(key)
+    except (VaultError, secretbox.SecretError) as exc:
+        err_console.print(f"[red]Nothing changed:[/red] {exc}")
         raise typer.Exit(code=1) from exc
+    err_console.print(
+        f"[green]New master key[/green] (fingerprint {st['fingerprint']}). It is shown only "
+        "now and stored nowhere: keep it in a password manager. A running `zing serve` "
+        "locks itself and asks for it."
+    )
+    typer.echo(key)
+
 
 if __name__ == "__main__":
     app()

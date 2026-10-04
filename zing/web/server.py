@@ -23,6 +23,13 @@ Endpoints:
   POST /api/jobs/{id}/cancel stop a queued or running job
   POST /api/report/export    a report (JSON body) rendered as a download
                              (?format=json|md|html|pdf)
+  GET  /api/secret           the monitors' master key: state, fingerprint,
+                             allowed actions (never the key)
+  POST /api/secret/new       a new master key, shown once …
+  POST /api/secret/new/confirm  … and adopted once typed back {key}
+  POST /api/secret/unlock    enter the master key {key} after a restart
+  POST /api/secret/lock      forget it; monitors pause
+  POST /api/secret/reset     the key is lost: drop the encrypted API keys
 
 The audit runs in-process with the same `run_audit` the CLI uses; a progress
 callback pushes per-detector events into a queue the SSE generator drains. The
@@ -201,6 +208,10 @@ class WatchKeyUnreadable(Exception):
     or changed); the key must be re-entered before the watch can run."""
 
 
+class WatchLocked(Exception):
+    """Raised when a watch's API key waits for the master key to be entered."""
+
+
 _log = logging.getLogger("zing.web")
 
 
@@ -219,6 +230,10 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
     wid = int(row["id"])
     if wid in _running_watches:
         raise WatchAlreadyRunning(wid)
+    if row.get("key_locked"):
+        # Not a failure: the run waits for the master key, and runs as soon as
+        # it is entered (the run time is left alone so it is still due then).
+        raise WatchLocked(wid)
     if row.get("key_error"):
         # Never audit with a missing key: it would fail and alert falsely.
         # Move the run time on (so the scheduler doesn't retry every tick)
@@ -387,9 +402,14 @@ async def _scheduler_loop() -> None:
     loop. Cancellation (on server shutdown) propagates cleanly.
     """
     from zing.web import watches
+    from zing.web.masterkey import vault
 
     while True:
         try:
+            # Notice another process changing the master key. While it is
+            # locked, watches that need it raise WatchLocked and wait; keyless
+            # and env:/file: ones run as usual.
+            vault.verify()
             due = watches.due(time.time())
         except Exception:
             due = []
@@ -409,11 +429,10 @@ async def _scheduler_loop() -> None:
 @contextlib.asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Spawn the watch scheduler on startup; cancel it cleanly on shutdown."""
-    from zing.web import watches
+    from zing.web.masterkey import vault
 
     try:
-        migrated = watches.init()
-        _log_secret_key(migrated)
+        _log_secret_key(vault.startup())
     except Exception as exc:
         _log.warning("watch store: %s", exc)
     task = asyncio.create_task(_scheduler_loop())
@@ -427,22 +446,37 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
             await jobs.manager.shutdown()
 
 
-def _log_secret_key(migrated: int) -> None:
-    """Say once at startup which master key protects the stored watch keys."""
-    from zing import secretbox
-
-    box = secretbox.default()
-    _log.warning(
-        "watch API keys are encrypted with the key from %s (fingerprint %s)",
-        box.source, box.fingerprint(),
-    )
-    if secretbox.default_created():
+def _log_secret_key(status: dict[str, Any]) -> None:
+    """Say once at startup whether the monitors' master key is loaded."""
+    state = status.get("state")
+    if state == "unlocked":
         _log.warning(
-            "generated a new master key; back it up with `zing secret export` "
-            "(losing it means re-entering every watch's API key)"
+            "monitor API keys are encrypted with the master key from %s (fingerprint %s)",
+            status.get("source"), status.get("fingerprint"),
         )
-    if migrated:
-        _log.warning("encrypted %d API key(s) that were stored in plain text", migrated)
+    elif state == "locked":
+        _log.warning("master key locked: monitors are paused until it is entered at /v2/watches")
+    elif state == "env_mismatch":
+        _log.error("master key: %s", status.get("error"))
+    if "legacy_key_file" in status.get("warnings", []):
+        _log.warning(
+            "the master key is still stored next to the databases (secret.key): "
+            "move it out on the Monitors page"
+        )
+    if "env_in_data_dir" in status.get("warnings", []):
+        _log.warning("ZING_SECRET_KEY points into the data directory: keep the key elsewhere")
+
+
+def _locked_response(_exc: Exception | None = None) -> JSONResponse:
+    """423: the master key has to be entered (or created) first."""
+    from zing.web.masterkey import vault
+
+    st = vault.status()
+    return JSONResponse(
+        {"error": "the master key is locked: enter it first" if st["state"] != "uninitialized"
+         else "create a master key first", "locked": True, "state": st["state"]},
+        status_code=423,
+    )
 
 
 def create_app() -> FastAPI:
@@ -986,7 +1020,12 @@ def create_app() -> FastAPI:
             knowledge = _watch_knowledge(cfg)
         except Exception as exc:  # e.g. a broken ZING_KB_DIR file
             return JSONResponse({"error": f"knowledge base: {exc}"}, status_code=400)
-        wid = watches.create(cfg, knowledge=knowledge)
+        from zing.secretbox import SecretLocked
+
+        try:
+            wid = watches.create(cfg, knowledge=knowledge)
+        except SecretLocked as exc:
+            return _locked_response(exc)
         return JSONResponse({"ok": True, "id": wid}, status_code=201)
 
     @app.post("/api/watches/from-history/{rid}")
@@ -1098,7 +1137,12 @@ def create_app() -> FastAPI:
             # A draft needs its schedule before it may run on its own. The key
             # stays optional, as in the audit: local relays need none.
             return JSONResponse({"error": "set an interval first"}, status_code=400)
-        watches.update(wid, interval_sec=interval, api_key=key, alert_on=alert_on, webhooks=hooks)
+        from zing.secretbox import SecretLocked
+
+        try:
+            watches.update(wid, interval_sec=interval, api_key=key, alert_on=alert_on, webhooks=hooks)
+        except SecretLocked as exc:
+            return _locked_response(exc)
         if "enabled" in body:
             watches.set_enabled(wid, bool(body.get("enabled")))
         if "language" in body:
@@ -1125,6 +1169,8 @@ def create_app() -> FastAPI:
             return JSONResponse({"error": "already running"}, status_code=409)
         except WatchCancelled:
             return JSONResponse({"ok": False, "cancelled": True})
+        except WatchLocked as exc:
+            return _locked_response(exc)
         except WatchKeyUnreadable:
             return JSONResponse(
                 {"error": "the stored API key cannot be decrypted (master key lost or "
@@ -1149,6 +1195,93 @@ def create_app() -> FastAPI:
         if not _cancel_watch(wid):
             return JSONResponse({"error": "not running"}, status_code=409)
         return JSONResponse({"ok": True})
+
+    # ----- The master key of the monitors' API keys --------------------- #
+    # Key-bearing bodies are read by hand, not with pydantic models: a 422
+    # would echo the input (the key) back. Nothing here is ever cached.
+    def _secret_json(payload: dict[str, Any], status_code: int = 200) -> JSONResponse:
+        return JSONResponse(payload, status_code=status_code, headers={"Cache-Control": "no-store"})
+
+    async def _typed_key(request: Request) -> str:
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+        key = body.get("key") if isinstance(body, dict) else None
+        return key if isinstance(key, str) else ""
+
+    def _vault_call(fn: Any, *args: Any) -> JSONResponse:
+        from zing.web.masterkey import VaultError
+
+        try:
+            return _secret_json(fn(*args))
+        except VaultError as exc:
+            return _secret_json({"error": str(exc)}, status_code=exc.status)
+
+    @app.get("/api/secret")
+    async def secret_status() -> Any:
+        from zing.web.masterkey import vault
+
+        return _secret_json(vault.status())
+
+    @app.post("/api/secret/new")
+    async def secret_new() -> Any:
+        """A new master key, shown once; confirmed by /api/secret/new/confirm."""
+        from zing.secretbox import SecretBox
+        from zing.web.masterkey import PENDING_TTL_SEC, VaultError, vault
+
+        try:
+            key = vault.begin_new()
+        except VaultError as exc:
+            return _secret_json({"error": str(exc)}, status_code=exc.status)
+        return _secret_json({
+            "key": key,
+            "fingerprint": SecretBox([key], "new").fingerprint(),
+            "expires_in": int(PENDING_TTL_SEC),
+        })
+
+    @app.post("/api/secret/new/confirm")
+    async def secret_new_confirm(request: Request) -> Any:
+        from zing.web.masterkey import vault
+
+        return _vault_call(vault.confirm_new, await _typed_key(request))
+
+    @app.post("/api/secret/unlock")
+    async def secret_unlock(request: Request) -> Any:
+        from zing.web.masterkey import vault
+
+        return _vault_call(vault.unlock, await _typed_key(request))
+
+    @app.post("/api/secret/lock")
+    async def secret_lock() -> Any:
+        # Audits already running finish with the key they decrypted.
+        from zing.web.masterkey import vault
+
+        return _vault_call(vault.lock)
+
+    @app.post("/api/secret/reset")
+    async def secret_reset(request: Request) -> Any:
+        """The master key is lost: drop the encrypted API keys, start over."""
+        from zing.web.masterkey import VaultError, vault
+
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+        if not isinstance(body, dict) or body.get("confirm") != "RESET":
+            return _secret_json({"error": 'send {"confirm": "RESET"}'}, status_code=400)
+        st = vault.status()
+        if "reset" not in st["actions"]:
+            return _secret_json(
+                {"error": f"cannot reset the master key while it is {st['state']}"}, status_code=409
+            )
+        for wid in list(_running_watches):
+            _cancel_watch(wid)
+        try:
+            dropped = vault.reset()
+        except VaultError as exc:
+            return _secret_json({"error": str(exc)}, status_code=exc.status)
+        return _secret_json({**vault.status(), "dropped": dropped})
 
     # ----- Tools: embedding & rerank auditors (non-chat surface) ---------- #
     @app.get("/tools")

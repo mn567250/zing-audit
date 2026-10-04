@@ -289,6 +289,18 @@ def test_v2_pages_share_the_design_system(client):
     assert client.get("/v2", follow_redirects=False).headers["location"] == "/v2/"
 
 
+def test_v2_monitors_page_manages_the_master_key(client):
+    html = client.get("/v2/watches").text
+    assert '<script src="/v2/static/masterkey.js"></script>' in html
+    assert 'id="mk-bar"' in html
+    r = client.get("/v2/static/masterkey.js")
+    assert r.status_code == 200 and "javascript" in r.headers["content-type"]
+    # one vault entry: a fixed username, "new-password" to save, "current-password" to fill
+    js = r.text
+    assert 'autocomplete="new-password"' in js and 'autocomplete="current-password"' in js
+    assert "localStorage" not in js and "sessionStorage" not in js
+
+
 def test_ui_switch_is_remembered_in_a_cookie(client):
     # default: classic, no redirect
     r = client.get("/history", follow_redirects=False)

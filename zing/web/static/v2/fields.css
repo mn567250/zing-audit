@@ -69,3 +69,51 @@
 .zsf .zsf-toggle:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; box-shadow: 0 0 0 3px var(--focus-ring); }
 .zsf .zsf-toggle svg,
 .zsf .zsf-toggle .zicon { width: 18px; height: 18px; }
+
+/* ---------- monitors' master key (/v2/static/masterkey.js) ---------- */
+.zmk-bar {
+  margin: 18px 0 0; padding: 12px 14px; border-radius: 14px;
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+.zmk-bar.ok { background: var(--goodbg); border-color: var(--line-strong); }
+.zmk-bar.warn { background: var(--warnbg); border-color: var(--warn); }
+.zmk-bar.bad { background: var(--badbg); border-color: var(--bad); }
+.zmk-line { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+.zmk-ico { display: inline-flex; color: var(--ink2); }
+.zmk-ico .zicon { width: 18px; height: 18px; }
+.zmk-text { flex: 1 1 260px; min-width: 0; font-size: 13.5px; line-height: 1.45; color: var(--ink); }
+.zmk-meta { color: var(--ink2); }
+.zmk-text code {
+  font-size: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px;
+}
+.zmk-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.zmk-btns .btn.link { border-color: transparent; background: none; text-decoration: underline; }
+.zmk-warn { margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--warn); line-height: 1.45; }
+.zmk-msg { margin: 8px 0 0; font-size: 13px; font-weight: 600; color: var(--ink2); }
+.zmk-msg:empty { display: none; }
+.zmk-reset { margin-top: 10px; }
+.zmk-reset p { margin: 0 0 8px; font-size: 13px; color: var(--bad); font-weight: 600; line-height: 1.45; }
+.zmk-row { display: flex; gap: 6px 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.zmk-row .in { flex: 1 1 160px; min-width: 0; font-size: 13px; padding: 7px 10px; border-radius: 10px; }
+
+.zmk-dlg {
+  width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0;
+  border: 1px solid var(--line-strong); border-radius: var(--r-card);
+  background: var(--card); color: var(--ink); box-shadow: var(--shadow-pop);
+}
+.zmk-dlg::backdrop { background: rgba(5, 15, 13, 0.55); }
+.zmk-body { padding: 22px 22px 20px; }
+@media (max-width: 520px) { .zmk-body { padding: 18px 16px 16px; } }
+.zmk-body h2 {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
+  font-family: var(--disp); font-size: 19px; font-weight: 600; letter-spacing: -0.3px;
+}
+.zmk-body h2 .zicon { width: 20px; height: 20px; }
+.zmk-body p { margin: 0 0 12px; font-size: 14px; line-height: 1.55; color: var(--ink2); }
+.zmk-body .in { width: 100%; box-sizing: border-box; }
+.zmk-body #zmk-key { font-size: 14px; letter-spacing: 0.3px; }
+.zmk-check { display: flex; gap: 8px; align-items: flex-start; margin: 14px 0 0; font-size: 13.5px; line-height: 1.45; cursor: pointer; }
+.zmk-check input { margin-top: 3px; }
+.zmk-act { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.zmk-err { margin: 8px 0 0; font-size: 13px; font-weight: 600; color: var(--bad); }
+.zmk-err[hidden] { display: none; }

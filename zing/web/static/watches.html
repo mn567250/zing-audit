@@ -329,9 +329,10 @@
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify(body)
     }).then(function(r){
-      return r.json().then(function(j){ return {ok: r.ok, body: j}; });
+      return r.json().then(function(j){ return {ok: r.ok, locked: r.status === 423, body: j}; });
     }).then(function(res){
       btn.disabled = false;
+      if(res.locked){ showErr(lockedMsg); return; }
       if(!res.ok){ showErr(function(){ return window.ZING_LANG.server(res.body.error) || T("创建失败", "Failed to create monitor"); }); return; }
       // reset the key + name so a fresh add is easy; keep target for convenience
       if(window.ZingSecret) window.ZingSecret.remember($("form"));
@@ -339,6 +340,12 @@
       load();
     }).catch(function(){ btn.disabled = false; showErr(function(){ return T("网络错误，创建失败", "Network error — failed to create monitor"); }); });
   });
+
+  // The master key is created and entered on the v2 Monitors page.
+  function lockedMsg(){
+    return T("主密钥已锁定或尚未创建：请在新版监控页面（/v2/watches）中输入或创建。",
+      "The master key is locked or not created yet: enter or create it on the new Monitors page (/v2/watches).");
+  }
 
   $("list").addEventListener("click", function(ev){
     var t = ev.target;
@@ -349,6 +356,7 @@
       var orig = t.innerHTML;
       t.innerHTML = icon("refresh") + T("运行中…", "Running…");
       fetch("/api/watches/"+runId+"/run", {method:"POST"}).then(function(r){
+        if(r.status === 423){ t.disabled = false; t.innerHTML = orig; alert(lockedMsg()); return null; }
         return r.json();
       }).then(function(){ load(); }).catch(function(){
         t.disabled = false; t.innerHTML = orig; alert(T("运行失败", "Run failed"));

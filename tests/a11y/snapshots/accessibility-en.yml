@@ -37,7 +37,7 @@
     - paragraph: Partially conformant
     - paragraph: Of 44 applicable steps, 27 pass, 0 fail, 17 await a manual review and 0 are not tested yet.
     - term: Generated
-    - definition: October 4, 2026 at 7:42 PM
+    - definition: <report date>
     - term: Commit
     - definition:
       - code: <id>
@@ -151,7 +151,7 @@
       - text: "Self-assessment: on every change, the automated test suite in"
       - code: tests/a11y
       - text: checks every page of web UI v2 in a real browser (Chromium, with axe-core and checks of its own) in every UI language and in the light and the dark theme. Each test names the test steps it decides.
-    - paragraph: "Last test run: October 4, 2026 at 7:42 PM. A manual review, including screen readers, has not been made yet."
+    - paragraph: "Last test run: <report date>. A manual review, including screen readers, has not been made yet."
     - heading "Feedback" [level=3]
     - paragraph:
       - text: "Did you find a barrier, or is something hard to use with assistive technology? Please tell us:"

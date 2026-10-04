@@ -727,6 +727,27 @@ NAMED_GENERICS_JS = """
 
 _snapshots: dict[tuple[str, str], tuple[str, list[str]]] = {}
 
+# The report page shows when the conformance report was generated, formatted
+# with Intl. The wording differs between ICU versions (Chromium builds: "4 de
+# octubre de 2026, 19:42" vs "… a las 19:42"), so the date is replaced by a
+# placeholder, formatted here exactly as the page formats it.
+MASK_REPORT_DATE_JS = """
+async () => {
+  let rep;
+  try { rep = await (await fetch('/v2/static/bitv-report.json')).json(); } catch (e) { return 0; }
+  if (!rep || !rep.generated_at || !window.ZING_LANG) return 0;
+  const d = new Date(rep.generated_at);
+  const forms = new Set();
+  try { forms.add(d.toLocaleString(ZING_LANG.locale(), { dateStyle: 'long', timeStyle: 'short' })); } catch (e) {}
+  forms.add(d.toLocaleString());
+  let n = 0;
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let t = walk.nextNode(); t; t = walk.nextNode())
+    for (const f of forms) if (f && t.nodeValue.includes(f)) { t.nodeValue = t.nodeValue.split(f).join('<report date>'); n++; }
+  return n;
+}
+"""
+
 
 def aria_tree(browser: Browser, contexts: list[BrowserContext], base: str, page_id: str, lang: str) -> tuple[str, list[str]]:
     """Aria snapshot of <body> after load + expand_all (clock and time zone
@@ -742,6 +763,7 @@ def aria_tree(browser: Browser, contexts: list[BrowserContext], base: str, page_
         expand_all(page)
         page.mouse.move(0, 0)
         settle(page)
+        page.evaluate(MASK_REPORT_DATE_JS)
         _snapshots[key] = (mask(page.locator("body").aria_snapshot()), list(page.evaluate(NAMED_GENERICS_JS)))
     return _snapshots[key]
 

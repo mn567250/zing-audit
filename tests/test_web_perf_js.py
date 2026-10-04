@@ -144,3 +144,46 @@ def test_perf_fragment_translates_every_key():
     for code in ("fr", "es", "pt", "it", "de"):
         tr = json.loads((base / f"{code}.json").read_text(encoding="utf-8"))["strings"]
         assert set(tr) == set(en), code
+
+
+_LIVE_JS = r"""
+const path = require("path");
+global.window = {};
+global.document = undefined;
+require(path.join(process.argv[1], "perf.js"));
+global.document = { activeElement: null };  // after load: style injection stays skipped
+const host = { innerHTML: "", contains: () => false, querySelector: () => null, querySelectorAll: () => [] };
+const live = new window.ZingPerf.Live(host);
+live.records = JSON.parse(process.argv[2]);
+live.render();
+console.log(JSON.stringify({ html: host.innerHTML }));
+"""
+
+
+def _live(recs: list[RequestRecord]) -> str:
+    payload = json.dumps([r.model_dump() for r in recs])
+    return json.loads(subprocess.run(
+        ["node", "-e", _LIVE_JS, str(_STATIC), payload], capture_output=True, text=True, check=True,
+    ).stdout)["html"]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to evaluate the UI's JS")
+def test_live_tiles_show_ttft_and_decode_speed_for_streamed_calls():
+    html = _live([
+        RequestRecord(seq=i, endpoint="target", phase="probe", op="complete", ok=True, stream=True,
+                      start_ms=i * 100.0, duration_ms=900.0, ttft_ms=250.0, decode_tps_local=80.0)
+        for i in range(3)
+    ])
+    assert "TTFT p50</div><div class=\"zp-tv\">250 ms" in html
+    assert "Decode speed p50</div><div class=\"zp-tv\">80.0 tok/s" in html
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to evaluate the UI's JS")
+def test_live_tiles_fall_back_to_end_to_end_speed_without_streamed_calls():
+    html = _live([
+        RequestRecord(seq=i, endpoint="target", phase="passive", op="complete", ok=True, stream=False,
+                      start_ms=i * 100.0, duration_ms=1000.0, e2e_tps_local=42.0)
+        for i in range(3)
+    ])
+    assert "TTFT p50</div><div class=\"zp-tv\">—<" in html  # no first token without streaming
+    assert "End-to-end speed p50</div><div class=\"zp-tv\">42.0 tok/s" in html

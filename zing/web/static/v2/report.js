@@ -57,6 +57,11 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
     });
   }
+  // raw evidence (model replies) may quote Chinese: mark it lang="zh" (BITV 9.3.1.2)
+  function escEv(s) {
+    var Z = window.ZING_LANG;
+    return Z && Z.markCJK ? Z.markCJK(s) : esc(s);
+  }
   function reEsc(s) {
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
@@ -439,7 +444,7 @@
       (ev
         ? '<button type="button" class="linkbtn more" aria-expanded="false" aria-controls="' + id + '">' +
           esc(showEvidence(false)) + "</button>" +
-          '<pre class="ev" id="' + id + '" hidden>' + esc(ev) + "</pre>"
+          '<pre class="ev" id="' + id + '" hidden>' + escEv(ev) + "</pre>"
         : "") +
       "</div></li>"
     );
@@ -560,7 +565,7 @@
       (ev
         ? '<button type="button" class="linkbtn more" aria-expanded="false" aria-controls="' + id + '">' +
           esc(showEvidence(false)) + "</button>" +
-          '<pre class="ev" id="' + id + '" hidden>' + esc(ev) + "</pre>"
+          '<pre class="ev" id="' + id + '" hidden>' + escEv(ev) + "</pre>"
         : "") +
       "</div></li>"
     );
@@ -585,7 +590,7 @@
       "<b>" + esc(L.title || f.id || "") + '</b> <span class="tag ' + s.c + '">' + esc(tag) + "</span></div>" +
       (L.summary ? '<div class="fs">' + esc(L.summary) + "</div>" : "") +
       (f.recommendation ? '<div class="fs rec">' + esc(T("建议：", "Recommendation: ")) + esc(srv(f.recommendation)) + "</div>" : "") +
-      (ev ? '<pre class="ev">' + esc(ev) + "</pre>" : "") +
+      (ev ? '<pre class="ev">' + escEv(ev) + "</pre>" : "") +
       "</div>"
     );
   }

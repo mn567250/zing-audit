@@ -19,6 +19,9 @@
  *                      the UI language, CN included; unknown text stays English
  *   - exportText(text) same, for downloaded files
  *   - stripCJK(text)   drop CJK runs (e.g. "Moonshot AI (月之暗面 / Kimi)")
+ *   - markCJK(text)    HTML-escaped text with CJK runs wrapped in
+ *                      <span lang="zh"> outside CN (BITV 9.3.1.2 language of
+ *                      parts), for names that stay Chinese in every language
  *   - apply(root)      (re)translate static markup under root
  * and a global shorthand T(zh, en).
  *
@@ -118,6 +121,24 @@
       .replace(/\s*\/\s*(?=\()/g, " ")
       .replace(/\s{2,}/g, " ")
       .trim();
+  }
+
+  function escHTML(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function markCJK(s) {
+    s = String(s == null ? "" : s);
+    if (lang === "zh" || !CJK.test(s)) return escHTML(s);
+    var out = "", last = 0, m;
+    CJK_RUN.lastIndex = 0;
+    while ((m = CJK_RUN.exec(s))) {
+      out += escHTML(s.slice(last, m.index)) + '<span lang="zh">' + escHTML(m[0]) + "</span>";
+      last = m.index + m[0].length;
+    }
+    return out + escHTML(s.slice(last));
   }
 
   // English string -> language `l` (no current-language shortcut; "zh"
@@ -301,6 +322,7 @@
     server: server,
     exportText: exportText,
     stripCJK: stripCJK,
+    markCJK: markCJK,
     apply: apply,
   };
   window.T = t;

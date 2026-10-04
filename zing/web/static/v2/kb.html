@@ -482,7 +482,7 @@
           "<td>" + sourceBadge(m.source) + shadow + "</td></tr>";
       }).join("");
       return (
-        '<details class="card prov"' + (q ? " open" : "") + "><summary>" + esc(p.display_name || p.provider) +
+        '<details class="card prov"' + (q ? " open" : "") + "><summary>" + ZING_LANG.markCJK(p.display_name || p.provider) +
         " <code>" + esc(p.provider) + "</code> " + sourceBadge(p.source) +
         '<span class="cnt">' + esc(models.length === 1 ? T("1 个模型", "1 model") : Tf("{n} 个模型", "{n} models", { n: models.length })) + "</span></summary>" +
         '<div class="models"><table><thead><tr><th>' + esc(T("模型", "Model")) + '</th><th class="num">' + esc(T("上下文", "Context")) +

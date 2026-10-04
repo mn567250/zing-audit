@@ -88,6 +88,7 @@ def prepare(open_page: Any, page_id: str, lang: str = "en", theme: str = "light"
     return page, page.evaluate(TAB_STOPS_JS)
 
 
+@pytest.mark.bitv("9.2.1.1", "9.2.1.2", "9.3.2.1")
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_every_control_reachable_by_tab_without_trap(open_page, page_id: str, lang: str) -> None:
@@ -110,6 +111,7 @@ def test_every_control_reachable_by_tab_without_trap(open_page, page_id: str, la
     assert_no_issues(issues, f"{page_id} [{lang}]", "keyboard")
 
 
+@pytest.mark.bitv("9.2.4.3", "9.2.4.7")
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_focused_element_is_on_screen(open_page, page_id: str) -> None:
     """9.2.4.3 Focus order / 9.2.4.7 Focus visible: never focus something unseen."""
@@ -119,6 +121,7 @@ def test_focused_element_is_on_screen(open_page, page_id: str) -> None:
     assert_no_issues(issues, f"{page_id} [en]", "keyboard")
 
 
+@pytest.mark.bitv("9.2.4.7")
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_focus_is_visible(open_page, page_id: str, theme: str) -> None:
@@ -158,6 +161,7 @@ POPUP_TRIGGERS_JS = """
 """
 
 
+@pytest.mark.bitv("9.2.1.1", "9.1.4.13")
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_popups_close_with_escape_and_return_focus(open_page, page_id: str) -> None:
     """9.2.1.1 Keyboard / 9.1.4.13: menus and popups open with Enter, close with
@@ -182,6 +186,7 @@ def test_popups_close_with_escape_and_return_focus(open_page, page_id: str) -> N
     assert_no_issues(issues, f"{page_id} [en]", "keyboard")
 
 
+@pytest.mark.bitv("9.2.1.1", "9.2.4.3")
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_dialogs_close_with_escape(open_page, page_id: str) -> None:
     """Open modal dialogs take focus and close with Escape (9.2.1.1, 9.2.4.3)."""
@@ -205,6 +210,7 @@ def test_dialogs_close_with_escape(open_page, page_id: str) -> None:
     assert_no_issues(issues, f"{page_id} [en]", "keyboard")
 
 
+@pytest.mark.bitv("9.2.1.1", "9.4.1.2")
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_tabs_follow_arrow_key_pattern(open_page, page_id: str) -> None:
     """ARIA tabs: one Tab stop per tablist, arrow keys move between tabs and
@@ -261,6 +267,7 @@ TOOLTIP_TRIGGERS_JS = """
 """
 
 
+@pytest.mark.bitv("9.1.4.13")
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_tooltips_dismissible_hoverable_persistent(open_page, page_id: str) -> None:
     """9.1.4.13 Content on hover or focus."""

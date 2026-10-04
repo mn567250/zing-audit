@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title data-en="zing — accessibility">zing — 无障碍</title>
+<script src="/locales.js"></script>
+<script src="/lang.js"></script>
+<script src="/v2/static/theme.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&amp;family=Hanken+Grotesk:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/v2/static/zing.css" />
+<style>
+  /* ---- accessibility conformance report (v2) — page-only rules; colours via zing.css tokens ---- */
+  .card + .card, .card + h2 { margin-top: 20px; }
+  .form-title { font-family: var(--disp); font-weight: 600; font-size: 18px; margin: 0 0 12px; }
+  .verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 10px; }
+  .verdict .badge { font-size: 13px; padding: 5px 12px; }
+  .lead { font-size: 15px; line-height: 1.55; margin: 0; overflow-wrap: anywhere; }
+  .meta { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 16px 0 0; font-size: 13.5px; line-height: 1.45; }
+  .meta dt { color: var(--ink2); font-weight: 600; }
+  .meta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+  .meta code, .det code, .stmt code { font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; overflow-wrap: anywhere; }
+  @media (max-width: 520px) { .meta { grid-template-columns: 1fr; gap: 2px; } .meta dd { margin-bottom: 8px; } }
+
+  .groups { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; }
+  @media (max-width: 640px) { .groups { grid-template-columns: 1fr; } }
+  .groups h3 { font-size: 14px; font-weight: 700; margin: 0 0 10px; }
+  .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .bars li { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: baseline; font-size: 13.5px; }
+  .bars .val { font-family: var(--mono); font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+  .bars .bar { grid-column: 1 / -1; height: 8px; border-radius: var(--r-pill); background: var(--track); overflow: hidden; }
+  .bars .bar span { display: block; height: 100%; border-radius: var(--r-pill); background: var(--grey-fill); }
+  .bars .bar .good { background: var(--good-fill); }
+  .bars .bar .bad { background: var(--bad-fill); }
+  .bars .bar .warn { background: var(--warn-fill); }
+  .bars .bar .sky { background: var(--sky-fill); }
+  .beyond { margin: 16px 0 0; font-size: 13px; color: var(--ink2); line-height: 1.5; }
+
+  .filters { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 12px; }
+  @media (max-width: 640px) { .filters { grid-template-columns: 1fr; } }
+  .filters .grp { margin: 0; }
+  .shown { font-size: 13px; color: var(--ink2); margin: 12px 0 0; }
+  .tbl { margin-top: 12px; overflow-x: auto; border-radius: 14px; }
+  table.steps { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 520px; }
+  .steps caption { text-align: left; }
+  .steps th, .steps td { text-align: left; vertical-align: top; padding: 9px 8px; border-top: 1px solid var(--line); }
+  .steps thead th { border-top: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--ink2); white-space: nowrap; }
+  .steps th[scope=row] { font-family: var(--mono); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+  .steps td.lvl { font-family: var(--mono); font-size: 12.5px; }
+  .steps td.ttl { min-width: 11em; }
+  .steps details > summary { cursor: pointer; font-weight: 600; overflow-wrap: break-word; hyphens: auto; }
+  .steps .badge { white-space: normal; }
+  .det { margin: 8px 0 2px; font-size: 13px; line-height: 1.5; color: var(--ink); }
+  .det p { margin: 0 0 8px; }
+  .det .k { font-weight: 700; color: var(--ink2); }
+  .det ul { margin: 4px 0 8px; padding-left: 18px; }
+  .det pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mono); font-size: 11.5px; background: var(--surface-2); border-radius: 8px; padding: 6px 8px; }
+  .det li + li { margin-top: 6px; }
+  .empty-row td { text-align: center; color: var(--ink2); padding: 24px 8px; }
+
+  .stmt h3 { font-size: 15px; font-weight: 700; margin: 18px 0 6px; }
+  .stmt h3:first-of-type { margin-top: 0; }
+  .stmt p, .stmt li { font-size: 14px; line-height: 1.55; }
+  .stmt p { margin: 0 0 8px; }
+  .stmt ul { margin: 0 0 10px; padding-left: 20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="znav" data-page="a11y"></header>
+  <main id="main" tabindex="-1">
+    <div class="hero">
+      <h1 data-en="Accessibility <span class='u'>conformance report</span>">无障碍<span class="u">符合性报告</span></h1>
+      <p data-en="Every test step of BITV 2.0 and EN 301 549 (chapter 9, the same as WCAG 2.1 level A and AA): how it is tested and the latest result of the automated accessibility tests.">这里列出 BITV 2.0 与 EN 301 549（第 9 章，即 WCAG 2.1 A 级与 AA 级）的每个检查步骤：它是如何测试的，以及自动化无障碍测试的最新结果。</p>
+    </div>
+
+    <div class="errbox" id="loaderr" role="alert" hidden></div>
+
+    <section class="card card-pad" style="margin-top:20px" aria-labelledby="status-title">
+      <h2 class="form-title" id="status-title" data-en="Status">结论</h2>
+      <div id="status"><p class="lead" data-en="Loading…">加载中…</p></div>
+    </section>
+
+    <section class="card card-pad" aria-labelledby="cov-title">
+      <h2 class="form-title" id="cov-title" data-en="Coverage">覆盖范围</h2>
+      <div class="groups">
+        <div>
+          <h3 data-en="How the steps are tested">步骤的测试方式</h3>
+          <ul class="bars" id="bars-auto"></ul>
+        </div>
+        <div>
+          <h3 data-en="Results">结果</h3>
+          <ul class="bars" id="bars-status"></ul>
+        </div>
+      </div>
+      <p class="hint" data-en="Percentages are of the applicable steps; steps about audio and video do not apply because the UI has none.">百分比基于适用的步骤；界面中没有音频和视频，因此相关步骤不适用。</p>
+      <p class="beyond" id="beyond" hidden></p>
+    </section>
+
+    <section class="card card-pad" aria-labelledby="steps-title">
+      <h2 class="form-title" id="steps-title" data-en="Test steps">检查步骤</h2>
+      <div class="filters">
+        <div class="grp">
+          <label class="lab" for="f-status" data-en="Status">状态</label>
+          <select class="in" id="f-status">
+            <option value="" data-en="All">全部</option>
+            <option value="fail" data-en="Fail">未通过</option>
+            <option value="pass" data-en="Pass">通过</option>
+            <option value="manual review pending" data-en="Manual review pending">待人工审核</option>
+            <option value="not tested" data-en="Not tested">未测试</option>
+            <option value="n/a" data-en="Not applicable">不适用</option>
+          </select>
+        </div>
+        <div class="grp">
+          <label class="lab" for="f-auto" data-en="Automation">自动化程度</label>
+          <select class="in" id="f-auto">
+            <option value="" data-en="All">全部</option>
+            <option value="auto" data-en="Automatic">自动</option>
+            <option value="partial" data-en="Partly automatic">部分自动</option>
+            <option value="manual" data-en="Manual">人工</option>
+            <option value="n/a" data-en="Not applicable">不适用</option>
+          </select>
+        </div>
+        <div class="grp">
+          <label class="lab" for="f-q" data-en="Search">搜索</label>
+          <input class="in" id="f-q" type="search" autocomplete="off" spellcheck="false" placeholder="步骤编号或标题…" data-en-placeholder="Step number or title…">
+        </div>
+      </div>
+      <p class="shown" id="shown" role="status"></p>
+      <div class="tbl" id="tbl" role="region" tabindex="0" aria-labelledby="steps-cap">
+        <table class="steps">
+          <caption class="sr-only" id="steps-cap" data-en="BITV / EN 301 549 test steps with automation level and result">BITV / EN 301 549 检查步骤及其自动化程度与结果</caption>
+          <thead>
+            <tr>
+              <th scope="col" data-en="Step">步骤</th>
+              <th scope="col" data-en="Title">标题</th>
+              <th scope="col" data-en="Level">级别</th>
+              <th scope="col" data-en="Automation">自动化程度</th>
+              <th scope="col" data-en="Status">状态</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card card-pad stmt" aria-labelledby="stmt-title">
+      <h2 class="form-title" id="stmt-title" data-en="Accessibility statement">无障碍声明</h2>
+      <h3 data-en="Conformance status">符合状态</h3>
+      <p id="stmt-status"></p>
+      <h3 data-en="Known limitations">已知限制</h3>
+      <div id="stmt-limits"></div>
+      <h3 data-en="How it was assessed">评估方式</h3>
+      <p data-en="Self-assessment: on every change, the automated test suite in <code>tests/a11y</code> checks every page of web UI v2 in a real browser (Chromium, with axe-core and checks of its own) in every UI language and in the light and the dark theme. Each test names the test steps it decides.">自我评估：每次变更时，<code>tests/a11y</code> 中的自动化测试套件都会在真实浏览器（Chromium，使用 axe-core 和自有检查）中，以每种界面语言、浅色与深色主题检查网页界面 v2 的每个页面。每个测试都标明它所判定的检查步骤。</p>
+      <p id="stmt-manual"></p>
+      <h3 data-en="Feedback">反馈</h3>
+      <p><span data-en="Did you find a barrier, or is something hard to use with assistive technology? Please tell us:">发现了障碍，或者某些功能难以通过辅助技术使用？请告诉我们：</span>
+        <a href="https://github.com/cenbonew/zing/issues" data-en="report an accessibility issue on GitHub">在 GitHub 上报告无障碍问题</a></p>
+    </section>
+  </main>
+  <footer><p class="foot" data-en="zing · relay reality check · this report is generated from the automated accessibility tests in <code>tests/a11y</code>">zing · 中转站验真 · 本报告由 <code>tests/a11y</code> 中的自动化无障碍测试生成</p></footer>
+</div>
+<script src="/i18n.js"></script>
+<script src="/icons.js"></script>
+<script src="/v2/static/nav.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var L = window.ZING_LANG;
+  var report = null, loadErr = false;
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function Tf(zh, en, vals) {
+    var s = T(zh, en);
+    Object.keys(vals || {}).forEach(function (k) {
+      s = s.split("{" + k + "}").join(String(vals[k]));
+    });
+    return s;
+  }
+  function num(n, digits) {
+    try { return Number(n).toLocaleString(L.locale(), { maximumFractionDigits: digits || 0 }); } catch (e) { return String(n); }
+  }
+  function fmtTime(iso) {
+    if (!iso) return "—";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    try { return d.toLocaleString(L.locale(), { dateStyle: "long", timeStyle: "short" }); } catch (e) { return d.toLocaleString(); }
+  }
+  // Catalogue text (step titles, "how"): English in the report, translated
+  // through the locale fragments (zh included); untranslated text keeps
+  // lang="en" so screen readers pronounce it right (BITV 9.3.1.2).
+  function cat(en) {
+    var l = L.get(), s = l === "en" ? en : L.trFor(l, en);
+    return s === en && l !== "en" ? '<span lang="en">' + esc(en) + "</span>" : esc(s);
+  }
+  function catText(en) {
+    var l = L.get();
+    return l === "en" ? en : L.trFor(l, en);
+  }
+
+  var STATUS = {
+    "pass": ["good", function () { return T("通过", "Pass"); }],
+    "fail": ["bad", function () { return T("未通过", "Fail"); }],
+    "manual review pending": ["warn", function () { return T("待人工审核", "Manual review pending"); }],
+    "not tested": ["grey", function () { return T("未测试", "Not tested"); }],
+    "n/a": ["grey", function () { return T("不适用", "Not applicable"); }],
+  };
+  var AUTO = {
+    "auto": ["sky", function () { return T("自动", "Automatic"); }],
+    "partial": ["warn", function () { return T("部分自动", "Partly automatic"); }],
+    "manual": ["grey", function () { return T("人工", "Manual"); }],
+    "n/a": ["grey", function () { return T("不适用", "Not applicable"); }],
+  };
+  var BEYOND = {
+    "11.7": function () { return T("用户偏好设置：强制颜色模式（EN 301 549 第 11.7 条）", "User preferences: forced colours mode (EN 301 549 clause 11.7)"); },
+  };
+  function statusLabel(s) { return (STATUS[s] || ["grey", function () { return s; }])[1](); }
+  function autoLabel(a) { return (AUTO[a] || ["grey", function () { return a; }])[1](); }
+  function badge(map, key) {
+    var e = map[key] || ["grey", function () { return key; }];
+    return '<span class="badge ' + e[0] + '">' + esc(e[1]()) + "</span>";
+  }
+  function conformance(s) {
+    return s === "fully conformant" ? T("完全符合", "Fully conformant") : T("部分符合", "Partially conformant");
+  }
+
+  // ---- status ------------------------------------------------------------- //
+  function paintStatus() {
+    if (!report) {
+      if (loadErr) $("status").innerHTML = '<p class="lead">' + esc(T("暂无报告。", "No report available.")) + "</p>";
+      return;
+    }
+    var t = report.totals, st = t.status, c = report.conformance || {};
+    var langs = (report.tested.languages || []).map(function (code) {
+      var l = L.langs().filter(function (x) { return x.code === code; })[0];
+      return l ? '<span lang="' + esc(l.html) + '">' + esc(l.label) + "</span>" : esc(code);
+    }).join(", ");
+    var themes = (report.tested.themes || []).map(function (th) {
+      return th === "dark" ? esc(T("深色", "Dark")) : th === "light" ? esc(T("浅色", "Light")) : esc(th);
+    }).join(", ");
+    var pages = Object.keys(report.tested.pages || {}).map(function (k) { return "<code>" + esc(report.tested.pages[k]) + "</code>"; }).join(" ");
+    var tt = t.tests || {};
+    $("status").innerHTML =
+      '<p class="verdict">' + badge({ x: [c.status === "fully conformant" ? "good" : "warn", function () { return conformance(c.status); }] }, "x") + "</p>" +
+      '<p class="lead">' + esc(Tf(
+        "适用的 {applicable} 个步骤中：{pass} 个通过，{fail} 个未通过，{pending} 个待人工审核，{untested} 个尚未测试。",
+        "Of {applicable} applicable steps, {pass} pass, {fail} fail, {pending} await a manual review and {untested} are not tested yet.",
+        { applicable: num(t.applicable), pass: num(st.pass.count), fail: num(st.fail.count),
+          pending: num(st["manual review pending"].count), untested: num(st["not tested"].count) })) + "</p>" +
+      '<dl class="meta">' +
+      "<dt>" + esc(T("生成时间", "Generated")) + "</dt><dd>" + esc(fmtTime(report.generated_at)) + "</dd>" +
+      "<dt>" + esc(T("提交", "Commit")) + "</dt><dd>" + (report.commit ? "<code>" + esc(report.commit) + "</code>" : "—") + "</dd>" +
+      "<dt>" + esc(T("zing 版本", "zing version")) + "</dt><dd>" + esc(report.zing_version || "—") + "</dd>" +
+      "<dt>" + esc(T("axe-core 版本", "axe-core version")) + "</dt><dd>" + esc(report.axe_version || "—") + "</dd>" +
+      "<dt>" + esc(T("测试", "Tests")) + "</dt><dd>" + esc(Tf("{run} 个已运行，{passed} 个通过，{failed} 个失败，{skipped} 个跳过",
+        "{run} run, {passed} passed, {failed} failed, {skipped} skipped",
+        { run: num(tt.run || 0), passed: num(tt.passed || 0), failed: num(tt.failed || 0), skipped: num(tt.skipped || 0) })) + "</dd>" +
+      "<dt>" + esc(T("语言", "Languages")) + "</dt><dd>" + (langs || "—") + "</dd>" +
+      "<dt>" + esc(T("主题", "Themes")) + "</dt><dd>" + (themes || "—") + "</dd>" +
+      "<dt>" + esc(T("页面", "Pages")) + "</dt><dd>" + (pages || "—") + "</dd>" +
+      "</dl>";
+  }
+
+  // ---- coverage bars (the text carries the numbers; the bar is decoration) - //
+  function bar(label, cls, count, total, pct) {
+    var val = pct == null
+      ? num(count)
+      : Tf("{n} / {total} · {pct} %", "{n} of {total} · {pct} %", { n: num(count), total: num(total), pct: num(pct, 1) });
+    return '<li><span class="lbl">' + esc(label) + '</span><span class="val">' + esc(val) + "</span>" +
+      '<span class="bar" aria-hidden="true"><span class="' + cls + '" style="width:' + (pct == null ? 0 : Math.max(0, Math.min(100, pct))) + '%"></span></span></li>';
+  }
+  function paintCoverage() {
+    if (!report) return;
+    var t = report.totals, n = t.applicable;
+    $("bars-auto").innerHTML = ["auto", "partial", "manual"].map(function (a) {
+      return bar(autoLabel(a), AUTO[a][0], t.automation[a].count, n, t.automation[a].percent);
+    }).join("") + bar(T("不适用", "Not applicable"), "grey", t.automation["n/a"].count, n, null);
+    $("bars-status").innerHTML = ["pass", "fail", "manual review pending", "not tested"].map(function (s) {
+      return bar(statusLabel(s), STATUS[s][0], t.status[s].count, n, t.status[s].percent);
+    }).join("") + bar(T("不适用", "Not applicable"), "grey", t.status["n/a"].count, n, null);
+    var beyond = report.beyond || [];
+    $("beyond").hidden = !beyond.length;
+    $("beyond").innerHTML = beyond.length
+      ? esc(T("WCAG 之外还检查了：", "Also checked beyond WCAG:")) + " " + beyond.map(function (b) {
+          return esc(BEYOND[b.step] ? BEYOND[b.step]() : b.step) + " — " + esc(statusLabel(b.status));
+        }).join("; ")
+      : "";
+  }
+
+  // ---- table --------------------------------------------------------------- //
+  var open = {};
+  function details(s) {
+    var tc = s.tests || {}, out = '<div class="det">';
+    out += '<p><span class="k">' + esc(T("测试方式：", "How it is tested:")) + "</span> " + cat(s.how) + "</p>";
+    out += '<p><span class="k">' + esc(T("自动化测试：", "Automated tests:")) + "</span> " + (
+      (tc.run || tc.skipped)
+        ? esc(Tf("{run} 个已运行，{passed} 个通过，{failed} 个失败，{skipped} 个跳过",
+            "{run} run, {passed} passed, {failed} failed, {skipped} skipped",
+            { run: num(tc.run || 0), passed: num(tc.passed || 0), failed: num(tc.failed || 0), skipped: num(tc.skipped || 0) }))
+        : esc(T("还没有自动化测试结果。", "No automated test results yet."))) + "</p>";
+    if ((s.test_names || []).length)
+      out += "<p>" + s.test_names.map(function (n) { return "<code>" + esc(n) + "</code>"; }).join(" ") + "</p>";
+    if ((s.failures || []).length)
+      out += '<p class="k">' + esc(T("失败示例（英文）：", "Sample failures:")) + '</p><ul lang="en">' +
+        s.failures.map(function (f) { return "<li><pre>" + esc(f) + "</pre></li>"; }).join("") + "</ul>";
+    if (s.review && (s.review.notes || s.review.verdict))
+      out += '<p><span class="k">' + esc(T("半自动审核（英文）：", "Semi-automated review:")) + '</span> <span lang="en">' +
+        esc([s.review.verdict, s.review.notes].filter(Boolean).join(" — ")) + "</span></p>";
+    return out + "</div>";
+  }
+  function matches(s) {
+    var fs = $("f-status").value, fa = $("f-auto").value, q = $("f-q").value.trim().toLowerCase();
+    if (fs && s.status !== fs) return false;
+    if (fa && s.automation !== fa) return false;
+    if (!q) return true;
+    return [s.step, s.wcag, s.title, catText(s.title)].join(" ").toLowerCase().indexOf(q) >= 0;
+  }
+  function paintTable() {
+    if (!report) {
+      $("rows").innerHTML = '<tr class="empty-row"><td colspan="5">' + esc(loadErr ? T("暂无报告。", "No report available.") : T("加载中…", "Loading…")) + "</td></tr>";
+      $("shown").textContent = "";
+      return;
+    }
+    var steps = report.steps.filter(matches);
+    $("rows").innerHTML = steps.length ? steps.map(function (s) {
+      return "<tr>" +
+        '<th scope="row">' + esc(s.step) + "</th>" +
+        '<td class="ttl"><details data-step="' + esc(s.step) + '"' + (open[s.step] ? " open" : "") + "><summary>" + cat(s.title) + "</summary>" + details(s) + "</details></td>" +
+        '<td class="lvl">' + esc(s.level) + "</td>" +
+        "<td>" + badge(AUTO, s.automation) + "</td>" +
+        "<td>" + badge(STATUS, s.status) + "</td></tr>";
+    }).join("") : '<tr class="empty-row"><td colspan="5">' + esc(T("没有符合筛选条件的步骤。", "No step matches the filters.")) + "</td></tr>";
+    $("shown").textContent = Tf("显示 {n} / {total} 个步骤", "Showing {n} of {total} steps", { n: num(steps.length), total: num(report.steps.length) });
+  }
+  $("rows").addEventListener("toggle", function (ev) {
+    var d = ev.target;
+    if (d && d.tagName === "DETAILS") open[d.getAttribute("data-step")] = d.open;
+  }, true);
+  ["f-status", "f-auto"].forEach(function (id) { $(id).addEventListener("change", paintTable); });
+  $("f-q").addEventListener("input", paintTable);
+
+  // ---- accessibility statement --------------------------------------------- //
+  function stepList(status) {
+    var steps = report.steps.filter(function (s) { return s.status === status; });
+    return steps.length
+      ? "<ul>" + steps.map(function (s) { return "<li>" + esc(s.step) + " " + cat(s.title) + "</li>"; }).join("") + "</ul>"
+      : "";
+  }
+  function paintStatement() {
+    if (!report) {
+      $("stmt-status").textContent = loadErr ? T("暂无报告。", "No report available.") : T("加载中…", "Loading…");
+      $("stmt-limits").innerHTML = "";
+      $("stmt-manual").textContent = "";
+      return;
+    }
+    var c = report.conformance || {};
+    $("stmt-status").textContent = Tf(
+      "zing 网页界面 v2 与 BITV 2.0、EN 301 549 和 WCAG 2.1 AA 级{status}。",
+      "Web UI v2 of zing is {status} with BITV 2.0, EN 301 549 and WCAG 2.1 level AA.",
+      { status: c.status === "fully conformant" ? T("完全符合", "fully conformant") : T("部分符合", "partially conformant") });
+    var parts = [
+      ["fail", T("以下步骤未通过自动化测试：", "These steps fail the automated tests:")],
+      ["not tested", T("以下步骤尚未测试：", "These steps are not tested yet:")],
+      ["manual review pending", T("以下步骤的自动化部分已通过，其余部分仍需人工审核：", "The automated part of these steps passes; the rest still needs a manual review:")],
+    ];
+    var html = parts.map(function (p) {
+      var list = stepList(p[0]);
+      return list ? "<p>" + esc(p[1]) + "</p>" + list : "";
+    }).join("");
+    $("stmt-limits").innerHTML = html || "<p>" + esc(T("目前没有已知限制。", "There are no known limitations.")) + "</p>";
+    $("stmt-manual").textContent = c.manual_review
+      ? Tf("最近一次测试：{date}。已记录人工审核。", "Last test run: {date}. A manual review is recorded.", { date: fmtTime(report.generated_at) })
+      : Tf("最近一次测试：{date}。尚未进行包括屏幕阅读器在内的人工审核。", "Last test run: {date}. A manual review, including screen readers, has not been made yet.", { date: fmtTime(report.generated_at) });
+  }
+
+  function paintErr() {
+    var e = $("loaderr");
+    e.hidden = !loadErr;
+    e.textContent = loadErr ? T("无法加载无障碍报告（bitv-report.json）。", "Could not load the accessibility report (bitv-report.json).") : "";
+  }
+  function paintAll() {
+    paintErr();
+    paintStatus();
+    paintCoverage();
+    paintTable();
+    paintStatement();
+  }
+  window.addEventListener("zing:lang", paintAll);
+
+  paintAll();
+  fetch("/v2/static/bitv-report.json", { cache: "no-cache" })
+    .then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(function (d) {
+      if (!d || !Array.isArray(d.steps) || !d.totals) throw new Error("bad report");
+      report = d;
+    })
+    .catch(function () { loadErr = true; })
+    .then(paintAll);
+})();
+</script>
+</body>
+</html>

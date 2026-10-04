@@ -30,6 +30,7 @@ pytest.importorskip("uvicorn", reason="a11y tests need the web extra")
 from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright  # noqa: E402
 
 from tests.a11y.bitv_map import describe  # noqa: E402
+from tests.a11y.results import note_axe_run  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 AXE = Path(__file__).resolve().parent / "vendor" / "axe.min.js"
@@ -49,6 +50,7 @@ PAGES = {
     "monitors": "/v2/watches",
     "tools": "/v2/tools",
     "kb": "/v2/kb",
+    "accessibility": "/v2/accessibility",
 }
 
 WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]
@@ -249,6 +251,24 @@ def to_top(page: Page) -> None:
 # --------------------------------------------------------------------------- #
 # axe
 # --------------------------------------------------------------------------- #
+AXE_RUN_JS = """
+async opts => {
+  const r = await axe.run(document, opts);
+  const pick = (list, outcome) => list.map(x => ({
+    id: x.id, tags: x.tags, outcome, impact: x.impact || null, help: x.help,
+    nodes: x.nodes.length,
+    targets: outcome === 'violation' ? x.nodes.slice(0, 5).map(n => n.target.map(String).join(' ')) : [],
+  }));
+  return {
+    violations: r.violations,
+    version: r.testEngine && r.testEngine.version,
+    rules: [].concat(pick(r.violations, 'violation'), pick(r.passes, 'pass'),
+                     pick(r.incomplete, 'incomplete'), pick(r.inapplicable, 'inapplicable')),
+  };
+}
+"""
+
+
 def run_axe(page: Page, tags: list[str] | None = None, rules: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """Run axe-core on the page; returns the violations (rule, impact, nodes)."""
     if not page.evaluate("() => !!window.axe"):
@@ -258,7 +278,10 @@ def run_axe(page: Page, tags: list[str] | None = None, rules: dict[str, Any] | N
         opts["runOnly"] = {"type": "tag", "values": tags}
     if rules:
         opts["rules"] = rules
-    res = page.evaluate("opts => axe.run(document, opts)", opts)
+    res = page.evaluate(AXE_RUN_JS, opts)
+    # per-rule outcomes, so the conformance report can tell which BITV step
+    # an axe failure belongs to (tests/a11y/results.py)
+    note_axe_run(res["rules"], res["version"])
     return list(res["violations"])
 
 

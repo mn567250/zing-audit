@@ -91,6 +91,7 @@ def _issues_after(page: Page) -> list[str]:
     return list(page.evaluate(HSCROLL_JS)) + list(page.evaluate(CLIPPED_JS))
 
 
+@pytest.mark.bitv("9.1.4.10")
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_reflow_at_320_css_px(open_page, page_id: str, lang: str) -> None:
@@ -101,6 +102,7 @@ def test_reflow_at_320_css_px(open_page, page_id: str, lang: str) -> None:
     assert_no_issues(_issues_after(page), f"{page_id} [{lang}] at 320 px", "reflow")
 
 
+@pytest.mark.bitv("9.1.4.4")
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_resize_text_200_percent(open_page, page_id: str, lang: str) -> None:
@@ -111,6 +113,7 @@ def test_resize_text_200_percent(open_page, page_id: str, lang: str) -> None:
     assert_no_issues(_issues_after(page), f"{page_id} [{lang}] at 200 % zoom", "resize-text")
 
 
+@pytest.mark.bitv("9.1.4.12")
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_text_spacing_override(open_page, page_id: str, lang: str) -> None:
@@ -125,6 +128,7 @@ def test_text_spacing_override(open_page, page_id: str, lang: str) -> None:
     assert_no_issues(_issues_after(small), f"{page_id} [{lang}] with text spacing at 375 px", "text-spacing")
 
 
+@pytest.mark.bitv("9.1.3.4")
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_orientation_not_locked(open_page, page_id: str) -> None:
     """9.1.3.4 Orientation: works in portrait and landscape phone sizes."""
@@ -156,6 +160,7 @@ ANIMATIONS_JS = """
 """
 
 
+@pytest.mark.bitv("9.2.2.2")
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_reduced_motion_is_respected(open_page, page_id: str) -> None:
     """prefers-reduced-motion: no animation runs longer than 200 ms or loops
@@ -171,6 +176,7 @@ def test_reduced_motion_is_respected(open_page, page_id: str) -> None:
     assert_no_issues(issues, f"{page_id} [en] with reduced motion", "reduced-motion")
 
 
+@pytest.mark.bitv("9.2.2.2")
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_no_endless_animation_at_rest(open_page, page_id: str) -> None:
     """9.2.2.2 Pause, stop, hide: nothing moves forever on an idle page."""
@@ -258,6 +264,7 @@ FOCUS_RING_JS = (
 )
 
 
+@pytest.mark.bitv("9.1.4.11")
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_form_control_boundaries_contrast(open_page, page_id: str, theme: str) -> None:
@@ -269,6 +276,7 @@ def test_form_control_boundaries_contrast(open_page, page_id: str, theme: str) -
     assert_no_issues(page.evaluate(CONTROL_BOUNDARY_JS), f"{page_id} [en, {theme}]", "non-text-contrast")
 
 
+@pytest.mark.bitv("9.1.4.11")
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_focus_indicator_contrast(open_page, page_id: str, theme: str) -> None:
@@ -318,6 +326,7 @@ FORCED_COLORS_JS = (
 )
 
 
+@pytest.mark.bitv("11.7")
 @pytest.mark.parametrize("page_id", PAGE_IDS)
 def test_forced_colors_mode(open_page, page_id: str) -> None:
     """Windows high-contrast / forced colours: controls keep a visible shape and

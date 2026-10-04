@@ -7,7 +7,7 @@ EN 301 549 clause numbers (WCAG 1.4.3 → 9.1.4.3).
 `tests/a11y/` checks as much of this as a machine can, in a real browser
 (Playwright + Chromium, rules by [axe-core](https://github.com/dequelabs/axe-core)
 4.13, vendored in `tests/a11y/vendor/`). Every page (`/v2/`, `/v2/history`,
-`/v2/watches`, `/v2/tools`, `/v2/kb`) is checked **in every UI language**
+`/v2/watches`, `/v2/tools`, `/v2/kb`, `/v2/accessibility`) is checked **in every UI language**
 (`zing/i18n/locales/*.json`: de, en, es, fr, it, pt, zh), in light and dark
 theme, as loaded and with every disclosure opened (rendered report, advanced
 options, monitor details) and every tab panel shown.
@@ -25,58 +25,108 @@ is green.
 
 ## Coverage by BITV / EN 301 549 test step
 
-**auto**: decided by the tests. **partial**: the tests catch the common failures,
-and a person still judges the rest. **manual**: needs a person.
+The catalogue `zing/web/static/v2/bitv-catalogue.json` is the single source of
+truth for the 50 test steps (WCAG 2.1 A + AA): number, level, title, how far
+the tests decide the step and how. `tests/a11y/bitv_map.py`, the conformance
+report and the report page read it. Every a11y test names the steps it decides
+with `@pytest.mark.bitv("9.1.4.3", …)`; the table below is generated from the
+catalogue and those markers (`python -m tests.a11y.conformance --docs`).
 
-| Step | WCAG 2.1 criterion | How | Test |
-|---|---|---|---|
-| 9.1.1.1 | Non-text content | partial: names of images, icons, buttons; whether alt text is *meaningful* is manual | axe `image-alt`, `svg-img-alt`, `button-name`, … |
-| 9.1.2.x | Time-based media | n/a: the UI has no audio or video | — |
-| 9.1.3.1 | Info and relationships | partial: ARIA validity, lists, tables, labels, landmarks, heading levels | axe; `test_heading_structure`; `test_consistent_navigation_and_landmarks` |
-| 9.1.3.2 | Meaningful sequence | manual (Tab order is checked under 9.2.4.3) | — |
-| 9.1.3.3 | Sensory characteristics | manual | — |
-| 9.1.3.4 | Orientation | auto | `test_orientation_not_locked` |
-| 9.1.3.5 | Identify input purpose | auto for `autocomplete` values | axe `autocomplete-valid` |
-| 9.1.4.1 | Use of colour | partial: links in text | axe `link-in-text-block` |
-| 9.1.4.2 | Audio control | n/a | — |
-| 9.1.4.3 | Contrast (minimum) | auto, light + dark | axe `color-contrast` |
-| 9.1.4.4 | Resize text | auto: 200 % zoom, nothing scrolls sideways or is cut off | `test_resize_text_200_percent`; axe `meta-viewport` |
-| 9.1.4.5 | Images of text | manual (the UI uses none) | — |
-| 9.1.4.10 | Reflow | auto at 320 CSS px, every language | `test_reflow_at_320_css_px` |
-| 9.1.4.11 | Non-text contrast | partial: form control boundaries, focus indicators; charts manual | `test_form_control_boundaries_contrast`, `test_focus_indicator_contrast` |
-| 9.1.4.12 | Text spacing | auto: WCAG spacing values injected, no content lost | `test_text_spacing_override` |
-| 9.1.4.13 | Content on hover or focus | auto for `role=tooltip` | `test_tooltips_dismissible_hoverable_persistent` |
-| 9.2.1.1 | Keyboard | auto: every control is a Tab stop; popups, dialogs and tabs work by keyboard | `test_every_control_reachable_by_tab_without_trap`, `test_popups_close_with_escape_and_return_focus`, `test_dialogs_close_with_escape`, `test_tabs_follow_arrow_key_pattern` |
-| 9.2.1.2 | No keyboard trap | auto | `test_every_control_reachable_by_tab_without_trap` |
-| 9.2.1.4 | Character key shortcuts | manual (the UI defines none) | — |
-| 9.2.2.1 | Timing adjustable | manual | — |
-| 9.2.2.2 | Pause, stop, hide | partial: nothing loops on an idle page; reduced motion respected | `test_no_endless_animation_at_rest`, `test_reduced_motion_is_respected` |
-| 9.2.3.1 | Three flashes | manual | — |
-| 9.2.4.1 | Bypass blocks | auto: skip link and landmarks | `test_consistent_navigation_and_landmarks`; axe `bypass`, `region` |
-| 9.2.4.2 | Page titled | auto: present, unique and translated in every language | `test_page_titles`; axe `document-title` |
-| 9.2.4.3 | Focus order | partial: nothing hidden takes focus, no positive tabindex; logical order is manual | `test_focused_element_is_on_screen`; axe `tabindex` |
-| 9.2.4.4 | Link purpose | partial: links have a name | axe `link-name` |
-| 9.2.4.5 | Multiple ways | manual (single-purpose app with a nav on every page) | — |
-| 9.2.4.6 | Headings and labels | partial: present and non-empty; whether they are descriptive is manual | `test_heading_structure`; axe `empty-heading`, `label` |
-| 9.2.4.7 | Focus visible | auto: each Tab stop looks different with focus, light + dark | `test_focus_is_visible` |
-| 9.2.5.1–2, 9.2.5.4 | Pointer gestures, cancellation, motion | manual (the UI uses plain clicks only) | — |
-| 9.2.5.3 | Label in name | auto | `test_label_in_name` |
-| 9.3.1.1 | Language of page | auto, on load and after switching language | `test_page_language`; axe `html-has-lang`, `html-lang-valid` |
-| 9.3.1.2 | Language of parts | auto: Chinese text on non-Chinese pages must be translated or marked | `test_language_of_parts`; axe `valid-lang` |
-| 9.3.2.1 | On focus | auto: focus never navigates or opens windows | `test_every_control_reachable_by_tab_without_trap` |
-| 9.3.2.2 | On input | manual | — |
-| 9.3.2.3 | Consistent navigation | auto | `test_consistent_navigation_and_landmarks` |
-| 9.3.2.4 | Consistent identification | partial: same nav names on every page | `test_consistent_navigation_and_landmarks` |
-| 9.3.3.1 | Error identification | auto for required/invalid fields on submit, error text in the page language | `test_error_identification` |
-| 9.3.3.2 | Labels or instructions | auto for presence | axe `label`, `select-name` |
-| 9.3.3.3–4 | Error suggestion / prevention | manual | — |
-| 9.4.1.1 | Parsing | obsolete in WCAG 2.2, covered by ARIA/ID checks | axe `duplicate-id-aria` |
-| 9.4.1.2 | Name, role, value | auto | axe `aria-*`, `button-name`, `nested-interactive`, … |
-| 9.4.1.3 | Status messages | partial: live regions are valid; whether each status is announced is manual | axe `aria-*` |
+**auto**: decided by the tests. **partial**: the tests catch the common failures,
+and a person still judges the rest. **manual**: needs a person. **n/a**: the UI
+has no such content (no audio or video).
+
+<!-- bitv-coverage:start (generated by python -m tests.a11y.conformance --docs) -->
+| Step | WCAG 2.1 | Level | Title | Automation | How | Tests |
+|---|---|---|---|---|---|---|
+| 9.1.1.1 | 1.1.1 | A | Non-text Content | partial | Images, icons, SVGs and controls have a text alternative. Whether each alternative is meaningful is judged by a person. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel` |
+| 9.1.2.1 | 1.2.1 | A | Audio-only and Video-only (Prerecorded) | n/a | The UI contains no audio or video. | — |
+| 9.1.2.2 | 1.2.2 | A | Captions (Prerecorded) | n/a | The UI contains no audio or video. | — |
+| 9.1.2.3 | 1.2.3 | A | Audio Description or Media Alternative (Prerecorded) | n/a | The UI contains no audio or video. | — |
+| 9.1.2.4 | 1.2.4 | AA | Captions (Live) | n/a | The UI contains no audio or video. | — |
+| 9.1.2.5 | 1.2.5 | AA | Audio Description (Prerecorded) | n/a | The UI contains no audio or video. | — |
+| 9.1.3.1 | 1.3.1 | A | Info and Relationships | partial | ARIA, lists, tables, form labels, landmarks and heading levels are checked. Whether the structure matches the visual meaning is judged by a person. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel`, `test_best_practices`, `test_heading_structure`, `test_consistent_navigation_and_landmarks` |
+| 9.1.3.2 | 1.3.2 | A | Meaningful Sequence | partial | The reading order is compared with the visual order. Whether the order makes sense is judged by a person. | — |
+| 9.1.3.3 | 1.3.3 | A | Sensory Characteristics | partial | Texts are searched for instructions that rely on shape, position or colour alone. A person reviews the hits. | — |
+| 9.1.3.4 | 1.3.4 | AA | Orientation | auto | Every page works in portrait and landscape phone sizes and does not lock the orientation. | `test_orientation_not_locked` |
+| 9.1.3.5 | 1.3.5 | AA | Identify Input Purpose | auto | Fields that ask for data about the user carry a valid autocomplete token. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel` |
+| 9.1.4.1 | 1.4.1 | A | Use of Color | partial | Links in text are distinguishable without colour. Whether colour alone carries other information is judged by a person. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel` |
+| 9.1.4.2 | 1.4.2 | A | Audio Control | n/a | The UI plays no audio. | — |
+| 9.1.4.3 | 1.4.3 | AA | Contrast (Minimum) | auto | Text contrast is measured on every page, in every language, in the light and the dark theme. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel` |
+| 9.1.4.4 | 1.4.4 | AA | Resize Text | auto | At 200 % zoom nothing scrolls sideways or is cut off, in every language. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel`, `test_resize_text_200_percent` |
+| 9.1.4.5 | 1.4.5 | AA | Images of Text | auto | Images, canvases and CSS background images are checked for text rendered as pixels. | — |
+| 9.1.4.10 | 1.4.10 | AA | Reflow | auto | At 320 CSS px width the page needs no horizontal scrolling and loses no content, in every language. | `test_reflow_at_320_css_px` |
+| 9.1.4.11 | 1.4.11 | AA | Non-text Contrast | partial | Form control borders and focus indicators reach 3:1. Charts and icons are judged by a person. | `test_form_control_boundaries_contrast`, `test_focus_indicator_contrast` |
+| 9.1.4.12 | 1.4.12 | AA | Text Spacing | auto | The WCAG text spacing values are applied and no content is cut off. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel`, `test_text_spacing_override` |
+| 9.1.4.13 | 1.4.13 | AA | Content on Hover or Focus | auto | Tooltips and popups appear on focus, close with Escape and stay while the pointer is on them. | `test_popups_close_with_escape_and_return_focus`, `test_tooltips_dismissible_hoverable_persistent` |
+| 9.2.1.1 | 2.1.1 | A | Keyboard | auto | Every control is reached with the Tab key; popups, dialogs and tabs work with the keyboard. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel`, `test_every_control_reachable_by_tab_without_trap`, `test_popups_close_with_escape_and_return_focus`, `test_dialogs_close_with_escape`, `test_tabs_follow_arrow_key_pattern` |
+| 9.2.1.2 | 2.1.2 | A | No Keyboard Trap | auto | Tabbing through the page always leaves it again. | `test_every_control_reachable_by_tab_without_trap` |
+| 9.2.1.4 | 2.1.4 | A | Character Key Shortcuts | auto | Single printable keys pressed on the page trigger no action. | — |
+| 9.2.2.1 | 2.2.1 | A | Timing Adjustable | auto | No page refreshes, redirects or expires on its own while the user is reading. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel` |
+| 9.2.2.2 | 2.2.2 | A | Pause, Stop, Hide | auto | Nothing moves, blinks or updates endlessly on an idle page, and reduced motion is respected. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel`, `test_reduced_motion_is_respected`, `test_no_endless_animation_at_rest` |
+| 9.2.3.1 | 2.3.1 | A | Three Flashes or Below Threshold | auto | The page is recorded over time; nothing flashes more than three times per second. | — |
+| 9.2.4.1 | 2.4.1 | A | Bypass Blocks | auto | Every page has landmarks and a skip link to the main content. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel`, `test_best_practices`, `test_consistent_navigation_and_landmarks` |
+| 9.2.4.2 | 2.4.2 | A | Page Titled | auto | Every page has its own title, translated into every language. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel`, `test_page_titles` |
+| 9.2.4.3 | 2.4.3 | A | Focus Order | partial | Nothing hidden takes focus and no positive tabindex is used. Whether the order is logical is judged by a person. | `test_best_practices`, `test_focused_element_is_on_screen`, `test_dialogs_close_with_escape` |
+| 9.2.4.4 | 2.4.4 | A | Link Purpose (In Context) | partial | Every link has an accessible name. Whether it describes the target is judged by a person. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel` |
+| 9.2.4.5 | 2.4.5 | AA | Multiple Ways | partial | Every page is linked from the navigation of every page. Further ways are judged by a person. | — |
+| 9.2.4.6 | 2.4.6 | AA | Headings and Labels | partial | Headings and labels exist and are not empty. Whether they are descriptive is judged by a person. | `test_best_practices`, `test_heading_structure` |
+| 9.2.4.7 | 2.4.7 | AA | Focus Visible | auto | Every Tab stop looks different with and without focus, in the light and the dark theme. | `test_focused_element_is_on_screen`, `test_focus_is_visible` |
+| 9.2.5.1 | 2.5.1 | A | Pointer Gestures | auto | No control needs a multipoint or path-based gesture; a single click is enough. | — |
+| 9.2.5.2 | 2.5.2 | A | Pointer Cancellation | auto | Controls act when the pointer is released, not when it is pressed, so an action can be aborted. | — |
+| 9.2.5.3 | 2.5.3 | A | Label in Name | auto | The visible label of every control is part of its accessible name. | `test_label_in_name` |
+| 9.2.5.4 | 2.5.4 | A | Motion Actuation | auto | The page does not react to device motion or orientation events. | — |
+| 9.3.1.1 | 3.1.1 | A | Language of Page | auto | The lang attribute of the page names the language shown, on load and after switching language. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel`, `test_page_language` |
+| 9.3.1.2 | 3.1.2 | AA | Language of Parts | auto | Text in another language than the page is marked with its own lang attribute. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel`, `test_language_of_parts` |
+| 9.3.2.1 | 3.2.1 | A | On Focus | auto | Moving the focus never navigates, opens a window or otherwise changes the context. | `test_every_control_reachable_by_tab_without_trap` |
+| 9.3.2.2 | 3.2.2 | A | On Input | auto | Changing a field or a selection does not navigate or change the context unexpectedly. | — |
+| 9.3.2.3 | 3.2.3 | AA | Consistent Navigation | auto | The navigation is the same, in the same order, on every page. | `test_consistent_navigation_and_landmarks` |
+| 9.3.2.4 | 3.2.4 | AA | Consistent Identification | auto | Controls with the same function have the same name on every page. | `test_consistent_navigation_and_landmarks` |
+| 9.3.3.1 | 3.3.1 | A | Error Identification | partial | Submitting empty or invalid forms marks the fields and links a visible message in the page language. Whether the message is clear is judged by a person. | `test_error_identification` |
+| 9.3.3.2 | 3.3.2 | A | Labels or Instructions | partial | Every field has a label. Whether the instructions are sufficient is judged by a person. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel` |
+| 9.3.3.3 | 3.3.3 | AA | Error Suggestion | partial | Error messages are present and translated. Whether they suggest a fix is judged by a person. | `test_error_identification` |
+| 9.3.3.4 | 3.3.4 | AA | Error Prevention (Legal, Financial, Data) | auto | Deleting stored data asks for confirmation or can be undone. | — |
+| 9.4.1.1 | 4.1.1 | A | Parsing | auto | IDs are unique and the markup has no parsing errors that affect assistive technology. | — |
+| 9.4.1.2 | 4.1.2 | A | Name, Role, Value | auto | Every control has a name, a valid role and the states it needs. | `test_wcag_rules_as_loaded`, `test_wcag_rules_expanded`, `test_wcag_rules_every_tab_panel`, `test_tabs_follow_arrow_key_pattern` |
+| 9.4.1.3 | 4.1.3 | AA | Status Messages | partial | Status areas are live regions. Whether each status change is announced is judged by a person. | — |
+| 11.7 | — | — | beyond WCAG (EN 301 549 clause 11.7) | auto | — | `test_forced_colors_mode` |
+<!-- bitv-coverage:end -->
 
 Beyond WCAG: axe best-practice rules (landmarks, heading order, …) and
 **forced colours / Windows high contrast** (`test_forced_colors_mode`) are
 checked too.
+
+## Conformance report (`/v2/accessibility`)
+
+The page **Accessibility** (linked in the footer of every v2 page) shows, per
+test step, how it is tested and the latest result, plus a short accessibility
+statement (conformance status, known limitations, how it was assessed,
+feedback). It renders `zing/web/static/v2/bitv-report.json`, built from a real
+run of the suite:
+
+```bash
+ZING_A11Y_RESULTS=a11y-results.json pytest tests/a11y -m a11y -n auto
+python -m tests.a11y.conformance --results a11y-results.json [--llm llm-review.json]
+```
+
+`ZING_A11Y_RESULTS` makes the plugin `tests/a11y/results.py` write, for every
+step, the tests that ran with their outcome and failure summary. Tests added
+later need only the `bitv` marker. axe-core tests cover many steps at once, so
+their outcome is split per rule: a step fails only when an axe rule tagged with
+its criterion (`wcag143` → 9.1.4.3) reports a violation, and a step whose axe
+rules were all inapplicable counts as not tested.
+
+Per step the report says **pass** (auto step, every test passed), **fail**
+(a test failed), **manual review pending** (partial or manual step: the
+automated part passed, a person still has to judge the rest), **not tested**
+(no test ran yet) or **n/a**. The headline stays "partially conformant" until
+every applicable step passes *and* a manual review is recorded. `--llm` merges
+per-step notes of a semi-automated review into the report; they are shown with
+the step but never change its status.
+
+CI runs the suite with `ZING_A11Y_RESULTS`, generates the report even when
+tests fail and uploads `bitv-report.json` with the other findings. The copy
+committed in the repository is regenerated with the commands above.
 
 ## Manual review still needed
 

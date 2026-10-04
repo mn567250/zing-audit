@@ -427,6 +427,10 @@ select.in {
 .empty .zicon { width: 28px; height: 28px; color: var(--faint); }
 .foot { text-align: center; color: var(--faint); font-size: 12px; padding: 16px 0 32px; line-height: 1.6; }
 .foot code { font-size: 11.5px; }
+/* footer link row added by nav.js (accessibility report) */
+.foot:has(+ .foot-links) { padding-bottom: 0; margin-bottom: 0; }
+.foot-links { padding-top: 4px; }
+.foot-links a { font-weight: 600; }
 
 /* inline canonical SVG icons (icons.js) inherit currentColor */
 .pico { display: inline-flex; vertical-align: -0.12em; }

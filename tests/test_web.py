@@ -345,3 +345,43 @@ def test_v2_audit_sends_the_declared_provider(client):
         assert '<input class="in' in html and 'id="i-prov"' in html, path
         assert 'declared_provider: $("#i-prov").value.trim()' in html, path
         assert 'providerInput: "#i-prov"' in html, path
+
+
+def test_v2_accessibility_report_page(client):
+    # BITV 2.0 / EN 301 549 conformance report: a v2 page in the design system
+    r = client.get("/v2/accessibility")
+    assert r.status_code == 200 and "text/html" in r.headers["content-type"]
+    html = r.text
+    assert '<script src="/locales.js"></script>\n<script src="/lang.js"></script>' in html
+    assert '<link rel="stylesheet" href="/v2/static/zing.css" />' in html
+    assert '<header class="znav" data-page="a11y"' in html
+    assert '<script src="/v2/static/nav.js"></script>' in html
+    assert '<main id="main" tabindex="-1">' in html and "<footer>" in html
+    assert "/v2/static/bitv-report.json" in html
+    assert "https://github.com/cenbonew/zing/issues" in html
+    # v2 only: ?ui=v1 goes to the classic start page
+    r = client.get("/v2/accessibility?ui=v1", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"] == "/"
+
+
+def test_v2_accessibility_report_data_is_served(client):
+    import json
+
+    cat = client.get("/v2/static/bitv-catalogue.json")
+    assert cat.status_code == 200
+    steps = cat.json()["steps"]
+    assert len(steps) == 50 and len({s["step"] for s in steps}) == 50
+    rep = client.get("/v2/static/bitv-report.json")
+    assert rep.status_code == 200 and "json" in rep.headers["content-type"]
+    data = json.loads(rep.text)
+    assert [s["step"] for s in data["steps"]] == [s["step"] for s in steps]
+    assert data["totals"]["steps"] == 50 and data["totals"]["applicable"] == 44
+    assert {s["status"] for s in data["steps"]} <= {"pass", "fail", "not tested", "manual review pending", "n/a"}
+
+
+def test_v2_footer_links_the_accessibility_report(client):
+    # nav.js adds the link to every v2 page's footer (same place everywhere)
+    js = client.get("/v2/static/nav.js").text
+    assert 'href="/v2/accessibility"' in js and "footer" in js
+    for path in ("/v2/", "/v2/history", "/v2/watches", "/v2/tools", "/v2/kb", "/v2/accessibility"):
+        assert '<script src="/v2/static/nav.js"></script>' in client.get(path).text, path

@@ -50,6 +50,7 @@ PAGES = {
     "monitors": "/v2/watches",
     "tools": "/v2/tools",
     "kb": "/v2/kb",
+    "accessibility": "/v2/accessibility",
 }
 
 WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]

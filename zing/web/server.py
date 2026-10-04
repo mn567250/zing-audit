@@ -615,6 +615,18 @@ def create_app() -> FastAPI:
             resp = FileResponse(_V2 / "kb.html")
         return _remember_ui(resp, request.query_params.get("ui"))
 
+    @app.get("/v2/accessibility")
+    async def v2_accessibility(request: Request) -> Any:
+        # BITV 2.0 / EN 301 549 conformance report (renders
+        # /v2/static/bitv-report.json, see docs/ACCESSIBILITY.md). v2 only:
+        # ?ui=v1 goes to the classic start page.
+        resp: Response
+        if request.query_params.get("ui") == "v1":
+            resp = RedirectResponse("/", status_code=307)
+        else:
+            resp = FileResponse(_V2 / "accessibility.html")
+        return _remember_ui(resp, request.query_params.get("ui"))
+
     # v2 stylesheets / scripts, e.g. /v2/static/zing.css
     app.mount("/v2/static", StaticFiles(directory=str(_V2)), name="v2-static")
 

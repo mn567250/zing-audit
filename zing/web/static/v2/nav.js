@@ -14,6 +14,11 @@
  * the language <select class="lang-sel"> is filled by lang.js too. The theme
  * <select class="theme-sel"> is driven by theme.js (loaded in <head>). The
  * "Classic UI" link goes back to the classic page (?ui=v1 — see server.py).
+ *
+ * It also adds the footer link to the accessibility conformance report
+ * (/v2/accessibility) to every page, as the last row of the page's <footer>
+ * inside <div class="wrap"> (one is created when the page has none), so the
+ * link sits in the same place on every page (BITV 9.3.2.3).
  */
 (function () {
   "use strict";
@@ -85,8 +90,27 @@
     }
   }
 
+  function footerLinks(page) {
+    var wrap = document.querySelector("body > .wrap");
+    if (!wrap) return;
+    var foot = null;
+    for (var c = wrap.firstElementChild; c; c = c.nextElementSibling) if (c.tagName === "FOOTER") foot = c;
+    if (!foot) {
+      foot = document.createElement("footer");
+      wrap.appendChild(foot);
+    }
+    if (foot.querySelector(".foot-links")) return;
+    var p = document.createElement("p");
+    p.className = "foot foot-links";
+    p.innerHTML =
+      '<a href="/v2/accessibility"' + (page === "a11y" ? ' aria-current="page"' : "") +
+      ' data-en="Accessibility">无障碍</a>';
+    foot.appendChild(p);
+  }
+
   var headers = document.querySelectorAll("header.znav");
   for (var i = 0; i < headers.length; i++) render(headers[i]);
+  footerLinks(headers.length ? headers[0].getAttribute("data-page") || "" : "");
   // If lang.js already booted (script loaded late), translate the new markup.
   if (window.ZING_LANG && document.readyState !== "loading") window.ZING_LANG.apply(document);
 })();

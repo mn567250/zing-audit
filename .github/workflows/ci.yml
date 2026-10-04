@@ -56,13 +56,22 @@ jobs:
           pip install -e '.[dev,web,a11y]' pytest-xdist
           playwright install --with-deps chromium
       - name: Test (pytest -m a11y)
+        env:
+          # per-step results for the BITV conformance report (tests/a11y/results.py)
+          ZING_A11Y_RESULTS: a11y-results.json
         run: pytest tests/a11y -m a11y -n auto -q -p no:cacheprovider
+      - name: Conformance report (bitv-report.json)
+        if: always()
+        run: python -m tests.a11y.conformance --results a11y-results.json --out bitv-report.json
       - name: Upload findings
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: a11y-report
-          path: a11y-report*.json
+          path: |
+            a11y-report*.json
+            a11y-results.json
+            bitv-report.json
           if-no-files-found: ignore
 
   build:

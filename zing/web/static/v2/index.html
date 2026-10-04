@@ -482,11 +482,57 @@
       return esc(T("检测已转到后台继续运行。", "The audit keeps running in the background.")) + " " + historyLink();
     });
   });
-  ["#i-url", "#i-model", "#b-url", "#b-model"].forEach(function (s) {
-    $(s).addEventListener("input", function () { $(s).removeAttribute("aria-invalid"); });
+  // Field errors: a visible message under the field, linked with
+  // aria-describedby while the field is invalid (BITV 9.3.3.1 / 9.3.3.3).
+  var FIELD_MSG = {
+    "#i-url": function () { return T("请填写中转站地址，例如 https://relay.example.com/v1。", "Enter the relay URL, e.g. https://relay.example.com/v1."); },
+    "#i-model": function () { return T("请填写请求的模型，例如 deepseek-chat。", "Enter the model to request, e.g. deepseek-chat."); },
+    "#b-url": function () { return T("请填写基线地址，或清空基线模型。", "Enter the baseline URL, or clear the baseline model."); },
+    "#b-model": function () { return T("请填写基线模型，或清空基线地址。", "Enter the baseline model, or clear the baseline URL."); },
+  };
+  var fieldErrs = {};
+  // The control the user actually sees: while the model picker shows its
+  // selects, the text input behind them is hidden.
+  function fieldCtl(sel) {
+    var el = $(sel), zmp = el.closest(".zmp");
+    if (!zmp || el.getClientRects().length) return el;
+    var sels = zmp.querySelectorAll(".zmp-sel");
+    for (var i = 0; i < sels.length; i++) {
+      if (!sels[i].disabled && !sels[i].value && sels[i].getClientRects().length) return sels[i];
+    }
+    return el;
+  }
+  function markInvalid(el, id, on) {
+    var ids = (el.getAttribute("aria-describedby") || "").split(/\s+/).filter(function (x) { return x && x !== id; });
+    if (on) { el.setAttribute("aria-invalid", "true"); ids.push(id); } else el.removeAttribute("aria-invalid");
+    if (ids.length) el.setAttribute("aria-describedby", ids.join(" ")); else el.removeAttribute("aria-describedby");
+  }
+  function fieldErr(sel, on) {
+    var el = $(sel), grp = el.closest(".grp"), id = el.id + "-err", box = document.getElementById(id);
+    if (!box && !on) return;
+    if (!box) {
+      box = document.createElement("p");
+      box.className = "ferr";
+      box.id = id;
+      grp.appendChild(box);
+    }
+    fieldErrs[sel] = !!on;
+    box.hidden = !on;
+    box.textContent = on ? FIELD_MSG[sel]() : "";
+    [].slice.call(grp.querySelectorAll('[aria-describedby~="' + id + '"]')).forEach(function (x) { markInvalid(x, id, false); });
+    if (on) { markInvalid(el, id, true); markInvalid(fieldCtl(sel), id, true); }
+  }
+  // clear a message as soon as the field (or the baseline pair) is fixed
+  ["#i-url", "#i-model"].forEach(function (s) {
+    $(s).addEventListener("input", function () { if (fieldErrs[s] && $(s).value.trim()) fieldErr(s, false); });
+  });
+  ["#b-url", "#b-model"].forEach(function (s) {
+    $(s).addEventListener("input", function () {
+      if (!!$("#b-url").value.trim() === !!$("#b-model").value.trim()) { fieldErr("#b-url", false); fieldErr("#b-model", false); }
+    });
   });
 
-  function invalid(sel) { $(sel).setAttribute("aria-invalid", "true"); }
+  function invalid(sel) { fieldErr(sel, true); }
 
   // ?job=<id> in the address bar: a reload or the history page re-attaches.
   function setJobParam(id) {
@@ -508,7 +554,7 @@
   async function startAudit() {
     setFormErr(null);
     setFormNote(null);
-    ["#i-url", "#i-model", "#b-url", "#b-model"].forEach(function (x) { $(x).removeAttribute("aria-invalid"); });
+    Object.keys(FIELD_MSG).forEach(function (x) { fieldErr(x, false); });
     var payload = {
       base_url: $("#i-url").value.trim(),
       api_key: $("#i-key").value.trim(),
@@ -524,7 +570,7 @@
       if (!payload.base_url) invalid("#i-url");
       if (!payload.model) invalid("#i-model");
       setFormErr(function () { return esc(T("请填写中转站地址和请求的模型。", "Please enter the relay URL and the model to request.")); });
-      (payload.base_url ? $("#i-model") : $("#i-url")).focus();
+      fieldCtl(payload.base_url ? "#i-model" : "#i-url").focus();
       return;
     }
     if (payload.dimensions && !payload.dimensions.length) {
@@ -537,7 +583,7 @@
       setCmpOpen(true);
       invalid(bUrl ? "#b-model" : "#b-url");
       setFormErr(function () { return esc(T("要对照基线，请同时填写基线地址和基线模型。", "To compare, enter both the baseline URL and the baseline model.")); });
-      (bUrl ? $("#b-model") : $("#b-url")).focus();
+      fieldCtl(bUrl ? "#b-model" : "#b-url").focus();
       return;
     }
     if (bUrl && bModel) payload.baseline = { base_url: bUrl, api_key: $("#b-key").value.trim(), model: bModel, api: segVal("b-api") };
@@ -800,6 +846,7 @@
     if (focused && focused.querySelector(".dtg")) focused.querySelector(".dtg").focus();
     feedItems.forEach(function (x) { x.el.innerHTML = feedHTML(x.ev, x.f); });
     if (formErr) setFormErr(formErr);
+    Object.keys(fieldErrs).forEach(function (x) { if (fieldErrs[x]) $("#" + $(x).id + "-err").textContent = FIELD_MSG[x](); });
     if (formNote) setFormNote(formNote);
     syncProbeMode();
     if (live) live.render();

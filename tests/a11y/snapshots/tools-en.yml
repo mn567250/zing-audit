@@ -4,17 +4,6 @@
   - link "zing":
     - /url: /v2/
     - text: zing.
-  - navigation "Main navigation":
-    - link "Audit":
-      - /url: /v2/
-    - link "Tools":
-      - /url: /v2/tools
-    - link "History":
-      - /url: /v2/history
-    - link "Monitors":
-      - /url: /v2/watches
-    - link "Models":
-      - /url: /v2/kb
   - link "Classic UI":
     - /url: "?ui=v1"
   - combobox "Theme":
@@ -29,6 +18,17 @@
     - option "Português"
     - option "Italiano"
     - option "Deutsch"
+  - navigation "Main navigation":
+    - link "Audit":
+      - /url: /v2/
+    - link "Tools":
+      - /url: /v2/tools
+    - link "History":
+      - /url: /v2/history
+    - link "Monitors":
+      - /url: /v2/watches
+    - link "Models":
+      - /url: /v2/kb
   - paragraph: Runs locally · keys never leave
 - main:
   - heading "Toolbox · embedding / rerank verification" [level=1]

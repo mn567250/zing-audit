@@ -138,8 +138,10 @@
   }
   .rmain:hover { background: var(--surface-2); }
   .rmain[aria-expanded="true"] { background: var(--surface-2); color: var(--ink); }
+  /* areas follow the DOM order (date, risk, score, grade, mode): reading and
+     Tab order match what is shown (BITV 9.1.3.2) */
   .rmain {
-    grid-template-areas: "date risk score grade cv" "mode risk score grade cv"; row-gap: 3px;
+    grid-template-areas: "date risk score grade cv" "mode . . . cv"; row-gap: 3px;
   }
   .rmain > span { min-width: 0; }
   .c-date { grid-area: date; align-self: end; } .c-score { grid-area: score; } .c-grade { grid-area: grade; }
@@ -204,10 +206,11 @@
     .rows { padding: 0 8px 8px; }
     .lfoot { padding: 12px 14px; }
     .rmain {
-      grid-template-columns: minmax(0, 1fr) auto auto 18px; gap: 6px 10px; padding: 11px 8px;
-      grid-template-areas: "date score grade cv" "risk risk risk risk" "mode mode mode mode";
+      grid-template-columns: auto auto minmax(0, 1fr) 18px; gap: 6px 10px; padding: 11px 8px;
+      grid-template-areas: "date date date cv" "risk risk risk risk" "score grade mode mode";
     }
     .c-date, .c-mode { align-self: auto; }
+    .c-score, .c-grade { text-align: left; }
     .c-mode .perf, .c-mode .proto { display: inline; margin: 0; }
     .c-mode .perf::before, .c-mode .proto::before { content: " · "; }
     .rline { align-items: start; }

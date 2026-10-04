@@ -4,17 +4,6 @@
   - link "zing":
     - /url: /v2/
     - text: zing.
-  - navigation "Hauptnavigation":
-    - link "Prüfung":
-      - /url: /v2/
-    - link "Werkzeuge":
-      - /url: /v2/tools
-    - link "Verlauf":
-      - /url: /v2/history
-    - link "Überwachung":
-      - /url: /v2/watches
-    - link "Modelle":
-      - /url: /v2/kb
   - link "Klassische Oberfläche":
     - /url: "?ui=v1"
   - combobox "Design":
@@ -29,6 +18,17 @@
     - option "Português"
     - option "Italiano"
     - option "Deutsch" [selected]
+  - navigation "Hauptnavigation":
+    - link "Prüfung":
+      - /url: /v2/
+    - link "Werkzeuge":
+      - /url: /v2/tools
+    - link "Verlauf":
+      - /url: /v2/history
+    - link "Überwachung":
+      - /url: /v2/watches
+    - link "Modelle":
+      - /url: /v2/kb
   - paragraph: Läuft lokal · Schlüssel verlassen nie das Gerät
 - main:
   - heading "Die Wissensbasis, gegen die zing prüft" [level=1]

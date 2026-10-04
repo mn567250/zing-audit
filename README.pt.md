@@ -246,7 +246,7 @@ clássica** volta atrás. A escolha é memorizada por navegador.
 | **Modelos** | — | `/v2/kb` | Explorar a base de conhecimento e adicionar os seus próprios perfis de modelo |
 
 A nova interface acrescenta: filtros e tendências configuráveis (pontuação, nota,
-latência p50, tokens/s) no **Histórico**; **Agendar como monitor** em cada
+latência p50, tokens/s) no **Histórico**; **Agendar como monitor** e **Executar auditoria novamente** em cada
 execução do Histórico; **Transferir relatório** em todos os formatos; um seletor
 de tema (Automático / Claro / Escuro); e a página **Modelos**.
 

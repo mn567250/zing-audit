@@ -248,7 +248,7 @@ navigateur.
 
 La nouvelle interface ajoute : des filtres et des tendances configurables (score,
 note, latence p50, tokens/s) dans l'**Historique** ; **Planifier comme
-surveillance** sur chaque exécution de l'Historique ; **Télécharger le rapport**
+surveillance** et **Relancer l'audit** sur chaque exécution de l'Historique ; **Télécharger le rapport**
 dans tous les formats ; un sélecteur de thème (Automatique / Clair / Sombre) ; et
 la page **Modèles**.
 

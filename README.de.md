@@ -249,7 +249,7 @@ Oberfläche** zurückführt. Die Wahl wird pro Browser gespeichert.
 
 Die neue Oberfläche bietet zusätzlich: Filter und konfigurierbare Trends
 (Bewertung, Note, Latenz p50, Token/s) im **Verlauf**; **Als Überwachung
-einplanen** bei jedem Lauf im Verlauf; **Bericht herunterladen** in jedem Format;
+einplanen** und **Audit erneut ausführen** bei jedem Lauf im Verlauf; **Bericht herunterladen** in jedem Format;
 eine Designauswahl (Automatisch / Hell / Dunkel); und die Seite **Modelle**.
 
 **Audits im Hintergrund (neue Oberfläche).** Ein auf der Seite **Audit**

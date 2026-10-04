@@ -228,6 +228,8 @@ CONTROL_BOUNDARY_JS = (
 """
 )
 
+NO_TRANSITIONS_CSS = "*, *::before, *::after { transition: none !important; animation: none !important; }"
+
 FOCUS_RING_JS = (
     """
 () => {
@@ -241,6 +243,14 @@ FOCUS_RING_JS = (
   const cands = [];
   if (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 1) cands.push(parse(s.outlineColor));
   if (s.boxShadow && s.boxShadow !== 'none') cands.push(parse(s.boxShadow));
+  // a border that changes colour on focus is an indicator too
+  const sides = ['Top', 'Right', 'Bottom', 'Left'].filter(sd => parseFloat(s['border' + sd + 'Width']) >= 1 && s['border' + sd + 'Style'] !== 'none');
+  const focusedBorders = sides.map(sd => s['border' + sd + 'Color']);
+  el.blur();
+  const plain = getComputedStyle(el);
+  const changed = sides.filter((sd, k) => plain['border' + sd + 'Color'] !== focusedBorders[k]);
+  el.focus({ preventScroll: true });
+  if (changed.length === sides.length && sides.length) cands.push(...focusedBorders.map(parse));
   const best = Math.max(0, ...cands.filter(Boolean).map(c => ratio(over(c, around), around)));
   return { desc: describeEl(el), best, i: el.getAttribute('data-a11y-i') };
 }
@@ -255,6 +265,7 @@ def test_form_control_boundaries_contrast(open_page, page_id: str, theme: str) -
     delimited (3:1 against what is around them)."""
     page = open_page(PAGES[page_id], "en", theme)
     expand_all(page)
+    page.add_style_tag(content=NO_TRANSITIONS_CSS)
     assert_no_issues(page.evaluate(CONTROL_BOUNDARY_JS), f"{page_id} [en, {theme}]", "non-text-contrast")
 
 
@@ -265,6 +276,7 @@ def test_focus_indicator_contrast(open_page, page_id: str, theme: str) -> None:
     reaches 3:1 against the background) for every Tab stop."""
     page = open_page(PAGES[page_id], "en", theme)
     expand_all(page)
+    page.add_style_tag(content=NO_TRANSITIONS_CSS)  # measure the end state, not a fade-in
     page.mouse.move(0, 0)
     to_top(page)
     issues: list[str] = []

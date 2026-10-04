@@ -16,11 +16,11 @@ from typing import Any
 
 import zing.detectors  # noqa: F401  -- populates the detector REGISTRY
 from zing import __version__, prompts
-from zing.clients import make_client
+from zing.clients import detect_api, make_client
 from zing.config import AuditOptions
 from zing.context import AuditContext
 from zing.detectors.base import run_detector, select_detectors
-from zing.detectors.performance import planned_probe_requests, probe_modes
+from zing.detectors.performance import planned_probe_requests, probe_modes, stream_mode
 from zing.judge import Judge
 from zing.knowledge import ResolvedProfile, load_knowledge_base
 from zing.knowledge.snapshot import knowledge_usage, resolved_from_snapshot
@@ -47,6 +47,8 @@ def _redact(config: TargetConfig) -> RedactedTarget:
         claimed_model=config.claimed_model,
         declared_provider=config.declared_provider,
         api_key_fingerprint=fingerprint_secret(config.api_key),
+        api=detect_api(config),
+        api_auto=(config.api or "auto").lower() == "auto",
     )
 
 
@@ -191,7 +193,8 @@ async def run_audit(
         _emit({"type": "start", "total": total, "suite": options.suite,
                "dimensions": list(options.dimensions), "mode": mode,
                "target": target.name, "claimed_model": target.claimed,
-               "has_baseline": has_baseline, "probe_requests": probe_planned})
+               "has_baseline": has_baseline, "probe_requests": probe_planned,
+               "api": detect_api(target), "stream_mode": stream_mode(options)})
         results: list[DetectorResult] = []
         for i, detector in enumerate(detectors):
             _emit({"type": "detector_start", "index": i, "total": total,
@@ -244,6 +247,7 @@ async def run_audit(
         command=command,
         suite=options.suite,
         dimensions_selected=selected,
+        stream_mode=stream_mode(options),
         target=_redact(target),
         baseline=_redact(baseline) if baseline else None,
         verdict=verdict,

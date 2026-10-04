@@ -409,6 +409,22 @@
     return "/v2/history" + (q ? "?" + q : "") + "#r-" + reportId;
   }
 
+  // Wire protocol: a forced one, or what "auto" detects for this endpoint.
+  function protoCell(w) {
+    var api = w.api_resolved || w.api || "auto";
+    return "<code>" + esc(api) + "</code> · " +
+      esc(w.api_auto ? T("自动识别", "auto-detected") : T("手动指定", "set manually"));
+  }
+  var STREAM = {
+    stream: ["流式", "Streaming"],
+    non_stream: ["非流式", "Non-streaming"],
+    both: ["流式 + 非流式", "Streaming + non-streaming"],
+  };
+  function streamCell(w) {
+    var m = STREAM[w.stream_mode] || STREAM.stream;
+    return esc(T(m[0], m[1]));
+  }
+
   function card(w) {
     var s = st(w.id);
     var name = w.name || "watch";
@@ -477,6 +493,8 @@
             meta(T("请求的模型", "Model to request"), "<code>" + esc(w.model || "?") + "</code>" + claimed) +
             meta(T("测试套件", "Test suite"), "<code>" + esc(w.suite || "standard") + "</code>" +
               (w.suite === "custom" && (w.dimensions || []).length ? " <code>" + esc(w.dimensions.join(", ")) + "</code>" : "")) +
+            meta(T("协议", "Protocol"), protoCell(w)) +
+            meta(T("性能探测请求", "Performance probe requests"), streamCell(w)) +
             meta(T("检测间隔", "Check interval"), intervalCell(w, s)) +
             meta(T("API 密钥", "API key"), keyCell(w, s)) +
             meta(thrLabel, '<select class="in" data-act="alert" data-id="' + w.id + '" aria-label="' + esc(thrLabel + " — " + name) + '">' + thresholdOptions(w.alert_on || "medium") + "</select>") +

@@ -8,6 +8,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Protocol and request mode in every report, history row and monitor.**
+  A report now records the wire protocol each endpoint spoke
+  (`target.api` / `baseline.api`: `openai`, `anthropic` or `responses`), whether
+  it was auto-detected or set by hand (`api_auto`), and the performance probe's
+  configured request mode (`stream_mode`: `stream`, `non_stream` or `both`).
+  The Markdown, HTML, PDF and compact JSON reports and the v2 report view
+  show them. The v2 history page lists them on each run and can filter on
+  protocol, detection and request mode, with "(unknown)" for older runs.
+  Monitors show their protocol (with what `auto` detects) and request mode,
+  keep a non-streaming probe setting, and a monitor scheduled from a run keeps
+  the run's protocol when it was set by hand.
 - **Choose and find the data directory.** A new `--data-dir PATH` option
   (global, and on `zing serve`) puts `history.db`, `watches.db` and `kb.db` in
   another folder for that run, e.g. `zing serve --data-dir .` for the current

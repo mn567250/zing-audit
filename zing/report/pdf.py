@@ -55,6 +55,7 @@ from zing.report.render import (
     _fmt_evidence_value,
     _fmt_score,
     _knowledge_lines,
+    _run_config_meta,
 )
 
 # --------------------------------------------------------------------------- #
@@ -311,6 +312,8 @@ def _header(report: AuditReport) -> list[Flowable]:
         meta.append(_t("provider ") + _code(report.target.declared_provider))
     if report.baseline:
         meta.append(_t("baseline ") + _code(report.baseline.model))
+    for label, value, note in _run_config_meta(report):
+        meta.append(_t(f"{label} ") + _code(value) + (_t(f" ({note})") if note else ""))
     if report.judge_used:
         meta.append(_t("judge ") + _code(report.judge_model or "on"))
     if report.generated_at:

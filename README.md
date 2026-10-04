@@ -279,6 +279,12 @@ fluency, tokenizer and self-identification probes of China-native models. Each
 report records the probe languages it actually used (`prompt_languages`, e.g.
 `["en", "zh"]`).
 
+Each report also records how the endpoint was spoken to: the wire protocol
+(`target.api`: `openai`, `anthropic` or `responses`), whether `--api auto`
+detected it (`target.api_auto`), and the performance probe's request mode
+(`stream_mode`: `stream`, `non_stream` or `both` for the full suite). The web
+UI's history page can filter on all three.
+
 ## What it checks
 
 zing scores ten dimensions. The three **core dimensions** — model identity,

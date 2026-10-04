@@ -122,6 +122,14 @@ def probe_modes(options: AuditOptions) -> list[bool]:
     return [options.performance_streaming]
 
 
+def stream_mode(options: AuditOptions) -> str:
+    """The configured probe request mode: "stream", "non_stream" or "both"."""
+    modes = probe_modes(options)
+    if len(modes) > 1:
+        return "both"
+    return "stream" if modes[0] else "non_stream"
+
+
 def burst_size(options: AuditOptions, probe_requests: int) -> int:
     """Requests in the concurrency burst (deep/full only)."""
     if not _deep(options.suite) or probe_requests <= 0:

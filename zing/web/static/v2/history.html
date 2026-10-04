@@ -151,7 +151,7 @@
   .c-grade { text-align: right; font-family: var(--disp); font-weight: 700; font-size: 16px; }
   .c-mode { font-family: var(--mono); font-size: 11.5px; color: var(--ink2); overflow-wrap: anywhere; }
   .c-mode b { font-weight: 600; color: var(--ink); }
-  .c-mode .perf { display: block; color: var(--faint); margin-top: 2px; }
+  .c-mode .perf, .c-mode .proto { display: block; color: var(--faint); margin-top: 2px; }
   .c-cv { display: inline-flex; justify-content: flex-end; color: var(--faint); }
   .c-cv .zicon { width: 15px; height: 15px; transition: transform 0.2s; }
   .rmain[aria-expanded="true"] .c-cv .zicon { transform: rotate(180deg); }
@@ -208,8 +208,8 @@
       grid-template-areas: "date score grade cv" "risk risk risk risk" "mode mode mode mode";
     }
     .c-date, .c-mode { align-self: auto; }
-    .c-mode .perf { display: inline; margin: 0; }
-    .c-mode .perf::before { content: " · "; }
+    .c-mode .perf, .c-mode .proto { display: inline; margin: 0; }
+    .c-mode .perf::before, .c-mode .proto::before { content: " · "; }
     .rline { align-items: start; }
     .rdel, .rsched { margin-top: 4px; }
     .grp-h { flex-wrap: nowrap; align-items: flex-start; }
@@ -278,7 +278,7 @@
 
   var host = $("#hist"), fbar = $("#filters");
   var FKEY = "zing.v2.history.filters", NONE = "__none__";
-  var FDEF = { host: "", model: "", suite: "", mode: "", risk: "", min: "", days: "", q: "" };
+  var FDEF = { host: "", model: "", suite: "", mode: "", api: "", detect: "", stream: "", risk: "", min: "", days: "", q: "" };
   var state = { rows: null, error: null, reports: {}, open: null, confirm: null, filters: loadFilters() };
 
   $("#lockIcon").innerHTML = ico("lock");
@@ -295,9 +295,10 @@
     // string; these win over the remembered ones
     try {
       var qs = new URLSearchParams(location.search);
-      if (["host", "model", "suite"].some(function (k) { return qs.has(k); })) {
+      var QK = ["host", "model", "suite", "api", "stream"];
+      if (QK.some(function (k) { return qs.has(k); })) {
         f = Object.assign({}, FDEF); // drop stale filters that could hide the monitor's runs
-        ["host", "model", "suite"].forEach(function (k) { if (qs.has(k)) f[k] = qs.get(k); });
+        QK.forEach(function (k) { if (qs.has(k)) f[k] = qs.get(k); });
         localStorage.setItem(FKEY, JSON.stringify(f));
       }
     } catch (e) { /* ignore */ }
@@ -313,6 +314,19 @@
     try { return new URL(u).host || String(u || ""); } catch (e) { return String(u || ""); }
   }
   function modeOf(r) { return r.mode || "check"; }
+  // protocol / detection / probe request mode; "" for runs saved before they were recorded
+  function apiOf(r) { return r.api || ""; }
+  function detectOf(r) { return r.api_auto == null ? "" : r.api_auto ? "auto" : "manual"; }
+  function streamOf(r) { return r.stream_mode || ""; }
+  var STREAM = {
+    stream: ["流式", "Streaming"],
+    non_stream: ["非流式", "Non-streaming"],
+    both: ["流式 + 非流式", "Streaming + non-streaming"],
+  };
+  var streamLabel = function (v) { return STREAM[v] ? T(STREAM[v][0], STREAM[v][1]) : v; };
+  var detectLabel = function (v) { return v === "auto" ? T("自动识别", "auto-detected") : T("手动指定", "set manually"); };
+  // a filter value that matches the "(unknown)" option or one exact value
+  function fmatch(want, have) { return !want || (want === NONE ? !have : have === want); }
   function riskOf(r) { return r.risk_level || "inconclusive"; }
 
   function filtered(rows) {
@@ -325,13 +339,15 @@
       if (f.model && (r.claimed_model || "") !== f.model) return false;
       if (f.suite && (f.suite === NONE ? !!r.suite : r.suite !== f.suite)) return false;
       if (f.mode && modeOf(r) !== f.mode) return false;
+      if (!fmatch(f.api, apiOf(r)) || !fmatch(f.detect, detectOf(r)) || !fmatch(f.stream, streamOf(r))) return false;
       if (f.risk && riskOf(r) !== f.risk) return false;
       if (min != null && !isNaN(min) && !(typeof r.score === "number" && r.score >= min)) return false;
       if (since != null) {
         var t = Date.parse(r.ts);
         if (isNaN(t) || t < since) return false;
       }
-      if (q && [r.base_url, r.claimed_model, r.model, r.suite, modeOf(r)].join(" ").toLowerCase().indexOf(q) < 0) return false;
+      if (q && [r.base_url, r.claimed_model, r.model, r.suite, modeOf(r), apiOf(r),
+        detectOf(r) && detectLabel(detectOf(r)), streamOf(r) && streamLabel(streamOf(r))].join(" ").toLowerCase().indexOf(q) < 0) return false;
       return true;
     });
   }
@@ -367,6 +383,17 @@
     var focusSel = document.activeElement && fbar.contains(document.activeElement) && document.activeElement.getAttribute("data-f");
     var suites = asOpts(distinct(function (r) { return r.suite || ""; }, f.suite));
     if ((state.rows || []).some(function (r) { return !r.suite; }) || f.suite === NONE) suites.push({ v: NONE, t: T("（无套件）", "(no suite)") });
+    // options of a protocol / detection / mode filter, plus "(unknown)" when an
+    // older run lacks the value
+    var withNone = function (opts, fn, cur) {
+      if (state.rows.some(function (r) { return !fn(r); }) || cur === NONE) opts.push({ v: NONE, t: T("（未知）", "(unknown)") });
+      return opts;
+    };
+    var apis = withNone(asOpts(distinct(apiOf, f.api)), apiOf, f.api);
+    var detects = withNone(distinct(detectOf, f.detect).map(function (v) { return { v: v, t: detectLabel(v) }; }), detectOf, f.detect);
+    var streams = withNone(["stream", "non_stream", "both"].filter(function (v) {
+      return v === f.stream || state.rows.some(function (r) { return streamOf(r) === v; });
+    }).map(function (v) { return { v: v, t: streamLabel(v) }; }), streamOf, f.stream);
     var risks = ["clean", "low", "medium", "high", "inconclusive"].filter(function (l) {
       return l === f.risk || state.rows.some(function (r) { return riskOf(r) === l; });
     });
@@ -374,11 +401,14 @@
     fbar.hidden = false;
     fbar.innerHTML = '<div class="fgrid">' +
       '<label class="fq"><span>' + esc(T("搜索", "Search")) + '</span><input class="in" type="search" data-f="q" value="' + esc(f.q) +
-      '" placeholder="' + esc(T("中转站、模型、套件…", "Relay, model, suite…")) + '" autocomplete="off" /></label>' +
+      '" placeholder="' + esc(T("中转站、模型、套件、协议…", "Relay, model, suite, protocol…")) + '" autocomplete="off" /></label>' +
       selectHTML("host", T("中转站", "Relay / provider"), asOpts(distinct(function (r) { return hostOf(r.base_url); }, f.host))) +
       selectHTML("model", T("声称模型", "Claimed model"), asOpts(distinct(function (r) { return r.claimed_model || ""; }, f.model))) +
       selectHTML("suite", T("套件", "Suite"), suites) +
       selectHTML("mode", T("模式", "Mode"), asOpts(distinct(modeOf, f.mode))) +
+      selectHTML("api", T("协议", "Protocol"), apis) +
+      selectHTML("detect", T("协议识别", "Protocol detection"), detects) +
+      selectHTML("stream", T("探测请求", "Probe requests"), streams) +
       selectHTML("risk", T("风险", "Risk"), risks.map(function (l) { return { v: l, t: ZING_I18N.label("RISK_LEVEL", l) }; })) +
       '<label><span>' + esc(T("最低健康分", "Min. score")) + '</span><input class="in" type="number" inputmode="numeric" min="0" max="100" step="1" data-f="min" value="' +
       esc(f.min) + '" placeholder="0" /></label>' +
@@ -683,7 +713,7 @@
       esc(ZING_I18N.label("RISK_LEVEL", lvl)) + "</span></span>" +
       '<span class="c-score f-' + scoreC(r.score) + '"><span class="sr-only">' + esc(T("健康分", "Score")) + " </span>" + num(r.score) + "</span>" +
       '<span class="c-grade f-' + gradeC(r.rating) + '"><span class="sr-only">' + esc(T("评级", "Grade")) + " </span>" + esc(r.rating || "–") + "</span>" +
-      '<span class="c-mode"><b>' + esc(r.mode || "check") + "</b>" + (r.suite ? " · " + esc(r.suite) : "") +
+      '<span class="c-mode"><b>' + esc(r.mode || "check") + "</b>" + (r.suite ? " · " + esc(r.suite) : "") + protoHTML(r) +
       (perf ? '<span class="perf" title="' + esc(T("延迟 p50", "Latency p50")) + '">p50 ' + Math.round(perf.latency_p50_ms) + " ms</span>" : "") + "</span>" +
       '<span class="c-cv" aria-hidden="true">' + ico("chevronDown") + "</span></button>" +
       schedBtnHTML(r) +
@@ -692,6 +722,14 @@
       confirmHTML("c-" + esc(id), id, T("删除这条历史记录？", "Delete this history entry?"), T("删除", "Delete")) +
       '<p class="rmsg" id="m-' + esc(id) + '" role="status"></p>' +
       '<div class="panel" id="p-' + esc(id) + '" data-id="' + esc(id) + '" role="region" aria-labelledby="r-' + esc(id) + '" hidden></div></li>';
+  }
+
+  // protocol (auto-detected or set by hand) and the probe's request mode
+  function protoHTML(r) {
+    var bits = [];
+    if (apiOf(r)) bits.push(esc(apiOf(r)) + (detectOf(r) ? " (" + esc(detectLabel(detectOf(r))) + ")" : ""));
+    if (streamOf(r)) bits.push(esc(streamLabel(streamOf(r))));
+    return bits.length ? '<span class="proto">' + bits.join(" · ") + "</span>" : "";
   }
 
   // A run a monitor produced already has its monitor: offer no second one.
@@ -918,6 +956,8 @@
       : "";
     return '<li class="job' + (j.status === "error" ? " err" : "") + '" data-job="' + esc(j.id) + '"><div class="jmain">' +
       '<div class="jt">' + esc(title) + ' <span class="key">' + esc(j.suite || "standard") + "</span>" +
+      (j.api ? ' <span class="key">' + esc(j.api) + (j.api_auto ? " (" + esc(detectLabel("auto")) + ")" : "") + "</span>" : "") +
+      (j.stream_mode ? ' <span class="key">' + esc(streamLabel(j.stream_mode)) + "</span>" : "") +
       (mon ? ' <span class="key">' + esc(T("监控", "Monitor")) + "</span>" : "") + "</div>" +
       '<div class="ju">' + esc(j.base_url || "") + "</div>" +
       '<div class="js" role="status">' + jobStateHTML(j) + (jobs.msg[j.id] ? " · " + esc(jobs.msg[j.id]()) : "") + "</div>" +

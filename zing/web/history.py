@@ -42,6 +42,9 @@ _SUMMARY_COLS = (
     "rating",
     "kb_match",
     "watch_id",
+    "api",
+    "api_auto",
+    "stream_mode",
 )
 
 _DB_NAME = "history.db"
@@ -79,6 +82,11 @@ def _ensure(conn: sqlite3.Connection) -> None:
     kb_snapshot.add_link_columns(conn, "history", {"kb_snapshot_id": "INTEGER", "kb_match": "TEXT"})
     # The monitor (watch) that produced a run; NULL for runs started by hand.
     kb_snapshot.add_link_columns(conn, "history", {"watch_id": "INTEGER"})
+    # The run's wire protocol, whether it was auto-detected, and the probe's
+    # request mode; NULL for runs saved before these were recorded.
+    kb_snapshot.add_link_columns(
+        conn, "history", {"api": "TEXT", "api_auto": "INTEGER", "stream_mode": "TEXT"}
+    )
 
 
 @contextmanager
@@ -112,6 +120,7 @@ def save(report: dict[str, Any], watch_id: int | None = None) -> int:
         knowledge = report.get("knowledge")
         if not isinstance(knowledge, dict):
             knowledge = {}
+        api_auto = target.get("api_auto")
         snap = knowledge.get("profile")
         if isinstance(snap, dict):
             # The profile lives in kb_snapshots; the row keeps only the hash.
@@ -121,8 +130,9 @@ def save(report: dict[str, Any], watch_id: int | None = None) -> int:
             cur = conn.execute(
                 """INSERT INTO history
                    (ts, base_url, claimed_model, model, mode, suite,
-                    risk_level, score, rating, report_json, kb_snapshot_id, kb_match, watch_id)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    risk_level, score, rating, report_json, kb_snapshot_id, kb_match, watch_id,
+                    api, api_auto, stream_mode)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     report.get("generated_at"),
                     target.get("base_url"),
@@ -139,6 +149,9 @@ def save(report: dict[str, Any], watch_id: int | None = None) -> int:
                     snapshot_id,
                     knowledge.get("match_confidence"),
                     int(watch_id) if watch_id is not None else None,
+                    target.get("api"),
+                    int(api_auto) if isinstance(api_auto, bool) else None,
+                    report.get("stream_mode"),
                 ),
             )
             return int(cur.lastrowid or -1)

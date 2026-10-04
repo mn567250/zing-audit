@@ -75,6 +75,7 @@ _ALL_COLS = (
     "dimensions",
     "source_report_id",
     "run_duration_sec",
+    "performance_streaming",
 )
 
 # Columns safe to return to the browser — everything except the API key.
@@ -140,6 +141,10 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
     # no monitor is scheduled more often than that.
     if "run_duration_sec" not in cols:
         conn.execute("ALTER TABLE watches ADD COLUMN run_duration_sec REAL")
+    # The performance probe's request mode: 0 non-streaming, 1 or NULL streaming
+    # (the full suite measures both either way).
+    if "performance_streaming" not in cols:
+        conn.execute("ALTER TABLE watches ADD COLUMN performance_streaming INTEGER")
     # The master key's check value (see zing.secretbox.make_canary).
     conn.execute("CREATE TABLE IF NOT EXISTS secret_meta (name TEXT PRIMARY KEY, value TEXT)")
     kb_snapshot.ensure_table(conn)
@@ -345,6 +350,8 @@ def _row_to_dict(row: sqlite3.Row, *, include_key: bool) -> dict[str, Any]:
     if not isinstance(d["webhooks"], list):
         d["webhooks"] = []
     d["enabled"] = bool(d.get("enabled"))
+    # NULL (watches from before the setting existed) probes with streaming.
+    d["performance_streaming"] = d.get("performance_streaming") != 0
     d["language"] = i18n.normalize(d.get("language"))
     raw_dims = d.get("dimensions")
     try:
@@ -423,7 +430,8 @@ def create(
     Expected keys: name, base_url, api_key, model, claimed_model, api,
     declared_provider, suite, dimensions (list; the custom suite's), interval_sec,
     alert_on, webhooks (list), language (alert language code; unknown/missing ->
-    English). Unknown keys are ignored;
+    English), performance_streaming (False: the probe sends non-streaming
+    requests). Unknown keys are ignored;
     missing keys fall back to sensible defaults. ``knowledge`` (a
     KnowledgeUsage dict with its profile) pins the watch's profile.
 
@@ -461,6 +469,7 @@ def create(
         json.dumps(list(cfg.get("dimensions") or [])) if cfg.get("dimensions") else None,
         cfg.get("source_report_id") if draft else None,
         _duration(cfg.get("run_duration_sec")),
+        0 if cfg.get("performance_streaming") is False else 1,
     )
     with _connect() as conn:
         cur = conn.execute(
@@ -468,8 +477,8 @@ def create(
                (name, base_url, api_key, model, claimed_model, api,
                 declared_provider, suite, interval_sec, alert_on, webhooks,
                 enabled, created_ts, language, dimensions, source_report_id,
-                run_duration_sec)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                run_duration_sec, performance_streaming)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             row,
         )
         wid = int(cur.lastrowid or -1)

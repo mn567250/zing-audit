@@ -33,6 +33,12 @@
       return Object.prototype.hasOwnProperty.call(vals, k) ? vals[k] : m;
     });
   }
+  // AuditReport.stream_mode: the performance probe's configured request mode
+  var STREAM_MODE = {
+    stream: ["流式", "Streaming"],
+    non_stream: ["非流式", "Non-streaming"],
+    both: ["流式 + 非流式", "Streaming + non-streaming"],
+  };
   function isZh() {
     return !!(window.ZING_LANG && window.ZING_LANG.isZh());
   }
@@ -699,8 +705,16 @@
     ];
     if (t.claimed_model && t.model && t.claimed_model !== t.model) meta.push(item(T("请求的模型", "Model to request"), code(t.model)));
     if (t.declared_provider) meta.push(item(T("声明的厂商", "Declared provider"), code(t.declared_provider)));
+    // wire protocol and whether it was auto-detected (absent in older reports)
+    var proto = function (x) {
+      if (!x || !x.api) return "";
+      var how = x.api_auto === true ? T("自动识别", "auto-detected") : x.api_auto === false ? T("手动指定", "set manually") : "";
+      return code(x.api) + (how ? " · " + esc(how) : "");
+    };
+    if (proto(t)) meta.push(item(T("协议", "Protocol"), proto(t)));
     if (r.baseline)
-      meta.push(item(T("对照基线", "Baseline"), code(r.baseline.model || "—") + " @ " + code(r.baseline.base_url || "—")));
+      meta.push(item(T("对照基线", "Baseline"), code(r.baseline.model || "—") + " @ " + code(r.baseline.base_url || "—") +
+        (proto(r.baseline) ? " · " + proto(r.baseline) : "")));
     meta.push(item(T("模式", "Mode"), code(r.mode || "check")));
     if (r.suite)
       meta.push(item(T("套件", "Suite"), code(r.suite) +
@@ -710,6 +724,8 @@
               return esc(n ? n[0] : d);
             }).join(" · ")
           : "")));
+    if (r.stream_mode)
+      meta.push(item(T("性能探测请求", "Performance probe requests"), esc(STREAM_MODE[r.stream_mode] ? T.apply(null, STREAM_MODE[r.stream_mode]) : r.stream_mode)));
     if ((r.prompt_languages || []).length)
       meta.push(item(T("探测语言", "Probe languages"), esc(r.prompt_languages.map(langName).join(" · "))));
     if (r.knowledge) meta.push(item(T("知识库资料", "Knowledge profile"), kbMeta(r.knowledge, code)));

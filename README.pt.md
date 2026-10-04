@@ -493,9 +493,23 @@ segundo plano dentro do processo do servidor, regista cada execução no
 
 Cada monitor tem o seu próprio idioma de alertas (por predefinição, o da
 interface), pode ser executado agora, pausado ou eliminado, e fica fixado ao
-perfil da base de conhecimento com que foi criado até o voltar a fixar. As chaves
-só são guardadas no seu diretório de dados local e nunca são devolvidas ao
-navegador.
+perfil da base de conhecimento com que foi criado até o voltar a fixar. As
+chaves são guardadas encriptadas no seu diretório de dados local e nunca são
+devolvidas ao navegador.
+
+**Chave mestra.** As chaves API dos monitores são encriptadas com uma chave
+mestra que o zing nunca escreve no disco. Da primeira vez que guarda uma chave
+API, a página **Monitores** cria-a e mostra-a uma única vez: copie-a ou
+transfira-a, guarde-a num gestor de palavras-passe (o seu navegador pode
+guardá-la) e cole-a de novo para confirmar. Após cada reinício do `zing serve` a
+página volta a pedi-la (o navegador pode preenchê-la); até lá, os monitores que
+precisam dela esperam, enquanto os monitores sem chave ou com chaves
+`env:`/`file:` continuam a ser executados. A barra de estado da página oferece
+também **Bloquear**, **Rodar** e **Esqueceu a chave?** (descarta as chaves API
+encriptadas para que as possa introduzir de novo). Para uso sem supervisão ou em
+Docker, passe a chave em `ZING_SECRET_KEY` (consulte
+[docs/DOCKER.md](docs/DOCKER.md)); `zing secret status | export | rotate`
+gerem-na na linha de comandos.
 
 ## Auditorias de embeddings, rerank, imagem e áudio
 
@@ -658,12 +672,15 @@ sonda. O texto controlado pelo relay é ocultado e escapado antes de ser escrito
   alcançar. O zing só contacta os endpoints que configura (alvo, referência,
   juiz, webhooks).
 - **Chaves.** Os relatórios e o histórico guardam apenas uma impressão de uma
-  chave API. As chaves dos monitores são guardadas em texto simples no seu
-  diretório de dados, razão pela qual só o seu utilizador lhe tem acesso.
+  chave API. As chaves dos monitores são guardadas encriptadas em `watches.db`;
+  a chave mestra que as desencripta nunca é escrita no diretório de dados
+  (guarda-a você, consulte **Monitorização** acima), por isso uma cópia do
+  diretório não revela nenhuma chave API. Mesmo assim, só o seu utilizador tem
+  acesso ao diretório.
 - **Diretório de dados.** `~/.zing` (ou `ZING_DATA_DIR`), criado com `0700` e
   ficheiros com `0600`: `history.db` (histórico de auditorias), `watches.db`
-  (monitores, com as suas chaves) e `kb.db` (as suas entradas da base de
-  conhecimento). Apague o diretório para remover tudo.
+  (monitores, com as suas chaves encriptadas) e `kb.db` (as suas entradas da
+  base de conhecimento). Apague o diretório para remover tudo.
 
 ## Utilização responsável
 

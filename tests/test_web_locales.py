@@ -335,3 +335,35 @@ def test_hidden_page_is_revealed_if_boot_never_runs(tmp_path):
     assert r["error-loading"]["after"] == "hidden"
     assert r["error-parsed"]["after"] == ""
     assert r["zh"]["before"] == "" and r["zh"]["delays"] == []  # CN is the markup itself
+
+
+# --------------------------------------------------------------------------- #
+# Strings used in page source must be translatable
+# --------------------------------------------------------------------------- #
+_STATIC = Path(__file__).resolve().parent.parent / "zing" / "web" / "static"
+_T_CALL = re.compile(r'\bTf?\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"')
+_DATA_EN = re.compile(r'data-en="([^"]*)"')
+
+
+def _source_strings(path: Path) -> set[str]:
+    """English texts a page hands to T(zh, en) / Tf(zh, en, …) or data-en."""
+    import html
+
+    src = path.read_text(encoding="utf-8")
+    found = {json.loads(f'"{en}"') for _zh, en in _T_CALL.findall(src)}
+    found |= {html.unescape(en) for en in _DATA_EN.findall(src)}
+    return found
+
+
+@pytest.mark.parametrize(
+    "page", ["v2/masterkey.js", "v2/watches.html", "watches.html"]
+)
+def test_monitor_and_master_key_strings_are_translatable(page):
+    # Every English text these pages show must be a key of the merged `en`
+    # strings; test_every_ui_language_is_complete then requires all languages
+    # to translate it, so a new string cannot silently stay English.
+    from zing import i18n
+
+    keys = set(i18n._load()["en"].get("strings", {}))
+    missing = sorted(_source_strings(_STATIC / page) - keys)
+    assert not missing, f"{page}: add to zing/i18n/locales (fragments): {missing}"

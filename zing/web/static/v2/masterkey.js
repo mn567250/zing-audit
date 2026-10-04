@@ -24,6 +24,14 @@
   function T(zh, en) {
     return typeof window.T === "function" ? window.T(zh, en) : en;
   }
+  // T(zh, en) with {name} placeholders filled after translation.
+  function Tf(zh, en, vals) {
+    var s = T(zh, en);
+    Object.keys(vals || {}).forEach(function (k) {
+      s = s.split("{" + k + "}").join(String(vals[k]));
+    });
+    return s;
+  }
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -167,37 +175,48 @@
     if (e) { e.textContent = text; e.hidden = !text; }
   }
   function serverErr(res) {
+    // 409: the key's state changed meanwhile (another tab, the CLI)
+    if (res && res.status === 409) {
+      return T("主密钥的状态已改变，请刷新页面后重试。", "The master key's state changed meanwhile — reload the page and try again.");
+    }
     var e = res && res.body && res.body.error;
     var L = window.ZING_LANG;
     return e ? (L && L.server ? L.server(e) : e) : T("出错了，请重试。", "Something went wrong — please try again.");
   }
 
+  // Each dialog's wording, translated when the dialog opens.
   var COPY = {
-    setup: {
-      title: ["创建主密钥", "Create your master key"],
-      intro: ["主密钥用于加密本机保存的中转站 API 密钥。zing 不会把它写入磁盘：每次重启 zing serve 后，你需要再次输入它，监控才会运行。请把它保存在密码管理器或其他安全的地方，不要放在 zing 的数据目录里。丢失主密钥意味着需要重新输入每个监控的 API 密钥。",
-        "The master key encrypts the relay API keys stored on this machine. zing never writes it to disk: after every restart of zing serve you enter it again before monitors run. Keep it in a password manager or another safe place — not in zing's data folder. Losing it means re-entering every monitor's API key."],
+    setup: function () {
+      return {
+        title: T("创建主密钥", "Create your master key"),
+        intro: T("主密钥用于加密本机保存的中转站 API 密钥。zing 不会把它写入磁盘：每次重启 zing serve 后，你需要再次输入它，监控才会运行。请把它保存在密码管理器或其他安全的地方，不要放在 zing 的数据目录里。丢失主密钥意味着需要重新输入每个监控的 API 密钥。",
+          "The master key encrypts the relay API keys stored on this machine. zing never writes it to disk: after every restart of zing serve you enter it again before monitors run. Keep it in a password manager or another safe place — not in zing's data folder. Losing it means re-entering every monitor's API key."),
+      };
     },
-    migrate: {
-      title: ["把主密钥移出数据目录", "Move your master key out of the data folder"],
-      intro: ["你的主密钥目前保存在数据库旁边（secret.key），能读取该目录的人就能解密你的 API 密钥。zing 会生成一个新的主密钥、用它重新加密所有 API 密钥，并删除 secret.key。之后每次重启都需要输入新密钥。",
-        "Your master key is stored next to the databases (secret.key), so anyone who can read that folder can decrypt your API keys. zing creates a new master key, re-encrypts every API key with it and deletes secret.key. From then on you enter the new key after each restart."],
+    migrate: function () {
+      return {
+        title: T("把主密钥移出数据目录", "Move your master key out of the data folder"),
+        intro: T("你的主密钥目前保存在数据库旁边（secret.key），能读取该目录的人就能解密你的 API 密钥。zing 会生成一个新的主密钥、用它重新加密所有 API 密钥，并删除 secret.key。之后每次重启都需要输入新密钥。",
+          "Your master key is stored next to the databases (secret.key), so anyone who can read that folder can decrypt your API keys. zing creates a new master key, re-encrypts every API key with it and deletes secret.key. From then on you enter the new key after each restart."),
+      };
     },
-    rotate: {
-      title: ["更换主密钥", "Rotate the master key"],
-      intro: ["zing 会生成一个新的主密钥并用它重新加密所有 API 密钥。确认之后，旧密钥将不再有效。",
-        "zing creates a new master key and re-encrypts every API key with it. Once you confirm, the old key stops working."],
+    rotate: function () {
+      return {
+        title: T("更换主密钥", "Rotate the master key"),
+        intro: T("zing 会生成一个新的主密钥并用它重新加密所有 API 密钥。确认之后，旧密钥将不再有效。",
+          "zing creates a new master key and re-encrypts every API key with it. Once you confirm, the old key stops working."),
+      };
     },
   };
 
   // mode: "setup" | "migrate" | "rotate". Resolves true once the new key is in use.
   function newKeyDialog(mode) {
-    var c = COPY[mode] || COPY.setup;
+    var c = (COPY[mode] || COPY.setup)();
     var key = null;
     var html =
       '<form method="dialog" class="zmk-body" novalidate>' +
-        '<h2 id="zmk-title">' + icon("lock") + esc(T(c.title[0], c.title[1])) + "</h2>" +
-        '<div class="zmk-step" data-step="intro"><p>' + esc(T(c.intro[0], c.intro[1])) + "</p>" + errLine() +
+        '<h2 id="zmk-title">' + icon("lock") + esc(c.title) + "</h2>" +
+        '<div class="zmk-step" data-step="intro"><p>' + esc(c.intro) + "</p>" + errLine() +
           '<div class="zmk-act"><button type="button" class="btn pri" data-zmk="show" autofocus>' + esc(T("生成并显示密钥", "Show the new key")) + "</button>" + cancelBtn() + "</div></div>" +
         '<div class="zmk-step" data-step="show" hidden>' +
           "<p>" + esc(T("这是唯一一次显示。请立即保存：", "This is the only time it is shown. Save it now:")) + "</p>" +
@@ -235,7 +254,7 @@
           if (!res.ok || !res.body.key) { showErr(d, serverErr(res)); return; }
           key = res.body.key;
           d.querySelector("#zmk-key").value = key;
-          d.querySelector('[data-zmk="fp"]').textContent = T("指纹 ", "fingerprint ") + (res.body.fingerprint || "");
+          d.querySelector('[data-zmk="fp"]').textContent = Tf("指纹 {fp}", "fingerprint {fp}", { fp: res.body.fingerprint || "" });
           step("show");
           d.querySelector("#zmk-key").select();
         }, function () { showBtn.disabled = false; showErr(d, serverErr(null)); });
@@ -378,8 +397,8 @@
         reset = '<form class="zmk-reset" novalidate><p id="zmk-reset-q">' +
           esc(n === 1 ? T("将丢弃 1 个已加密的 API 密钥，相关监控会暂停，直到你重新输入密钥。",
             "1 encrypted API key will be dropped; its monitor pauses until you enter the key again.")
-            : T("将丢弃 " + n + " 个已加密的 API 密钥，相关监控会暂停，直到你重新输入密钥。",
-            n + " encrypted API keys will be dropped; their monitors pause until you enter the keys again.")) +
+            : Tf("将丢弃 {n} 个已加密的 API 密钥，相关监控会暂停，直到你重新输入密钥。",
+            "{n} encrypted API keys will be dropped; their monitors pause until you enter the keys again.", { n: n })) +
           " " + esc(T("输入 RESET 以确认：", "Type RESET to confirm:")) + "</p>" +
           '<div class="zmk-row"><input class="in mono" data-mk="reset-in" aria-labelledby="zmk-reset-q" autocomplete="off" spellcheck="false">' +
           '<button type="submit" class="btn sm danger" data-mk="reset-yes">' + esc(T("重置", "Reset")) + "</button>" +

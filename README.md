@@ -467,8 +467,20 @@ webhook alerts:
 
 Each monitor has its own alert language (defaulting to the UI language), can be
 run now, paused or deleted, and pins the knowledge-base profile it was created
-with until you re-pin it. Keys are stored only in your local data directory and
-are never sent back to the browser.
+with until you re-pin it. Keys are stored encrypted in your local data directory
+and are never sent back to the browser.
+
+**Master key.** The monitors' API keys are encrypted with a master key that zing
+never writes to disk. The first time you store an API key, the **Monitors** page
+creates it and shows it once: copy or download it, keep it in a password manager
+(your browser can save it), then paste it back to confirm. After every restart
+of `zing serve` the page asks for it again (the browser can fill it in); until
+then, monitors that need it wait, while keyless monitors and `env:`/`file:` keys
+keep running. The status bar on the **Monitors** page also offers **Lock**,
+**Rotate** and **Forgot the key?** (drops the encrypted API keys so you can
+enter them again). For unattended or Docker use, pass the key as
+`ZING_SECRET_KEY` (see [docs/DOCKER.md](docs/DOCKER.md));
+`zing secret status | export | rotate` manage it on the command line.
 
 ## Embedding, rerank, image and audio audits
 
@@ -622,11 +634,13 @@ redacted and escaped before it is written.
   zing contacts only the endpoints you configure (target, baseline, judge,
   webhooks).
 - **Keys.** Reports and history keep only a fingerprint of an API key. The
-  monitors' keys are stored in plain text in your data directory, which is why
-  it is owner-only.
+  monitors' keys are stored encrypted in `watches.db`; the master key that
+  decrypts them is never written to the data directory (you keep it, see
+  **Monitoring** above), so a copy of the directory reveals no API key. The
+  directory is owner-only all the same.
 - **Data directory.** `~/.zing` (or `ZING_DATA_DIR`), created `0700` with `0600`
-  files: `history.db` (audit history), `watches.db` (monitors, including their
-  keys) and `kb.db` (your knowledge-base entries). Delete the directory to
+  files: `history.db` (audit history), `watches.db` (monitors, with their keys
+  encrypted) and `kb.db` (your knowledge-base entries). Delete the directory to
   remove everything.
 
 ## Responsible use

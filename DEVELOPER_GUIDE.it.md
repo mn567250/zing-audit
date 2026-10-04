@@ -107,6 +107,7 @@ zing/
   media_audit.py       verificatore autonomo di immagini e audio (TTS)
   notify.py            avvisi via webhook (Slack / Feishu / DingTalk / JSON generico)
   datadir.py           la directory dei dati locale e i suoi file SQLite
+  secretbox.py         cifratura dei segreti salvati; la chiave principale in memoria
   i18n/                traduzioni condivise dall'interfaccia web e dagli avvisi
     locales/           <code>.json per lingua, fragments/<feature>/<code>.json
   utils/               oscuramento, parsing SSE, statistica, stima dei token
@@ -116,6 +117,7 @@ zing/
     security.py        ascolto su loopback, elenco di host ammessi, controlli Origin/JSON, intestazioni
     history.py         archivio della cronologia delle verifiche (history.db)
     watches.py         archivio dei monitor (watches.db)
+    masterkey.py       stati e azioni della chiave principale (server e `zing secret`)
     static/            pagine dell'interfaccia classica e script condivisi (lang.js, i18n.js, …)
     static/v2/         pagine, stili e script della nuova interfaccia
 tests/                 suite pytest; conftest.py contiene il relay simulato
@@ -310,9 +312,19 @@ il testo dinamico e `ZING_LANG.server(text)` per il testo proveniente dal backen
 
 `zing/datadir.py` gestisce `$ZING_DATA_DIR` (predefinito `~/.zing`), creato con
 `0700`, con file SQLite `0600`: `history.db` (`web/history.py`), `watches.db`
-(`web/watches.py`, che conserva in chiaro le chiavi API dei monitor) e `kb.db`
+(`web/watches.py`, che conserva cifrate le chiavi API dei monitor) e `kb.db`
 (`knowledge/store.py`). Ogni chiamata apre una connessione di breve durata,
 quindi gli archivi sono sicuri nel pool di thread di FastAPI.
+
+Le chiavi API salvate sono cifrate da `zing/secretbox.py` (Fernet, salvate come
+`enc:v1:…`; i riferimenti `env:`/`file:` restano come sono). La chiave
+principale non viene mai salvata: `web/masterkey.py` (`Vault`, condiviso dal
+server e da `zing secret`) la tiene nella memoria del server appena arriva da
+`ZING_SECRET_KEY`, da un vecchio `secret.key` o dall'utente nella pagina
+Monitor, e `watches.db` conserva solo un valore di controllo (`secret_meta`) che
+rifiuta una chiave sbagliata. Una nuova chiave ricifra ogni chiave salvata e
+riscrive il valore di controllo in un'unica transazione. La chiave vive nella
+memoria di un solo processo, quindi esegui un server per directory dei dati.
 
 ## Contribuire
 
@@ -458,7 +470,8 @@ viene rilevato un ambiente container.
 | `ZING_CONTAINER` | non impostata (`1` nell'immagine) | Consente l'ascolto fuori da loopback in un container rilevato |
 | `ZING_HOST` | `127.0.0.1` (`0.0.0.0` nell'immagine) | Indirizzo di ascolto; `--host` prevale |
 | `ZING_PORT` | `8000` | Porta; `--port` prevale |
-| `ZING_DATA_DIR` | `~/.zing` (`/data` nell'immagine) | Cronologia, monitor (con le loro chiavi) e le tue voci della base di conoscenza; monta qui un volume |
+| `ZING_DATA_DIR` | `~/.zing` (`/data` nell'immagine) | Cronologia, monitor (con le loro chiavi cifrate) e le tue voci della base di conoscenza; monta qui un volume |
+| `ZING_SECRET_KEY` | non impostata | Chiave principale delle chiavi API salvate dei monitor (una chiave, oppure `file:/run/secrets/…` / `env:VAR`); se non impostata, la pagina Monitor la chiede dopo ogni avvio. Mai salvata in `ZING_DATA_DIR` |
 | `ZING_KB_DIR` | non impostata | Directory YAML aggiuntiva per la base di conoscenza, per es. `-v ./profiles:/kb:ro -e ZING_KB_DIR=/kb` |
 | `ZING_NO_USER_KB` | non impostata | `1` ignora le tue voci della base di conoscenza (`kb.db`) |
 | `ZING_ALLOWED_HOSTS` | non impostata | Nomi host aggiuntivi a cui l'interfaccia risponde, separati da virgole |

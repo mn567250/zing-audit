@@ -94,6 +94,7 @@ zing/
   media_audit.py       独立的图像与音频（TTS）审计器
   notify.py            Webhook 告警（Slack / 飞书 / 钉钉 / 通用 JSON）
   datadir.py           本地数据目录及其 SQLite 文件
+  secretbox.py         已保存机密的加密；内存中的主密钥
   i18n/                Web 界面与告警共用的翻译
     locales/           每种语言一个 <code>.json，以及 fragments/<feature>/<code>.json
   utils/               脱敏、SSE 解析、统计、token 估算
@@ -103,6 +104,7 @@ zing/
     security.py        回环绑定、Host 白名单、Origin/JSON 校验、安全响应头
     history.py         检测历史存储（history.db）
     watches.py         监控存储（watches.db）
+    masterkey.py       主密钥的状态与操作（服务器与 `zing secret`）
     static/            经典界面页面与共用脚本（lang.js、i18n.js 等）
     static/v2/         新界面的页面、样式和脚本
 tests/                 pytest 测试套件；conftest.py 中是模拟中转站
@@ -242,9 +244,15 @@ Embedding/rerank（`embed_audit.py`）和图像/音频（`media_audit.py`）不�
 ### 本地数据
 
 `zing/datadir.py` 管理 `$ZING_DATA_DIR`（默认 `~/.zing`），以 `0700` 创建，其中的 SQLite 文件
-为 `0600`：`history.db`（`web/history.py`）、`watches.db`（`web/watches.py`，以明文保存监控的
+为 `0600`：`history.db`（`web/history.py`）、`watches.db`（`web/watches.py`，加密保存监控的
 API 密钥）和 `kb.db`（`knowledge/store.py`）。每次调用都打开一个短生命周期的连接，因此这些存储
 在 FastAPI 的线程池中是安全的。
+
+保存的 API 密钥由 `zing/secretbox.py` 加密（Fernet，存为 `enc:v1:…`；`env:`/`file:` 引用保持原样）。
+主密钥本身从不保存：`web/masterkey.py`（`Vault`，服务器与 `zing secret` 共用）在主密钥来自
+`ZING_SECRET_KEY`、旧版 `secret.key` 或用户在监控页面的输入后，把它保存在服务器内存中；`watches.db`
+只保存一个校验值（`secret_meta`），用来拒绝错误的密钥。更换密钥时，所有已保存的密钥会在同一个事务中
+重新加密并改写校验值。主密钥只存在于一个进程的内存中，因此每个数据目录只运行一个服务器。
 
 ## 参与贡献
 
@@ -359,7 +367,8 @@ docker run --rm -p 127.0.0.1:8000:8000 -v zing-data:/data zing
 | `ZING_CONTAINER` | 未设置（镜像中为 `1`） | 在检测到的容器内允许绑定非回环地址 |
 | `ZING_HOST` | `127.0.0.1`（镜像中为 `0.0.0.0`） | 绑定地址；`--host` 优先 |
 | `ZING_PORT` | `8000` | 端口；`--port` 优先 |
-| `ZING_DATA_DIR` | `~/.zing`（镜像中为 `/data`） | 检测历史、监控（含密钥）和你的知识库条目；在此挂载数据卷 |
+| `ZING_DATA_DIR` | `~/.zing`（镜像中为 `/data`） | 检测历史、监控（含加密后的密钥）和你的知识库条目；在此挂载数据卷 |
+| `ZING_SECRET_KEY` | 未设置 | 监控已保存 API 密钥的主密钥（一个密钥，或 `file:/run/secrets/…` / `env:VAR`）；未设置时，每次启动后监控页面都会请求它。从不保存在 `ZING_DATA_DIR` 中 |
 | `ZING_KB_DIR` | 未设置 | 额外的知识库 YAML 目录，例如 `-v ./profiles:/kb:ro -e ZING_KB_DIR=/kb` |
 | `ZING_NO_USER_KB` | 未设置 | 设为 `1` 时忽略你自己的知识库条目（`kb.db`） |
 | `ZING_ALLOWED_HOSTS` | 未设置 | 界面额外响应的主机名，逗号分隔 |

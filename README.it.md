@@ -490,10 +490,23 @@ esecuzione nella **Cronologia** e invia gli stessi avvisi via webhook:
   **Aggiungi monitor**.
 
 Ogni monitor ha la propria lingua degli avvisi (per impostazione predefinita
-quella dell'interfaccia), si può eseguire subito, mettere in pausa o eliminare, e
-resta legato al profilo della base di conoscenza con cui è stato creato finché non
-lo ricolleghi. Le chiavi sono salvate solo nella tua directory dei dati locale e
-non vengono mai restituite al browser.
+quella dell'interfaccia), si può eseguire subito, mettere in pausa o eliminare,
+e resta legato al profilo della base di conoscenza con cui è stato creato finché
+non lo ricolleghi. Le chiavi sono salvate cifrate nella tua directory dei dati
+locale e non vengono mai restituite al browser.
+
+**Chiave principale.** Le chiavi API dei monitor sono cifrate con una chiave
+principale che zing non scrive mai su disco. La prima volta che salvi una chiave
+API, la pagina **Monitor** la crea e la mostra una sola volta: copiala o
+scaricala, conservala in un gestore di password (il browser può salvarla) e
+incollala di nuovo per confermare. Dopo ogni riavvio di `zing serve` la pagina
+la richiede (il browser può compilarla); fino ad allora i monitor che ne hanno
+bisogno aspettano, mentre quelli senza chiave o con chiavi `env:`/`file:`
+continuano a girare. La barra di stato della pagina offre anche **Blocca**,
+**Ruota** e **Chiave dimenticata?** (scarta le chiavi API cifrate così puoi
+reinserirle). Per un uso non presidiato o con Docker, passa la chiave come
+`ZING_SECRET_KEY` (vedi [docs/DOCKER.md](docs/DOCKER.md));
+`zing secret status | export | rotate` la gestiscono da riga di comando.
 
 ## Verifiche di embedding, rerank, immagini e audio
 
@@ -657,12 +670,15 @@ testo controllato dal relay viene oscurato ed escapato prima di essere scritto.
   raggiungerlo. zing contatta solo gli endpoint che configuri (obiettivo,
   riferimento, giudice, webhook).
 - **Chiavi.** I rapporti e la cronologia conservano solo un'impronta di una
-  chiave API. Le chiavi dei monitor sono salvate in chiaro nella tua directory dei
-  dati, motivo per cui solo il tuo utente vi ha accesso.
-- **Directory dei dati.** `~/.zing` (o `ZING_DATA_DIR`), creata con `0700` e file
-  con `0600`: `history.db` (cronologia delle verifiche), `watches.db` (monitor,
-  chiavi comprese) e `kb.db` (le tue voci della base di conoscenza). Elimina la
-  directory per rimuovere tutto.
+  chiave API. Le chiavi dei monitor sono salvate cifrate in `watches.db`; la
+  chiave principale che le decifra non viene mai scritta nella directory dei
+  dati (la conservi tu, vedi **Monitoraggio** sopra), quindi una copia della
+  directory non rivela alcuna chiave API. La directory resta comunque
+  accessibile solo al tuo utente.
+- **Directory dei dati.** `~/.zing` (o `ZING_DATA_DIR`), creata con `0700` e
+  file con `0600`: `history.db` (cronologia delle verifiche), `watches.db`
+  (monitor, chiavi cifrate comprese) e `kb.db` (le tue voci della base di
+  conoscenza). Elimina la directory per rimuovere tutto.
 
 ## Uso responsabile
 

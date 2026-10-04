@@ -108,6 +108,7 @@ zing/
   media_audit.py       auditeur autonome d'images et d'audio (TTS)
   notify.py            alertes webhook (Slack / Feishu / DingTalk / JSON générique)
   datadir.py           le répertoire de données local et ses fichiers SQLite
+  secretbox.py         chiffrement des secrets stockés ; la clé maîtresse en mémoire
   i18n/                traductions partagées par l'interface web et les alertes
     locales/           <code>.json par langue, fragments/<feature>/<code>.json
   utils/               expurgation, analyse SSE, statistiques, estimation de tokens
@@ -117,6 +118,7 @@ zing/
     security.py        écoute locale, liste d'hôtes autorisés, contrôles Origin/JSON, en-têtes
     history.py         stockage de l'historique des audits (history.db)
     watches.py         stockage des surveillances (watches.db)
+    masterkey.py       états et actions de la clé maîtresse (serveur et `zing secret`)
     static/            pages de l'interface classique et scripts partagés (lang.js, i18n.js, …)
     static/v2/         pages, styles et scripts de la nouvelle interface
 tests/                 suite pytest ; conftest.py contient le relais simulé
@@ -311,10 +313,21 @@ venant du backend (noms des détecteurs, recommandations, phrases du verdict).
 
 `zing/datadir.py` gère `$ZING_DATA_DIR` (par défaut `~/.zing`), créé en `0700`,
 avec des fichiers SQLite en `0600` : `history.db` (`web/history.py`),
-`watches.db` (`web/watches.py`, qui contient en clair les clés API des
+`watches.db` (`web/watches.py`, qui contient, chiffrées, les clés API des
 surveillances) et `kb.db` (`knowledge/store.py`). Chaque appel ouvre une
 connexion de courte durée ; les stockages sont donc sûrs dans le pool de threads
 de FastAPI.
+
+Les clés API enregistrées sont chiffrées par `zing/secretbox.py` (Fernet,
+stockées sous la forme `enc:v1:…` ; les références `env:`/`file:` restent telles
+quelles). La clé maîtresse elle-même n'est jamais stockée : `web/masterkey.py`
+(`Vault`, partagé par le serveur et `zing secret`) la garde dans la mémoire du
+serveur dès qu'elle vient de `ZING_SECRET_KEY`, d'un ancien `secret.key` ou de
+l'utilisateur sur la page Surveillances, et `watches.db` ne conserve qu'une
+valeur de contrôle (`secret_meta`) qui refuse une mauvaise clé. Une nouvelle clé
+rechiffre chaque clé stockée et réécrit la valeur de contrôle en une seule
+transaction. La clé vit dans la mémoire d'un seul processus : faites tourner un
+serveur par répertoire de données.
 
 ## Contribuer
 
@@ -466,7 +479,8 @@ qu'un environnement de conteneur est détecté.
 | `ZING_CONTAINER` | non défini (`1` dans l'image) | Autorise une écoute hors boucle locale dans un conteneur détecté |
 | `ZING_HOST` | `127.0.0.1` (`0.0.0.0` dans l'image) | Adresse d'écoute ; `--host` l'emporte |
 | `ZING_PORT` | `8000` | Port ; `--port` l'emporte |
-| `ZING_DATA_DIR` | `~/.zing` (`/data` dans l'image) | Historique, surveillances (avec leurs clés) et vos entrées de la base de connaissances ; montez-y un volume |
+| `ZING_DATA_DIR` | `~/.zing` (`/data` dans l'image) | Historique, surveillances (leurs clés chiffrées) et vos entrées de la base de connaissances ; montez-y un volume |
+| `ZING_SECRET_KEY` | non défini | Clé maîtresse des clés API enregistrées des surveillances (une clé, ou `file:/run/secrets/…` / `env:VAR`) ; non définie, la page Surveillances la demande après chaque démarrage. Jamais stockée dans `ZING_DATA_DIR` |
 | `ZING_KB_DIR` | non défini | Répertoire YAML supplémentaire pour la base de connaissances, p. ex. `-v ./profiles:/kb:ro -e ZING_KB_DIR=/kb` |
 | `ZING_NO_USER_KB` | non défini | `1` ignore vos propres entrées de la base de connaissances (`kb.db`) |
 | `ZING_ALLOWED_HOSTS` | non défini | Noms d'hôte supplémentaires auxquels l'interface répond, séparés par des virgules |

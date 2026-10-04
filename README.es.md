@@ -494,9 +494,23 @@ ejecución en el **Historial** y envía las mismas alertas por webhook:
 
 Cada monitor tiene su propio idioma de alertas (por defecto, el de la interfaz),
 puede ejecutarse ahora, pausarse o eliminarse, y queda anclado al perfil de la
-base de conocimiento con el que se creó hasta que lo vuelvas a anclar. Las claves
-solo se guardan en tu directorio de datos local y nunca se devuelven al
-navegador.
+base de conocimiento con el que se creó hasta que lo vuelvas a anclar. Las
+claves se guardan cifradas en tu directorio de datos local y nunca se devuelven
+al navegador.
+
+**Clave maestra.** Las claves API de los monitores se cifran con una clave
+maestra que zing nunca escribe en disco. La primera vez que guardas una clave
+API, la página **Monitores** la crea y la muestra una sola vez: cópiala o
+descárgala, guárdala en un gestor de contraseñas (tu navegador puede guardarla)
+y pégala de nuevo para confirmar. Tras cada reinicio de `zing serve` la página
+vuelve a pedirla (el navegador puede rellenarla); hasta entonces, los monitores
+que la necesitan esperan, mientras que los monitores sin clave o con claves
+`env:`/`file:` siguen ejecutándose. La barra de estado de la página también
+ofrece **Bloquear**, **Rotar** y **¿Olvidaste la clave?** (descarta las claves
+API cifradas para que puedas volver a introducirlas). Para uso desatendido o en
+Docker, pasa la clave como `ZING_SECRET_KEY` (consulta
+[docs/DOCKER.md](docs/DOCKER.md)); `zing secret status | export | rotate` la
+gestionan desde la línea de comandos.
 
 ## Auditorías de embeddings, rerank, imagen y audio
 
@@ -660,11 +674,14 @@ escribirse.
   alcanzarlo. zing solo contacta los endpoints que configuras (objetivo,
   referencia, juez, webhooks).
 - **Claves.** Los informes y el historial solo guardan una huella de una clave
-  API. Las claves de los monitores se guardan en texto plano en tu directorio de
-  datos, por eso solo tú tienes acceso a él.
+  API. Las claves de los monitores se guardan cifradas en `watches.db`; la clave
+  maestra que las descifra nunca se escribe en el directorio de datos (la
+  guardas tú, consulta **Monitorización** más arriba), así que una copia del
+  directorio no revela ninguna clave API. Aun así, solo tú tienes acceso al
+  directorio.
 - **Directorio de datos.** `~/.zing` (o `ZING_DATA_DIR`), creado con `0700` y
   archivos con `0600`: `history.db` (historial de auditorías), `watches.db`
-  (monitores, con sus claves) y `kb.db` (tus entradas de la base de
+  (monitores, con sus claves cifradas) y `kb.db` (tus entradas de la base de
   conocimiento). Borra el directorio para eliminarlo todo.
 
 ## Uso responsable

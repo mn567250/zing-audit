@@ -243,6 +243,16 @@ tokens/s) on **History**; **Schedule as monitor** on every History run; **Downlo
 report** in every format; a theme switch (Auto theme / Light / Dark); and the
 **Models** page.
 
+**Background audits (new UI).** An audit started on the **Audit** page keeps
+running when you switch pages or close the tab; **Continue in background** sends
+it there on purpose. **History** lists every queued and running audit (and every
+running monitor) with its progress; **Watch live** reopens the live view, which
+catches up on everything that already happened. Audits of the same relay run one
+after another, so they never skew each other's latency or reliability results
+(all loopback addresses count as one host, so models served from your own
+machine queue too); audits of different relays run in parallel, at most four at
+once (`ZING_MAX_PARALLEL_AUDITS`). Monitors wait for their relay the same way.
+
 ### Languages
 
 A language dropdown in the header of every page switches the UI between

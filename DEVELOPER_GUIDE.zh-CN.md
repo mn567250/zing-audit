@@ -99,6 +99,7 @@ zing/
   utils/               脱敏、SSE 解析、统计、token 估算
   web/
     server.py          FastAPI 应用：页面、JSON API、SSE 检测流、监控调度器
+    jobs.py            后台检测任务与按中转站的互斥
     security.py        回环绑定、Host 白名单、Origin/JSON 校验、安全响应头
     history.py         检测历史存储（history.db）
     watches.py         监控存储（watches.db）
@@ -210,6 +211,13 @@ Embedding/rerank（`embed_audit.py`）和图像/音频（`media_audit.py`）不�
 - **API。** `/api/audit/stream` 运行检测并通过 SSE 推送事件；`/api/models` 列出中转站的模型；
   `/api/report/export` 渲染报告；`/api/history…`、`/api/watches…`、`/api/kb…`、`/api/embed`
   和 `/api/rerank` 为其他页面提供服务。
+- **后台检测。** `jobs.py` 把每次检测作为服务器拥有的任务运行。`POST /api/jobs` 排入一个任务，
+  `GET /api/jobs` 列出排队中、运行中和刚结束的任务（以及运行中的监控）及其进度，
+  `GET /api/jobs/{id}/events` 先回放任务的事件日志，再通过 SSE 实时跟随，
+  `POST /api/jobs/{id}/cancel` 停止任务。新界面使用这些接口，因此检测不随页面结束；
+  `/api/audit/stream`（经典界面）包装同一种任务，并在数据流关闭时取消它。
+  中转站互斥让同一中转站同一时间只运行一项检测（或一次监控运行），按主机名区分，所有回环地址视为同一主机；
+  同时最多运行 `ZING_MAX_PARALLEL_AUDITS`（默认 4）项，等待者按到达顺序执行。
 - **监控调度器。** 应用的 lifespan 启动一个后台循环，运行到期的监控，把每次运行存入检测历史，
   并在越过阈值或恶化时发送 Webhook 告警（`zing/notify.py`）。
 - **安全。** `security.py` 决定绑定地址（仅回环地址；只有在检测到容器且设置了

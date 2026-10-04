@@ -1,0 +1,21 @@
+{
+ "strings": {
+  "Continue in background": "Continue in background",
+  "The audit keeps running; follow it in History": "The audit keeps running; follow it in History",
+  "Follow it in History": "Follow it in History",
+  "The audit keeps running in the background.": "The audit keeps running in the background.",
+  "Queued: another audit is using {h}…": "Queued: another audit is using {h}…",
+  "Queued: waiting for a free audit slot…": "Queued: waiting for a free audit slot…",
+  "Audit cancelled.": "Audit cancelled.",
+  "That audit is no longer running — its report is in History.": "That audit is no longer running — its report is in History.",
+  "Open History": "Open History",
+  "In progress": "In progress",
+  "Audits keep running when you leave the audit page. Audits of the same relay run one after another, so they never skew each other's results.": "Audits keep running when you leave the audit page. Audits of the same relay run one after another, so they never skew each other's results.",
+  "Queued: another audit is using {h}": "Queued: another audit is using {h}",
+  "Queued: waiting for a free audit slot": "Queued: waiting for a free audit slot",
+  "Watch live": "Watch live",
+  "Open monitor": "Open monitor",
+  "Monitor": "Monitor",
+  "Queued: waiting for another audit of this relay to finish": "Queued: waiting for another audit of this relay to finish"
+ }
+}

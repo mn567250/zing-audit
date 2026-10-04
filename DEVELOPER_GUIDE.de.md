@@ -112,6 +112,7 @@ zing/
   utils/               Schwärzung, SSE-Parsing, Statistik, Token-Schätzung
   web/
     server.py          FastAPI-App: Seiten, JSON-API, SSE-Prüfstrom, Überwachungs-Scheduler
+    jobs.py            Hintergrund-Prüfaufträge und die Relay-Sperre
     security.py        Loopback-Bindung, Host-Allowlist, Origin-/JSON-Prüfung, Header
     history.py         Speicher des Prüfverlaufs (history.db)
     watches.py         Speicher der Überwachungen (watches.db)
@@ -264,6 +265,18 @@ Standardbibliothek.
   per SSE; `/api/models` listet die Modelle eines Relays; `/api/report/export`
   rendert einen Bericht; `/api/history…`, `/api/watches…`, `/api/kb…`,
   `/api/embed` und `/api/rerank` bedienen die übrigen Seiten.
+- **Prüfungen im Hintergrund.** `jobs.py` führt jede Prüfung als Auftrag des
+  Servers aus. `POST /api/jobs` stellt einen ein, `GET /api/jobs` listet
+  wartende, laufende und kürzlich beendete Aufträge (und laufende
+  Überwachungen) mit Fortschritt, `GET /api/jobs/{id}/events` spielt das
+  Ereignisprotokoll ab und folgt ihm dann live per SSE, `POST
+  /api/jobs/{id}/cancel` bricht ab. Die neue Oberfläche nutzt diese Endpunkte,
+  daher überdauert eine Prüfung die Seite; `/api/audit/stream` (klassische
+  Oberfläche) verwendet denselben Auftrag und bricht ihn ab, wenn der Strom
+  endet. Eine Relay-Sperre lässt je Relay nur eine Prüfung (oder einen
+  Überwachungslauf) zu, nach Hostname, alle Loopback-Adressen als ein Host;
+  höchstens `ZING_MAX_PARALLEL_AUDITS` (Standard 4) laufen gleichzeitig,
+  Wartende in Ankunftsreihenfolge.
 - **Überwachungs-Scheduler.** Der Lifespan der App startet eine
   Hintergrundschleife, die fällige Überwachungen ausführt, jeden Lauf im Verlauf
   speichert und bei Schwellenüberschreitung oder Verschlechterung

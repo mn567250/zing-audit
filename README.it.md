@@ -250,6 +250,18 @@ latenza p50, token/s) nella **Cronologia**; **Pianifica come monitor** su ogni
 esecuzione della Cronologia; **Scarica il rapporto** in tutti i formati; un
 selettore del tema (Automatico / Chiaro / Scuro); e la pagina **Modelli**.
 
+**Audit in background (nuova interfaccia).** Un audit avviato dalla pagina
+**Audit** continua quando cambi pagina o chiudi la scheda; **Continua in
+background** ce lo manda di proposito. La **Cronologia** elenca ogni audit in
+coda e in corso (e ogni monitor in esecuzione) con il suo avanzamento; **Guarda
+dal vivo** riapre la vista live, che recupera tutto ciò che è già successo. Gli
+audit dello stesso relay vengono eseguiti uno dopo l'altro, così non falsano i
+rispettivi risultati di latenza o affidabilità (tutti gli indirizzi loopback
+contano come un solo host, quindi anche i modelli serviti dalla tua macchina
+attendono); gli audit di relay diversi vengono eseguiti in parallelo, al massimo
+quattro alla volta (`ZING_MAX_PARALLEL_AUDITS`). I monitor attendono il loro
+relay allo stesso modo.
+
 ### Lingue
 
 Un menu della lingua nell'intestazione di ogni pagina passa l'interfaccia tra

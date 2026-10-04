@@ -1,0 +1,21 @@
+{
+ "strings": {
+  "Continue in background": "Continua in background",
+  "The audit keeps running; follow it in History": "L'audit continua; seguilo nella cronologia",
+  "Follow it in History": "Seguilo nella cronologia",
+  "The audit keeps running in the background.": "L'audit continua in background.",
+  "Queued: another audit is using {h}…": "In coda: un altro audit sta usando {h}…",
+  "Queued: waiting for a free audit slot…": "In coda: in attesa di uno slot di audit libero…",
+  "Audit cancelled.": "Audit annullato.",
+  "That audit is no longer running — its report is in History.": "Quell'audit non è più in corso — il suo report è nella cronologia.",
+  "Open History": "Apri la cronologia",
+  "In progress": "In corso",
+  "Audits keep running when you leave the audit page. Audits of the same relay run one after another, so they never skew each other's results.": "Gli audit continuano anche se lasci la pagina di audit. Gli audit dello stesso relay vengono eseguiti uno dopo l'altro, così non falsano i rispettivi risultati.",
+  "Queued: another audit is using {h}": "In coda: un altro audit sta usando {h}",
+  "Queued: waiting for a free audit slot": "In coda: in attesa di uno slot di audit libero",
+  "Watch live": "Guarda dal vivo",
+  "Open monitor": "Apri il monitor",
+  "Monitor": "Monitor",
+  "Queued: waiting for another audit of this relay to finish": "In coda: in attesa che finisca un altro audit di questo relay"
+ }
+}

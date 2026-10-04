@@ -15,6 +15,12 @@ Endpoints:
   POST /api/audit/stream     run an audit; stream detector progress, batched
                              per-request timing records and the final report
                              as Server-Sent Events (text/event-stream)
+  POST /api/jobs             queue an audit as a background job (same body as
+                             /api/audit/stream); it runs on whatever page is open
+  GET  /api/jobs             queued and running audits (and running monitors),
+                             recently finished ones too, with progress
+  GET  /api/jobs/{id}/events the job's events as SSE: the log so far, then live
+  POST /api/jobs/{id}/cancel stop a queued or running job
   POST /api/report/export    a report (JSON body) rendered as a download
                              (?format=json|md|html|pdf)
 
@@ -22,6 +28,11 @@ The audit runs in-process with the same `run_audit` the CLI uses; a progress
 callback pushes per-detector events into a queue the SSE generator drains. The
 final report is the model's own redacted `model_dump` (API key fingerprinted,
 relay text scrubbed), so nothing secret crosses to the browser.
+
+Every audit runs as a job (zing/web/jobs.py): audits of the same relay are
+queued one after another so they never skew each other's measurements;
+different relays run in parallel. /api/audit/stream ties its job to the
+stream (closing the page stops it); /api/jobs detaches it from the page.
 """
 
 from __future__ import annotations
@@ -57,6 +68,7 @@ from zing.config import (
 )
 from zing.models import KnowledgeUsage
 from zing.runner import run_audit
+from zing.web import jobs
 from zing.web.security import LocalOnlyMiddleware
 
 _STATIC = Path(__file__).parent / "static"
@@ -183,34 +195,9 @@ class WatchCancelled(Exception):
     """Raised when a running watch was stopped with Cancel."""
 
 
-def _watch_progress(state: dict[str, Any]) -> int:
-    """Rough percent done of a running watch: finished detectors, plus how far
-    the performance probe (by far the longest detector) is through its requests."""
-    total = state.get("total") or 0
-    if not total:
-        return 0
-    done = float(state.get("done") or 0)
-    planned = state.get("probe_planned") or 0
-    if state.get("current") == "performance" and planned:
-        done += min(state.get("probe_done", 0) / planned, 1.0)
-    return max(0, min(99, int(done * 100 / total)))
-
-
-def _track_progress(state: dict[str, Any], event: dict[str, Any]) -> None:
-    """run_audit's on_event sink for a watch: keep only the counters."""
-    kind = event.get("type")
-    if kind == "start":
-        state["total"] = int(event.get("total") or 0)
-        state["probe_planned"] = int(event.get("probe_requests") or 0)
-    elif kind == "detector_start":
-        state["current"] = event.get("id")
-    elif kind == "detector_done":
-        state["done"] = int(event.get("index", 0)) + 1
-        state["current"] = None
-    elif kind == "request_done":
-        rec = event.get("record") or {}
-        if rec.get("detector") == "performance" and rec.get("endpoint") == "target":
-            state["probe_done"] = state.get("probe_done", 0) + 1
+# Progress counters are shared with background audit jobs (see jobs.py).
+_watch_progress = jobs.progress_pct
+_track_progress = jobs.track_progress
 
 
 async def _run_one_watch(row: dict[str, Any]) -> None:
@@ -223,7 +210,15 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
     wid = int(row["id"])
     if wid in _running_watches:
         raise WatchAlreadyRunning(wid)
-    state: dict[str, Any] = {"cancelled": False}
+    state: dict[str, Any] = {
+        "cancelled": False,
+        "name": row.get("name"),
+        "base_url": row.get("base_url"),
+        "model": row.get("model"),
+        "claimed_model": row.get("claimed_model") or row.get("model"),
+        "suite": row.get("suite") or "standard",
+        "since": time.time(),
+    }
     _running_watches[wid] = state
     try:
         task = asyncio.create_task(_run_one_watch_inner(row, state))
@@ -299,11 +294,19 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
                 break
 
         on_event = (lambda ev: _track_progress(state, ev)) if state is not None else None
-        started = time.perf_counter()
-        report = await run_audit(
-            target, options, baseline=None, mode="check", pinned=pinned, on_event=on_event
-        )
-        duration = time.perf_counter() - started
+        # One audit per relay at a time: wait while another audit uses it.
+        keys = [jobs.relay_key(target.base_url)]
+        if state is not None:
+            state["waiting_for"] = jobs.gate.busy_with(keys)
+        async with jobs.gate.hold(keys, label=f"monitor:{wid}"):
+            if state is not None:
+                state["waiting_for"] = []
+                state["started"] = True
+            started = time.perf_counter()
+            report = await run_audit(
+                target, options, baseline=None, mode="check", pinned=pinned, on_event=on_event
+            )
+            duration = time.perf_counter() - started
         report_dict = json.loads(report.model_dump_json())
         report_id = history.save(report_dict, watch_id=wid)
         if report_id is not None and report_id < 0:
@@ -399,6 +402,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await task
+        with contextlib.suppress(Exception):
+            await jobs.manager.shutdown()
 
 
 def create_app() -> FastAPI:
@@ -653,116 +658,151 @@ def create_app() -> FastAPI:
             }
         )
 
-    @app.post("/api/audit/stream")
-    async def audit_stream(request: Request) -> Any:
-        body = await request.json()
+    def _audit_job(body: dict[str, Any]) -> jobs.Job:
+        """Validate an audit request and queue it as a background job.
 
-        def sse(event: dict[str, Any]) -> str:
-            # default=str so any unexpected evidence value can't break the stream.
-            return f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
-
+        Raises ConfigError on bad input, before anything is queued.
+        """
         bl = body.get("baseline") or {}
         has_baseline = bool(bl.get("base_url") and bl.get("model"))
-
-        # Validate up front so bad input fails as a clean error event, not a 500.
-        try:
-            suite = validate_suite(str(body.get("suite") or "standard"))
-            dimensions = validate_dimensions(suite, body.get("dimensions"))
-            target = build_target(
-                kind="target",
-                name=body.get("name") or "target",
-                base_url=body.get("base_url"),
-                api_key=body.get("api_key"),
-                model=body.get("model"),
-                claimed_model=body.get("claimed_model") or None,
-                declared_provider=body.get("declared_provider") or None,
-                api=validate_api(body.get("api")),
+        suite = validate_suite(str(body.get("suite") or "standard"))
+        dimensions = validate_dimensions(suite, body.get("dimensions"))
+        target = build_target(
+            kind="target",
+            name=body.get("name") or "target",
+            base_url=body.get("base_url"),
+            api_key=body.get("api_key"),
+            model=body.get("model"),
+            claimed_model=body.get("claimed_model") or None,
+            declared_provider=body.get("declared_provider") or None,
+            api=validate_api(body.get("api")),
+        )
+        baseline = None
+        if has_baseline:
+            baseline = build_target(
+                kind="baseline",
+                name=bl.get("name") or "baseline",
+                base_url=bl.get("base_url"),
+                api_key=bl.get("api_key"),
+                model=bl.get("model"),
+                api=validate_api(bl.get("api")),
             )
-            baseline = None
-            if has_baseline:
-                baseline = build_target(
-                    kind="baseline",
-                    name=bl.get("name") or "baseline",
-                    base_url=bl.get("base_url"),
-                    api_key=bl.get("api_key"),
-                    model=bl.get("model"),
-                    api=validate_api(bl.get("api")),
-                )
-            options = AuditOptions(
-                suite=suite,
-                dimensions=dimensions,
-                # probe request mode (standard/deep; the full suite measures both)
-                performance_streaming=body.get("performance_streaming") is not False,
+        options = AuditOptions(
+            suite=suite,
+            dimensions=dimensions,
+            # probe request mode (standard/deep; the full suite measures both)
+            performance_streaming=body.get("performance_streaming") is not False,
+        )
+
+        async def run(emit: jobs.Emit) -> dict[str, Any]:
+            report = await run_audit(
+                target,
+                options,
+                baseline=baseline,
+                mode="compare" if baseline is not None else "check",
+                on_event=emit,
             )
-        except ConfigError as exc:
-            msg = str(exc)  # bind now: `exc` is cleared when the except block exits
+            return json.loads(report.model_dump_json())
 
-            async def err_stream():
-                yield sse({"type": "error", "message": msg})
-                yield sse({"type": "done"})
+        # What the history page lists for the job: no key, nothing secret.
+        summary = {
+            "base_url": target.base_url,
+            "model": target.model,
+            "claimed_model": target.claimed_model or target.model,
+            "suite": suite,
+            "dimensions": list(dimensions or []),
+            "baseline_url": baseline.base_url if baseline is not None else None,
+        }
+        urls = [target.base_url, baseline.base_url if baseline is not None else None]
+        return jobs.manager.submit(summary, urls, run)
 
-            return StreamingResponse(err_stream(), media_type="text/event-stream")
-
-        async def event_stream():
-            queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-
-            async def run() -> None:
-                try:
-                    report = await run_audit(
-                        target,
-                        options,
-                        baseline=baseline,
-                        mode="compare" if baseline is not None else "check",
-                        on_event=queue.put_nowait,
-                    )
-                    report_dict = json.loads(report.model_dump_json())
-                    try:  # best-effort persist; never let history break the stream
-                        from zing.web import history
-
-                        history.save(report_dict)
-                    except Exception:
-                        pass
-                    queue.put_nowait({"type": "report", "report": report_dict})
-                except Exception as exc:  # surface any audit failure to the client
-                    queue.put_nowait({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
-                finally:
-                    queue.put_nowait({"type": "done"})
-
-            task = asyncio.create_task(run())
-            loop = asyncio.get_running_loop()
-            # Per-request records arrive in bursts (the reliability and probe
-            # bursts); batch them into one "requests" event per window.
-            pending: list[dict[str, Any]] = []
-            flush_at = 0.0
+    def _job_stream(job: jobs.Job, cancel_on_disconnect: bool = False) -> StreamingResponse:
+        async def gen() -> AsyncIterator[str]:
             try:
-                while True:
-                    timeout = max(0.0, flush_at - loop.time()) if pending else None
-                    try:
-                        event = await asyncio.wait_for(queue.get(), timeout)
-                    except asyncio.TimeoutError:
-                        yield sse({"type": "requests", "records": pending})
-                        pending = []
-                        continue
-                    if event.get("type") == "request_done":
-                        if not pending:
-                            flush_at = loop.time() + _REQUEST_BATCH_SEC
-                        pending.append(event["record"])
-                        continue
-                    if pending:
-                        yield sse({"type": "requests", "records": pending})
-                        pending = []
-                    yield sse(event)
-                    if event.get("type") == "done":
-                        break
+                async for chunk in jobs.stream(job, _REQUEST_BATCH_SEC):
+                    yield chunk
             finally:
-                if not task.done():
-                    task.cancel()
+                if cancel_on_disconnect:
+                    jobs.manager.cancel(job.id)
 
         return StreamingResponse(
-            event_stream(),
+            gen(),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+    @app.post("/api/audit/stream")
+    async def audit_stream(request: Request) -> Any:
+        # The classic UI's audit: a job that lives as long as this stream does
+        # (closing the page stops it), queued behind audits of the same relay.
+        try:
+            job = _audit_job(await request.json())
+        except ConfigError as exc:
+            msg = str(exc)  # bind now: `exc` is cleared when the except block exits
+
+            async def err_stream() -> AsyncIterator[str]:
+                yield jobs.sse({"type": "error", "message": msg})
+                yield jobs.sse({"type": "done"})
+
+            return StreamingResponse(err_stream(), media_type="text/event-stream")
+        return _job_stream(job, cancel_on_disconnect=True)
+
+    # ----- Background audits (v2): run on, whatever page is open ----------- #
+    @app.post("/api/jobs")
+    async def jobs_create(request: Request) -> Any:
+        try:
+            job = _audit_job(await request.json())
+        except ConfigError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(job.info())
+
+    @app.get("/api/jobs")
+    async def jobs_list() -> Any:
+        # Audits started from the UI, plus monitors running right now: the
+        # history page shows them all as "in progress".
+        out = [j.info() for j in jobs.manager.list()]
+        for wid, state in list(_running_watches.items()):
+            started = bool(state.get("started"))
+            out.append({
+                "id": f"monitor-{wid}",
+                "kind": "monitor",
+                "watch_id": wid,
+                "name": state.get("name"),
+                "base_url": state.get("base_url"),
+                "model": state.get("model"),
+                "claimed_model": state.get("claimed_model"),
+                "suite": state.get("suite"),
+                "status": "running" if started else "queued",
+                "created": state.get("since"),
+                "progress": _watch_progress(state) if started else None,
+                "done": state.get("done", 0),
+                "total": state.get("total", 0),
+                "current": state.get("current"),
+                "waiting_for": [] if started else list(state.get("waiting_for") or []),
+            })
+        return JSONResponse({"jobs": out, "max_parallel": jobs.gate.limit})
+
+    @app.get("/api/jobs/{job_id}")
+    async def jobs_get(job_id: str) -> Any:
+        job = jobs.manager.get(job_id)
+        if job is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse(job.info())
+
+    @app.get("/api/jobs/{job_id}/events")
+    async def jobs_events(job_id: str) -> Any:
+        # Replays the job's whole log, then follows it live. Disconnecting
+        # only detaches this page: the audit runs on.
+        job = jobs.manager.get(job_id)
+        if job is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return _job_stream(job)
+
+    @app.post("/api/jobs/{job_id}/cancel")
+    async def jobs_cancel(job_id: str) -> Any:
+        if not jobs.manager.cancel(job_id):
+            return JSONResponse({"error": "not running"}, status_code=409)
+        return JSONResponse({"ok": True})
 
     @app.post("/api/report/export")
     async def report_export(request: Request, format: str = "json") -> Any:
@@ -863,6 +903,8 @@ def create_app() -> FastAPI:
         for row in rows:
             state = _running_watches.get(int(row["id"]))
             row["running"] = state is not None
+            # waiting for its relay: another audit is using it
+            row["queued"] = state is not None and not state.get("started")
             row["progress"] = _watch_progress(state) if state is not None else None
             row["min_interval_sec"] = _min_interval_sec(row.get("run_duration_sec"))
             row["kb_current_hash"] = None

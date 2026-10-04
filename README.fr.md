@@ -252,6 +252,18 @@ surveillance** sur chaque exécution de l'Historique ; **Télécharger le rappor
 dans tous les formats ; un sélecteur de thème (Automatique / Clair / Sombre) ; et
 la page **Modèles**.
 
+**Audits en arrière-plan (nouvelle interface).** Un audit lancé depuis la page
+**Audit** continue quand vous changez de page ou fermez l'onglet ; **Continuer en
+arrière-plan** l'y envoie volontairement. L'**Historique** liste chaque audit en
+file d'attente ou en cours (et chaque surveillance en cours) avec sa
+progression ; **Suivre en direct** rouvre la vue en direct, qui rattrape tout ce
+qui s'est déjà passé. Les audits d'un même relais s'exécutent l'un après
+l'autre, pour ne jamais fausser leurs mesures de latence ou de fiabilité (toutes
+les adresses loopback comptent comme un seul hôte : les modèles servis par votre
+propre machine attendent aussi) ; les audits de relais différents s'exécutent
+en parallèle, quatre au plus à la fois (`ZING_MAX_PARALLEL_AUDITS`). Les
+surveillances attendent leur relais de la même façon.
+
 ### Langues
 
 Un menu de langue dans l'en-tête de chaque page bascule l'interface entre

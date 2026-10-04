@@ -112,6 +112,7 @@ zing/
   utils/               oscuramento, parsing SSE, statistica, stima dei token
   web/
     server.py          app FastAPI: pagine, API JSON, flusso SSE delle verifiche, scheduler dei monitor
+    jobs.py            verifiche in background e il blocco per relay
     security.py        ascolto su loopback, elenco di host ammessi, controlli Origin/JSON, intestazioni
     history.py         archivio della cronologia delle verifiche (history.db)
     watches.py         archivio dei monitor (watches.db)
@@ -264,6 +265,17 @@ solo la libreria standard.
   SSE; `/api/models` elenca i modelli di un relay; `/api/report/export`
   renderizza un rapporto; `/api/history…`, `/api/watches…`, `/api/kb…`,
   `/api/embed` e `/api/rerank` servono le altre pagine.
+- **Verifiche in background.** `jobs.py` esegue ogni verifica come job del
+  server. `POST /api/jobs` ne accoda uno, `GET /api/jobs` elenca i job in coda,
+  in corso e appena conclusi (e i monitor in esecuzione) con l'avanzamento,
+  `GET /api/jobs/{id}/events` riproduce il registro degli eventi e poi lo segue
+  dal vivo via SSE, e `POST /api/jobs/{id}/cancel` lo ferma. La nuova
+  interfaccia li usa, quindi una verifica sopravvive alla pagina;
+  `/api/audit/stream` (interfaccia classica) avvolge lo stesso job e lo annulla
+  alla chiusura del flusso. Un blocco per relay lascia usare un relay a una sola
+  verifica (o esecuzione di monitor) alla volta, per nome host, con tutti gli
+  indirizzi loopback come un solo host; al massimo `ZING_MAX_PARALLEL_AUDITS`
+  (predefinito 4) insieme, in ordine di arrivo.
 - **Scheduler dei monitor.** Il lifespan dell'app avvia un ciclo in background che
   esegue i monitor in scadenza, registra ogni esecuzione nella cronologia e invia
   avvisi via webhook (`zing/notify.py`) al superamento di una soglia o a un

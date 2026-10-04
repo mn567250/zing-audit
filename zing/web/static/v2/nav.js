@@ -55,7 +55,6 @@
       '<a class="skip-link" href="#main" data-en="Skip to main content">跳到主要内容</a>' +
       '<a class="logo" href="/v2/" aria-label="zing"><span class="b">' + ico("bolt", { size: 16 }) +
       "</span><span>zing<b>.</b></span></a>" +
-      '<nav class="links" aria-label="主导航" data-en-aria-label="Main navigation">' + links + "</nav>" +
       '<div class="tail">' +
       '<a class="classic" href="?ui=v1" data-en="Classic UI">经典界面</a>' +
       '<select class="theme-sel" aria-label="主题" title="主题" data-en-aria-label="Theme" data-en-title="Theme">' +
@@ -63,7 +62,8 @@
       '<option value="light" data-en="Light">浅色</option>' +
       '<option value="dark" data-en="Dark">深色</option></select>' +
       '<select class="lang-sel" aria-label="语言" title="语言" data-en-aria-label="Language" data-en-title="Language"></select>' +
-      "</div>";
+      "</div>" +
+      '<nav class="links" aria-label="主导航" data-en-aria-label="Main navigation">' + links + "</nav>";
     if (header.hasAttribute("data-trust")) {
       var p = document.createElement("p");
       p.className = "trust";

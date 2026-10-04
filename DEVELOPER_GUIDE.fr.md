@@ -113,6 +113,7 @@ zing/
   utils/               expurgation, analyse SSE, statistiques, estimation de tokens
   web/
     server.py          application FastAPI : pages, API JSON, flux SSE d'audit, planificateur des surveillances
+    jobs.py            tâches d'audit en arrière-plan et le verrou par relais
     security.py        écoute locale, liste d'hôtes autorisés, contrôles Origin/JSON, en-têtes
     history.py         stockage de l'historique des audits (history.db)
     watches.py         stockage des surveillances (watches.db)
@@ -265,6 +266,17 @@ que la bibliothèque standard.
   `/api/models` liste les modèles d'un relais ; `/api/report/export` rend un
   rapport ; `/api/history…`, `/api/watches…`, `/api/kb…`, `/api/embed` et
   `/api/rerank` servent les autres pages.
+- **Audits en arrière-plan.** `jobs.py` exécute chaque audit comme une tâche
+  du serveur. `POST /api/jobs` en met une en file, `GET /api/jobs` liste les
+  tâches en attente, en cours et récemment terminées (et les surveillances en
+  cours) avec leur progression, `GET /api/jobs/{id}/events` rejoue le journal
+  d'événements puis le suit en direct en SSE, et `POST /api/jobs/{id}/cancel`
+  l'arrête. La nouvelle interface les utilise, un audit survit donc à la page ;
+  `/api/audit/stream` (interface classique) enveloppe la même tâche et l'annule
+  à la fermeture du flux. Un verrou par relais ne laisse qu'un audit (ou une
+  exécution de surveillance) à la fois utiliser un relais, par nom d'hôte, toutes
+  les adresses loopback comptant pour un hôte ; au plus
+  `ZING_MAX_PARALLEL_AUDITS` (4 par défaut) en même temps, par ordre d'arrivée.
 - **Planificateur des surveillances.** Le lifespan de l'application lance une
   boucle d'arrière-plan qui exécute les surveillances dues, enregistre chaque
   exécution dans l'historique et envoie des alertes webhook (`zing/notify.py`) en

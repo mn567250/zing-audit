@@ -252,6 +252,18 @@ Die neue Oberfläche bietet zusätzlich: Filter und konfigurierbare Trends
 einplanen** bei jedem Lauf im Verlauf; **Bericht herunterladen** in jedem Format;
 eine Designauswahl (Automatisch / Hell / Dunkel); und die Seite **Modelle**.
 
+**Audits im Hintergrund (neue Oberfläche).** Ein auf der Seite **Audit**
+gestartetes Audit läuft weiter, wenn Sie die Seite wechseln oder den Tab
+schließen; **Im Hintergrund fortsetzen** schickt es bewusst dorthin. Der
+**Verlauf** zeigt jedes wartende und laufende Audit (und jede laufende
+Überwachung) mit Fortschritt; **Live ansehen** öffnet die Live-Ansicht wieder
+und holt alles bisher Geschehene nach. Audits desselben Relays laufen
+nacheinander, damit sie Latenz- und Zuverlässigkeitswerte nicht gegenseitig
+verfälschen (alle Loopback-Adressen zählen als ein Host, also warten auch
+Modelle auf Ihrem eigenen Rechner); Audits verschiedener Relays laufen parallel,
+höchstens vier gleichzeitig (`ZING_MAX_PARALLEL_AUDITS`). Überwachungen warten
+ebenso auf ihr Relay.
+
 ### Sprachen
 
 Ein Sprachmenü in der Kopfzeile jeder Seite schaltet die Oberfläche zwischen

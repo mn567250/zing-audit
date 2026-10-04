@@ -6,6 +6,25 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Background audits in the new UI.** An audit is now a job owned by the
+  `zing serve` process instead of the browser tab: switching pages, reloading
+  or closing the tab no longer stops it, and **Continue in background** on the
+  scan view detaches it on purpose. **History** shows an **In progress** panel
+  with every queued and running audit (and running monitor), its progress and
+  **Watch live** / **Cancel**; the live view re-attaches via `/v2/?job=<id>` and
+  replays what already happened. New endpoints: `POST /api/jobs`,
+  `GET /api/jobs`, `GET /api/jobs/{id}`, `GET /api/jobs/{id}/events` (SSE) and
+  `POST /api/jobs/{id}/cancel`.
+- **One audit per relay at a time.** Audits of the same relay (by host name;
+  every loopback address is one host, so locally served models count once) are
+  queued one after another so they cannot skew each other's latency,
+  throughput or reliability results; audits of different relays run in
+  parallel, at most `ZING_MAX_PARALLEL_AUDITS` (default 4) at once. Monitors and
+  the classic UI's audits wait in the same queue; a waiting monitor shows as
+  queued on the Monitors page.
+
 ### Changed
 
 - **PDF reports no longer need a system library.** The PDF is typeset natively

@@ -438,7 +438,9 @@
         '<button type="button" class="btn sm danger" data-act="del" data-id="' + w.id + '"' + (running ? " disabled" : "") + ">" + icon("trash") + esc(T("删除", "Delete")) + "</button>";
     }
     var stateLine = running
-      ? '<span>' + esc(T("状态", "Status")) + ': <b>' + esc(T("正在运行", "Running now")) + "</b></span>"
+      ? '<span>' + esc(T("状态", "Status")) + ': <b>' + esc(w.queued
+          ? T("排队中：等待该中转站上的另一项检测结束", "Queued: waiting for another audit of this relay to finish")
+          : T("正在运行", "Running now")) + "</b></span>"
       : waiting ? '<span>' + esc(T("状态", "Status")) + ': <b>' + esc(T("等待下次计划运行", "Waiting for next scheduled run")) + "</b></span>" : "";
     if (stateLine) lastParts.unshift(stateLine);
     var pct = Math.max(0, Math.min(100, Number(w.progress) || 0));

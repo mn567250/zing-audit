@@ -250,6 +250,18 @@ latência p50, tokens/s) no **Histórico**; **Agendar como monitor** em cada
 execução do Histórico; **Transferir relatório** em todos os formatos; um seletor
 de tema (Automático / Claro / Escuro); e a página **Modelos**.
 
+**Auditorias em segundo plano (nova interface).** Uma auditoria iniciada na
+página **Auditoria** continua quando muda de página ou fecha o separador;
+**Continuar em segundo plano** envia-a para lá de propósito. O **Histórico**
+lista cada auditoria em fila e em curso (e cada monitor em execução) com o seu
+progresso; **Ver em direto** reabre a vista ao vivo, que recupera tudo o que já
+aconteceu. Auditorias do mesmo relay correm uma após a outra, para nunca
+distorcerem os resultados de latência ou fiabilidade umas das outras (todos os
+endereços loopback contam como um só host, por isso modelos servidos pela sua
+própria máquina também esperam); auditorias de relays diferentes correm em
+paralelo, no máximo quatro de cada vez (`ZING_MAX_PARALLEL_AUDITS`). Os
+monitores esperam pelo seu relay da mesma forma.
+
 ### Idiomas
 
 Um menu de idioma no cabeçalho de cada página muda a interface entre

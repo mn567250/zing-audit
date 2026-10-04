@@ -109,6 +109,7 @@ zing/
   utils/               redaction, SSE parsing, statistics, token estimation
   web/
     server.py          FastAPI app: pages, JSON API, SSE audit stream, monitor scheduler
+    jobs.py            background audit jobs and the per-relay gate
     security.py        loopback bind, Host allowlist, Origin/JSON checks, headers
     history.py         audit history store (history.db)
     watches.py         monitor store (watches.db)
@@ -252,6 +253,16 @@ All decoding (image headers, WAV) is standard library only.
   `/api/models` lists a relay's models; `/api/report/export` renders a report;
   `/api/history…`, `/api/watches…`, `/api/kb…`, `/api/embed` and `/api/rerank`
   back the other pages.
+- **Background audits.** `jobs.py` runs every audit as a job owned by the
+  server. `POST /api/jobs` queues one, `GET /api/jobs` lists queued, running and
+  recently finished jobs (plus running monitors) with progress,
+  `GET /api/jobs/{id}/events` replays the job's event log and then follows it
+  live over SSE, and `POST /api/jobs/{id}/cancel` stops it. The new UI uses
+  these, so an audit outlives the page; `/api/audit/stream` (classic UI) wraps
+  the same job and cancels it when the stream closes. A relay gate lets one
+  audit (or monitor run) at a time use a relay, keyed by host name with every
+  loopback address as one host, and at most `ZING_MAX_PARALLEL_AUDITS`
+  (default 4) run at once; waiters are served in arrival order.
 - **Monitor scheduler.** The app's lifespan starts a background loop that runs
   due monitors, stores each run in the history and sends webhook alerts
   (`zing/notify.py`) on a threshold cross or a regression.

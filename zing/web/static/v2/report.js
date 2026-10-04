@@ -8,7 +8,7 @@
  *     actions: [{ zh: "再测一个", en: "Test another", primary: false, onClick: fn }, …],
  *     download: { name: "zing-report" },   // optional: JSON / Markdown / HTML / PDF buttons
  *   })
- *     renders `report` (the /api/audit/stream "report" event, or a history row's
+ *     renders `report` (the audit stream's "report" event, or a history row's
  *     report) into `el`, wires its interactions, and re-renders it in place when
  *     the UI language changes (expanded dimensions, evidence and keyboard focus
  *     are kept).

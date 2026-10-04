@@ -111,6 +111,7 @@ zing/
   utils/               ocultação, análise SSE, estatística, estimativa de tokens
   web/
     server.py          app FastAPI: páginas, API JSON, fluxo SSE de auditoria, agendador de monitores
+    jobs.py            trabalhos de auditoria em segundo plano e o bloqueio por relay
     security.py        escuta em loopback, lista de anfitriões permitidos, controlos de Origin/JSON, cabeçalhos
     history.py         armazenamento do histórico de auditorias (history.db)
     watches.py         armazenamento dos monitores (watches.db)
@@ -262,6 +263,17 @@ WAV) usa apenas a biblioteca padrão.
   por SSE; `/api/models` lista os modelos de um relay; `/api/report/export`
   renderiza um relatório; `/api/history…`, `/api/watches…`, `/api/kb…`,
   `/api/embed` e `/api/rerank` servem as restantes páginas.
+- **Auditorias em segundo plano.** `jobs.py` executa cada auditoria como um
+  trabalho do servidor. `POST /api/jobs` coloca um em fila, `GET /api/jobs`
+  lista os trabalhos em fila, em curso e acabados há pouco (e os monitores em
+  execução) com o progresso, `GET /api/jobs/{id}/events` reproduz o registo de
+  eventos e depois segue-o ao vivo por SSE, e `POST /api/jobs/{id}/cancel`
+  pára-o. A nova interface usa-os, por isso uma auditoria sobrevive à página;
+  `/api/audit/stream` (interface clássica) envolve o mesmo trabalho e cancela-o
+  quando o fluxo fecha. Um bloqueio por relay deixa uma só auditoria (ou
+  execução de monitor) usar um relay de cada vez, por nome de host, com todos os
+  endereços loopback como um host; no máximo `ZING_MAX_PARALLEL_AUDITS`
+  (4 por omissão) em simultâneo, por ordem de chegada.
 - **Agendador de monitores.** O lifespan da app lança um ciclo em segundo plano
   que executa os monitores devidos, regista cada execução no histórico e envia
   alertas por webhook (`zing/notify.py`) ao ultrapassar um limite ou ao piorar.

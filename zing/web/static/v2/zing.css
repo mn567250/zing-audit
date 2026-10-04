@@ -28,6 +28,9 @@
   --track: #e3ebe3;
   --line: #e2e8e0;
   --line-strong: #cfe0d6;
+  /* form-control boundaries (inputs, selects, switches): >= 3:1 on --bg/--card/--field (WCAG 1.4.11) */
+  --line-control: #75847e;
+  --line-control-hover: #5e6c67;
   /* text */
   --ink: #0c211e;
   --ink2: #566460;
@@ -84,6 +87,8 @@
     --track: #1e2a30;
     --line: #1f2b31;
     --line-strong: #2d3d45;
+    --line-control: #6b7f86;
+    --line-control-hover: #8aa0a7;
     --ink: #e3ece8;
     --ink2: #a7b6b0;
     --faint: #8a9a94;
@@ -123,6 +128,8 @@
   --track: #1e2a30;
   --line: #1f2b31;
   --line-strong: #2d3d45;
+  --line-control: #6b7f86;
+  --line-control-hover: #8aa0a7;
   --ink: #e3ece8;
   --ink2: #a7b6b0;
   --faint: #8a9a94;
@@ -236,7 +243,7 @@ button { font: inherit; color: inherit; }
 .theme-sel {
   appearance: none; -webkit-appearance: none; cursor: pointer;
   font-family: var(--sans); font-size: 12px; font-weight: 600; color: var(--ink2);
-  background: var(--card); border: 1px solid var(--line); border-radius: var(--r-pill);
+  background: var(--card); border: 1px solid var(--line-control); border-radius: var(--r-pill);
   padding: 6px 26px 6px 12px; transition: border-color 0.15s, box-shadow 0.15s;
   background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
   background-position: right 13px center, right 9px center;
@@ -244,7 +251,7 @@ button { font: inherit; color: inherit; }
   background-repeat: no-repeat;
 }
 .lang-sel:hover,
-.theme-sel:hover { border-color: var(--line-strong); }
+.theme-sel:hover { border-color: var(--line-control-hover); }
 .lang-sel:focus-visible,
 .theme-sel:focus-visible { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--focus-ring); }
 
@@ -288,12 +295,12 @@ button { font: inherit; color: inherit; }
 .opt { font-size: 11.5px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--faint); }
 .aside { font-size: 11.5px; color: var(--faint); }
 .in {
-  width: 100%; min-width: 0; border: 1.5px solid var(--line); background: var(--field); color: var(--ink);
+  width: 100%; min-width: 0; border: 1.5px solid var(--line-control); background: var(--field); color: var(--ink);
   border-radius: var(--r-field); font-family: var(--sans); font-weight: 500; font-size: 15.5px;
   padding: 12px 14px; outline: none; transition: border-color 0.16s, box-shadow 0.16s, background 0.16s;
 }
 .in::placeholder { color: var(--faint); font-weight: 400; font-style: italic; opacity: 1; }
-.in:hover { border-color: var(--line-strong); }
+.in:hover { border-color: var(--line-control-hover); }
 .in:focus { border-color: var(--teal); box-shadow: 0 0 0 4px var(--focus-ring); background: var(--field-focus); }
 .in.mono, textarea.in { font-family: var(--mono); font-size: 13px; }
 select.in {
@@ -334,7 +341,7 @@ select.in {
 .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .switch span {
   position: relative; width: 38px; height: 22px; flex: 0 0 38px; border-radius: var(--r-pill);
-  background: var(--track); border: 1px solid var(--line-strong); transition: background 0.15s;
+  background: var(--track); border: 1px solid var(--line-control); transition: background 0.15s;
 }
 .switch span::after {
   content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;

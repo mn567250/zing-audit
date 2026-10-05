@@ -12,7 +12,7 @@
 .zmp-sels { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .zmp .zmp-sel {
   width: 100%; min-width: 0; max-width: 100%; cursor: pointer;
-  border: 1.5px solid var(--line); background-color: var(--field); color: var(--ink);
+  border: 1.5px solid var(--line-control); background-color: var(--field); color: var(--ink);
   border-radius: var(--r-field); font-family: var(--sans); font-weight: 500; font-size: 15.5px;
   padding: 12px 36px 12px 14px; outline: none;
   appearance: none; -webkit-appearance: none;
@@ -23,7 +23,7 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   transition: border-color 0.16s, box-shadow 0.16s, background-color 0.16s, color 0.16s;
 }
-.zmp .zmp-sel:hover:not(:disabled) { border-color: var(--line-strong); }
+.zmp .zmp-sel:hover:not(:disabled) { border-color: var(--line-control-hover); }
 .zmp .zmp-sel:focus,
 .zmp .zmp-sel:focus-visible {
   outline: none; border-color: var(--teal); box-shadow: 0 0 0 4px var(--focus-ring); background-color: var(--field-focus);
@@ -117,3 +117,7 @@
 .zmk-act { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
 .zmk-err { margin: 8px 0 0; font-size: 13px; font-weight: 600; color: var(--bad); }
 .zmk-err[hidden] { display: none; }
+
+/* field-level error message, linked to its field with aria-describedby (BITV 9.3.3.1) */
+.ferr { margin: 6px 0 0; font-size: 12.5px; font-weight: 600; color: var(--bad); line-height: 1.45; }
+.ferr[hidden] { display: none; }

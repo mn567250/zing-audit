@@ -4,13 +4,21 @@
  *   <header class="znav" data-page="audit|tools|history|monitors|kb"></header>
  * and loads, right after /icons.js and before its own page script:
  *   <script src="/v2/static/nav.js"></script>
- * Optional: data-trust on the header adds the "runs locally" line under it.
+ * Optional: data-trust on the header adds the "runs locally" line under it
+ * (inside the header, so it stays in the banner landmark).
+ * The header starts with a skip link to the page's <main id="main"
+ * tabindex="-1"> (BITV 9.2.4.1 bypass blocks), visible only on focus.
  *
  * The markup follows the i18n convention of the whole UI (Chinese inline,
  * English in data-en), so lang.js translates it at boot and on every switch;
  * the language <select class="lang-sel"> is filled by lang.js too. The theme
  * <select class="theme-sel"> is driven by theme.js (loaded in <head>). The
  * "Classic UI" link goes back to the classic page (?ui=v1 — see server.py).
+ *
+ * It also adds the footer link to the accessibility conformance report
+ * (/v2/accessibility) to every page, as the last row of the page's <footer>
+ * inside <div class="wrap"> (one is created when the page has none), so the
+ * link sits in the same place on every page (BITV 9.3.2.3).
  */
 (function () {
   "use strict";
@@ -44,9 +52,9 @@
       );
     }).join("");
     header.innerHTML =
+      '<a class="skip-link" href="#main" data-en="Skip to main content">跳到主要内容</a>' +
       '<a class="logo" href="/v2/" aria-label="zing"><span class="b">' + ico("bolt", { size: 16 }) +
       "</span><span>zing<b>.</b></span></a>" +
-      '<nav class="links" aria-label="主导航" data-en-aria-label="Main navigation">' + links + "</nav>" +
       '<div class="tail">' +
       '<a class="classic" href="?ui=v1" data-en="Classic UI">经典界面</a>' +
       '<select class="theme-sel" aria-label="主题" title="主题" data-en-aria-label="Theme" data-en-title="Theme">' +
@@ -54,14 +62,15 @@
       '<option value="light" data-en="Light">浅色</option>' +
       '<option value="dark" data-en="Dark">深色</option></select>' +
       '<select class="lang-sel" aria-label="语言" title="语言" data-en-aria-label="Language" data-en-title="Language"></select>' +
-      "</div>";
+      "</div>" +
+      '<nav class="links" aria-label="主导航" data-en-aria-label="Main navigation">' + links + "</nav>";
     if (header.hasAttribute("data-trust")) {
       var p = document.createElement("p");
       p.className = "trust";
       p.innerHTML =
         ico("lock") +
         ' <span data-en="Runs locally · keys <b>never leave</b>">本地运行 · 密钥<b>不经手</b></span>';
-      header.parentNode.insertBefore(p, header.nextSibling);
+      header.appendChild(p);
     }
     var ts = header.querySelector("select.theme-sel");
     if (window.ZING_THEME) {
@@ -70,17 +79,38 @@
     } else {
       ts.remove(); // page without theme.js
     }
-    // keep the active tab visible when the link row scrolls (phones)
+    // keep the active tab visible when the link row scrolls (phones). Scroll
+    // the row itself: scrollIntoView() would also move Chromium's sequential
+    // focus starting point to the active link, so the first Tab would jump
+    // past the skip link.
     var active = header.querySelector('[aria-current="page"]');
-    if (active && active.scrollIntoView) {
-      try {
-        active.scrollIntoView({ block: "nearest", inline: "center" });
-      } catch (e) {}
+    var row = active && active.parentNode;
+    if (row && row.scrollWidth > row.clientWidth) {
+      row.scrollLeft = active.offsetLeft - row.offsetLeft - (row.clientWidth - active.offsetWidth) / 2;
     }
+  }
+
+  function footerLinks(page) {
+    var wrap = document.querySelector("body > .wrap");
+    if (!wrap) return;
+    var foot = null;
+    for (var c = wrap.firstElementChild; c; c = c.nextElementSibling) if (c.tagName === "FOOTER") foot = c;
+    if (!foot) {
+      foot = document.createElement("footer");
+      wrap.appendChild(foot);
+    }
+    if (foot.querySelector(".foot-links")) return;
+    var p = document.createElement("p");
+    p.className = "foot foot-links";
+    p.innerHTML =
+      '<a href="/v2/accessibility"' + (page === "a11y" ? ' aria-current="page"' : "") +
+      ' data-en="Accessibility">无障碍</a>';
+    foot.appendChild(p);
   }
 
   var headers = document.querySelectorAll("header.znav");
   for (var i = 0; i < headers.length; i++) render(headers[i]);
+  footerLinks(headers.length ? headers[0].getAttribute("data-page") || "" : "");
   // If lang.js already booted (script loaded late), translate the new markup.
   if (window.ZING_LANG && document.readyState !== "loading") window.ZING_LANG.apply(document);
 })();

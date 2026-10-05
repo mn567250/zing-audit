@@ -52,6 +52,9 @@ web = [
     # Encrypts the API keys stored for monitors (zing/secretbox.py).
     "cryptography>=42",
 ]
+# Accessibility tests of the web UI (tests/a11y, `pytest -m a11y`): a real
+# browser via Playwright; run `playwright install chromium` once.
+a11y = ["playwright>=1.47"]
 # PDF reports are part of the core install now; the empty extra keeps
 # `pip install 'zing-audit[pdf]'` from older instructions working.
 pdf = []
@@ -120,6 +123,10 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "a11y: browser accessibility tests of web UI v2 (BITV 2.0 / EN 301 549 / WCAG 2.1 AA); need the a11y extra",
+    "bitv(*steps): the BITV 2.0 / EN 301 549 test steps (\"9.1.4.3\", …) an a11y test decides (axe=True: only through axe rule results); feeds the conformance report (tests/a11y/results.py)",
+]
 
 [tool.mypy]
 python_version = "3.10"

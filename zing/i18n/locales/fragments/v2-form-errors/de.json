@@ -1,0 +1,8 @@
+{
+ "strings": {
+  "Enter the relay URL, e.g. https://relay.example.com/v1.": "Relay-URL eingeben, z. B. https://relay.example.com/v1.",
+  "Enter the model to request, e.g. deepseek-chat.": "Angefragtes Modell eingeben, z. B. deepseek-chat.",
+  "Enter the baseline URL, or clear the baseline model.": "Referenz-URL eingeben oder das Referenzmodell leeren.",
+  "Enter the baseline model, or clear the baseline URL.": "Referenzmodell eingeben oder die Referenz-URL leeren."
+ }
+}

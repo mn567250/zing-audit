@@ -1,0 +1,87 @@
+- banner:
+  - link "Saltar para o conteúdo principal":
+    - /url: "#main"
+  - link "zing":
+    - /url: /v2/
+    - text: zing.
+  - link "Interface clássica":
+    - /url: "?ui=v1"
+  - combobox "Tema":
+    - option "Automático"
+    - option "Claro" [selected]
+    - option "Escuro"
+  - combobox "Idioma":
+    - option "English"
+    - option "中文"
+    - option "Français"
+    - option "Español"
+    - option "Português" [selected]
+    - option "Italiano"
+    - option "Deutsch"
+  - navigation "Navegação principal":
+    - link "Auditoria":
+      - /url: /v2/
+    - link "Ferramentas":
+      - /url: /v2/tools
+    - link "Histórico":
+      - /url: /v2/history
+    - link "Monitores":
+      - /url: /v2/watches
+    - link "Modelos":
+      - /url: /v2/kb
+  - paragraph: Execução local · as chaves nunca saem
+- main:
+  - heading "Ferramentas · verificação de embeddings / rerank" [level=1]
+  - paragraph: Os endpoints de embeddings e rerank devolvem vetores ou classificações, não chat, por isso têm sondas próprias em vez da auditoria de chat.
+  - list:
+    - listitem: "Sinal-chave Dimensão dos vetores face ao modelo declarado: o sinal n.º 1 de gato por lebre."
+    - listitem: Complementar Os testes repetidos de determinismo e distinção confirmam-no.
+    - listitem: "Rerank Uma sonda de resposta conhecida: a resposta óbvia tem de ficar em primeiro."
+  - tablist "Tipo de verificação":
+    - tab "Auditoria de embeddings" [selected]
+    - tab "Auditoria de rerank"
+  - tabpanel "Auditoria de embeddings":
+    - text: URL do intermediário base_url
+    - textbox "URL do intermediário base_url":
+      - /placeholder: https://relay.example.com/v1
+    - text: Chave de API Aceita env:VAR / file:/caminho
+    - textbox "Chave de API":
+      - /placeholder: sk-... ou env:ZING_API_KEY
+      - text: env:ZING_API_KEY
+    - button "Mostrar chave" [pressed]
+    - text: Modelo pedido model
+    - combobox "Modelo pedido fornecedor":
+      - option "Selecione o fornecedor…" [selected]
+      - option "Anthropic"
+      - option "DeepSeek"
+      - option "Google"
+      - option "Zhipu AI"
+      - option "Moonshot AI"
+      - option "OpenAI"
+      - option "Alibaba Cloud"
+      - option "Personalizado (do relay)"
+    - button "Obter modelos" [disabled]
+    - status
+    - combobox "Modelo pedido modelo" [disabled]:
+      - option "Selecione o modelo…" [selected]
+    - button "Entrada personalizada"
+    - text: Modelo declarado claimed_model Opcional
+    - textbox "Modelo declarado claimed_model Opcional":
+      - /placeholder: Vazio = igual ao modelo pedido
+    - text: Só se o intermediário o vender com outro nome — o zing confronta as respostas com este modelo. Dimensão declarada claimed_dimensions Opcional
+    - spinbutton "Dimensão declarada claimed_dimensions Opcional"
+    - text: Fornecedor declarado declared_provider Opcional
+    - textbox "Fornecedor declarado declared_provider Opcional":
+      - /placeholder: p. ex. openai / deepseek
+    - text: Ajuda o zing a escolher o perfil de modelo certo quando só o nome do modelo é ambíguo. Escolher um modelo da lista o preenche. Protocolo
+    - group "Protocolo":
+      - button "Auto" [pressed]
+      - button "Compatível com OpenAI"
+    - text: Os endpoints de embeddings e rerank só falam a API compatível com OpenAI.
+    - button "Verificar endpoint de embeddings"
+    - text: Os pedidos são enviados a partir do seu servidor zing local; a chave só é usada para ligar ao intermediário alvo e nunca é enviada a terceiros.
+  - paragraph: "As verificações de embeddings/rerank são testes de caixa preta sem chat: uma dimensão errada é o sinal mais forte de «gato por lebre»; o determinismo e a distinção são evidências de apoio."
+- contentinfo:
+  - paragraph:
+    - link "Acessibilidade":
+      - /url: /v2/accessibility

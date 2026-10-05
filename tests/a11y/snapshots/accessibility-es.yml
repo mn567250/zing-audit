@@ -1,0 +1,166 @@
+- banner:
+  - link "Saltar al contenido principal":
+    - /url: "#main"
+  - link "zing":
+    - /url: /v2/
+    - text: zing.
+  - link "Interfaz clásica":
+    - /url: "?ui=v1"
+  - combobox "Tema":
+    - option "Automático"
+    - option "Claro" [selected]
+    - option "Oscuro"
+  - combobox "Idioma":
+    - option "English"
+    - option "中文"
+    - option "Français"
+    - option "Español" [selected]
+    - option "Português"
+    - option "Italiano"
+    - option "Deutsch"
+  - navigation "Navegación principal":
+    - link "Auditoría":
+      - /url: /v2/
+    - link "Herramientas":
+      - /url: /v2/tools
+    - link "Historial":
+      - /url: /v2/history
+    - link "Monitores":
+      - /url: /v2/watches
+    - link "Modelos":
+      - /url: /v2/kb
+- main:
+  - heading "Informe de conformidad de accesibilidad" [level=1]
+  - paragraph: "Cada paso de prueba de BITV 2.0 y EN 301549 (capítulo 9, equivalente a WCAG 2.1 niveles A y AA): cómo se prueba y el último resultado de las pruebas automatizadas de accesibilidad."
+  - region "Estado":
+    - heading "Estado" [level=2]
+    - paragraph: Parcialmente conforme
+    - paragraph: De 44 pasos aplicables, 27 se superan, 0 fallan, 17 esperan una revisión manual y 0 aún no se han probado.
+    - term: Generado
+    - definition: <report date>
+    - term: Commit
+    - definition:
+      - code: <id>
+    - term: Versión de zing
+    - definition: 0.11.0
+    - term: Versión de axe-core
+    - definition: 4.13.0
+    - term: Pruebas
+    - definition: 1109 ejecutadas, 1109 superadas, 0 fallidas, 0 omitidas
+    - term: Idiomas
+    - definition: English, Deutsch, Español, Français, Italiano, Português, 中文
+    - term: Temas
+    - definition: Claro, Oscuro
+    - term: Páginas
+    - definition:
+      - code: /v2/
+      - code: /v2/history
+      - code: /v2/watches
+      - code: /v2/tools
+      - code: /v2/kb
+      - code: /v2/accessibility
+  - region "Cobertura":
+    - heading "Cobertura" [level=2]
+    - heading "Cómo se prueban los pasos" [level=3]
+    - list:
+      - listitem: Automático 27 de 44 · 61,4 %
+      - listitem: Parcialmente automático 17 de 44 · 38,6 %
+      - listitem: Manual 0 de 44 · 0 %
+      - listitem: No aplicable 6
+    - heading "Resultados" [level=3]
+    - list:
+      - listitem: Correcto 27 de 44 · 61,4 %
+      - listitem: Fallo 0 de 44 · 0 %
+      - listitem: Revisión manual pendiente 17 de 44 · 38,6 %
+      - listitem: No probado 0 de 44 · 0 %
+      - listitem: No aplicable 6
+    - paragraph: Los porcentajes se refieren a los pasos aplicables; los pasos sobre audio y vídeo no se aplican porque la interfaz no tiene.
+    - paragraph: "También se comprueba, más allá de WCAG: Preferencias del usuario: modo de colores forzados (EN 301549 cláusula 11.7) — Correcto"
+  - region "Pasos de prueba":
+    - heading "Pasos de prueba" [level=2]
+    - text: Estado
+    - combobox "Estado":
+      - option "Todos" [selected]
+      - option "Fallo"
+      - option "Correcto"
+      - option "Revisión manual pendiente"
+      - option "No probado"
+      - option "No aplicable"
+    - text: Automatización
+    - combobox "Automatización":
+      - option "Todos" [selected]
+      - option "Automático"
+      - option "Parcialmente automático"
+      - option "Manual"
+      - option "No aplicable"
+    - text: Buscar
+    - searchbox "Buscar"
+    - status: Se muestran 50 de 50 pasos
+    - region "Pasos de prueba de BITV / EN 301549 con nivel de automatización y resultado":
+      - table "Pasos de prueba de BITV / EN 301549 con nivel de automatización y resultado":
+        - caption: Pasos de prueba de BITV / EN 301549 con nivel de automatización y resultado
+        - rowgroup:
+          - row "Paso Título Nivel Automatización Estado":
+            - columnheader "Paso"
+            - columnheader "Título"
+            - columnheader "Nivel"
+            - columnheader "Automatización"
+            - columnheader "Estado"
+        - rowgroup:
+          - row "9.1.1.1 A Parcialmente automático Revisión manual pendiente":
+            - rowheader "9.1.1.1"
+            - cell:
+              - group:
+                - text: Contenido no textual
+                - paragraph: "Cómo se prueba: Las imágenes, iconos, SVG y controles tienen una alternativa textual. Si cada alternativa tiene sentido lo juzga una persona."
+                - paragraph: "Pruebas automatizadas: 14 ejecutadas, 14 superadas, 0 fallidas, 166 omitidas"
+                - paragraph:
+                  - code: test_wcag_rules_as_loaded
+                  - code: test_wcag_rules_every_tab_panel
+                  - code: test_wcag_rules_expanded
+            - cell "A"
+            - cell "Parcialmente automático"
+            - cell "Revisión manual pendiente"
+          # … more rows of the same shape
+  - region "Declaración de accesibilidad":
+    - heading "Declaración de accesibilidad" [level=2]
+    - heading "Estado de conformidad" [level=3]
+    - paragraph: La interfaz web v2 de zing es parcialmente conforme con BITV 2.0, EN 301549 y WCAG 2.1 nivel AA.
+    - heading "Limitaciones conocidas" [level=3]
+    - paragraph: "La parte automatizada de estos pasos se supera; el resto aún necesita una revisión manual:"
+    - list:
+      - listitem: 9.1.1.1 Contenido no textual
+      - listitem: 9.1.3.1 Información y relaciones
+      - listitem: 9.1.3.2 Secuencia significativa
+      - listitem: 9.1.3.3 Características sensoriales
+      - listitem: 9.1.4.1 Uso del color
+      - listitem: 9.1.4.11 Contraste no textual
+      - listitem: 9.1.4.13 Contenido con el puntero o el foco
+      - listitem: 9.2.2.2 Pausar, detener, ocultar
+      - listitem: 9.2.4.3 Orden del foco
+      - listitem: 9.2.4.4 Propósito de los enlaces (en contexto)
+      - listitem: 9.2.4.6 Encabezados y etiquetas
+      - listitem: 9.2.5.1 Gestos del puntero
+      - listitem: 9.3.2.2 Al introducir datos
+      - listitem: 9.3.3.1 Identificación de errores
+      - listitem: 9.3.3.2 Etiquetas o instrucciones
+      - listitem: 9.3.3.3 Sugerencias ante errores
+      - listitem: 9.4.1.3 Mensajes de estado
+    - heading "Cómo se evaluó" [level=3]
+    - paragraph:
+      - text: "Autoevaluación: en cada cambio, la batería de pruebas automatizadas de"
+      - code: tests/a11y
+      - text: comprueba cada página de la interfaz web v2 en un navegador real (Chromium, con axe-core y comprobaciones propias) en todos los idiomas de la interfaz y en los temas claro y oscuro. Cada prueba indica los pasos de prueba que decide.
+    - paragraph: "Última ejecución de pruebas: <report date>. Aún no se ha hecho una revisión manual, incluidos lectores de pantalla."
+    - heading "Comentarios" [level=3]
+    - paragraph:
+      - text: "¿Ha encontrado una barrera o algo es difícil de usar con tecnologías de apoyo? Díganoslo:"
+      - link "informar de un problema de accesibilidad en GitHub":
+        - /url: https://github.com/cenbonew/zing/issues
+- contentinfo:
+  - paragraph:
+    - text: zing · comprobación real de relays · este informe se genera a partir de las pruebas automatizadas de accesibilidad de
+    - code: tests/a11y
+  - paragraph:
+    - link "Accesibilidad":
+      - /url: /v2/accessibility

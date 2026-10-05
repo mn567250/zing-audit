@@ -1,0 +1,128 @@
+- banner:
+  - link "Saltar para o conteúdo principal":
+    - /url: "#main"
+  - link "zing":
+    - /url: /v2/
+    - text: zing.
+  - link "Interface clássica":
+    - /url: "?ui=v1"
+  - combobox "Tema":
+    - option "Automático"
+    - option "Claro" [selected]
+    - option "Escuro"
+  - combobox "Idioma":
+    - option "English"
+    - option "中文"
+    - option "Français"
+    - option "Español"
+    - option "Português" [selected]
+    - option "Italiano"
+    - option "Deutsch"
+  - navigation "Navegação principal":
+    - link "Auditoria":
+      - /url: /v2/
+    - link "Ferramentas":
+      - /url: /v2/tools
+    - link "Histórico":
+      - /url: /v2/history
+    - link "Monitores":
+      - /url: /v2/watches
+    - link "Modelos":
+      - /url: /v2/kb
+  - paragraph: Execução local · as chaves nunca saem
+- main:
+  - list "Progresso da auditoria":
+    - listitem: Configurar
+    - listitem: Análise
+    - listitem: Relatório
+  - region "Este intermediário serve o modelo verdadeiro?":
+    - heading "Este intermediário serve o modelo verdadeiro?" [level=1]
+    - paragraph: Introduza o endereço do intermediário e o modelo que diz servir. O zing executa no seu computador um conjunto completo de testes de caixa preta e produz um relatório de verificação legível e sustentado por evidências.
+    - text: URL do intermediário base_url
+    - textbox "URL do intermediário base_url":
+      - /placeholder: https://relay.example.com/v1
+    - text: Chave de API Aceita env:VAR / file:/caminho
+    - textbox "Chave de API":
+      - /placeholder: sk-... ou env:ZING_API_KEY
+      - text: env:ZING_API_KEY
+    - button "Mostrar chave" [pressed]
+    - text: Modelo pedido model
+    - combobox "Modelo pedido fornecedor":
+      - option "Selecione o fornecedor…" [selected]
+      - option "Anthropic"
+      - option "DeepSeek"
+      - option "Google"
+      - option "Zhipu AI"
+      - option "Moonshot AI"
+      - option "OpenAI"
+      - option "Alibaba Cloud"
+      - option "Personalizado (do relay)"
+    - button "Obter modelos" [disabled]
+    - status
+    - combobox "Modelo pedido modelo" [disabled]:
+      - option "Selecione o modelo…" [selected]
+    - button "Entrada personalizada"
+    - text: Modelo declarado claimed_model Opcional
+    - textbox "Modelo declarado claimed_model Opcional":
+      - /placeholder: Vazio = igual ao modelo pedido
+    - text: Só se o intermediário o vender com outro nome — o zing confronta as respostas com este modelo. Fornecedor declarado declared_provider Opcional
+    - textbox "Fornecedor declarado declared_provider Opcional":
+      - /placeholder: p. ex. openai / deepseek
+    - text: Ajuda o zing a escolher o perfil de modelo certo quando só o nome do modelo é ambíguo. Escolher um modelo da lista o preenche. Protocolo
+    - group "Protocolo":
+      - button "Auto" [pressed]
+      - button "OpenAI"
+      - button "Anthropic"
+      - button "Responses"
+    - text: Conjunto de testes
+    - group "Conjunto de testes":
+      - button "smoke"
+      - button "standard" [pressed]
+      - button "deep"
+      - button "full"
+      - button "personalizado"
+    - text: Requisições da sonda de desempenho
+    - group "Requisições da sonda de desempenho":
+      - button "Streaming" [pressed]
+      - button "Sem streaming"
+    - text: No standard a sonda só é executada com uma referência; caso contrário, usam-se as próprias requisições da auditoria.
+    - button "Comparar com uma referência confiável compare" [expanded]
+    - paragraph: Indique um endpoint do mesmo modelo em que confie (p. ex. a API oficial). O zing usa-o para corroborar o comportamento do alvo, tornando mais fiáveis os veredictos de substituição/degradação — a avaliação de qualidade e a deteção de adulteração só atingem o nível máximo com uma referência.
+    - text: URL de referência base_url
+    - textbox "URL de referência base_url":
+      - /placeholder: https://api.openai.com/v1
+    - text: Chave API de referência
+    - textbox "Chave API de referência":
+      - /placeholder: sk-... ou env:OPENAI_API_KEY
+    - button "Mostrar chave"
+    - text: Modelo de referência model
+    - combobox "Modelo de referência fornecedor":
+      - option "Selecione o fornecedor…" [selected]
+      - option "Anthropic"
+      - option "DeepSeek"
+      - option "Google"
+      - option "Zhipu AI"
+      - option "Moonshot AI"
+      - option "OpenAI"
+      - option "Alibaba Cloud"
+      - option "Personalizado (do relay)"
+    - button "Obter modelos" [disabled]
+    - status
+    - combobox "Modelo de referência modelo" [disabled]:
+      - option "Selecione o modelo…" [selected]
+    - button "Entrada personalizada"
+    - text: Protocolo de referência
+    - group "Protocolo de referência":
+      - button "Auto" [pressed]
+      - button "OpenAI"
+      - button "Anthropic"
+      - button "Responses"
+    - button "Iniciar auditoria"
+    - text: Os testes são enviados a partir do seu servidor zing local; a chave só é usada para ligar ao intermediário alvo e nunca é enviada a terceiros.
+    - alert
+    - status
+    - text: O zing fornece evidências reprodutíveis de risco e desvio, não um veredito jurídico.
+- contentinfo:
+  - paragraph:
+    - link "Acessibilidade":
+      - /url: /v2/accessibility

@@ -57,6 +57,11 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
     });
   }
+  // raw evidence (model replies) may quote Chinese: mark it lang="zh" (BITV 9.3.1.2)
+  function escEv(s) {
+    var Z = window.ZING_LANG;
+    return Z && Z.markCJK ? Z.markCJK(s) : esc(s);
+  }
   function reEsc(s) {
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
@@ -100,7 +105,8 @@
     warn: { c: "warn", g: "warning" },
     fail: { c: "bad", g: "x" },
     error: { c: "bad", g: "x" },
-    inconclusive: { c: "grey", g: "info" },
+    inconclusive: { c: "grey", g: "help" },
+    not_run: { c: "grey", g: "minus" },
   };
   var DIMNAME = {
     model_identity: ["模型身份", "它是不是它自称的那个？"],
@@ -266,6 +272,8 @@
     var hasScore = d.score != null && isFinite(d.score);
     var v = hasScore ? Math.max(0, Math.min(100, Math.round(d.score))) : null;
     var st = label("STATUS", d.status);
+    // the status glyph next to the score, so the status is not told by colour alone
+    var g = STATG[d.status] ? ico(STATG[d.status].g) : "";
     var id = "zr-dn-" + ++uid;
     var did = "zr-dd-" + uid;
     var off = !ran(d);
@@ -284,7 +292,8 @@
         ? '<div class="bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + v +
           '" aria-valuetext="' + esc(valText) + '" aria-labelledby="' + id + '"><i data-w="' + v + '" class="' + c + '"></i></div>'
         : '<div class="bar none"><i data-w="0" class="grey"></i><span class="sr-only">' + esc(valText) + "</span></div>") +
-      '<span class="badge ' + (off ? "grey" : c) + '" aria-hidden="true">' + (hasScore ? esc(num(v, 0)) : off ? esc(offText) : "—") + "</span></div>" +
+      '<span class="badge ' + (off ? "grey" : c) + '" aria-hidden="true">' + (off ? "" : g) +
+      (hasScore ? esc(num(v, 0)) : off ? esc(offText) : "—") + "</span></div>" +
       '<div class="zr-dd" id="' + did + '" role="region" aria-labelledby="' + id + '" hidden>' + dimDetails(d, r) + "</div></div>"
     );
   }
@@ -439,7 +448,7 @@
       (ev
         ? '<button type="button" class="linkbtn more" aria-expanded="false" aria-controls="' + id + '">' +
           esc(showEvidence(false)) + "</button>" +
-          '<pre class="ev" id="' + id + '" hidden>' + esc(ev) + "</pre>"
+          '<pre class="ev" id="' + id + '" hidden>' + escEv(ev) + "</pre>"
         : "") +
       "</div></li>"
     );
@@ -560,7 +569,7 @@
       (ev
         ? '<button type="button" class="linkbtn more" aria-expanded="false" aria-controls="' + id + '">' +
           esc(showEvidence(false)) + "</button>" +
-          '<pre class="ev" id="' + id + '" hidden>' + esc(ev) + "</pre>"
+          '<pre class="ev" id="' + id + '" hidden>' + escEv(ev) + "</pre>"
         : "") +
       "</div></li>"
     );
@@ -585,7 +594,7 @@
       "<b>" + esc(L.title || f.id || "") + '</b> <span class="tag ' + s.c + '">' + esc(tag) + "</span></div>" +
       (L.summary ? '<div class="fs">' + esc(L.summary) + "</div>" : "") +
       (f.recommendation ? '<div class="fs rec">' + esc(T("建议：", "Recommendation: ")) + esc(srv(f.recommendation)) + "</div>" : "") +
-      (ev ? '<pre class="ev">' + esc(ev) + "</pre>" : "") +
+      (ev ? '<pre class="ev">' + escEv(ev) + "</pre>" : "") +
       "</div>"
     );
   }

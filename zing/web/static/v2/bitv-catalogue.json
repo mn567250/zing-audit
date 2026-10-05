@@ -1,0 +1,409 @@
+{
+ "standards": {
+  "bitv": "BITV 2.0",
+  "en": "EN 301 549 V3.2.1, chapter 9",
+  "wcag": "WCAG 2.1 level A + AA"
+ },
+ "steps": [
+  {
+   "step": "9.1.1.1",
+   "wcag": "1.1.1",
+   "level": "A",
+   "title": "Non-text Content",
+   "automation": "partial",
+   "how": "Images, icons, SVGs and controls have a text alternative. Whether each alternative is meaningful is judged by a person."
+  },
+  {
+   "step": "9.1.2.1",
+   "wcag": "1.2.1",
+   "level": "A",
+   "title": "Audio-only and Video-only (Prerecorded)",
+   "automation": "n/a",
+   "how": "The UI contains no audio or video."
+  },
+  {
+   "step": "9.1.2.2",
+   "wcag": "1.2.2",
+   "level": "A",
+   "title": "Captions (Prerecorded)",
+   "automation": "n/a",
+   "how": "The UI contains no audio or video."
+  },
+  {
+   "step": "9.1.2.3",
+   "wcag": "1.2.3",
+   "level": "A",
+   "title": "Audio Description or Media Alternative (Prerecorded)",
+   "automation": "n/a",
+   "how": "The UI contains no audio or video."
+  },
+  {
+   "step": "9.1.2.4",
+   "wcag": "1.2.4",
+   "level": "AA",
+   "title": "Captions (Live)",
+   "automation": "n/a",
+   "how": "The UI contains no audio or video."
+  },
+  {
+   "step": "9.1.2.5",
+   "wcag": "1.2.5",
+   "level": "AA",
+   "title": "Audio Description (Prerecorded)",
+   "automation": "n/a",
+   "how": "The UI contains no audio or video."
+  },
+  {
+   "step": "9.1.3.1",
+   "wcag": "1.3.1",
+   "level": "A",
+   "title": "Info and Relationships",
+   "automation": "partial",
+   "how": "ARIA, lists, tables, form labels, landmarks and heading levels are checked. Whether the structure matches the visual meaning is judged by a person."
+  },
+  {
+   "step": "9.1.3.2",
+   "wcag": "1.3.2",
+   "level": "A",
+   "title": "Meaningful Sequence",
+   "automation": "partial",
+   "how": "The reading order is compared with the visual order. Whether the order makes sense is judged by a person."
+  },
+  {
+   "step": "9.1.3.3",
+   "wcag": "1.3.3",
+   "level": "A",
+   "title": "Sensory Characteristics",
+   "automation": "partial",
+   "how": "Texts are searched for instructions that rely on shape, position or colour alone. A person reviews the hits."
+  },
+  {
+   "step": "9.1.3.4",
+   "wcag": "1.3.4",
+   "level": "AA",
+   "title": "Orientation",
+   "automation": "auto",
+   "how": "Every page works in portrait and landscape phone sizes and does not lock the orientation."
+  },
+  {
+   "step": "9.1.3.5",
+   "wcag": "1.3.5",
+   "level": "AA",
+   "title": "Identify Input Purpose",
+   "automation": "auto",
+   "how": "Fields that ask for data about the user carry a valid autocomplete token."
+  },
+  {
+   "step": "9.1.4.1",
+   "wcag": "1.4.1",
+   "level": "A",
+   "title": "Use of Color",
+   "automation": "partial",
+   "how": "Links in text are distinguishable without colour. Whether colour alone carries other information is judged by a person."
+  },
+  {
+   "step": "9.1.4.2",
+   "wcag": "1.4.2",
+   "level": "A",
+   "title": "Audio Control",
+   "automation": "n/a",
+   "how": "The UI plays no audio."
+  },
+  {
+   "step": "9.1.4.3",
+   "wcag": "1.4.3",
+   "level": "AA",
+   "title": "Contrast (Minimum)",
+   "automation": "auto",
+   "how": "Text contrast is measured on every page, in every language, in the light and the dark theme."
+  },
+  {
+   "step": "9.1.4.4",
+   "wcag": "1.4.4",
+   "level": "AA",
+   "title": "Resize Text",
+   "automation": "auto",
+   "how": "At 200 % zoom nothing scrolls sideways or is cut off, in every language."
+  },
+  {
+   "step": "9.1.4.5",
+   "wcag": "1.4.5",
+   "level": "AA",
+   "title": "Images of Text",
+   "automation": "auto",
+   "how": "Images, canvases and CSS background images are checked for text rendered as pixels."
+  },
+  {
+   "step": "9.1.4.10",
+   "wcag": "1.4.10",
+   "level": "AA",
+   "title": "Reflow",
+   "automation": "auto",
+   "how": "At 320 CSS px width the page needs no horizontal scrolling and loses no content, in every language."
+  },
+  {
+   "step": "9.1.4.11",
+   "wcag": "1.4.11",
+   "level": "AA",
+   "title": "Non-text Contrast",
+   "automation": "partial",
+   "how": "Form control borders and focus indicators reach 3:1. Charts and icons are judged by a person."
+  },
+  {
+   "step": "9.1.4.12",
+   "wcag": "1.4.12",
+   "level": "AA",
+   "title": "Text Spacing",
+   "automation": "auto",
+   "how": "The WCAG text spacing values are applied and no content is cut off."
+  },
+  {
+   "step": "9.1.4.13",
+   "wcag": "1.4.13",
+   "level": "AA",
+   "title": "Content on Hover or Focus",
+   "automation": "partial",
+   "how": "Every element is hovered and focused; content it reveals must close with Escape, stay while the pointer is on it and persist. Whether new content counts as additional content is judged by a person."
+  },
+  {
+   "step": "9.2.1.1",
+   "wcag": "2.1.1",
+   "level": "A",
+   "title": "Keyboard",
+   "automation": "auto",
+   "how": "Every control is reached with the Tab key; popups, dialogs and tabs work with the keyboard."
+  },
+  {
+   "step": "9.2.1.2",
+   "wcag": "2.1.2",
+   "level": "A",
+   "title": "No Keyboard Trap",
+   "automation": "auto",
+   "how": "Tabbing through the page always leaves it again."
+  },
+  {
+   "step": "9.2.1.4",
+   "wcag": "2.1.4",
+   "level": "A",
+   "title": "Character Key Shortcuts",
+   "automation": "auto",
+   "how": "Single printable keys pressed on the page trigger no action."
+  },
+  {
+   "step": "9.2.2.1",
+   "wcag": "2.2.1",
+   "level": "A",
+   "title": "Timing Adjustable",
+   "automation": "auto",
+   "how": "No page refreshes, redirects or expires on its own while the user is reading."
+  },
+  {
+   "step": "9.2.2.2",
+   "wcag": "2.2.2",
+   "level": "A",
+   "title": "Pause, Stop, Hide",
+   "automation": "partial",
+   "how": "Nothing moves, blinks or updates endlessly on an idle page, auto-updating content can be paused, and reduced motion is respected. Whether an update is essential is judged by a person."
+  },
+  {
+   "step": "9.2.3.1",
+   "wcag": "2.3.1",
+   "level": "A",
+   "title": "Three Flashes or Below Threshold",
+   "automation": "auto",
+   "how": "The page is recorded over time; nothing flashes more than three times per second."
+  },
+  {
+   "step": "9.2.4.1",
+   "wcag": "2.4.1",
+   "level": "A",
+   "title": "Bypass Blocks",
+   "automation": "auto",
+   "how": "Every page has landmarks and a skip link to the main content."
+  },
+  {
+   "step": "9.2.4.2",
+   "wcag": "2.4.2",
+   "level": "A",
+   "title": "Page Titled",
+   "automation": "auto",
+   "how": "Every page has its own title, translated into every language."
+  },
+  {
+   "step": "9.2.4.3",
+   "wcag": "2.4.3",
+   "level": "A",
+   "title": "Focus Order",
+   "automation": "partial",
+   "how": "Nothing hidden takes focus and no positive tabindex is used. Whether the order is logical is judged by a person."
+  },
+  {
+   "step": "9.2.4.4",
+   "wcag": "2.4.4",
+   "level": "A",
+   "title": "Link Purpose (In Context)",
+   "automation": "partial",
+   "how": "Every link has an accessible name. Whether it describes the target is judged by a person."
+  },
+  {
+   "step": "9.2.4.5",
+   "wcag": "2.4.5",
+   "level": "AA",
+   "title": "Multiple Ways",
+   "automation": "auto",
+   "how": "Every page opens by its own URL and is linked from the site-wide navigation (nav or footer) of every other page."
+  },
+  {
+   "step": "9.2.4.6",
+   "wcag": "2.4.6",
+   "level": "AA",
+   "title": "Headings and Labels",
+   "automation": "partial",
+   "how": "Headings and labels exist and are not empty. Whether they are descriptive is judged by a person."
+  },
+  {
+   "step": "9.2.4.7",
+   "wcag": "2.4.7",
+   "level": "AA",
+   "title": "Focus Visible",
+   "automation": "auto",
+   "how": "Every Tab stop looks different with and without focus, in the light and the dark theme."
+  },
+  {
+   "step": "9.2.5.1",
+   "wcag": "2.5.1",
+   "level": "A",
+   "title": "Pointer Gestures",
+   "automation": "partial",
+   "how": "No path-based, multipoint, drag or motion handlers are registered and no element is draggable. If one appears, a person checks the single-pointer alternative."
+  },
+  {
+   "step": "9.2.5.2",
+   "wcag": "2.5.2",
+   "level": "A",
+   "title": "Pointer Cancellation",
+   "automation": "auto",
+   "how": "Controls act when the pointer is released, not when it is pressed, so an action can be aborted."
+  },
+  {
+   "step": "9.2.5.3",
+   "wcag": "2.5.3",
+   "level": "A",
+   "title": "Label in Name",
+   "automation": "auto",
+   "how": "The visible label of every control is part of its accessible name."
+  },
+  {
+   "step": "9.2.5.4",
+   "wcag": "2.5.4",
+   "level": "A",
+   "title": "Motion Actuation",
+   "automation": "auto",
+   "how": "The page does not react to device motion or orientation events."
+  },
+  {
+   "step": "9.3.1.1",
+   "wcag": "3.1.1",
+   "level": "A",
+   "title": "Language of Page",
+   "automation": "auto",
+   "how": "The lang attribute of the page names the language shown, on load and after switching language."
+  },
+  {
+   "step": "9.3.1.2",
+   "wcag": "3.1.2",
+   "level": "AA",
+   "title": "Language of Parts",
+   "automation": "auto",
+   "how": "Text in another language than the page is marked with its own lang attribute."
+  },
+  {
+   "step": "9.3.2.1",
+   "wcag": "3.2.1",
+   "level": "A",
+   "title": "On Focus",
+   "automation": "auto",
+   "how": "Moving the focus never navigates, opens a window or otherwise changes the context."
+  },
+  {
+   "step": "9.3.2.2",
+   "wcag": "3.2.2",
+   "level": "A",
+   "title": "On Input",
+   "automation": "partial",
+   "how": "Every select, checkbox, switch and field is changed: no navigation, new window, focus jump or unannounced replacement of the content. Whether a change was announced beforehand is judged by a person."
+  },
+  {
+   "step": "9.3.2.3",
+   "wcag": "3.2.3",
+   "level": "AA",
+   "title": "Consistent Navigation",
+   "automation": "auto",
+   "how": "The navigation is the same, in the same order, on every page."
+  },
+  {
+   "step": "9.3.2.4",
+   "wcag": "3.2.4",
+   "level": "AA",
+   "title": "Consistent Identification",
+   "automation": "auto",
+   "how": "Controls with the same function have the same name on every page."
+  },
+  {
+   "step": "9.3.3.1",
+   "wcag": "3.3.1",
+   "level": "A",
+   "title": "Error Identification",
+   "automation": "partial",
+   "how": "Submitting empty or invalid forms marks the fields and links a visible message in the page language. Whether the message is clear is judged by a person."
+  },
+  {
+   "step": "9.3.3.2",
+   "wcag": "3.3.2",
+   "level": "A",
+   "title": "Labels or Instructions",
+   "automation": "partial",
+   "how": "Every field has a label. Whether the instructions are sufficient is judged by a person."
+  },
+  {
+   "step": "9.3.3.3",
+   "wcag": "3.3.3",
+   "level": "AA",
+   "title": "Error Suggestion",
+   "automation": "partial",
+   "how": "Error messages are present and translated. Whether they suggest a fix is judged by a person."
+  },
+  {
+   "step": "9.3.3.4",
+   "wcag": "3.3.4",
+   "level": "AA",
+   "title": "Error Prevention (Legal, Financial, Data)",
+   "automation": "auto",
+   "how": "Deleting stored data asks for confirmation or can be undone."
+  },
+  {
+   "step": "9.4.1.1",
+   "wcag": "4.1.1",
+   "level": "A",
+   "title": "Parsing",
+   "automation": "auto",
+   "how": "IDs are unique and the markup has no parsing errors that affect assistive technology."
+  },
+  {
+   "step": "9.4.1.2",
+   "wcag": "4.1.2",
+   "level": "A",
+   "title": "Name, Role, Value",
+   "automation": "auto",
+   "how": "Every control has a name, a valid role and the states it needs."
+  },
+  {
+   "step": "9.4.1.3",
+   "wcag": "4.1.3",
+   "level": "AA",
+   "title": "Status Messages",
+   "automation": "partial",
+   "how": "Status areas are live regions. Whether each status change is announced is judged by a person."
+  }
+ ]
+}

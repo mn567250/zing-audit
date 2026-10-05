@@ -22,6 +22,10 @@ from zing.context import AuditContext
 from zing.knowledge import load_knowledge_base
 from zing.models import TargetConfig
 
+# per-step results of the a11y suite (ZING_A11Y_RESULTS); registered here so
+# the pytest-xdist controller loads it too
+pytest_plugins = ["tests.a11y.results"]
+
 BASE_URL = "http://relay.test/v1"
 DEFAULT_MODEL = "gpt-4o"
 

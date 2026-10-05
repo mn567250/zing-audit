@@ -1,0 +1,167 @@
+- banner:
+  - link "跳到主要内容":
+    - /url: "#main"
+  - link "zing":
+    - /url: /v2/
+    - text: zing.
+  - link "经典界面":
+    - /url: "?ui=v1"
+  - combobox "主题":
+    - option "跟随系统"
+    - option "浅色" [selected]
+    - option "深色"
+  - combobox "语言":
+    - option "English"
+    - option "中文" [selected]
+    - option "Français"
+    - option "Español"
+    - option "Português"
+    - option "Italiano"
+    - option "Deutsch"
+  - navigation "主导航":
+    - link "检测":
+      - /url: /v2/
+    - link "工具":
+      - /url: /v2/tools
+    - link "检测历史":
+      - /url: /v2/history
+    - link "监控":
+      - /url: /v2/watches
+    - link "模型库":
+      - /url: /v2/kb
+- main:
+  - heading "无障碍符合性报告" [level=1]
+  - paragraph: 这里列出 BITV 2.0 与 EN 301549（第 9 章，即 WCAG 2.1 A 级与 AA 级）的每个检查步骤：它是如何测试的，以及自动化无障碍测试的最新结果。
+  - region "结论":
+    - heading "结论" [level=2]
+    - paragraph: 部分符合
+    - paragraph: 适用的 44 个步骤中：27 个通过，0 个未通过，17 个待人工审核，0 个尚未测试。
+    - term: 生成时间
+    - definition: <report date>
+    - term: 提交
+    - definition:
+      - code: <id>
+    - term: zing 版本
+    - definition: 0.11.0
+    - term: axe-core 版本
+    - definition: 4.13.0
+    - term: 测试
+    - definition: 1109 个已运行，1109 个通过，0 个失败，0 个跳过
+    - term: 语言
+    - definition: English, Deutsch, Español, Français, Italiano, Português, 中文
+    - term: 主题
+    - definition: 浅色, 深色
+    - term: 页面
+    - definition:
+      - code: /v2/
+      - code: /v2/history
+      - code: /v2/watches
+      - code: /v2/tools
+      - code: /v2/kb
+      - code: /v2/accessibility
+  - region "覆盖范围":
+    - heading "覆盖范围" [level=2]
+    - heading "步骤的测试方式" [level=3]
+    - list:
+      - listitem: 自动 27 / 44 · 61.4 %
+      - listitem: 部分自动 17 / 44 · 38.6 %
+      - listitem: 人工 0 / 44 · 0 %
+      - listitem: 不适用 6
+    - heading "结果" [level=3]
+    - list:
+      - listitem: 通过 27 / 44 · 61.4 %
+      - listitem: 未通过 0 / 44 · 0 %
+      - listitem: 待人工审核 17 / 44 · 38.6 %
+      - listitem: 未测试 0 / 44 · 0 %
+      - listitem: 不适用 6
+    - paragraph: 百分比基于适用的步骤；界面中没有音频和视频，因此相关步骤不适用。
+    - paragraph: WCAG 之外还检查了： 用户偏好设置：强制颜色模式（EN 301549 第 11.7 条） — 通过
+  - region "检查步骤":
+    - heading "检查步骤" [level=2]
+    - text: 状态
+    - combobox "状态":
+      - option "全部" [selected]
+      - option "未通过"
+      - option "通过"
+      - option "待人工审核"
+      - option "未测试"
+      - option "不适用"
+    - text: 自动化程度
+    - combobox "自动化程度":
+      - option "全部" [selected]
+      - option "自动"
+      - option "部分自动"
+      - option "人工"
+      - option "不适用"
+    - text: 搜索
+    - searchbox "搜索"
+    - status: 显示 50 / 50 个步骤
+    - region "BITV / EN 301549 检查步骤及其自动化程度与结果":
+      - table "BITV / EN 301549 检查步骤及其自动化程度与结果":
+        - caption: BITV / EN 301549 检查步骤及其自动化程度与结果
+        - rowgroup:
+          - row "步骤 标题 级别 自动化程度 状态":
+            - columnheader "步骤"
+            - columnheader "标题"
+            - columnheader "级别"
+            - columnheader "自动化程度"
+            - columnheader "状态"
+        - rowgroup:
+          - row "9.1.1.1 A 部分自动 待人工审核":
+            - rowheader "9.1.1.1"
+            - cell:
+              - group:
+                - text: 非文本内容
+                - paragraph: 测试方式： 图像、图标、SVG 和控件都有文本替代。每个替代文本是否有意义由人工判断。
+                - paragraph: 自动化测试： 14 个已运行，14 个通过，0 个失败，166 个跳过
+                - paragraph:
+                  - code: test_wcag_rules_as_loaded
+                  - code: test_wcag_rules_every_tab_panel
+                  - code: test_wcag_rules_expanded
+            - cell "A"
+            - cell "部分自动"
+            - cell "待人工审核"
+          # … more rows of the same shape
+  - region "无障碍声明":
+    - heading "无障碍声明" [level=2]
+    - heading "符合状态" [level=3]
+    - paragraph: zing 网页界面 v2 与 BITV 2.0、EN 301549 和 WCAG 2.1 AA 级部分符合。
+    - heading "已知限制" [level=3]
+    - paragraph: 以下步骤的自动化部分已通过，其余部分仍需人工审核：
+    - list:
+      - listitem: 9.1.1.1 非文本内容
+      - listitem: 9.1.3.1 信息和关系
+      - listitem: 9.1.3.2 有意义的顺序
+      - listitem: 9.1.3.3 感官特征
+      - listitem: 9.1.4.1 颜色的使用
+      - listitem: 9.1.4.11 非文本对比度
+      - listitem: 9.1.4.13 悬停或聚焦时的内容
+      - listitem: 9.2.2.2 暂停、停止、隐藏
+      - listitem: 9.2.4.3 焦点顺序
+      - listitem: 9.2.4.4 链接目的（在上下文中）
+      - listitem: 9.2.4.6 标题和标签
+      - listitem: 9.2.5.1 指针手势
+      - listitem: 9.3.2.2 输入时
+      - listitem: 9.3.3.1 错误识别
+      - listitem: 9.3.3.2 标签或说明
+      - listitem: 9.3.3.3 错误建议
+      - listitem: 9.4.1.3 状态消息
+    - heading "评估方式" [level=3]
+    - paragraph:
+      - text: 自我评估：每次变更时，
+      - code: tests/a11y
+      - text: 中的自动化测试套件都会在真实浏览器（Chromium，使用 axe-core 和自有检查）中，以每种界面语言、浅色与深色主题检查网页界面 v2 的每个页面。每个测试都标明它所判定的检查步骤。
+    - paragraph: 最近一次测试：<report date>。尚未进行包括屏幕阅读器在内的人工审核。
+    - heading "反馈" [level=3]
+    - paragraph:
+      - text: 发现了障碍，或者某些功能难以通过辅助技术使用？请告诉我们：
+      - link "在 GitHub 上报告无障碍问题":
+        - /url: https://github.com/cenbonew/zing/issues
+- contentinfo:
+  - paragraph:
+    - text: zing · 中转站验真 · 本报告由
+    - code: tests/a11y
+    - text: 中的自动化无障碍测试生成
+  - paragraph:
+    - link "无障碍":
+      - /url: /v2/accessibility

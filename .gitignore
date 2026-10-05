@@ -37,3 +37,4 @@ tmp/
 .DS_Store
 .idea/
 .vscode/
+a11y-report*.json

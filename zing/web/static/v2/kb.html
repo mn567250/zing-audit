@@ -56,12 +56,14 @@
   @media (max-width: 620px) { .prov .hide-sm { display: none; } }
   .filter { max-width: 360px; }
   #list-title:focus, #all-title:focus { outline: none; }
+  /* the empty-state live region stays in the DOM (a region created with its message is not announced) */
+  #provs-empty:empty { padding: 0; margin-bottom: -10px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="znav" data-page="kb" data-trust></header>
-  <main>
+  <main id="main" tabindex="-1">
     <div class="hero">
       <h1 data-en="The <span class='u'>knowledge base</span> zing audits against">zing 用来比对的<span class="u">知识库</span></h1>
       <p data-en="Every audit compares a relay with the profile of the model it claims: context window, output limit, capabilities, identity and behavioral fingerprints. Browse the profiles here and add your own models — no YAML files or editable install needed. Your entries are stored in <b>kb.db</b> on this machine and used by the web UI and <code>zing check</code> alike.">每次检测都会把中转站与其声称模型的资料比对：上下文窗口、输出上限、能力、身份与行为指纹。你可以在这里浏览这些资料并添加自己的模型——无需编写 YAML 文件或可编辑安装。你的条目保存在本机的 <b>kb.db</b> 中，网页界面和 <code>zing check</code> 都会使用。</p>
@@ -143,11 +145,11 @@
     <div class="ents" id="entries" aria-live="polite"><p class="empty" data-en="Loading…">加载中…</p></div>
 
     <!-- all profiles -->
-    <h2 class="section-title" id="all-title" tabindex="-1"><span data-en="All profiles">全部资料</span> <span class="count" id="all-count"></span></h2>
+    <h2 class="section-title" id="all-title" tabindex="-1"><span data-en="All profiles">全部资料</span> <span class="count" id="all-count" aria-live="polite"></span></h2>
     <input class="in filter" id="filter" type="search" autocomplete="off" spellcheck="false" aria-label="筛选" data-en-aria-label="Filter" placeholder="筛选厂商或模型…" data-en-placeholder="Filter providers or models…">
-    <div class="provs" id="provs" style="margin-top:12px"></div>
+    <div class="provs" id="provs" style="margin-top:12px"><p class="empty" id="provs-empty" role="status"></p></div>
   </main>
-  <p class="foot" data-en="zing · relay reality check · packaged profiles live in <code>zing/knowledge/data</code>; <code>ZING_KB_DIR</code> and your entries are layered on top">zing · 中转站验真 · 内置资料位于 <code>zing/knowledge/data</code>；<code>ZING_KB_DIR</code> 与你的条目叠加在其上</p>
+  <footer><p class="foot" data-en="zing · relay reality check · packaged profiles live in <code>zing/knowledge/data</code>; <code>ZING_KB_DIR</code> and your entries are layered on top">zing · 中转站验真 · 内置资料位于 <code>zing/knowledge/data</code>；<code>ZING_KB_DIR</code> 与你的条目叠加在其上</p></footer>
 </div>
 <script src="/i18n.js"></script>
 <script src="/icons.js"></script>
@@ -289,8 +291,18 @@
     e.textContent = formErr ? formErr() : "";
     o.hidden = !formOk;
     o.innerHTML = formOk ? icon("check") + "<span>" + esc(formOk()) + "</span>" : "";
-    $("save").disabled = !(scanned && scanned.ok);
+    var sv = $("save"), off = !(scanned && scanned.ok);
+    // nothing (left) to save: the focused button is about to be disabled, so
+    // move focus back to "Check" first (else it falls to <body>); the outcome
+    // is announced by the live region around the messages
+    if (off && document.activeElement === sv) $("check").focus();
+    sv.disabled = off;
   }
+  // busy buttons stay focusable: aria-disabled, not disabled
+  function setBusy(btn, busy) {
+    if (busy) btn.setAttribute("aria-disabled", "true"); else btn.removeAttribute("aria-disabled");
+  }
+  function isBusy(btn) { return btn.getAttribute("aria-disabled") === "true"; }
   var ACTION = {
     add: ["新增", "new"],
     update: ["更新你的条目", "updates your entry"],
@@ -344,7 +356,7 @@
       return;
     }
     var btn = $("check");
-    btn.disabled = true;
+    setBusy(btn, true);
     postJSON("/api/kb/scan", { yaml: currentYaml() }).then(function (res) {
       if (!res.ok) throw new Error("HTTP " + res.status);
       scanned = res.body;
@@ -352,14 +364,14 @@
       scanned = null;
       formErr = function () { return T("检查失败，请重试。", "The check failed — please try again."); };
     }).then(function () {
-      btn.disabled = false;
+      setBusy(btn, false);
       paintScan(); paintForm();
     });
   });
   $("save").addEventListener("click", function () {
-    if (!(scanned && scanned.ok)) return;
     var btn = $("save");
-    btn.disabled = true;
+    if (!(scanned && scanned.ok) || isBusy(btn)) return;
+    setBusy(btn, true);
     formErr = null; formOk = null;
     postJSON("/api/kb/import", { yaml: currentYaml(), filename: fileName }).then(function (res) {
       if (!res.ok) {
@@ -378,6 +390,7 @@
     }).catch(function () {
       formErr = function () { return T("网络错误，保存失败。", "Network error — not saved."); };
     }).then(function () {
+      setBusy(btn, false);
       paintScan(); paintForm();
     });
   });
@@ -453,9 +466,18 @@
     var es = data.entries || [];
     $("count").textContent = es.length ? (es.length === 1 ? T("共 1 项", "1 entry") : Tf("共 {n} 项", "{n} entries", { n: es.length })) : "";
     $("export").hidden = !es.length;
+    // keep focus on the same control across the re-render (Delete -> Cancel ...)
+    var a = document.activeElement, keep = null;
+    if (a && list.contains(a) && a.getAttribute("data-act")) keep = [a.getAttribute("data-act"), a.getAttribute("data-id")];
     list.innerHTML = es.length
       ? es.map(entryRow).join("")
       : '<p class="empty">' + esc(T("还没有你自己的条目。用上面的步骤添加第一个模型。", "No entries of your own yet. Use the steps above to add your first model.")) + "</p>";
+    if (keep) {
+      var alt = { del: "del-no", "del-no": "del", "del-yes": "del" }[keep[0]] || keep[0];
+      var to = list.querySelector('[data-act="' + keep[0] + '"][data-id="' + keep[1] + '"]') ||
+        list.querySelector('[data-act="' + alt + '"][data-id="' + keep[1] + '"]');
+      (to || $("list-title")).focus();
+    }
   }
 
   function num(v) {
@@ -482,7 +504,7 @@
           "<td>" + sourceBadge(m.source) + shadow + "</td></tr>";
       }).join("");
       return (
-        '<details class="card prov"' + (q ? " open" : "") + "><summary>" + esc(p.display_name || p.provider) +
+        '<details class="card prov"' + (q ? " open" : "") + "><summary>" + ZING_LANG.markCJK(p.display_name || p.provider) +
         " <code>" + esc(p.provider) + "</code> " + sourceBadge(p.source) +
         '<span class="cnt">' + esc(models.length === 1 ? T("1 个模型", "1 model") : Tf("{n} 个模型", "{n} models", { n: models.length })) + "</span></summary>" +
         '<div class="models"><table><thead><tr><th>' + esc(T("模型", "Model")) + '</th><th class="num">' + esc(T("上下文", "Context")) +
@@ -491,7 +513,11 @@
       );
     }).join("");
     $("all-count").textContent = (total === 1 ? T("1 个模型", "1 model") : Tf("{n} 个模型", "{n} models", { n: total }));
-    $("provs").innerHTML = html || '<p class="empty">' + esc(T("没有匹配的资料。", "No matching profiles.")) + "</p>";
+    // the profiles go before the (pre-existing) empty-state live region
+    var provs = $("provs"), empty = $("provs-empty");
+    while (provs.firstChild && provs.firstChild !== empty) provs.removeChild(provs.firstChild);
+    empty.insertAdjacentHTML("beforebegin", html);
+    empty.textContent = html ? "" : T("没有匹配的资料。", "No matching profiles.");
   }
   $("filter").addEventListener("input", paintProfiles);
 
@@ -513,7 +539,8 @@
     if (act === "del") { s.confirm = true; paintEntries(); }
     else if (act === "del-no") { s.confirm = false; paintEntries(); }
     else if (act === "del-yes") {
-      t.disabled = true;
+      if (isBusy(t)) return;
+      setBusy(t, true);
       fetch("/api/kb/entries/" + id, { method: "DELETE" }).then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
         delete ui[id];

@@ -261,7 +261,7 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
         from zing.web import watches
 
         with contextlib.suppress(Exception):
-            watches.mark_attempt(wid, time.time())
+            await asyncio.to_thread(watches.mark_attempt, wid, time.time())
         raise WatchKeyUnreadable(row["key_error"])
     state: dict[str, Any] = {
         "cancelled": False,
@@ -327,8 +327,8 @@ def _cancel_watch(wid: int) -> bool:
     """Stop a running watch; False when it is not running."""
     state = _running_watches.get(wid)
     task = state.get("task") if state else None
-    if state is None or task is None or task.done():
-        return False
+    if state is None or task is None or task.done() or state.get("saving"):
+        return False  # not running, or saving its report: too late to cancel
     state["cancelled"] = True
     task.cancel()
     return True
@@ -351,6 +351,7 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
     report_id: int | None = None
     duration: float | None = None
     cancelled = False
+    saved = False  # a run whose report is stored is recorded with it, even if cancelled
     try:
         suite = validate_suite(str(row.get("suite") or "standard"))
         dimensions = validate_dimensions(suite, row.get("dimensions"))
@@ -369,23 +370,27 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
             dimensions=dimensions,
             performance_streaming=row.get("performance_streaming") is not False,
         )
-        # Audit against the profile pinned when the watch was created, so a
-        # knowledge-base edit cannot silently change what the monitor measures.
-        pinned_raw = watches.pinned_knowledge(wid)
-        pinned = KnowledgeUsage(**pinned_raw) if pinned_raw else None
-
-        # Previous saved run for this target+model — used for the regression check
-        # and the "since last run" delta in the alert. notify.send needs the full report,
-        # so find the most recent prior history row for this target and re-fetch it.
         claimed = target.claimed_model or target.model
-        previous: dict[str, Any] | None = None
-        for item in history.recent(50):  # newest first
-            if (
-                item.get("base_url") == target.base_url
-                and item.get("claimed_model") == claimed
-            ):
-                previous = history.get(int(item["id"]))
-                break
+
+        def stored() -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+            # Blocking SQLite reads: run in a worker thread, off the loop.
+            # Audit against the profile pinned when the watch was created, so a
+            # knowledge-base edit cannot silently change what the monitor measures.
+            pinned_raw = watches.pinned_knowledge(wid)
+            # Previous saved run for this target+model — used for the regression check
+            # and the "since last run" delta in the alert. notify.send needs the full
+            # report, so find the most recent prior history row for this target and
+            # re-fetch it.
+            for item in history.recent(50):  # newest first
+                if (
+                    item.get("base_url") == target.base_url
+                    and item.get("claimed_model") == claimed
+                ):
+                    return pinned_raw, history.get(int(item["id"]))
+            return pinned_raw, None
+
+        pinned_raw, previous = await asyncio.to_thread(stored)
+        pinned = KnowledgeUsage(**pinned_raw) if pinned_raw else None
 
         job = state.get("job") if state is not None else None
 
@@ -417,12 +422,24 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
             )
             duration = time.perf_counter() - started
         report_dict = json.loads(report.model_dump_json())
-        report_id = history.save(report_dict, watch_id=wid)
-        if report_id is not None and report_id < 0:
-            report_id = None
-        if job is not None:
-            job.report_id = report_id
-            job.emit({"type": "report", "report": report_dict, "report_id": report_id})
+
+        async def store() -> None:
+            # Save off the loop and report it, as one step (see jobs.settle).
+            nonlocal report_id, saved
+            rid = await asyncio.to_thread(history.save, report_dict, watch_id=wid)
+            report_id = rid if rid is not None and rid >= 0 else None
+            saved = True
+            if job is not None:
+                job.report_id = report_id
+                job.emit({"type": "report", "report": report_dict, "report_id": report_id})
+
+        if state is not None:
+            state["saving"] = True  # Cancel is refused meanwhile
+        try:
+            await jobs.settle(store())
+        finally:
+            if state is not None:
+                state["saving"] = False
 
         verdict = report_dict.get("verdict") or {}
         # report_dict came through model_dump_json, so risk_level is a plain str.
@@ -448,13 +465,20 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
         cancelled = True
         raise
     finally:
-        # Record the run no matter what so cadence stays honest. A cancelled
-        # run keeps the previous result on the card, only its time moves on.
-        with contextlib.suppress(Exception):
-            if cancelled:
+        # Record the run no matter what so cadence stays honest. A run
+        # cancelled before its report was stored keeps the previous result on
+        # the card, only its time moves on.
+        def mark() -> None:
+            if cancelled and not saved:
                 watches.mark_attempt(wid, now)
             else:
                 watches.mark_run(wid, risk, score, report_id, now, duration_sec=duration)
+
+        # Off the loop, but finished before the caller drops the watch from
+        # _running_watches (else the scheduler could see it due again); a
+        # cancel meanwhile is raised once the run is recorded.
+        with contextlib.suppress(Exception):
+            await jobs.settle(asyncio.to_thread(mark))
 
 
 def _risk_meets(risk: str | None, threshold: str) -> bool:
@@ -483,13 +507,17 @@ async def _scheduler_loop() -> None:
     from zing.web import watches
     from zing.web.masterkey import vault
 
+    def due_now() -> list[dict[str, Any]]:
+        # Notice another process changing the master key. While it is
+        # locked, watches that need it raise WatchLocked and wait; keyless
+        # and env:/file: ones run as usual.
+        vault.verify()
+        return watches.due(time.time())
+
     while True:
         try:
-            # Notice another process changing the master key. While it is
-            # locked, watches that need it raise WatchLocked and wait; keyless
-            # and env:/file: ones run as usual.
-            vault.verify()
-            due = watches.due(time.time())
+            # SQLite reads (and the key check): off the loop.
+            due = await asyncio.to_thread(due_now)
         except Exception:
             due = []
         for row in due:

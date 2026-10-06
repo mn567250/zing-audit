@@ -168,6 +168,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   event loop, so other requests and live audits (which timestamp streamed
   chunks on that loop for TTFT and inter-token latency) are not held up while
   a large history list or the knowledge base loads.
+- **Monitor runs, background audits and the audit start no longer stall the
+  server either.** The scheduler's due-check, a monitor's pinned-profile and
+  previous-run lookups, saving a finished audit to history, recording a
+  monitor's run and loading the knowledge base when an audit starts now run in
+  a worker thread. Cancel is refused (409) during the brief save of a finished
+  audit, a server shutdown waits for that save, a monitor run whose report is
+  stored is recorded with it, and a monitor stays "running" until its run is
+  recorded.
 
 - **Web UI responses are compressed and its assets cached.** `zing serve`
   gzips responses of 1 KiB and more (never the live audit event streams), and

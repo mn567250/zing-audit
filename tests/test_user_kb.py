@@ -181,6 +181,12 @@ BAD_YAML = [
         ("provider: x\nmodels: []\n---\nprovider: y\nm: *undefined", "anchors"),
         ("provider: x\nmodels: []\nnote: " + "[" * 33 + "]" * 33, "nested more than 32 levels"),
         ("provider: x\nmodels:\n" + "".join("  " * i + "- \n" for i in range(40)), "nested more than"),
+        # A typed scalar its constructor cannot convert: refused like any YAML error.
+        ("provider: x\nmodels: []\nnote: !!int abc", "cannot read 'abc' as int"),
+        ("provider: x\nmodels: []\nnote: !!float nope", "cannot read 'nope' as float"),
+        ("provider: x\nmodels: []\nnote: !!bool maybe", "cannot read 'maybe' as bool"),
+        ("provider: x\nmodels:\n- id: m\n  released: !!timestamp 2026-99-99", "(line 4, column 13)"),
+        ("provider: x\nmodels: []\nnote: !!int 0x", "as int"),
         # Deep enough to overflow the C stack in libyaml's composer, were it reached.
         ("provider: x\nmodels: []\nnote: " + "[" * 200_000 + "]" * 200_000, "nested more than"),
 ]
@@ -425,6 +431,17 @@ def client(data_dir):
     from zing.web.server import create_app
 
     return TestClient(create_app(), base_url="http://localhost")
+
+
+def test_kb_api_refuses_an_unreadable_typed_value_cleanly(client):
+    # Used to escape scan() as a bare ValueError: a 500 on the Models page.
+    text = "provider: x\nmodels: []\nnote: !!int abc"
+    scanned = client.post("/api/kb/scan", json={"yaml": text})
+    assert scanned.status_code == 200 and not scanned.json()["ok"]
+    assert "cannot read 'abc' as int" in scanned.json()["errors"][0]["message"]
+    imported = client.post("/api/kb/import", json={"yaml": text})
+    assert imported.status_code == 400 and imported.json()["errors"]
+    assert client.get("/api/kb/profiles").json()["entries"] == []
 
 
 def test_kb_api_scan_import_list_toggle_delete(client):

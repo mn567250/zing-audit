@@ -27,14 +27,47 @@ import yaml
 SAFE_LOADER: Any = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 
+# Errors PyYAML's SafeConstructor raises, as plain Python exceptions, for a
+# scalar it cannot convert: ``!!int abc`` (ValueError), ``!!bool maybe``
+# (KeyError), ``!!timestamp 2026-99-99`` (ValueError), a huge float (OverflowError).
+_SCALAR_ERRORS = (ValueError, LookupError, TypeError, OverflowError)
+_STRICT: dict[Any, Any] = {}
+
+
+def _strict(loader: Any) -> Any:
+    """``loader`` with a constructor that reports a scalar it cannot convert
+    as a ``ConstructorError`` at that node (with its line and column), like
+    every other YAML error, instead of letting a bare ValueError/KeyError
+    escape callers that handle ``yaml.YAMLError``."""
+    cls = _STRICT.get(loader)
+    if cls is None:
+
+        class Strict(loader):
+            def construct_object(self, node: yaml.Node, deep: bool = False) -> Any:
+                try:
+                    return super().construct_object(node, deep=deep)
+                except _SCALAR_ERRORS as exc:
+                    tag = str(node.tag).rsplit(":", 1)[-1]
+                    value = node.value if isinstance(node.value, str) else ""
+                    shown = value if len(value) <= 40 else value[:40] + "…"
+                    # a KeyError's text is just the value again (``!!bool maybe``)
+                    why = "" if isinstance(exc, LookupError) else f": {exc}"
+                    raise yaml.constructor.ConstructorError(
+                        None, None, f"cannot read {shown!r} as {tag}{why}", node.start_mark
+                    ) from exc
+
+        cls = _STRICT[loader] = Strict
+    return cls
+
+
 def safe_load(text: str, loader: Any = None) -> Any:
     """The single document in ``text`` (``None`` when empty), like ``yaml.safe_load``."""
-    return yaml.load(text, Loader=loader or SAFE_LOADER)
+    return yaml.load(text, Loader=_strict(loader or SAFE_LOADER))
 
 
 def safe_load_all(text: str, loader: Any = None) -> Iterator[Any]:
     """Each document in ``text``, like ``yaml.safe_load_all``."""
-    return yaml.load_all(text, Loader=loader or SAFE_LOADER)
+    return yaml.load_all(text, Loader=_strict(loader or SAFE_LOADER))
 
 
 def parse(text: str, loader: Any = None) -> Iterator[yaml.Event]:

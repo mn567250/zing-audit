@@ -305,6 +305,33 @@ class TestYamlio:
         assert yamlio.detailed_error(tag_error, fail) is tag_error
 
 
+    @pytest.mark.parametrize("loader", sorted({yaml.SafeLoader, yamlio.SAFE_LOADER}, key=str))
+    @pytest.mark.parametrize(
+        ("text", "message"),
+        [
+            ("a: !!int abc", "cannot read 'abc' as int: invalid literal"),
+            ("a: !!float nope", "cannot read 'nope' as float: could not convert"),
+            ("a: !!bool maybe", "cannot read 'maybe' as bool"),
+            ("a:\n  b: !!timestamp 2026-99-99", "cannot read '2026-99-99' as timestamp: month"),
+        ],
+    )
+    def test_unreadable_typed_scalar_is_a_yaml_error(self, loader, text, message):
+        # PyYAML's constructor raises a bare ValueError/KeyError here, which
+        # escaped every caller that handles yaml.YAMLError (a 500 on import).
+        with pytest.raises(yaml.constructor.ConstructorError) as info:
+            yamlio.safe_load(text, loader)
+        assert message in str(info.value)
+        mark = info.value.problem_mark
+        assert mark is not None and mark.line == text.count("\n")  # at the bad scalar
+        with pytest.raises(yaml.YAMLError):
+            list(yamlio.safe_load_all("ok: 1\n---\n" + text, loader))
+
+    @pytest.mark.parametrize("loader", sorted({yaml.SafeLoader, yamlio.SAFE_LOADER}, key=str))
+    def test_typed_scalars_still_load(self, loader):
+        text = "i: !!int 0x1f\nf: !!float 1e3\nb: !!bool yes\nt: !!timestamp 2026-10-06\nn: [1, {x: 2.5}]\n"
+        assert yamlio.safe_load(text, loader) == yaml.safe_load(text)
+
+
 class TestConfigFile:
     def test_loads_a_mapping(self, tmp_path):
         path = tmp_path / "zing.yaml"
@@ -322,6 +349,12 @@ class TestConfigFile:
         assert message.startswith(f"Invalid YAML in {path}: ")
         assert "found character '\\t' that cannot start any token" in message
         assert "line 2, column 1" in message
+
+    def test_unreadable_typed_value_is_a_config_error(self, tmp_path):
+        path = tmp_path / "zing.yaml"
+        path.write_text("target:\n  timeout: !!float soon\n", encoding="utf-8")
+        with pytest.raises(ConfigError, match=r"(?s)cannot read 'soon' as float.*line 2, column 12"):
+            load_config_file(path)
 
     def test_non_mapping_is_refused(self, tmp_path):
         path = tmp_path / "zing.yaml"

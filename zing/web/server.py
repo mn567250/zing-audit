@@ -663,8 +663,14 @@ def create_app() -> FastAPI:
     async def secretfield_js() -> Any:
         return FileResponse(_STATIC / "secretfield.js", media_type="application/javascript")
 
+    # Handlers that do blocking work (SQLite, YAML/JSON parsing, the knowledge
+    # base load, file reads) are plain `def`: Starlette runs them in its thread
+    # pool, so the event loop (live audits timestamp chunks on it) never stalls.
+    # Async handlers that must await the request body offload only the blocking
+    # part with asyncio.to_thread; anything touching loop-owned state
+    # (_running_watches, jobs, tasks) stays on the loop.
     @app.get("/api/kb")
-    async def kb() -> Any:
+    def kb() -> Any:
         # Public model metadata only — no keys, no secrets. Mirrors the grouping
         # the CLI `kb --json` command uses: providers sorted, each with its models.
         from zing.knowledge import load_knowledge_base
@@ -683,7 +689,7 @@ def create_app() -> FastAPI:
 
     # ----- Knowledge base: browse, research prompt, import/export -------- #
     @app.get("/api/kb/profiles")
-    async def kb_profiles() -> Any:
+    def kb_profiles() -> Any:
         # Every provider/model as merged for audits, with its source and the
         # user's entries (kb.db) — plus entries that were skipped.
         from zing.knowledge import load_knowledge_base, store
@@ -711,7 +717,7 @@ def create_app() -> FastAPI:
                              "user_kb": knowledge.user_kb, "warnings": knowledge.warnings})
 
     @app.get("/api/kb/prompt")
-    async def kb_prompt(model: str = "", provider: str = "") -> Any:
+    def kb_prompt(model: str = "", provider: str = "") -> Any:
         from zing.knowledge import load_knowledge_base
         from zing.knowledge.research import research_prompt
 
@@ -723,7 +729,7 @@ def create_app() -> FastAPI:
         from zing.knowledge import load_knowledge_base
 
         body = await request.json()
-        knowledge = load_knowledge_base()
+        knowledge = await asyncio.to_thread(load_knowledge_base)
         r = knowledge.resolve(str(body.get("model") or "")[:200], body.get("provider") or None)
         if r is None:
             return JSONResponse({"matched": False})
@@ -744,19 +750,21 @@ def create_app() -> FastAPI:
         from zing.knowledge.importer import scan
 
         text, _name = await _yaml_body(request)
-        return JSONResponse(scan(text).to_dict())
+        return JSONResponse((await asyncio.to_thread(scan, text)).to_dict())
 
     @app.post("/api/kb/import")
     async def kb_import(request: Request) -> Any:
         from zing.knowledge.importer import import_yaml
 
         text, name = await _yaml_body(request)
-        result, ids = import_yaml(text, origin=f"import:{name}" if name else "import")
+        result, ids = await asyncio.to_thread(
+            import_yaml, text, origin=f"import:{name}" if name else "import"
+        )
         body = {**result.to_dict(), "entry_ids": ids}
         return JSONResponse(body, status_code=201 if result.ok else 400)
 
     @app.get("/api/kb/export")
-    async def kb_export(provider: str = "") -> Any:
+    def kb_export(provider: str = "") -> Any:
         from zing.knowledge.importer import export_yaml
 
         text = export_yaml(provider or None)
@@ -771,12 +779,12 @@ def create_app() -> FastAPI:
         body = await request.json()
         if "enabled" not in body:
             return JSONResponse({"error": "nothing to change"}, status_code=400)
-        if not store.set_enabled(entry_id, bool(body.get("enabled"))):
+        if not await asyncio.to_thread(store.set_enabled, entry_id, bool(body.get("enabled"))):
             return JSONResponse({"error": "not found"}, status_code=404)
         return JSONResponse({"ok": True})
 
     @app.delete("/api/kb/entries/{entry_id}")
-    async def kb_entry_delete(entry_id: int) -> Any:
+    def kb_entry_delete(entry_id: int) -> Any:
         from zing.knowledge import store
 
         if not store.delete(entry_id):
@@ -1002,8 +1010,12 @@ def create_app() -> FastAPI:
                 {"error": f"unknown format {format!r}; choose from: {', '.join(media)}"},
                 status_code=400,
             )
+        raw = await request.body()
         try:
-            report = AuditReport.model_validate(await request.json())
+            # Decoding and validating a large report is CPU work: off the loop.
+            report = await asyncio.to_thread(
+                lambda: AuditReport.model_validate(json.loads(raw))
+            )
         except (ValueError, ValidationError) as exc:
             return JSONResponse({"error": f"not a zing report: {exc}"[:500]}, status_code=400)
 
@@ -1015,7 +1027,8 @@ def create_app() -> FastAPI:
             except Exception as exc:  # a layout failure must still reach the UI as JSON
                 return JSONResponse({"error": f"PDF rendering failed: {exc}"[:500]}, status_code=500)
         else:
-            body = {"json": render_json, "md": render_markdown, "html": render_html}[format](report)
+            render = {"json": render_json, "md": render_markdown, "html": render_html}[format]
+            body = await asyncio.to_thread(render, report)
         fname = f"{report_stem(report)}.{format}"
         return Response(body, media_type=media[format],
                         headers={"Content-Disposition": f'attachment; filename="{fname}"'})
@@ -1025,19 +1038,19 @@ def create_app() -> FastAPI:
         return _classic_page(request, "/history")
 
     @app.get("/api/history")
-    async def history_list(limit: int = 50, perf: bool = False) -> Any:
+    def history_list(limit: int = 50, perf: bool = False) -> Any:
         from zing.web import history
 
         return JSONResponse(history.recent(limit, perf=perf))
 
     @app.get("/api/history/trend")
-    async def history_trend(base_url: str, claimed_model: str, limit: int = 30) -> Any:
+    def history_trend(base_url: str, claimed_model: str, limit: int = 30) -> Any:
         from zing.web import history
 
         return JSONResponse(history.trend(base_url, claimed_model, limit))
 
     @app.get("/api/history/{rid}")
-    async def history_get(rid: int) -> Any:
+    def history_get(rid: int) -> Any:
         from zing.web import history
 
         report = history.get(rid)
@@ -1046,14 +1059,14 @@ def create_app() -> FastAPI:
         return JSONResponse(report)
 
     @app.delete("/api/history/{rid}")
-    async def history_delete(rid: int) -> Any:
+    def history_delete(rid: int) -> Any:
         from zing.web import history
 
         history.delete(rid)
         return JSONResponse({"ok": True})
 
     @app.delete("/api/history")
-    async def history_clear() -> Any:
+    def history_clear() -> Any:
         from zing.web import history
 
         history.clear()
@@ -1064,25 +1077,23 @@ def create_app() -> FastAPI:
     async def watches_page(request: Request) -> Any:
         return _classic_page(request, "/watches")
 
-    @app.get("/api/watches")
-    async def watches_list() -> Any:
+    def _watch_rows() -> list[dict[str, Any]]:
+        """The stored watches with their schedule floor, protocol and KB drift.
+
+        Blocking (SQLite + knowledge base load): runs in a worker thread.
+        Touches no loop-owned state; live run state is added on the loop.
+        """
+        from zing.knowledge import load_knowledge_base
         from zing.web import watches
 
         # list_all() never returns api_key, so this is safe to send to the browser.
         rows = watches.list_all()
         # Flag pinned profiles that differ from what the knowledge base resolves now.
-        from zing.knowledge import load_knowledge_base
-
         try:
             kb = load_knowledge_base() if rows else None
         except Exception:
             kb = None
         for row in rows:
-            state = _running_watches.get(int(row["id"]))
-            row["running"] = state is not None
-            # waiting for its relay: another audit is using it
-            row["queued"] = state is not None and not state.get("started")
-            row["progress"] = _watch_progress(state) if state is not None else None
             row["min_interval_sec"] = _min_interval_sec(row.get("run_duration_sec"))
             row.update(_watch_protocol(row))
             row["kb_current_hash"] = None
@@ -1096,6 +1107,18 @@ def create_app() -> FastAPI:
             row["kb_current_hash"] = current
             pinned_hash = (row.get("kb") or {}).get("profile_hash")
             row["kb_changed"] = bool(pinned_hash and pinned_hash != current)
+        return rows
+
+    @app.get("/api/watches")
+    async def watches_list() -> Any:
+        rows = await asyncio.to_thread(_watch_rows)
+        # Live run state belongs to the event loop: read it here, not in the thread.
+        for row in rows:
+            state = _running_watches.get(int(row["id"]))
+            row["running"] = state is not None
+            # waiting for its relay: another audit is using it
+            row["queued"] = state is not None and not state.get("started")
+            row["progress"] = _watch_progress(state) if state is not None else None
         return JSONResponse(rows)
 
     @app.post("/api/watches")
@@ -1127,13 +1150,13 @@ def create_app() -> FastAPI:
             "performance_streaming": body.get("performance_streaming") is not False,
         }
         try:
-            knowledge = _watch_knowledge(cfg)
+            knowledge = await asyncio.to_thread(_watch_knowledge, cfg)
         except Exception as exc:  # e.g. a broken ZING_KB_DIR file
             return JSONResponse({"error": f"knowledge base: {exc}"}, status_code=400)
         from zing.secretbox import SecretLocked
 
         try:
-            wid = watches.create(cfg, knowledge=knowledge)
+            wid = await asyncio.to_thread(watches.create, cfg, knowledge=knowledge)
         except SecretLocked as exc:
             return _locked_response(exc)
         return JSONResponse({"ok": True, "id": wid}, status_code=201)
@@ -1152,10 +1175,10 @@ def create_app() -> FastAPI:
         """
         from zing.web import history, watches
 
-        report = history.get(rid)
+        report = await asyncio.to_thread(history.get, rid)
         if report is None:
             return JSONResponse({"error": "not found"}, status_code=404)
-        if history.watch_of(rid) is not None:
+        if await asyncio.to_thread(history.watch_of, rid) is not None:
             return JSONResponse({"error": "this run was produced by a monitor"}, status_code=409)
         try:
             body = await request.json()
@@ -1196,14 +1219,14 @@ def create_app() -> FastAPI:
             "run_duration_sec": history.run_duration_sec(report),
         }
         try:
-            knowledge = _watch_knowledge(cfg)
+            knowledge = await asyncio.to_thread(_watch_knowledge, cfg)
         except Exception as exc:  # e.g. a broken ZING_KB_DIR file
             return JSONResponse({"error": f"knowledge base: {exc}"}, status_code=400)
-        wid = watches.create(cfg, knowledge=knowledge, draft=True)
+        wid = await asyncio.to_thread(watches.create, cfg, knowledge=knowledge, draft=True)
         return JSONResponse({"ok": True, "id": wid}, status_code=201)
 
     @app.delete("/api/watches/{wid}")
-    async def watches_delete(wid: int) -> Any:
+    def watches_delete(wid: int) -> Any:
         from zing.web import watches
 
         watches.delete(wid)
@@ -1213,7 +1236,7 @@ def create_app() -> FastAPI:
     async def watches_patch(wid: int, request: Request) -> Any:
         from zing.web import watches
 
-        row = watches.get(wid)
+        row = await asyncio.to_thread(watches.get, wid)
         if row is None:
             return JSONResponse({"error": "not found"}, status_code=404)
         body = await request.json()
@@ -1254,27 +1277,34 @@ def create_app() -> FastAPI:
             return JSONResponse({"error": "set an interval first"}, status_code=400)
         from zing.secretbox import SecretLocked
 
-        try:
-            watches.update(wid, interval_sec=interval, api_key=key, alert_on=alert_on, webhooks=hooks)
-        except SecretLocked as exc:
-            return _locked_response(exc)
-        if "enabled" in body:
-            watches.set_enabled(wid, bool(body.get("enabled")))
-        if "language" in body:
-            watches.set_language(wid, body.get("language"))
-        if body.get("repin"):
-            # Re-pin to the profile the knowledge base resolves to now.
+
+        def store() -> JSONResponse:
+            # All of the PATCH's writes in one worker-thread call, in order.
             try:
-                watches.pin(wid, _watch_knowledge(row))
-            except Exception as exc:
-                return JSONResponse({"error": f"knowledge base: {exc}"}, status_code=400)
-        return JSONResponse({"ok": True})
+                watches.update(
+                    wid, interval_sec=interval, api_key=key, alert_on=alert_on, webhooks=hooks
+                )
+            except SecretLocked as exc:
+                return _locked_response(exc)
+            if "enabled" in body:
+                watches.set_enabled(wid, bool(body.get("enabled")))
+            if "language" in body:
+                watches.set_language(wid, body.get("language"))
+            if body.get("repin"):
+                # Re-pin to the profile the knowledge base resolves to now.
+                try:
+                    watches.pin(wid, _watch_knowledge(row))
+                except Exception as exc:
+                    return JSONResponse({"error": f"knowledge base: {exc}"}, status_code=400)
+            return JSONResponse({"ok": True})
+
+        return await asyncio.to_thread(store)
 
     @app.post("/api/watches/{wid}/run")
     async def watches_run(wid: int) -> Any:
         from zing.web import watches
 
-        row = watches.get(wid)
+        row = await asyncio.to_thread(watches.get, wid)
         if row is None:
             return JSONResponse({"error": "not found"}, status_code=404)
         # Run the same path the scheduler uses (audit + persist + alert + mark).
@@ -1299,11 +1329,13 @@ def create_app() -> FastAPI:
         # Return the freshly saved report so the UI can show the result.
         from zing.web import history
 
-        refreshed = watches.get(wid)
-        report = None
-        if refreshed and refreshed.get("last_report_id") is not None:
-            report = history.get(int(refreshed["last_report_id"]))
-        return JSONResponse({"ok": True, "report": report})
+        def saved_report() -> dict[str, Any] | None:
+            refreshed = watches.get(wid)
+            if refreshed and refreshed.get("last_report_id") is not None:
+                return history.get(int(refreshed["last_report_id"]))
+            return None
+
+        return JSONResponse({"ok": True, "report": await asyncio.to_thread(saved_report)})
 
     @app.post("/api/watches/{wid}/cancel")
     async def watches_cancel(wid: int) -> Any:
@@ -1334,13 +1366,13 @@ def create_app() -> FastAPI:
             return _secret_json({"error": str(exc)}, status_code=exc.status)
 
     @app.get("/api/secret")
-    async def secret_status() -> Any:
+    def secret_status() -> Any:
         from zing.web.masterkey import vault
 
         return _secret_json(vault.status())
 
     @app.post("/api/secret/new")
-    async def secret_new() -> Any:
+    def secret_new() -> Any:
         """A new master key, shown once; confirmed by /api/secret/new/confirm."""
         from zing.secretbox import SecretBox
         from zing.web.masterkey import PENDING_TTL_SEC, VaultError, vault
@@ -1359,16 +1391,18 @@ def create_app() -> FastAPI:
     async def secret_new_confirm(request: Request) -> Any:
         from zing.web.masterkey import vault
 
-        return _vault_call(vault.confirm_new, await _typed_key(request))
+        typed = await _typed_key(request)
+        return await asyncio.to_thread(_vault_call, vault.confirm_new, typed)
 
     @app.post("/api/secret/unlock")
     async def secret_unlock(request: Request) -> Any:
         from zing.web.masterkey import vault
 
-        return _vault_call(vault.unlock, await _typed_key(request))
+        typed = await _typed_key(request)
+        return await asyncio.to_thread(_vault_call, vault.unlock, typed)
 
     @app.post("/api/secret/lock")
-    async def secret_lock() -> Any:
+    def secret_lock() -> Any:
         # Audits already running finish with the key they decrypted.
         from zing.web.masterkey import vault
 
@@ -1390,6 +1424,9 @@ def create_app() -> FastAPI:
             return _secret_json(
                 {"error": f"cannot reset the master key while it is {st['state']}"}, status_code=409
             )
+        # Stays on the loop on purpose: check, cancel the running monitors and
+        # reset without yielding, so no monitor can start (and no unlock can
+        # land) in between. A rare, deliberate action.
         for wid in list(_running_watches):
             _cancel_watch(wid)
         try:
@@ -1428,7 +1465,8 @@ def create_app() -> FastAPI:
         # in which case the auditor records the observed dimension instead.
         claimed_dimensions = _coerce_int(body.get("claimed_dimensions"))
         if claimed_dimensions <= 0:
-            claimed_dimensions = _kb_embedding_dimensions(
+            claimed_dimensions = await asyncio.to_thread(
+                _kb_embedding_dimensions,
                 target.claimed_model or target.model,
                 target.declared_provider,
             )

@@ -385,3 +385,35 @@ def test_v2_footer_links_the_accessibility_report(client):
     assert 'href="/v2/accessibility"' in js and "footer" in js
     for path in ("/v2/", "/v2/history", "/v2/watches", "/v2/tools", "/v2/kb", "/v2/accessibility"):
         assert '<script src="/v2/static/nav.js"></script>' in client.get(path).text, path
+
+
+async def test_health_stays_responsive_while_history_loads(tmp_path, monkeypatch):
+    # A slow (blocking) history query must not stall the event loop: audits
+    # timestamp their chunks on it, and every other request waits behind it.
+    import asyncio
+    import threading
+
+    import httpx
+
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    started, release = threading.Event(), threading.Event()
+
+    def slow_recent(limit: int = 50, perf: bool = False) -> list:
+        started.set()
+        release.wait(5)  # blocks its thread, as a large SQLite read does
+        return []
+
+    monkeypatch.setattr("zing.web.history.recent", slow_recent)
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://localhost") as ac:
+        slow = asyncio.create_task(ac.get("/api/history", params={"limit": 500}))
+        try:
+            assert await asyncio.to_thread(started.wait, 5)
+            health = await asyncio.wait_for(ac.get("/api/health"), 2)
+            assert health.status_code == 200
+            # Answered while the history request is still blocked in its thread.
+            assert not slow.done()
+        finally:
+            release.set()
+        r = await slow
+    assert r.status_code == 200 and r.json() == []

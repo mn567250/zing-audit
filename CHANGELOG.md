@@ -106,6 +106,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   writes Chinese with a standard PDF font the viewer supplies, so no fonts are
   shipped. The `pdf` extra is now empty and kept only so older install commands
   still work; the Docker image drops Pango and its fonts.
+- **Web API requests no longer stall the server.** The History, knowledge
+  base, Monitors-list/edit and master-key endpoints and report downloads do
+  their SQLite, YAML and rendering work in a worker thread instead of on the
+  event loop, so other requests and live audits (which timestamp streamed
+  chunks on that loop for TTFT and inter-token latency) are not held up while
+  a large history list or the knowledge base loads.
 
 ### Documentation
 

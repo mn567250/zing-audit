@@ -396,22 +396,26 @@ def test_locales_route_picks_the_language_and_revalidates():
 
     from zing.web.server import create_app
 
+    def vary(r) -> set[str]:
+        # gzip (zing/web/caching.py) adds Accept-Encoding; only Cookie is ours
+        return {v.strip().lower() for v in r.headers.get("vary", "").split(",") if v.strip()}
+
     client = TestClient(create_app(), base_url="http://localhost")
     full = client.get("/locales.js")
     assert full.status_code == 200 and '"code":"de"' in full.text
-    assert full.headers["cache-control"] == "no-cache" and full.headers["vary"] == "Cookie"
+    assert full.headers["cache-control"] == "no-cache" and "cookie" in vary(full)
     assert '"lang":' not in full.text.split(";\n", 1)[0]  # every language
 
     de = client.get("/locales.js?lang=de")
     assert de.status_code == 200 and '"lang":"de"' in de.text
     assert "application/javascript" in de.headers["content-type"]
     assert de.headers["etag"] != full.headers["etag"]
-    assert "vary" not in de.headers  # the query decides, not the cookie
+    assert "cookie" not in vary(de)  # the query decides, not the cookie
     assert len(de.content) < len(full.content) / 3
 
     client.cookies.set("zing_lang", "fr")
     fr = client.get("/locales.js")
-    assert '"lang":"fr"' in fr.text and fr.headers["vary"] == "Cookie"
+    assert '"lang":"fr"' in fr.text and "cookie" in vary(fr)
     assert '"lang":"de"' in client.get("/locales.js?lang=de").text  # query wins
     client.cookies.clear()
 

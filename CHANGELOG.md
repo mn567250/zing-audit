@@ -106,6 +106,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   writes Chinese with a standard PDF font the viewer supplies, so no fonts are
   shipped. The `pdf` extra is now empty and kept only so older install commands
   still work; the Docker image drops Pango and its fonts.
+- **Faster knowledge-base loading.** Profiles are parsed with libyaml's C
+  loader when PyYAML has it, the packaged profiles are parsed once per process,
+  and the merged knowledge base is cached, keyed on the `--kb-dir` /
+  `ZING_KB_DIR` files, the data directory and the kb.db entries, so imports,
+  edits and deletes still apply immediately. The Models page, `/api/kb/*` and
+  the Monitors list (`/api/watches`) answer in a fraction of the time.
 
 ### Documentation
 

@@ -182,21 +182,14 @@
     });
     return s;
   }
-  // Intl formatters are costly to build: one per (locale, options), reused.
-  // Same output as toLocaleString(locale, options); a bad locale still throws.
-  var intlCache = {};
-  function intlFmt(Ctor, kind, loc, opts) {
-    var k = kind + "|" + (loc == null ? "" : String(loc)) + "|" + JSON.stringify(opts || {});
-    return intlCache[k] || (intlCache[k] = new Ctor(loc, opts));
-  }
   function num(n, digits) {
-    try { return intlFmt(Intl.NumberFormat, "n", L.locale(), { maximumFractionDigits: digits || 0 }).format(Number(n)); } catch (e) { return String(n); }
+    try { return L.numFmt({ maximumFractionDigits: digits || 0 }).format(Number(n)); } catch (e) { return String(n); }
   }
   function fmtTime(iso) {
     if (!iso) return "—";
     var d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
-    try { return intlFmt(Intl.DateTimeFormat, "d", L.locale(), { dateStyle: "long", timeStyle: "short" }).format(d); } catch (e) { return d.toLocaleString(); }
+    try { return L.dateFmt({ dateStyle: "long", timeStyle: "short" }).format(d); } catch (e) { return d.toLocaleString(); }
   }
   // Catalogue text (step titles, "how"): English in the report, translated
   // through the locale fragments (zh included); untranslated text keeps

@@ -173,17 +173,10 @@
     });
     return s;
   }
-  // Intl formatters are costly to build: one per (locale, options), reused.
-  // Same output as toLocaleString(locale, options); a bad locale still throws.
-  var intlCache = {};
-  function intlFmt(Ctor, kind, loc, opts) {
-    var k = kind + "|" + (loc == null ? "" : String(loc)) + "|" + JSON.stringify(opts || {});
-    return intlCache[k] || (intlCache[k] = new Ctor(loc, opts));
-  }
   function fmtTime(ts) {
     if (!ts) return "—";
     try {
-      return intlFmt(Intl.DateTimeFormat, "d", L.locale(), { dateStyle: "medium", timeStyle: "short" }).format(new Date(ts * 1000));
+      return L.dateFmt({ dateStyle: "medium", timeStyle: "short" }).format(new Date(ts * 1000));
     } catch (e) {
       return new Date(ts * 1000).toLocaleString();
     }
@@ -486,7 +479,7 @@
 
   function num(v) {
     var n = Number(v);
-    return isFinite(n) && n > 0 ? intlFmt(Intl.NumberFormat, "n", L.locale()).format(n) : "—";
+    return isFinite(n) && n > 0 ? L.numFmt().format(n) : "—";
   }
   function paintProfiles() {
     if (!data) return;

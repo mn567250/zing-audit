@@ -71,11 +71,15 @@
   function locale() {
     return window.ZING_LANG && window.ZING_LANG.locale ? window.ZING_LANG.locale() : undefined;
   }
-  // Intl formatters are costly to build: one per (locale, options), reused.
+  // Intl formatters are costly to build: one per (locale, options), reused,
+  // from ZING_LANG.intl (lang.js). This script also runs without lang.js
+  // (e.g. evaluated on its own), so it keeps a small cache of its own then.
   // Same output as toLocaleString(locale, options); a bad locale still throws.
   var intlCache = {};
   function intlFmt(Ctor, kind, loc, opts) {
-    var k = kind + "|" + (loc == null ? "" : String(loc)) + "|" + JSON.stringify(opts || {});
+    var Z = window.ZING_LANG;
+    if (Z && Z.intl) return Z.intl(Ctor, opts, loc);
+    var k = kind + "|" + (loc === undefined ? "" : JSON.stringify(loc)) + "|" + JSON.stringify(opts || {});
     return intlCache[k] || (intlCache[k] = new Ctor(loc, opts));
   }
   function num(v, digits) {

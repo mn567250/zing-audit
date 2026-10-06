@@ -327,8 +327,8 @@ def _cancel_watch(wid: int) -> bool:
     """Stop a running watch; False when it is not running."""
     state = _running_watches.get(wid)
     task = state.get("task") if state else None
-    if state is None or task is None or task.done():
-        return False
+    if state is None or task is None or task.done() or state.get("saving"):
+        return False  # not running, or saving its report: too late to cancel
     state["cancelled"] = True
     task.cancel()
     return True
@@ -351,6 +351,7 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
     report_id: int | None = None
     duration: float | None = None
     cancelled = False
+    saved = False  # a run whose report is stored is recorded with it, even if cancelled
     try:
         suite = validate_suite(str(row.get("suite") or "standard"))
         dimensions = validate_dimensions(suite, row.get("dimensions"))
@@ -422,17 +423,23 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
             duration = time.perf_counter() - started
         report_dict = json.loads(report.model_dump_json())
 
-        async def store() -> int | None:
+        async def store() -> None:
             # Save off the loop and report it, as one step (see jobs.settle).
-            rid: int | None = await asyncio.to_thread(history.save, report_dict, watch_id=wid)
-            if rid is not None and rid < 0:
-                rid = None
+            nonlocal report_id, saved
+            rid = await asyncio.to_thread(history.save, report_dict, watch_id=wid)
+            report_id = rid if rid is not None and rid >= 0 else None
+            saved = True
             if job is not None:
-                job.report_id = rid
-                job.emit({"type": "report", "report": report_dict, "report_id": rid})
-            return rid
+                job.report_id = report_id
+                job.emit({"type": "report", "report": report_dict, "report_id": report_id})
 
-        report_id = await jobs.settle(store())
+        if state is not None:
+            state["saving"] = True  # Cancel is refused meanwhile
+        try:
+            await jobs.settle(store())
+        finally:
+            if state is not None:
+                state["saving"] = False
 
         verdict = report_dict.get("verdict") or {}
         # report_dict came through model_dump_json, so risk_level is a plain str.
@@ -458,10 +465,11 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
         cancelled = True
         raise
     finally:
-        # Record the run no matter what so cadence stays honest. A cancelled
-        # run keeps the previous result on the card, only its time moves on.
+        # Record the run no matter what so cadence stays honest. A run
+        # cancelled before its report was stored keeps the previous result on
+        # the card, only its time moves on.
         def mark() -> None:
-            if cancelled:
+            if cancelled and not saved:
                 watches.mark_attempt(wid, now)
             else:
                 watches.mark_run(wid, risk, score, report_id, now, duration_sec=duration)

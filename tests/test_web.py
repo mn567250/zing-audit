@@ -517,7 +517,7 @@ async def test_health_stays_responsive_while_a_monitor_run_saves(tmp_path, monke
     assert row is not None and row["last_report_id"] is not None
 
 
-async def test_cancel_during_a_monitor_save_keeps_its_report(tmp_path, monkeypatch):
+async def test_a_monitor_save_is_never_abandoned(tmp_path, monkeypatch):
     import asyncio
 
     from zing.web import history, server, watches
@@ -537,25 +537,37 @@ async def test_cancel_during_a_monitor_save_keeps_its_report(tmp_path, monkeypat
         return real_save(*a, **k)
 
     monkeypatch.setattr(history, "save", save)
+
+    # Cancel is refused while the finished audit is being saved.
+    run = asyncio.create_task(server._run_one_watch(watches.get(wid)))
+    try:
+        assert await asyncio.to_thread(started.wait, 5)
+        assert not server._cancel_watch(wid)
+    finally:
+        release.set()
+    await asyncio.wait_for(run, 5)
+    row = watches.get(wid)
+    assert row is not None and row["last_report_id"] is not None
+
+    # A server shutdown waits for the save, records the run, then propagates.
+    started.clear()
+    release.clear()
     run = asyncio.create_task(server._run_one_watch(watches.get(wid)))
     try:
         assert await asyncio.to_thread(started.wait, 5)
         job = server._running_watches[wid]["job"]
-        assert server._cancel_watch(wid)
+        run.cancel()
         await asyncio.sleep(0.05)
         assert not run.done()  # waits for the save instead of abandoning it
     finally:
         release.set()
-    with pytest.raises(server.WatchCancelled):
+    with pytest.raises(asyncio.CancelledError):
         await asyncio.wait_for(run, 5)
-    # The report is stored and was reported; the card keeps its last result,
-    # as for any cancelled run, and the watch is no longer running.
-    assert len(history.recent(10)) == 1
+    assert len(history.recent(10)) == 2
     assert job.report_id is not None
-    assert [e["type"] for e in job.events if e["type"] == "report"] == ["report"]
     assert wid not in server._running_watches
     row = watches.get(wid)
-    assert row is not None and row["last_report_id"] is None and row["last_run_ts"]
+    assert row is not None and row["last_report_id"] == job.report_id
 
 
 async def test_scheduler_tick_does_not_block_the_loop(tmp_path, monkeypatch):
@@ -641,8 +653,7 @@ async def test_a_cancel_during_a_job_save_comes_too_late(tmp_path, monkeypatch):
     job = mgr.submit({}, ["https://r.example"], run)
     try:
         assert await asyncio.to_thread(started.wait, 5)
-        assert mgr.cancel(job.id)
-        await asyncio.sleep(0.05)
+        assert not mgr.cancel(job.id)
         assert job.status == "running"
     finally:
         release.set()

@@ -209,6 +209,8 @@ class Job:
         self._subscribers: set[asyncio.Queue[dict[str, Any]]] = set()
         self.task: asyncio.Task[None] | None = None
         self.cancel_requested = False
+        # Set while a finished audit is being saved: too late to cancel then.
+        self.finishing = False
 
     @property
     def active(self) -> bool:
@@ -289,7 +291,10 @@ class JobManager:
 
     def cancel(self, job_id: str) -> bool:
         job = self._jobs.get(job_id)
-        if job is None or not job.active or job.task is None or job.task.done():
+        if (
+            job is None or not job.active or job.finishing
+            or job.task is None or job.task.done()
+        ):
             return False
         job.cancel_requested = True
         job.task.cancel()
@@ -317,7 +322,7 @@ class JobManager:
                 # a cancel arrives while the save runs (off the loop).
                 await settle(self._finish(job, report))
         except asyncio.CancelledError:
-            if job.status != "done":  # else the cancel came too late
+            if job.status != "done":  # else the save finished first (shutdown)
                 job.status = "cancelled"
                 job.emit({"type": "cancelled"})
             if not job.cancel_requested:
@@ -333,6 +338,7 @@ class JobManager:
 
     @staticmethod
     async def _finish(job: Job, report: dict[str, Any]) -> None:
+        job.finishing = True
         job.report_id = await asyncio.to_thread(_save, report)
         job.status = "done"
         job.emit({"type": "report", "report": report, "report_id": job.report_id})
@@ -369,7 +375,8 @@ async def settle(aw: Awaitable[_T]) -> _T:
         except Exception:
             break  # inner failed: raised below, unless a cancel came first
     if cancelled:
-        raise asyncio.CancelledError
+        exc = None if inner.cancelled() else inner.exception()
+        raise asyncio.CancelledError from exc
     return inner.result()
 
 

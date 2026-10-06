@@ -174,6 +174,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   A streamed re-render with 1,000 requests drops from about 500–700 ms to
   about 60 ms (4× CPU throttle). Keyboard focus, the table's scroll position and the tab, progress
   bar and chart semantics stay as before.
+- **History renders long lists faster.** Web UI v2 History shows the first 20
+  runs of each relay group and adds the rest 20 at a time with a **Show more
+  (n remaining)** button (keyboard operable, announced in a status region);
+  group trends still cover every matching run, and an open report or a focused
+  row stays shown across re-renders. Off-screen groups skip rendering until
+  scrolled near (`content-visibility`). With 500 saved runs the page builds
+  about half the DOM and resetting a filter takes roughly a third of the time.
 
 ### Documentation
 

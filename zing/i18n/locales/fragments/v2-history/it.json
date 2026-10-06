@@ -22,12 +22,14 @@
   "Reset filters": "Reimposta filtri",
   "Saved audits: {n}": "Audit salvati: {n}",
   "Search": "Cerca",
+  "Show more ({k} remaining)": "Mostra altri ({k} rimanenti)",
   "Showing {shown} of {n} audits": "{shown} di {n} audit mostrati",
   "This run was produced by a monitor": "Questa esecuzione è stata prodotta da un monitor",
   "Trends": "Andamenti",
   "falling": "in calo",
   "rising": "in crescita",
   "unchanged": "invariato",
+  "{group}: showing {shown} of {total} audits": "{group}: {shown} di {total} audit mostrati",
   "{metric} trend across {n} audits: from {first} to {last}.": "Andamento di {metric} su {n} audit: da {first} a {last}."
  }
 }

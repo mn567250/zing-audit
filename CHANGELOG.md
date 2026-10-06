@@ -113,6 +113,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (`Cache-Control: no-cache`, 304 when unchanged). Switching languages loads
   the new one on demand; if that fails the current language stays. Without
   the cookie the full bundle is still served.
+- **The web UI uses system fonts and makes no outgoing requests.** Every page
+  (v2 and classic) used to load a render-blocking stylesheet from Google Fonts,
+  so offline or firewalled machines waited on it and a request left the
+  machine. The pages now use the operating system's sans-serif and monospace
+  fonts (with Chinese fallbacks), and heading letter-spacing is relaxed to suit
+  them; no page, script or stylesheet loads anything from another host.
 - **PDF reports no longer need a system library.** The PDF is typeset natively
   with ReportLab (pure Python, BSD-licensed) instead of converting the HTML
   report with WeasyPrint, which needed Pango. ReportLab is a core dependency, so

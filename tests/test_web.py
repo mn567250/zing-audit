@@ -424,3 +424,230 @@ async def test_health_stays_responsive_while_history_loads(tmp_path, monkeypatch
             release.set()
         r = await slow
     assert r.status_code == 200 and r.json() == []
+
+
+# The audit loop timestamps streamed chunks with perf_counter, so the blocking
+# store/knowledge-base calls around an audit must not stall it either.
+
+
+def _blocking(result=None, exc: Exception | None = None):
+    """A stand-in for a slow blocking call, plus its started/release events."""
+    import threading
+
+    started, release, finished = threading.Event(), threading.Event(), threading.Event()
+
+    def call(*_a, **_k):
+        started.set()
+        release.wait(5)  # blocks its thread, as a slow SQLite write or YAML load does
+        finished.set()
+        if exc is not None:
+            raise exc
+        return result
+
+    call.finished = finished  # type: ignore[attr-defined]
+    return call, started, release
+
+
+async def _health_answers(transport) -> None:
+    import asyncio
+
+    import httpx
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://localhost") as ac:
+        health = await asyncio.wait_for(ac.get("/api/health"), 2)
+    assert health.status_code == 200
+
+
+def _fake_report(target):
+    from zing.models import AuditReport, RedactedTarget, Verdict
+
+    return AuditReport(
+        tool_version="0", mode="check", suite="standard",
+        target=RedactedTarget(name="t", kind="target", base_url=target.base_url, model="m"),
+        verdict=Verdict(),
+    )
+
+
+async def test_health_stays_responsive_while_a_monitor_run_saves(tmp_path, monkeypatch):
+    import asyncio
+
+    import httpx
+
+    from zing.web import history, server, watches
+
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+
+    async def fake_run_audit(target, options, **_):
+        return _fake_report(target)
+
+    monkeypatch.setattr(server, "run_audit", fake_run_audit)
+    wid = watches.create({"base_url": "https://relay.test/v1", "api_key": "sk-x", "model": "m"})
+    real_save, real_mark = history.save, watches.mark_run
+    slow_save, save_started, save_release = _blocking()
+    slow_mark, mark_started, mark_release = _blocking()
+
+    def save(*a, **k):
+        slow_save()
+        return real_save(*a, **k)
+
+    def mark(*a, **k):
+        slow_mark()
+        return real_mark(*a, **k)
+
+    monkeypatch.setattr(history, "save", save)
+    monkeypatch.setattr(watches, "mark_run", mark)
+    transport = httpx.ASGITransport(app=create_app())
+    run = asyncio.create_task(server._run_one_watch(watches.get(wid)))
+    try:
+        assert await asyncio.to_thread(save_started.wait, 5)
+        await _health_answers(transport)
+        assert not run.done()
+        save_release.set()
+        assert await asyncio.to_thread(mark_started.wait, 5)
+        await _health_answers(transport)
+        # Still listed as running until its run is recorded, so the scheduler
+        # cannot start it again in between.
+        assert wid in server._running_watches and not run.done()
+    finally:
+        save_release.set()
+        mark_release.set()
+    await asyncio.wait_for(run, 5)
+    assert wid not in server._running_watches
+    row = watches.get(wid)
+    assert row is not None and row["last_report_id"] is not None
+
+
+async def test_cancel_during_a_monitor_save_keeps_its_report(tmp_path, monkeypatch):
+    import asyncio
+
+    from zing.web import history, server, watches
+
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+
+    async def fake_run_audit(target, options, **_):
+        return _fake_report(target)
+
+    monkeypatch.setattr(server, "run_audit", fake_run_audit)
+    wid = watches.create({"base_url": "https://relay.test/v1", "api_key": "sk-x", "model": "m"})
+    real_save = history.save
+    slow, started, release = _blocking()
+
+    def save(*a, **k):
+        slow()
+        return real_save(*a, **k)
+
+    monkeypatch.setattr(history, "save", save)
+    run = asyncio.create_task(server._run_one_watch(watches.get(wid)))
+    try:
+        assert await asyncio.to_thread(started.wait, 5)
+        assert server._cancel_watch(wid)
+        await asyncio.sleep(0.05)
+        assert not run.done()  # waits for the save instead of abandoning it
+    finally:
+        release.set()
+    await asyncio.wait_for(run, 5)  # too late to cancel: the run completed
+    row = watches.get(wid)
+    assert row is not None and row["last_report_id"] is not None
+
+
+async def test_scheduler_tick_does_not_block_the_loop(tmp_path, monkeypatch):
+    import asyncio
+
+    import httpx
+
+    from zing.web import server
+
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    slow, started, release = _blocking(result=[])
+    monkeypatch.setattr("zing.web.watches.due", slow)
+    transport = httpx.ASGITransport(app=create_app())
+    loop_task = asyncio.create_task(server._scheduler_loop())
+    try:
+        assert await asyncio.to_thread(started.wait, 5)
+        await _health_answers(transport)
+        assert not slow.finished.is_set()  # answered while the tick's query still blocks
+    finally:
+        release.set()
+        loop_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await loop_task
+
+
+async def test_health_stays_responsive_while_a_job_saves(tmp_path, monkeypatch):
+    import asyncio
+
+    import httpx
+
+    from zing.web import history, jobs
+
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+
+    async def fake_run_audit(target, options, **_):
+        return _fake_report(target)
+
+    monkeypatch.setattr("zing.web.server.run_audit", fake_run_audit)
+    real_save = history.save
+    slow, started, release = _blocking()
+
+    def save(*a, **k):
+        slow()
+        return real_save(*a, **k)
+
+    monkeypatch.setattr(history, "save", save)
+    transport = httpx.ASGITransport(app=create_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://localhost") as ac:
+        created = await ac.post("/api/jobs", json={"base_url": "https://x.example/v1", "model": "m"})
+        job = jobs.manager.get(created.json()["id"])
+        assert job is not None
+        try:
+            assert await asyncio.to_thread(started.wait, 5)
+            health = await asyncio.wait_for(ac.get("/api/health"), 2)
+            assert health.status_code == 200
+            assert job.status == "running"  # still saving
+        finally:
+            release.set()
+        assert job.task is not None
+        await asyncio.wait_for(job.task, 5)
+    assert job.status == "done" and job.report_id is not None
+
+
+async def test_job_save_errors_stay_best_effort(monkeypatch):
+    from zing.web import history, jobs
+
+    def broken(*_a, **_k):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(history, "save", broken)
+    mgr = jobs.JobManager(jobs.RelayGate(limit=4))
+
+    async def run(emit):
+        return {"verdict": {}}
+
+    job = mgr.submit({}, ["https://r.example"], run)
+    assert job.task is not None
+    await job.task
+    assert job.status == "done" and job.report_id is None
+
+
+async def test_audit_knowledge_base_load_does_not_block_the_loop(monkeypatch):
+    import asyncio
+
+    from zing.config import AuditOptions, TargetConfig
+    from zing.runner import run_audit
+
+    slow, started, release = _blocking(exc=RuntimeError("kb stop"))
+    monkeypatch.setattr("zing.runner.load_knowledge_base", slow)
+    audit = asyncio.create_task(
+        run_audit(TargetConfig(base_url="https://x.example/v1", model="m"), AuditOptions())
+    )
+    try:
+        assert await asyncio.to_thread(started.wait, 5)
+        ticks = 0
+        for _ in range(5):  # the loop keeps turning while the KB loads
+            await asyncio.sleep(0.01)
+            ticks += 1
+        assert ticks == 5 and not audit.done()
+    finally:
+        release.set()
+    with pytest.raises(RuntimeError, match="kb stop"):
+        await asyncio.wait_for(audit, 5)

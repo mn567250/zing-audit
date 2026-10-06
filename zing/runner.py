@@ -8,6 +8,7 @@ internally.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from contextlib import AsyncExitStack, suppress
 from datetime import datetime, timezone
@@ -116,7 +117,9 @@ async def run_audit(
     ``ZING_NO_USER_KB``). ``pinned`` audits against a fixed profile snapshot
     (a watch's) instead of resolving the live knowledge base.
     """
-    kb = load_knowledge_base(kb_dirs, include_user=use_user_kb)
+    # YAML + kb.db reads (a deep copy even when cached): off the event loop,
+    # which timestamps the streamed chunks.
+    kb = await asyncio.to_thread(load_knowledge_base, kb_dirs, include_user=use_user_kb)
     profile: ResolvedProfile | None = None
     stale_pin: str | None = None
     if pinned is not None and pinned.profile:

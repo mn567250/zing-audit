@@ -32,8 +32,11 @@ import os
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
-from typing import Any
+from typing import Any, ParamSpec, TypeVar
 from urllib.parse import urlsplit
+
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
 
 # How many audits may run at once across all relays.
 MAX_PARALLEL = max(1, int(os.environ.get("ZING_MAX_PARALLEL_AUDITS", "4") or 4))
@@ -311,10 +314,15 @@ class JobManager:
                 job.waiting_for = []
                 job.emit({"type": "running", "job": job.id})
                 report = await run(job.emit)
-                report_id = _save(report)
+                # The audit is over: the save runs off the loop, and a cancel
+                # that arrives meanwhile waits for it, so the finished report
+                # is stored and reported (as before, when the save was atomic).
+                report_id, interrupted = await settle(_save, report)
                 job.report_id = report_id
                 job.status = "done"
                 job.emit({"type": "report", "report": report, "report_id": report_id})
+                if interrupted and not job.cancel_requested:
+                    raise asyncio.CancelledError  # server shutdown: let it propagate
         except asyncio.CancelledError:
             job.status = "cancelled"
             job.emit({"type": "cancelled"})
@@ -337,6 +345,29 @@ class JobManager:
         for i, j in enumerate(finished):
             if i < excess or now - (j.finished or now) > _KEEP_FINISHED_SEC:
                 self._jobs.pop(j.id, None)
+
+
+async def settle(
+    fn: Callable[_P, _T], /, *args: _P.args, **kwargs: _P.kwargs
+) -> tuple[_T, bool]:
+    """Run blocking ``fn`` in a worker thread and wait until it has finished.
+
+    Keeps SQLite/YAML/JSON work off the event loop (audits timestamp streamed
+    chunks on it) without letting a cancellation abandon a write half-way
+    through the sequence that follows it: if the awaiting task is cancelled
+    meanwhile, this still waits for ``fn`` and returns ``(result, True)``, and
+    the caller re-raises :class:`asyncio.CancelledError` once its bookkeeping
+    is done. Exceptions from ``fn`` propagate as usual.
+    """
+    fut = asyncio.ensure_future(asyncio.to_thread(fn, *args, **kwargs))
+    interrupted = False
+    while True:
+        try:
+            return await asyncio.shield(fut), interrupted
+        except asyncio.CancelledError:
+            if fut.cancelled():
+                raise
+            interrupted = True
 
 
 def _save(report: dict[str, Any]) -> int | None:

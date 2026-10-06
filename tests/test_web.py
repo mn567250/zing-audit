@@ -7,12 +7,21 @@ validation/error path of the SSE endpoint.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
 from zing.web.server import create_app  # noqa: E402
+
+_VERSION = re.compile(r"\?v=[0-9a-f]+(?=[\"'])")
+
+
+def _unversioned(html: str) -> str:
+    """A served page as written on disk: without the ?v=<hash> on asset URLs."""
+    return _VERSION.sub("", html)
 
 
 @pytest.fixture
@@ -75,7 +84,7 @@ def test_serves_lang_js_and_pages_load_it(client):
     assert "application/javascript" in loc.headers["content-type"]
     assert "ZING_LOCALES" in loc.text
     for path in ("/", "/console", "/history", "/tools", "/watches"):
-        html = client.get(path).text
+        html = _unversioned(client.get(path).text)
         # locales must load before lang.js, which reads them at switch time
         assert '<script src="/locales.js"></script>\n<script src="/lang.js"></script>' in html
         # the dropdown is filled from LANG_LIST in lang.js, not per page
@@ -174,7 +183,7 @@ def test_serves_perf_js_and_pages_load_it(client):
     assert "application/javascript" in js.headers["content-type"]
     assert "ZingPerf" in js.text
     for path in ("/", "/history"):
-        assert '<script src="/perf.js"></script>' in client.get(path).text
+        assert '<script src="/perf.js"></script>' in _unversioned(client.get(path).text)
 
 
 def test_audit_stream_batches_request_records(tmp_path, monkeypatch, client):
@@ -242,16 +251,14 @@ def test_history_list_carries_performance_headline_on_request(tmp_path, monkeypa
     assert row["ttft_p50_ms"] is None and row["score"] == 90.0
     assert "report_json" not in row
 
-
 def test_api_key_fields_are_masked_and_paired_with_their_url(client):
-    import re
 
     js = client.get("/secretfield.js")
     assert js.status_code == 200
     assert "application/javascript" in js.headers["content-type"]
     assert "ZingSecret" in js.text
     for path in ("/", "/console", "/tools", "/watches"):
-        html = client.get(path).text
+        html = _unversioned(client.get(path).text)
         assert '<script src="/icons.js"></script>\n<script src="/secretfield.js"></script>' in html
         keys = re.findall(r'<input[^>]*\bid="\w+-key"[^>]*>', html)
         assert keys, path
@@ -277,7 +284,7 @@ def test_v2_pages_share_the_design_system(client):
     for classic, page in _V2_PAGES.items():
         r = client.get("/v2" + classic if classic != "/" else "/v2/")
         assert r.status_code == 200 and "text/html" in r.headers["content-type"], classic
-        html = r.text
+        html = _unversioned(r.text)
         assert '<script src="/locales.js"></script>\n<script src="/lang.js"></script>' in html
         assert '<link rel="stylesheet" href="/v2/static/zing.css" />' in html
         assert f'<header class="znav" data-page="{page}"' in html
@@ -290,7 +297,7 @@ def test_v2_pages_share_the_design_system(client):
 
 
 def test_v2_monitors_page_manages_the_master_key(client):
-    html = client.get("/v2/watches").text
+    html = _unversioned(client.get("/v2/watches").text)
     assert '<script src="/v2/static/masterkey.js"></script>' in html
     assert 'id="mk-bar"' in html
     r = client.get("/v2/static/masterkey.js")
@@ -351,7 +358,7 @@ def test_v2_accessibility_report_page(client):
     # BITV 2.0 / EN 301 549 conformance report: a v2 page in the design system
     r = client.get("/v2/accessibility")
     assert r.status_code == 200 and "text/html" in r.headers["content-type"]
-    html = r.text
+    html = _unversioned(r.text)
     assert '<script src="/locales.js"></script>\n<script src="/lang.js"></script>' in html
     assert '<link rel="stylesheet" href="/v2/static/zing.css" />' in html
     assert '<header class="znav" data-page="a11y"' in html
@@ -384,4 +391,4 @@ def test_v2_footer_links_the_accessibility_report(client):
     js = client.get("/v2/static/nav.js").text
     assert 'href="/v2/accessibility"' in js and "footer" in js
     for path in ("/v2/", "/v2/history", "/v2/watches", "/v2/tools", "/v2/kb", "/v2/accessibility"):
-        assert '<script src="/v2/static/nav.js"></script>' in client.get(path).text, path
+        assert '<script src="/v2/static/nav.js"></script>' in _unversioned(client.get(path).text), path

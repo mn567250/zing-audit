@@ -57,7 +57,6 @@ from typing import Any
 # (CLI `serve`) or by the web tests, both of which handle a missing dependency.
 from fastapi import FastAPI, Request
 from fastapi.responses import (
-    FileResponse,
     JSONResponse,
     RedirectResponse,
     Response,
@@ -79,6 +78,7 @@ from zing.detectors.performance import stream_mode
 from zing.models import KnowledgeUsage, TargetConfig
 from zing.runner import run_audit
 from zing.web import jobs
+from zing.web.caching import CachedStaticFiles, CompressionMiddleware, html_page
 from zing.web.security import LocalOnlyMiddleware
 
 _STATIC = Path(__file__).parent / "static"
@@ -127,7 +127,7 @@ def _classic_page(request: Request, path: str) -> Response:
     if choice == "v2":
         resp = RedirectResponse(v2_path, status_code=307)
     else:
-        resp = FileResponse(_STATIC / file)
+        resp = html_page(_STATIC / file, request.scope)
     return _remember_ui(resp, ui)
 
 
@@ -138,7 +138,7 @@ def _v2_page(request: Request, path: str) -> Response:
     if ui == "v1":
         resp = RedirectResponse(path, status_code=307)
     else:
-        resp = FileResponse(_V2 / _UI_PAGES[path][0])
+        resp = html_page(_V2 / _UI_PAGES[path][0], request.scope)
     return _remember_ui(resp, ui)
 
 
@@ -567,7 +567,9 @@ def create_app() -> FastAPI:
         lifespan=_lifespan,
     )
     # Local-only: Host allowlist (DNS rebinding), Origin + JSON checks (CSRF),
-    # security headers. See zing/web/security.py.
+    # security headers. See zing/web/security.py. Added last, so it runs first:
+    # refused requests never reach the gzip layer below it.
+    app.add_middleware(CompressionMiddleware)  # gzip >= 1 KiB, never for SSE
     app.add_middleware(LocalOnlyMiddleware)
 
     @app.get("/api/health")
@@ -582,7 +584,7 @@ def create_app() -> FastAPI:
     async def console(request: Request) -> Any:
         # Classic only: the console has no v2 counterpart, so the UI cookie
         # never redirects it.
-        return FileResponse(_STATIC / "console.html")
+        return html_page(_STATIC / "console.html")
 
     # ----- v2 UI (side by side with the classic one, for A/B) ------------- #
     @app.get("/v2")
@@ -612,7 +614,7 @@ def create_app() -> FastAPI:
         if request.query_params.get("ui") == "v1":
             resp = RedirectResponse("/", status_code=307)
         else:
-            resp = FileResponse(_V2 / "kb.html")
+            resp = html_page(_V2 / "kb.html", request.scope)
         return _remember_ui(resp, request.query_params.get("ui"))
 
     @app.get("/v2/accessibility")
@@ -624,15 +626,17 @@ def create_app() -> FastAPI:
         if request.query_params.get("ui") == "v1":
             resp = RedirectResponse("/", status_code=307)
         else:
-            resp = FileResponse(_V2 / "accessibility.html")
+            resp = html_page(_V2 / "accessibility.html", request.scope)
         return _remember_ui(resp, request.query_params.get("ui"))
 
     # v2 stylesheets / scripts, e.g. /v2/static/zing.css
-    app.mount("/v2/static", StaticFiles(directory=str(_V2)), name="v2-static")
+    # `?v=<hash>` URLs (written into pages by html_page) are cached immutably.
+    app.mount("/v2/static", CachedStaticFiles(directory=str(_V2)), name="v2-static")
+    root_assets = CachedStaticFiles(directory=str(_STATIC))
 
     @app.get("/i18n.js")
-    async def i18n_js() -> Any:
-        return FileResponse(_STATIC / "i18n.js", media_type="application/javascript")
+    async def i18n_js(request: Request) -> Any:
+        return root_assets.asset("i18n.js", request.scope, "application/javascript")
 
     @app.get("/locales.js")
     async def locales_js() -> Any:
@@ -642,26 +646,24 @@ def create_app() -> FastAPI:
         return Response(locales_script(), media_type="application/javascript")
 
     @app.get("/lang.js")
-    async def lang_js() -> Any:
-        return FileResponse(_STATIC / "lang.js", media_type="application/javascript")
+    async def lang_js(request: Request) -> Any:
+        return root_assets.asset("lang.js", request.scope, "application/javascript")
 
     @app.get("/icons.js")
-    async def icons_js() -> Any:
-        return FileResponse(_STATIC / "icons.js", media_type="application/javascript")
+    async def icons_js(request: Request) -> Any:
+        return root_assets.asset("icons.js", request.scope, "application/javascript")
 
     @app.get("/modelpicker.js")
-    async def modelpicker_js() -> Any:
-        return FileResponse(
-            _STATIC / "modelpicker.js", media_type="application/javascript"
-        )
+    async def modelpicker_js(request: Request) -> Any:
+        return root_assets.asset("modelpicker.js", request.scope, "application/javascript")
 
     @app.get("/perf.js")
-    async def perf_js() -> Any:
-        return FileResponse(_STATIC / "perf.js", media_type="application/javascript")
+    async def perf_js(request: Request) -> Any:
+        return root_assets.asset("perf.js", request.scope, "application/javascript")
 
     @app.get("/secretfield.js")
-    async def secretfield_js() -> Any:
-        return FileResponse(_STATIC / "secretfield.js", media_type="application/javascript")
+    async def secretfield_js(request: Request) -> Any:
+        return root_assets.asset("secretfield.js", request.scope, "application/javascript")
 
     @app.get("/api/kb")
     async def kb() -> Any:
@@ -1485,7 +1487,7 @@ def create_app() -> FastAPI:
         if request.url.path.startswith("/v2/static/"):
             return Response("not found", status_code=404, media_type="text/plain")
         if request.url.path.startswith("/v2/"):
-            return FileResponse(_V2 / "index.html")
-        return FileResponse(_STATIC / "index.html")
+            return html_page(_V2 / "index.html", request.scope)
+        return html_page(_STATIC / "index.html", request.scope)
 
     return app

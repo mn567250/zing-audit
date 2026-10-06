@@ -53,18 +53,39 @@
   function loc() {
     return window.ZING_LANG && window.ZING_LANG.locale ? window.ZING_LANG.locale() : undefined;
   }
+  // Number formatting goes through one cached Intl.NumberFormat per locale and
+  // digit count: Number#toLocaleString builds a new formatter on every call,
+  // which dominated large live tables. The output is the same as
+  // v.toLocaleString(locale, options) (that is how the spec defines it); when
+  // Intl is missing, or for a non-number, that call is still what runs.
+  var fmts = {};
+  function format(v, digits) {
+    var locale = loc();
+    if (typeof v !== "number" || typeof Intl === "undefined" || !Intl.NumberFormat)
+      return digits == null ? v.toLocaleString(locale)
+        : v.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    // undefined (the browser default) and "" (an error) must not share a key
+    var key = (locale === undefined ? "" : "=" + locale) + "|" + (digits == null ? "" : digits);
+    var f = fmts[key];
+    if (!f) {
+      f = digits == null ? new Intl.NumberFormat(locale)
+        : new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+      fmts[key] = f;
+    }
+    return f.format(v);
+  }
   function fixed(v, digits) {
-    return v.toLocaleString(loc(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    return format(v, digits);
   }
   function num(v, unit) {
     if (v == null || isNaN(v)) return "—";
     if (unit === "ratio") return fixed(v * 100, 1) + "%";
     var a = Math.abs(v);
-    if (v === 0 || a >= 100) return Math.round(v).toLocaleString(loc());
+    if (v === 0 || a >= 100) return format(Math.round(v));
     return fixed(v, a >= 10 ? 1 : 2);
   }
   function int(v) {
-    return v == null ? "—" : Number(v).toLocaleString(loc());
+    return v == null ? "—" : format(Number(v));
   }
   function endpointName(r) {
     return r.endpoint === "baseline" ? T("基线", "baseline") : T("目标", "target");
@@ -147,12 +168,18 @@
   var W = 720, H = 230, ML = 52, MR = 12, MT = 10, MB = 30;
   // opts.open keeps the data-table toggle expanded across re-renders.
   function chart(records, metricId, opts) {
+    var c = chartSvg(records, metricId);
+    return c.empty ? c.html : c.html + dataTable(c.calls, c.m, opts && opts.open);
+  }
+  // The SVG alone (or the "no samples" note): {html, empty, calls, m}. Its data
+  // table is dataTable(calls, m, open); the live panel keeps that one in place.
+  function chartSvg(records, metricId) {
     var m = metric(metricId);
     var calls = (records || []).filter(function (r) { return r.op === "complete"; });
     var pts = calls.filter(function (r) { return r.ok && m.get(r) != null; });
     var failed = calls.filter(function (r) { return !r.ok; });
     if (!pts.length && !failed.length)
-      return '<div class="zp-empty">' + esc(T("暂无数据", "No samples yet")) + "</div>";
+      return { html: '<div class="zp-empty">' + esc(T("暂无数据", "No samples yet")) + "</div>", empty: true, calls: calls, m: m };
     var end = 1;
     calls.forEach(function (r) { end = Math.max(end, (r.start_ms + (r.duration_ms || 0)) / 1000); });
     var xa = niceAxis(end), xMax = xa.max;
@@ -185,8 +212,7 @@
         '" data-tip="' + esc(tip(r, null)) + '"/>');
     });
     o.push("</svg>");
-    o.push(dataTable(calls, m, opts && opts.open));
-    return o.join("");
+    return { html: o.join(""), empty: false, calls: calls, m: m };
   }
   // The chart's accessible name: what it plots, how many requests, the median
   // per endpoint and the failures.
@@ -205,23 +231,39 @@
     return parts.join(T("；", "; "));
   }
   // What the hover tooltips show, as a table behind a toggle.
-  function dataTable(calls, m, open) {
-    var rows = calls.filter(function (r) { return !r.ok || m.get(r) != null; });
+  // With `lazy`, a closed toggle comes without its table (the live panel fills
+  // it in when it opens).
+  function dataTable(calls, m, open, lazy) {
+    var rows = dataRows(calls, m);
     if (!rows.length) return "";
-    return '<details class="zp-data"' + (open ? " open" : "") + "><summary>" + esc(T("查看数据表", "Show data table")) +
-      '</summary><div class="zp-data-scroll" tabindex="0"><table class="zp-table zp-small"><thead><tr><th class="r">#</th><th>' +
+    return '<details class="zp-data"' + (open ? " open" : "") + "><summary>" + esc(dataSummary()) +
+      '</summary><div class="zp-data-scroll" tabindex="0">' + (open || !lazy ? dataTableHtml(rows, m) : "") +
+      "</div></details>";
+  }
+  function dataSummary() {
+    return T("查看数据表", "Show data table");
+  }
+  function dataRows(calls, m) {
+    return calls.filter(function (r) { return !r.ok || m.get(r) != null; });
+  }
+  function dataHead(m) {
+    return '<thead><tr><th class="r">#</th><th>' +
       esc(T("端点", "Endpoint")) + "</th><th>" + esc(T("阶段", "Phase")) + '</th><th class="r">' +
       esc(T("开始", "Start")) + ' <span class="zp-unit">s</span></th><th class="r">' + esc(T(m.zh, m.en)) +
-      ' <span class="zp-unit">' + m.unit + "</span></th><th>" + esc(T("状态", "Status")) + "</th></tr></thead><tbody>" +
-      rows.map(function (r) {
-        var status = !r.ok
-          ? T("失败", "failed") + " (" + (r.status_code || r.error_type || "?") + ")"
-          : r.cached ? T("缓存命中（不计入统计）", "cached (excluded)") : "OK";
-        return '<tr><td class="r">' + esc(r.seq) + "</td><td>" + esc(endpointName(r)) + "</td><td>" +
-          esc(phaseName(r.phase) + (r.stream ? "" : " · " + T("非流式", "non-streaming"))) + '</td><td class="r">' +
-          num((r.start_ms || 0) / 1000) + '</td><td class="r">' + (r.ok ? num(m.get(r)) : "—") + "</td><td>" +
-          esc(status) + "</td></tr>";
-      }).join("") + "</tbody></table></div></details>";
+      ' <span class="zp-unit">' + m.unit + "</span></th><th>" + esc(T("状态", "Status")) + "</th></tr></thead>";
+  }
+  function dataRow(r, m) {
+    var status = !r.ok
+      ? T("失败", "failed") + " (" + (r.status_code || r.error_type || "?") + ")"
+      : r.cached ? T("缓存命中（不计入统计）", "cached (excluded)") : "OK";
+    return '<tr><td class="r">' + esc(r.seq) + "</td><td>" + esc(endpointName(r)) + "</td><td>" +
+      esc(phaseName(r.phase) + (r.stream ? "" : " · " + T("非流式", "non-streaming"))) + '</td><td class="r">' +
+      num((r.start_ms || 0) / 1000) + '</td><td class="r">' + (r.ok ? num(m.get(r)) : "—") + "</td><td>" +
+      esc(status) + "</td></tr>";
+  }
+  function dataTableHtml(rows, m) {
+    return '<table class="zp-table zp-small">' + dataHead(m) + "<tbody>" +
+      rows.map(function (r) { return dataRow(r, m); }).join("") + "</tbody></table>";
   }
   function tip(r, m) {
     var head = "#" + r.seq + " · " + endpointName(r) + " · " + (r.detector || "—") + " · " + phaseName(r.phase) +
@@ -290,6 +332,16 @@
   // data-table toggle's state for the next render.
   function wire(root, onMetric, onToggle) {
     if (!root) return;
+    wireTabs(root, onMetric);
+    var det = root.querySelector(".zp-data");
+    if (det && onToggle) det.addEventListener("toggle", function () { onToggle(det.open); });
+    root.querySelectorAll("[data-tip]").forEach(function (el) {
+      el.addEventListener("mousemove", function (e) { showTip(e, el.getAttribute("data-tip")); });
+      el.addEventListener("mouseleave", hideTip);
+    });
+  }
+  // The tab buttons' handlers are properties, so wiring a tab twice is harmless.
+  function wireTabs(root, onMetric) {
     root.querySelectorAll(".zp-tabs button").forEach(function (b) {
       b.onclick = function (e) {
         e.stopPropagation();
@@ -308,12 +360,6 @@
         var t = root.querySelector('.zp-tabs [data-metric="' + id + '"]');
         if (t) t.focus();
       };
-    });
-    var det = root.querySelector(".zp-data");
-    if (det && onToggle) det.addEventListener("toggle", function () { onToggle(det.open); });
-    root.querySelectorAll("[data-tip]").forEach(function (el) {
-      el.addEventListener("mousemove", function (e) { showTip(e, el.getAttribute("data-tip")); });
-      el.addEventListener("mouseleave", hideTip);
     });
   }
 
@@ -488,6 +534,8 @@
     this.probeTotal = (opts && opts.probeTotal) || 0;
     this.hasBaseline = !!(opts && opts.hasBaseline);
     this.pending = false;
+    this.el = null; // the rendered panel's parts, patched in place by render()
+    this.table = null; // what the data table currently shows (see fillTable)
     if (this.host) this.host.innerHTML = "";
   };
   Live.prototype.add = function (records) {
@@ -500,9 +548,14 @@
       self.render();
     });
   };
+  // The first render builds the panel; later ones (one per animation frame
+  // while records stream in) update its tiles, probe bar, chart and legend in
+  // place, and redraw the tabs only when their markup changes (a new metric or
+  // language). The data table is built only while its toggle is open, and new
+  // records are appended to it.
   Live.prototype.render = function () {
     if (!this.host || !this.records.length) return;
-    var self = this, recs = this.records;
+    var recs = this.records;
     var calls = recs.filter(function (r) { return r.op === "complete"; });
     var target = calls.filter(function (r) { return r.endpoint !== "baseline" && r.ok && !r.cached; });
     var probeDone = calls.filter(function (r) { return r.endpoint !== "baseline" && r.phase === "probe"; }).length;
@@ -521,51 +574,216 @@
       }
     }
     function withUnit(v, unit) { return v == null ? "—" : num(v) + " " + unit; }
-    var head = [
-      [T("请求数", "Requests"), int(calls.length)],
-      [T("延迟 p50", "Latency p50"), withUnit(p50(target.map(function (r) { return r.duration_ms; })), "ms")],
-      ["TTFT p50", withUnit(ttftP50, "ms")],
-      [decodeLabel, withUnit(tpsP50, "tok/s")],
-    ];
-    var o = ['<div class="zp-live"><div class="zp-live-h">' + esc(T("性能 · 实时", "Performance · live")) + "</div>"];
-    o.push('<div class="zp-tiles">' + head.map(function (x) {
-      return '<div class="zp-tile"><div class="zp-tl">' + esc(x[0]) + '</div><div class="zp-tv">' + esc(x[1]) + "</div></div>";
-    }).join("") + "</div>");
+    var v = {
+      title: T("性能 · 实时", "Performance · live"),
+      head: [
+        [T("请求数", "Requests"), int(calls.length)],
+        [T("延迟 p50", "Latency p50"), withUnit(p50(target.map(function (r) { return r.duration_ms; })), "ms")],
+        ["TTFT p50", withUnit(ttftP50, "ms")],
+        [decodeLabel, withUnit(tpsP50, "tok/s")],
+      ],
+      probe: null,
+      tabs: tabs(this.metric, this.pid),
+      chart: chartSvg(recs, this.metric),
+      legend: legend(recs, this.hasBaseline),
+    };
     if (this.probeTotal) {
-      var pctDone = Math.min(100, Math.round((probeDone / this.probeTotal) * 100));
       var label = T("性能探测", "Performance probe");
-      o.push('<div class="zp-probe"><span>' + esc(label) + " " + int(probeDone) + "/" + int(this.probeTotal) +
-        '</span><div class="zp-bar" role="progressbar" aria-label="' + esc(label) + '" aria-valuemin="0" aria-valuemax="' +
-        this.probeTotal + '" aria-valuenow="' + Math.min(probeDone, this.probeTotal) + '"><i style="width:' + pctDone +
-        '%"></i></div></div>');
+      v.probe = {
+        label: label,
+        text: label + " " + int(probeDone) + "/" + int(this.probeTotal),
+        max: String(this.probeTotal),
+        now: String(Math.min(probeDone, this.probeTotal)),
+        width: Math.min(100, Math.round((probeDone / this.probeTotal) * 100)) + "%",
+      };
     }
-    o.push(tabs(this.metric, this.pid));
-    o.push(plot(recs, this.metric, this.pid, this.open));
-    o.push(legend(recs, this.hasBaseline));
-    o.push("</div>");
     // Streamed re-renders must not take keyboard focus away from a tab or
-    // from the data-table toggle.
+    // from the data-table toggle, ...
     var act = document.activeElement, refocus = null;
     if (act && act !== this.host && this.host.contains(act)) {
-      if (act.getAttribute("data-metric")) refocus = '.zp-tabs [data-metric="' + act.getAttribute("data-metric") + '"]';
+      // (the selected tab: after an arrow key the focused one is the old metric)
+      if (act.getAttribute("data-metric")) refocus = '.zp-tabs [data-metric="' + this.metric + '"]';
       else if (act.tagName === "SUMMARY") refocus = ".zp-data summary";
     }
     // ... nor jump an open data table back to its top.
     var box = this.host.querySelector(".zp-data-scroll"), scrollTop = box ? box.scrollTop : 0;
     if (act && box && box.contains(act)) refocus = ".zp-data-scroll";
-    this.host.innerHTML = o.join("");
+    var el = this.el;
+    if (el && el.root.parentNode === this.host && !el.probe === !v.probe) this.patch(v);
+    else this.build(v);
     box = this.host.querySelector(".zp-data-scroll");
-    if (box && scrollTop) box.scrollTop = scrollTop;
-    if (refocus) {
-      var el = this.host.querySelector(refocus);
-      if (el) el.focus();
+    if (box && scrollTop && box.scrollTop !== scrollTop) box.scrollTop = scrollTop;
+    // Only an element that was replaced is focused again (no focus() call,
+    // and so no new announcement, while it stays in place).
+    if (refocus && !this.host.contains(act)) {
+      var f = this.host.querySelector(refocus);
+      if (f) f.focus();
     }
-    wire(this.host, function (id) {
-      self.metric = id;
-      self.render();
-    }, function (open) {
-      self.open = open;
+  };
+  function tileHtml(x) {
+    return '<div class="zp-tile"><div class="zp-tl">' + esc(x[0]) + '</div><div class="zp-tv">' + esc(x[1]) + "</div></div>";
+  }
+  function plotInner(c, open) {
+    return c.html + (c.empty ? "" : dataTable(c.calls, c.m, open, true));
+  }
+  Live.prototype.build = function (v) {
+    var self = this;
+    var prev = this.host.querySelector(".zp-data");
+    // the toggle may have been opened before its "toggle" event ran
+    var open = this.open || !!(prev && prev.open);
+    var o = ['<div class="zp-live"><div class="zp-live-h">' + esc(v.title) + "</div>"];
+    o.push('<div class="zp-tiles">' + v.head.map(tileHtml).join("") + "</div>");
+    if (v.probe) {
+      o.push('<div class="zp-probe"><span>' + esc(v.probe.text) + '</span><div class="zp-bar" role="progressbar" aria-label="' +
+        esc(v.probe.label) + '" aria-valuemin="0" aria-valuemax="' + v.probe.max + '" aria-valuenow="' + v.probe.now +
+        '"><i style="width:' + v.probe.width + '"></i></div></div>');
+    }
+    o.push(v.tabs);
+    o.push('<div class="zp-plot" role="tabpanel" id="' + this.pid + '-panel" aria-labelledby="' + this.pid + "-tab-" +
+      this.metric + '">' + plotInner(v.chart, open) + "</div>");
+    o.push(v.legend);
+    o.push("</div>");
+    this.host.innerHTML = o.join("");
+    this.markTable(open, v.chart);
+    this.el = null;
+    var root = this.host.querySelector(".zp-live");
+    if (!root) return; // not a real DOM (the tests): nothing to update in place
+    var probe = root.querySelector(".zp-probe");
+    this.el = {
+      root: root,
+      title: root.querySelector(".zp-live-h"),
+      tiles: Array.prototype.map.call(root.querySelectorAll(".zp-tile"), function (t) {
+        return [t.querySelector(".zp-tl"), t.querySelector(".zp-tv")];
+      }),
+      probe: probe && { text: probe.querySelector("span"), bar: probe.querySelector(".zp-bar"), fill: probe.querySelector(".zp-bar i") },
+      tabs: root.querySelector(".zp-tabs"),
+      plot: root.querySelector(".zp-plot"),
+      legend: root.querySelector(".zp-legend"),
+      cache: { tabs: v.tabs, tabsKey: tabs(METRICS[0].id, this.pid), chart: v.chart.html, empty: v.chart.empty, legend: v.legend },
+    };
+    this.wirePlot();
+    wireTabs(root, function (id) { self.setMetric(id); });
+    // One delegated tooltip handler for every chart mark, current and future.
+    root.addEventListener("mousemove", function (e) {
+      var t = e.target && e.target.closest ? e.target.closest("[data-tip]") : null;
+      if (t && root.contains(t)) showTip(e, t.getAttribute("data-tip"));
+      else hideTip();
     });
+    root.addEventListener("mouseleave", hideTip);
+  };
+  Live.prototype.setMetric = function (id) {
+    this.metric = id;
+    this.render();
+  };
+  // Hook up the data-table toggle (after the plot's contents were built).
+  Live.prototype.wirePlot = function () {
+    var self = this, el = this.el, det = el.plot.querySelector(".zp-data");
+    el.det = det;
+    el.box = det && det.querySelector(".zp-data-scroll");
+    el.summary = det && det.querySelector("summary");
+    if (!det) return;
+    // Fill the table as the toggle opens, so it never shows up empty or stale
+    // (a click on the summary runs before the details opens; "toggle" after).
+    el.summary.addEventListener("click", function () {
+      if (!det.open && self.el && self.el.det === det) self.fillTable();
+    });
+    det.addEventListener("toggle", function () {
+      if (!self.el || self.el.det !== det) return;
+      self.open = det.open;
+      if (det.open) self.fillTable();
+    });
+  };
+  Live.prototype.patch = function (v) {
+    var self = this, el = this.el, c = el.cache;
+    setText(el.title, v.title);
+    v.head.forEach(function (x, i) {
+      if (!el.tiles[i]) return;
+      setText(el.tiles[i][0], x[0]);
+      setText(el.tiles[i][1], x[1]);
+    });
+    if (v.probe) {
+      setText(el.probe.text, v.probe.text);
+      setAttr(el.probe.bar, "aria-label", v.probe.label);
+      setAttr(el.probe.bar, "aria-valuemax", v.probe.max);
+      setAttr(el.probe.bar, "aria-valuenow", v.probe.now);
+      if (el.probe.fill.style.width !== v.probe.width) el.probe.fill.style.width = v.probe.width;
+    }
+    var tabsKey = tabs(METRICS[0].id, this.pid);
+    if (v.tabs !== c.tabs && tabsKey === c.tabsKey) {
+      // another metric: move the selection, keeping the buttons (and focus)
+      el.tabs.querySelectorAll("[data-metric]").forEach(function (b) {
+        var on = b.getAttribute("data-metric") === self.metric;
+        setAttr(b, "aria-selected", String(on));
+        if (b.tabIndex !== (on ? 0 : -1)) b.tabIndex = on ? 0 : -1;
+        b.classList.toggle("on", on);
+        if (!on && b.getAttribute("class") === "") b.removeAttribute("class");
+      });
+      c.tabs = v.tabs;
+    }
+    if (v.tabs !== c.tabs) {
+      // new labels (a language switch): redraw them
+      c.tabsKey = tabsKey;
+      el.tabs.outerHTML = v.tabs;
+      el.tabs = el.root.querySelector(".zp-tabs");
+      wireTabs(el.root, function (id) { self.setMetric(id); });
+      c.tabs = v.tabs;
+    }
+    setAttr(el.plot, "aria-labelledby", this.pid + "-tab-" + this.metric);
+    if (v.chart.empty !== c.empty) {
+      // the first samples arrived (or this metric has none): the plot gains
+      // or loses its data table
+      var open = this.open || !!(el.det && el.det.open);
+      el.plot.innerHTML = plotInner(v.chart, open);
+      this.markTable(open, v.chart);
+      this.wirePlot();
+    } else if (v.chart.html !== c.chart) {
+      el.plot.firstElementChild.outerHTML = v.chart.html;
+    }
+    c.chart = v.chart.html;
+    c.empty = v.chart.empty;
+    if (el.summary) setText(el.summary, dataSummary());
+    if (el.det && el.det.open) this.fillTable();
+    if (v.legend !== c.legend) {
+      el.legend.outerHTML = v.legend;
+      el.legend = el.root.querySelector(".zp-legend");
+      c.legend = v.legend;
+    }
+  };
+  function setText(node, s) {
+    if (node && node.textContent !== s) node.textContent = s;
+  }
+  function setAttr(node, name, s) {
+    if (node && node.getAttribute(name) !== s) node.setAttribute(name, s);
+  }
+  // Note what a just built plot's data table holds (nothing while closed).
+  Live.prototype.markTable = function (open, chart) {
+    this.table = open && !chart.empty ? { recs: this.records, n: this.records.length, key: this.tableKey(chart.m) } : null;
+  };
+  // What a data-table row's markup depends on besides its record.
+  Live.prototype.tableKey = function (m) {
+    return [m.id, dataHead(m), loc(), T("失败", "failed"), T("缓存命中（不计入统计）", "cached (excluded)"),
+      T("非流式", "non-streaming"), endpointName({}), endpointName({ endpoint: "baseline" }),
+      phaseName("probe"), phaseName("passive")].join("\n");
+  };
+  // Bring the open data table up to date: append the rows of records added
+  // since it was built, or rebuild it after a metric or language change.
+  Live.prototype.fillTable = function () {
+    var el = this.el, box = el && el.box;
+    if (!box) return;
+    var m = metric(this.metric), recs = this.records, key = this.tableKey(m), t = this.table;
+    var tbody = box.querySelector("tbody");
+    var complete = function (r) { return r.op === "complete"; };
+    if (t && tbody && t.key === key && t.recs === recs && t.n <= recs.length) {
+      if (t.n < recs.length) {
+        var rows = dataRows(recs.slice(t.n).filter(complete), m);
+        if (rows.length) tbody.insertAdjacentHTML("beforeend", rows.map(function (r) { return dataRow(r, m); }).join(""));
+      }
+    } else {
+      var top = box.scrollTop;
+      box.innerHTML = dataTableHtml(dataRows(recs.filter(complete), m), m);
+      if (top && box.scrollTop !== top) box.scrollTop = top;
+    }
+    this.table = { recs: recs, n: recs.length, key: key };
   };
 
   // ---- styles (injected once) ------------------------------------------- //

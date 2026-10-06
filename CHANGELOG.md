@@ -167,6 +167,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   History page (`/api/jobs`) and the Monitors page (`/api/watches`) stop their
   2-second refresh while the tab is hidden and refresh at once when it is
   shown again.
+- **Faster live performance panel.** While an audit streams, the panel now
+  updates its tiles, probe bar, chart and legend in place instead of redrawing
+  everything each frame, builds the data table only while "Show data table" is
+  open (appending new rows), and reuses one number formatter per locale.
+  A streamed re-render with 1,000 requests drops from about 500–700 ms to
+  about 60 ms (4× CPU throttle). Keyboard focus, the table's scroll position and the tab, progress
+  bar and chart semantics stay as before.
 
 ### Documentation
 

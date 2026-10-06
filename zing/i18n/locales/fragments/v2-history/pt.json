@@ -24,12 +24,12 @@
   "Search": "Pesquisar",
   "Show more ({k} remaining)": "Mostrar mais ({k} restantes)",
   "Showing {shown} of {n} audits": "Mostrando {shown} de {n} auditorias",
-  "Showing {shown} of {total} audits in this group": "Mostrando {shown} de {total} auditorias deste grupo",
   "This run was produced by a monitor": "Esta execução foi gerada por um monitor",
   "Trends": "Tendências",
   "falling": "em queda",
   "rising": "em subida",
   "unchanged": "sem alterações",
+  "{group}: showing {shown} of {total} audits": "{group}: mostrando {shown} de {total} auditorias",
   "{metric} trend across {n} audits: from {first} to {last}.": "Tendência de {metric} em {n} auditorias: de {first} a {last}."
  }
 }

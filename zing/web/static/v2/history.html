@@ -69,12 +69,14 @@
   /* group */
   .grp-h { display: flex; align-items: center; gap: 14px; padding: 18px 18px 8px 28px; flex-wrap: wrap; }
   .group + .group { border-top: 1px solid var(--line); }
-  /* off-screen groups skip style/layout/paint until scrolled near; their rows
-     stay in the DOM, so find-in-page, Tab order and the accessibility tree are
-     unaffected. A group with an open report keeps normal rendering (the
+  /* off-screen groups skip style/layout/paint until scrolled near; their
+     rendered rows stay in the DOM, so find-in-page, Tab order and the
+     accessibility tree are unaffected (--gh, set per group, estimates the
+     height until the real one is known; nothing in a group draws past its
+     padding, so the paint containment clips no focus ring). A group with an open report keeps normal rendering (the
      containment would clip the report's popovers). Browsers without :has()
      drop the rule and render as before. */
-  .group:not(:has(.panel:not([hidden]))) { content-visibility: auto; contain-intrinsic-size: auto 1300px; }
+  .group:not(:has(.panel:not([hidden]))) { content-visibility: auto; contain-intrinsic-size: auto var(--gh, 1300px); }
   .gtitle { flex: 1 1 220px; min-width: 0; }
   .gtitle h2 { font-family: var(--disp); font-weight: 600; font-size: 17px; letter-spacing: -0.3px; margin: 0; overflow-wrap: anywhere; }
   .gtitle .gu { display: flex; align-items: center; gap: 6px; margin-top: 4px; min-width: 0; }
@@ -576,7 +578,6 @@
       g.rows.forEach(function (r, i) {
         if (i >= lim && need[String(r.id)]) lim = Math.ceil((i + 1) / PAGE) * PAGE;
       });
-      if (lim > PAGE) state.shown[g.key] = lim;
       g.limit = Math.min(lim, g.rows.length);
     });
     state.groups = groups;
@@ -622,7 +623,7 @@
     if (row && el.classList.contains("rdel")) return '.row[data-id="' + row.getAttribute("data-id") + '"] .rdel';
     if (row && el.classList.contains("rrerun")) return '.row[data-id="' + row.getAttribute("data-id") + '"] .rrerun';
     if (row && el.classList.contains("rsched")) return '.row[data-id="' + row.getAttribute("data-id") + '"] .rsched';
-    if (el.hasAttribute("data-more")) return '[data-more="' + el.getAttribute("data-more") + '"]';
+    if (el.hasAttribute("data-more")) return '[data-more="' + CSS.escape(el.getAttribute("data-more")) + '"]';
     return null;
   }
 
@@ -635,7 +636,9 @@
 
   function groupHTML(g, gi) {
     var hid = "g" + gi;
-    return '<section class="group" aria-labelledby="' + hid + '"><div class="grp-h"><div class="gtitle">' +
+    // rough height for content-visibility until the group is first laid out
+    var gh = 100 + 58 * g.limit + (g.limit < g.rows.length ? 50 : 0);
+    return '<section class="group" aria-labelledby="' + hid + '" style="--gh:' + gh + 'px"><div class="grp-h"><div class="gtitle">' +
       '<h2 id="' + hid + '" title="' + esc(T("声称模型", "Claimed model")) + '">' +
       esc(g.claimed_model || T("(未声明模型)", "(no model declared)")) + "</h2>" +
       '<div class="gu"><code class="key">base_url</code><span title="' + esc(g.base_url || "") + '">' + esc(g.base_url || "—") + "</span></div></div>" +
@@ -645,17 +648,18 @@
 
   // "Show more" under a group whose rows are not all rendered yet; its
   // description is the group heading (several groups have such a button)
+  function moreLabel(left) { return Tf("显示更多（还剩 {k} 条）", "Show more ({k} remaining)", { k: left }); }
   function moreHTML(g, gi) {
     var left = g.rows.length - g.limit;
     if (left <= 0) return "";
-    return '<div class="gmore"><button type="button" class="btn sm" data-more="' + gi + '" aria-describedby="g' + gi + '">' +
-      esc(Tf("显示更多（还剩 {k} 条）", "Show more ({k} remaining)", { k: left })) + "</button></div>";
+    return '<div class="gmore"><button type="button" class="btn sm" data-more="' + esc(g.key) + '" aria-describedby="g' + gi + '">' +
+      esc(moreLabel(left)) + "</button></div>";
   }
 
   // append the group's next page of rows without rebuilding the list; focus
   // stays on the button while rows remain, else moves to the first new row
   function showMore(btn) {
-    var gi = Number(btn.getAttribute("data-more")), g = state.groups[gi];
+    var key = btn.getAttribute("data-more"), g = state.groups.filter(function (x) { return x.key === key; })[0];
     var sec = btn.closest(".group"), ul = sec && sec.querySelector(".rows");
     if (!g || !ul) return;
     var from = g.limit, to = Math.min(g.rows.length, from + PAGE);
@@ -664,14 +668,15 @@
     state.shown[g.key] = Math.max(state.shown[g.key] || 0, to);
     var left = g.rows.length - to;
     if (left > 0) {
-      btn.textContent = Tf("显示更多（还剩 {k} 条）", "Show more ({k} remaining)", { k: left });
+      btn.textContent = moreLabel(left);
     } else {
       var first = ul.querySelector('.row[data-id="' + CSS.escape(String(g.rows[from].id)) + '"] .rmain');
       if (first) first.focus();
       btn.parentNode.remove();
     }
     var live = document.getElementById("hmore");
-    if (live) live.textContent = Tf("本组显示 {shown} / {total} 条记录", "Showing {shown} of {total} audits in this group", { shown: to, total: g.rows.length });
+    if (live) live.textContent = Tf("{group}：显示 {shown} / {total} 条记录", "{group}: showing {shown} of {total} audits",
+      { group: (g.claimed_model || T("(未声明模型)", "(no model declared)")) + " · " + hostOf(g.base_url), shown: to, total: g.rows.length });
   }
 
   // small sparkline of vals (oldest -> newest) scaled to [lo, hi]; area fill
@@ -934,7 +939,7 @@
       .then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
         state.confirm = null;
-        if (what === "all") { state.reports = {}; state.open = null; }
+        if (what === "all") { state.reports = {}; state.open = null; state.shown = {}; }
         else delete state.reports[what];
         return load();
       })

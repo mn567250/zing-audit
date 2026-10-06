@@ -35,7 +35,10 @@ def _paged_history(open_page: Any, theme: str = "light", viewport: dict[str, int
     import httpx
 
     base = open_page.base_url
-    real = httpx.get(base + "/api/history?limit=500&perf=1", timeout=10).json()
+    resp = httpx.get(base + "/api/history?limit=500&perf=1", timeout=10)
+    resp.raise_for_status()
+    real = resp.json()
+    assert real, "the a11y data dir should hold one saved run"
     rows = [{**real[0], "id": 900000 + i, "score": 90 - i} for i in range(ROWS)]
     ctx = open_page.browser.new_context(
         viewport=viewport or DESKTOP, color_scheme="dark" if theme == "dark" else "light"

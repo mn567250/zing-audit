@@ -24,12 +24,12 @@
   "Search": "Search",
   "Show more ({k} remaining)": "Show more ({k} remaining)",
   "Showing {shown} of {n} audits": "Showing {shown} of {n} audits",
-  "Showing {shown} of {total} audits in this group": "Showing {shown} of {total} audits in this group",
   "This run was produced by a monitor": "This run was produced by a monitor",
   "Trends": "Trends",
   "falling": "falling",
   "rising": "rising",
   "unchanged": "unchanged",
+  "{group}: showing {shown} of {total} audits": "{group}: showing {shown} of {total} audits",
   "{metric} trend across {n} audits: from {first} to {last}.": "{metric} trend across {n} audits: from {first} to {last}."
  }
 }

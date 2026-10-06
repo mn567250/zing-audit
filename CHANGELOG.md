@@ -121,6 +121,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `ZING_KB_DIR` files, the data directory and the kb.db entries, so imports,
   edits and deletes still apply immediately. The Models page, `/api/kb/*` and
   the Monitors list (`/api/watches`) answer in a fraction of the time.
+- **History loads faster.** `history.db` stores each run's performance headline
+  (p50 latency, TTFT and decode speed) in its own columns, so the History list
+  and trends no longer parse every saved report: `/api/history?limit=500&perf=1`
+  drops from about 700 ms to under 100 ms for 500 runs. Existing databases are
+  filled in once, on first use after the upgrade, and the schema check now runs
+  once per database instead of on every connection.
 
 ### Documentation
 

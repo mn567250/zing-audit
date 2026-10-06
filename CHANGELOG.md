@@ -106,6 +106,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   writes Chinese with a standard PDF font the viewer supplies, so no fonts are
   shipped. The `pdf` extra is now empty and kept only so older install commands
   still work; the Docker image drops Pango and its fonts.
+- **Faster live performance panel.** While an audit streams, the panel now
+  updates its tiles, probe bar, chart and legend in place instead of redrawing
+  everything each frame, builds the data table only while "Show data table" is
+  open (appending new rows), and reuses one number formatter per locale.
+  Re-renders with 1,000 requests drop from about 530 ms to 45 ms (4× CPU
+  throttle). Keyboard focus, the table's scroll position and the tab, progress
+  bar and chart semantics stay as before.
 
 ### Documentation
 

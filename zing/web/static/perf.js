@@ -601,7 +601,8 @@
     // from the data-table toggle, ...
     var act = document.activeElement, refocus = null;
     if (act && act !== this.host && this.host.contains(act)) {
-      if (act.getAttribute("data-metric")) refocus = '.zp-tabs [data-metric="' + act.getAttribute("data-metric") + '"]';
+      // (the selected tab: after an arrow key the focused one is the old metric)
+      if (act.getAttribute("data-metric")) refocus = '.zp-tabs [data-metric="' + this.metric + '"]';
       else if (act.tagName === "SUMMARY") refocus = ".zp-data summary";
     }
     // ... nor jump an open data table back to its top.
@@ -643,7 +644,7 @@
     o.push(v.legend);
     o.push("</div>");
     this.host.innerHTML = o.join("");
-    this.table = open && !v.chart.empty ? { recs: this.records, n: this.records.length, key: this.tableKey(v.chart.m) } : null;
+    this.markTable(open, v.chart);
     this.el = null;
     var root = this.host.querySelector(".zp-live");
     if (!root) return; // not a real DOM (the tests): nothing to update in place
@@ -717,8 +718,9 @@
     if (v.chart.empty !== c.empty) {
       // the first samples arrived (or this metric has none): the plot gains
       // or loses its data table
-      el.plot.innerHTML = plotInner(v.chart, this.open);
-      this.table = this.open && !v.chart.empty ? { recs: this.records, n: this.records.length, key: this.tableKey(v.chart.m) } : null;
+      var open = this.open || !!(el.det && el.det.open);
+      el.plot.innerHTML = plotInner(v.chart, open);
+      this.markTable(open, v.chart);
       this.wirePlot();
     } else if (v.chart.html !== c.chart) {
       el.plot.firstElementChild.outerHTML = v.chart.html;
@@ -739,6 +741,10 @@
   function setAttr(node, name, s) {
     if (node && node.getAttribute(name) !== s) node.setAttribute(name, s);
   }
+  // Note what a just built plot's data table holds (nothing while closed).
+  Live.prototype.markTable = function (open, chart) {
+    this.table = open && !chart.empty ? { recs: this.records, n: this.records.length, key: this.tableKey(chart.m) } : null;
+  };
   // What a data-table row's markup depends on besides its record.
   Live.prototype.tableKey = function (m) {
     return [m.id, dataHead(m), loc(), T("失败", "failed"), T("缓存命中（不计入统计）", "cached (excluded)"),

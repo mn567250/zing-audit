@@ -358,7 +358,9 @@ def _drive_live_panel(page) -> None:
     assert state["requests"] == "21" and state["now"] == "11" and state["width"] == "22%"
     assert state["label"].startswith("Latency (ms) over time: 21 requests")
     # keyboard: the arrow key selects and focuses the next tab
+    page.evaluate("() => { window.foc = []; document.addEventListener('focusin', e => foc.push(e.target.dataset.metric)); }")
     page.keyboard.press("ArrowRight")
+    assert page.evaluate("foc") == ["tps"]  # straight to the new tab, not via the old one
     tabs = page.evaluate("""() => [...document.querySelectorAll('.zp-tabs [role=tab]')].map(b =>
       [b.dataset.metric, b.getAttribute('aria-selected'), b.tabIndex, b === document.activeElement])""")
     assert ["tps", "true", 0, True] in tabs and ["ttft", "false", -1, False] in tabs

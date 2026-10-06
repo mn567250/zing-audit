@@ -134,6 +134,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   chunks on that loop for TTFT and inter-token latency) are not held up while
   a large history list or the knowledge base loads.
 
+- **Web UI responses are compressed and its assets cached.** `zing serve`
+  gzips responses of 1 KiB and more (never the live audit event streams), and
+  serves pages with their local scripts and stylesheets linked as
+  `…?v=<content hash>`. Those versioned files are cached by the browser for a
+  year, so moving between pages no longer re-fetches them; a changed file gets
+  a new hash, and pages themselves are always revalidated. Cold page loads
+  transfer about a third of what they did.
+
 ### Documentation
 
 - **READMEs split into user and developer documentation, in all seven

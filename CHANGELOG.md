@@ -124,6 +124,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `Intl.DateTimeFormat` / `Intl.NumberFormat` / `Intl.DisplayNames` once per
   language and options and reuse it, instead of creating one per row; the
   formatted text is unchanged.
+- **One shared date and number formatter cache.** `lang.js` now offers
+  `ZING_LANG.intl(Ctor, opts[, locale])` with the shorthands `numFmt(opts)` and
+  `dateFmt(opts)`, keeping one `Intl` formatter per constructor, locale and
+  options for the whole page. The v2 pages, the report view and the
+  performance panel use it instead of their own caches (`report.js` and
+  `perf.js` keep a small one for when they run without `lang.js`); formatters
+  follow a language switch, and the formatted text is unchanged.
 - **PDF reports no longer need a system library.** The PDF is typeset natively
   with ReportLab (pure Python, BSD-licensed) instead of converting the HTML
   report with WeasyPrint, which needed Pango. ReportLab is a core dependency, so

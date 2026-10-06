@@ -567,3 +567,70 @@ def test_lang_js_loads_the_missing_language_bundle(tmp_path):
     assert s["after"][-1]["lang"] == "fr" and s["events"] == ["fr"]
 
     assert r["merged"] == {"strings": True, "findings": True, "keys": True, "languages": True}
+
+
+_INTL_JS = r"""
+const path = require("path");
+const dir = process.argv[1];
+const made = {};
+for (const name of ["DateTimeFormat", "NumberFormat", "DisplayNames"]) {
+  const Orig = Intl[name];
+  made[name] = 0;
+  Intl[name] = function (loc, opts) { made[name]++; return new Orig(loc, opts); };
+}
+global.window = { addEventListener() {}, dispatchEvent() {} };
+global.document = { documentElement: { style: {}, lang: "" }, readyState: "complete",
+                    querySelectorAll: () => [], addEventListener() {} };
+global.localStorage = { getItem: () => "en", setItem() {} };
+require(path.join(dir, "locales.js"));
+require(path.join(dir, "lang.js"));
+const L = window.ZING_LANG;
+const d = new Date(Date.UTC(2026, 9, 6, 12, 34)), opts = { dateStyle: "medium", timeStyle: "short" };
+const snap = () => ({
+  locale: L.locale(),
+  date: L.dateFmt(opts).format(d), wantDate: d.toLocaleString(L.locale(), opts),
+  num: L.numFmt({ maximumFractionDigits: 1 }).format(12345.67),
+  wantNum: (12345.67).toLocaleString(L.locale(), { maximumFractionDigits: 1 }),
+  plain: L.numFmt().format(1234), wantPlain: (1234).toLocaleString(L.locale()),
+  lang: L.intl(Intl.DisplayNames, { type: "language" }, [L.locale() || "en"]).of("de"),
+});
+const out = { en: snap(), en2: snap() };
+const afterEn = Object.assign({}, made);
+L.set("de"); out.de = snap();
+L.set("en"); out.back = snap();
+const afterBack = Object.assign({}, made);
+const err = (f) => { try { f(); return "ok"; } catch (e) { return e.name; } };
+out.errors = {
+  locale: err(() => L.intl(Intl.NumberFormat, {}, "not a locale!")),
+  options: err(() => L.dateFmt({ dateStyle: "nope" })),
+  ctor: err(() => L.intl(undefined, {})),
+};
+out.browserDefault = L.intl(Intl.NumberFormat, {}, undefined).format(1234) === (1234).toLocaleString();
+out.same = L.numFmt() === L.numFmt() && L.numFmt() !== L.intl(Intl.NumberFormat, undefined, undefined);
+console.log(JSON.stringify({ out, afterEn, afterBack }));
+"""
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to evaluate the UI's JS")
+def test_shared_intl_formatters_are_cached_per_locale(tmp_path):
+    from zing.i18n import locales_script
+
+    (tmp_path / "locales.js").write_text(locales_script(), encoding="utf-8")
+    shutil.copy(_STATIC / "lang.js", tmp_path / "lang.js")
+    res = json.loads(subprocess.run(
+        ["node", "-e", _INTL_JS, str(tmp_path)], capture_output=True, text=True, check=True,
+    ).stdout)
+    out = res["out"]
+    # same text as toLocaleString, in the language shown (also after set())
+    for key in ("en", "de", "back"):
+        o = out[key]
+        assert o["date"] == o["wantDate"] and o["num"] == o["wantNum"] and o["plain"] == o["wantPlain"], key
+    assert out["en"]["locale"] == "en-US" and out["de"]["locale"] == "de-DE"
+    assert out["de"]["num"] != out["en"]["num"] and out["de"]["lang"] == "Deutsch"
+    assert out["en"] == out["en2"] == out["back"]
+    # one formatter per (constructor, locale, options); switching back reuses them
+    assert res["afterEn"] == {"DateTimeFormat": 1, "NumberFormat": 2, "DisplayNames": 1}
+    assert res["afterBack"] == {"DateTimeFormat": 2, "NumberFormat": 4, "DisplayNames": 2}
+    # bad input still throws, so the callers' fallbacks run as before
+    assert out["errors"] == {"locale": "RangeError", "options": "RangeError", "ctor": "TypeError"}
+    assert out["browserDefault"] and out["same"]

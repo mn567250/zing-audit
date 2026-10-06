@@ -55,24 +55,25 @@
   }
   // Number formatting goes through one cached Intl.NumberFormat per locale and
   // digit count: Number#toLocaleString builds a new formatter on every call,
-  // which dominated large live tables. The output is the same as
-  // v.toLocaleString(locale, options) (that is how the spec defines it); when
-  // Intl is missing, or for a non-number, that call is still what runs.
+  // which dominated large live tables. The formatters come from
+  // ZING_LANG.intl (lang.js); loaded without it, this script keeps a small
+  // cache of its own. The output is the same as v.toLocaleString(locale,
+  // options) (that is how the spec defines it); when Intl is missing, or for
+  // a non-number, that call is still what runs.
   var fmts = {};
+  function numberFormat(locale, opts) {
+    var Z = window.ZING_LANG;
+    if (Z && Z.intl) return Z.intl(Intl.NumberFormat, opts, locale);
+    // undefined (the browser default) and "" (an error) must not share a key
+    var key = (locale === undefined ? "" : "=" + locale) + "|" + (opts ? opts.maximumFractionDigits : "");
+    return fmts[key] || (fmts[key] = new Intl.NumberFormat(locale, opts));
+  }
   function format(v, digits) {
     var locale = loc();
+    var opts = digits == null ? undefined : { minimumFractionDigits: digits, maximumFractionDigits: digits };
     if (typeof v !== "number" || typeof Intl === "undefined" || !Intl.NumberFormat)
-      return digits == null ? v.toLocaleString(locale)
-        : v.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits });
-    // undefined (the browser default) and "" (an error) must not share a key
-    var key = (locale === undefined ? "" : "=" + locale) + "|" + (digits == null ? "" : digits);
-    var f = fmts[key];
-    if (!f) {
-      f = digits == null ? new Intl.NumberFormat(locale)
-        : new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits });
-      fmts[key] = f;
-    }
-    return f.format(v);
+      return opts ? v.toLocaleString(locale, opts) : v.toLocaleString(locale);
+    return numberFormat(locale, opts).format(v);
   }
   function fixed(v, digits) {
     return format(v, digits);

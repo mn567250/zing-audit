@@ -17,6 +17,15 @@
  *   - tr(en)           English string -> current language (from ZING_LOCALES)
  *   - trFor(lang, en)  English string -> the given language
  *   - locale()         BCP 47 locale for dates/numbers ("fr-FR", …)
+ *   - intl(Ctor, opts[, locale])
+ *                      a shared Intl formatter, e.g. intl(Intl.DisplayNames,
+ *                      { type: "language" }), built once per (constructor,
+ *                      locale, options) and reused; locale defaults to
+ *                      locale(), so after set() callers get formatters for
+ *                      the new language. Same output as a new Ctor(locale,
+ *                      opts); a bad locale or options still throw
+ *   - numFmt(opts)     intl(Intl.NumberFormat, opts)
+ *   - dateFmt(opts)    intl(Intl.DateTimeFormat, opts)
  *   - code(v)          uppercase enum code ("HIGH", "FAIL") in the UI language
  *   - server(text)     translation of free text from the backend (detector
  *                      names, recommendations, verdict sentences, notes) into
@@ -434,6 +443,26 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 
+  // Intl formatters are costly to build (Number#toLocaleString and friends
+  // build one per call): keep one per (constructor, locale, options). The key
+  // includes the locale, so a language switch needs no reset.
+  var intlCtors = [];
+  var intlCaches = [];
+  function intl(Ctor, opts, loc) {
+    if (arguments.length < 3) loc = LANGS[lang].locale;
+    if (typeof Ctor !== "function") throw new TypeError("intl: not a constructor");
+    var i = intlCtors.indexOf(Ctor);
+    if (i < 0) {
+      intlCtors.push(Ctor);
+      intlCaches.push({});
+      i = intlCtors.length - 1;
+    }
+    var cache = intlCaches[i];
+    // undefined (the browser default) and "" (an error) must not share a key
+    var k = (loc === undefined ? "" : "=" + String(loc)) + "|" + JSON.stringify(opts || {});
+    return cache[k] || (cache[k] = new Ctor(loc, opts));
+  }
+
   window.ZING_LANG = {
     get: function () {
       return lang;
@@ -446,6 +475,13 @@
     },
     locale: function () {
       return LANGS[lang].locale;
+    },
+    intl: intl,
+    numFmt: function (opts) {
+      return intl(Intl.NumberFormat, opts);
+    },
+    dateFmt: function (opts) {
+      return intl(Intl.DateTimeFormat, opts);
     },
     set: set,
     t: t,

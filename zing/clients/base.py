@@ -10,6 +10,9 @@ translation.
 
 from __future__ import annotations
 
+import asyncio
+import ssl
+import threading
 import time
 from contextlib import asynccontextmanager
 from typing import Any
@@ -19,6 +22,33 @@ import httpx
 from zing.models import CompletionOutcome, RequestSpec, TargetConfig
 from zing.perf.recorder import RequestRecorder, current_net_trace, net_trace_scope
 from zing.utils.redact import redact_json, redact_text
+
+# One TLS context for every relay client in the process. httpx builds a new
+# one per AsyncClient (and one more per proxy mount): loading the CA bundle
+# costs ~20-30 ms each, on the event loop the audits time their chunks on.
+# It is created once, with httpx's own defaults (verification on, CA bundle
+# from SSL_CERT_FILE / SSL_CERT_DIR or certifi), off the loop; an
+# SSLContext is safe to share between connections and threads. Changing
+# those variables later in the process does not affect it.
+_SSL_CONTEXT: ssl.SSLContext | None = None
+_SSL_LOCK = threading.Lock()
+
+
+def shared_ssl_context() -> ssl.SSLContext:
+    """The process-wide TLS context (created on first use)."""
+    global _SSL_CONTEXT
+    with _SSL_LOCK:
+        if _SSL_CONTEXT is None:
+            _SSL_CONTEXT = httpx.create_ssl_context()
+        return _SSL_CONTEXT
+
+
+async def get_ssl_context() -> ssl.SSLContext:
+    """The shared TLS context, built in a worker thread the first time (for
+    code on the event loop; :func:`shared_ssl_context` blocks)."""
+    if _SSL_CONTEXT is not None:
+        return _SSL_CONTEXT
+    return await asyncio.to_thread(shared_ssl_context)
 
 
 class BaseHTTPClient:
@@ -44,6 +74,7 @@ class BaseHTTPClient:
         self._client = httpx.AsyncClient(
             timeout=self._timeout(),
             transport=self.transport,
+            verify=await get_ssl_context(),
             headers=self._headers(),
             follow_redirects=False,
             event_hooks={"request": [self._attach_trace]},
@@ -64,6 +95,7 @@ class BaseHTTPClient:
         client = httpx.AsyncClient(
             timeout=self._timeout(),
             transport=self.transport,
+            verify=await get_ssl_context(),
             headers=self._headers(),
             follow_redirects=False,
             event_hooks={"request": [self._attach_trace]},

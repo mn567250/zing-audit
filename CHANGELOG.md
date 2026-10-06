@@ -96,6 +96,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **One TLS context per process.** Relay clients and webhook alerts share one
+  `ssl.SSLContext`, built once in a worker thread, instead of loading the CA bundle
+  for every client (and again for a proxy): opening an audit's HTTP client on the
+  event loop drops from ~38 ms to ~1 ms.
+- **Unreadable typed YAML values are refused cleanly.** `!!int abc`, `!!bool maybe`,
+  `!!timestamp 2026-99-99` and the like in an imported profile, a `--kb-dir` profile
+  or `zing.yaml` are reported as "not valid YAML: cannot read 'abc' as int" with
+  line and column, instead of a server error (500) or a traceback.
 - **Faster test runs.** `pytest-xdist` is part of the `dev` extra and CI runs the unit
   tests with `-n auto`. The a11y harness no longer waits for Playwright's `networkidle`
   (500 ms without any request on every page load); it counts each context's requests and

@@ -1,9 +1,12 @@
-"""Unit tests for the leaf utilities: redaction, SSE parsing, stats, tokenization."""
+"""Unit tests for the leaf utilities: redaction, SSE parsing, stats, tokenization, YAML."""
 
 from __future__ import annotations
 
 import pytest
+import yaml
 
+from zing.config import ConfigError, load_config_file
+from zing.utils import yamlio
 from zing.utils.redact import (
     fingerprint_secret,
     mask_secret,
@@ -242,3 +245,86 @@ class TestTokenize:
     def test_estimate_messages_tokens_empty(self):
         # only the trailing priming constant
         assert estimate_messages_tokens([]) == 3
+
+
+# --------------------------------------------------------------------------- #
+# yamlio (libyaml loader choice) and config files
+# --------------------------------------------------------------------------- #
+class TestYamlio:
+    def test_prefers_libyaml(self):
+        assert yamlio.SAFE_LOADER is getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+    def test_loads_like_safe_load(self):
+        text = "a: 1\nb: [x, 2.5, null, true]\nc: 2001-12-14\n"
+        assert yamlio.safe_load(text) == yaml.safe_load(text)
+        assert list(yamlio.safe_load_all("a: 1\n---\nb: 2\n")) == [{"a": 1}, {"b": 2}]
+        with pytest.raises(yaml.YAMLError, match="constructor for the tag"):
+            yamlio.safe_load("x: !!python/object/apply:os.system [ls]")
+
+    def test_detailed_error_uses_the_pure_python_message(self):
+        text = "a:\n\tb: 1"
+        with pytest.raises(yaml.YAMLError) as info:
+            yamlio.safe_load(text)
+        detailed = yamlio.detailed_error(info.value, lambda loader: yamlio.safe_load(text, loader))
+        assert "found character '\\t' that cannot start any token" in str(detailed)
+
+    def test_detailed_error_retries_with_the_pure_python_loader(self, monkeypatch):
+        # Runs the retry logic whether or not PyYAML has libyaml.
+        class Terse(yaml.SafeLoader):
+            pass
+
+        monkeypatch.setattr(yamlio, "SAFE_LOADER", Terse)
+        used = []
+
+        def retry(loader):
+            used.append(loader)
+            yamlio.safe_load("a:\n\tb: 1", loader)
+
+        detailed = yamlio.detailed_error(yaml.YAMLError("terse"), retry)
+        assert used == [yaml.SafeLoader]
+        assert "found character '\\t'" in str(detailed)
+
+    def test_detailed_error_keeps_the_original_when_the_retry_does_not_fail_alike(
+        self, monkeypatch
+    ):
+        class Terse(yaml.SafeLoader):
+            pass
+
+        monkeypatch.setattr(yamlio, "SAFE_LOADER", Terse)
+        original = yaml.YAMLError("original")
+
+        def recursion(_loader):
+            raise RecursionError
+
+        def fail(_loader):
+            raise AssertionError("constructor errors are not retried")
+
+        assert yamlio.detailed_error(original, lambda loader: None) is original
+        assert yamlio.detailed_error(original, recursion) is original
+        tag_error = yaml.constructor.ConstructorError(problem="unknown tag")
+        assert yamlio.detailed_error(tag_error, fail) is tag_error
+
+
+class TestConfigFile:
+    def test_loads_a_mapping(self, tmp_path):
+        path = tmp_path / "zing.yaml"
+        path.write_text("target:\n  base_url: https://relay.test/v1\n", encoding="utf-8")
+        assert load_config_file(path) == {"target": {"base_url": "https://relay.test/v1"}}
+        path.write_text("", encoding="utf-8")
+        assert load_config_file(path) == {}
+
+    def test_invalid_yaml_names_the_problem(self, tmp_path):
+        path = tmp_path / "zing.yaml"
+        path.write_text("target:\n\tbase_url: x\n", encoding="utf-8")
+        with pytest.raises(ConfigError) as info:
+            load_config_file(path)
+        message = str(info.value)
+        assert message.startswith(f"Invalid YAML in {path}: ")
+        assert "found character '\\t' that cannot start any token" in message
+        assert "line 2, column 1" in message
+
+    def test_non_mapping_is_refused(self, tmp_path):
+        path = tmp_path / "zing.yaml"
+        path.write_text("- a\n- b\n", encoding="utf-8")
+        with pytest.raises(ConfigError, match="mapping at the top level"):
+            load_config_file(path)

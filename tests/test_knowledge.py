@@ -23,11 +23,11 @@ def test_c_yaml_loader_matches_pure_python_for_packaged_profiles():
     import pytest
     import yaml
 
-    from zing.knowledge import loader
+    from zing.utils import yamlio
 
     if not hasattr(yaml, "CSafeLoader"):
         pytest.skip("PyYAML built without libyaml")
-    assert loader._YAML_LOADER is yaml.CSafeLoader
+    assert yamlio.SAFE_LOADER is yaml.CSafeLoader
     files = [e for e in resources.files("zing.knowledge.data").iterdir()
              if e.name.endswith((".yaml", ".yml"))]
     assert files

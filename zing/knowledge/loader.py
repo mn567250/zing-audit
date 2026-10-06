@@ -35,24 +35,19 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from zing.knowledge.schema import (
     FingerprintProbe,
     KnowledgeBase,
     ModelProfile,
     ProviderProfile,
 )
+from zing.utils import yamlio
 
 _DATA_PACKAGE = "zing.knowledge.data"
 
-# libyaml's C parser when PyYAML was built with it (about 10x faster); same
-# safe subset of YAML and the same resulting data as the pure-Python SafeLoader.
-_YAML_LOADER: Any = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
-
 
 def _parse_provider(text: str, source: str) -> ProviderProfile:
-    data = yaml.load(text, Loader=_YAML_LOADER)
+    data = yamlio.safe_load(text)
     if not isinstance(data, dict):
         raise ValueError(f"Knowledge profile {source} is not a YAML mapping")
     try:

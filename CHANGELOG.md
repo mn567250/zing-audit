@@ -109,9 +109,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **History loads faster.** `history.db` stores each run's performance headline
   (p50 latency, TTFT and decode speed) in its own columns, so the History list
   and trends no longer parse every saved report: `/api/history?limit=500&perf=1`
-  drops from about 680 ms to about 30 ms. Existing databases are filled in
-  once, on first use after the upgrade, and the schema check now runs once per
-  database instead of on every connection.
+  drops from about 700 ms to under 100 ms for 500 runs. Existing databases are
+  filled in once, on first use after the upgrade, and the schema check now runs
+  once per database instead of on every connection.
 
 ### Documentation
 

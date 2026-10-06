@@ -268,14 +268,41 @@ class TestYamlio:
         detailed = yamlio.detailed_error(info.value, lambda loader: yamlio.safe_load(text, loader))
         assert "found character '\\t' that cannot start any token" in str(detailed)
 
-    def test_detailed_error_keeps_the_original_when_the_retry_does_not_fail_alike(self):
+    def test_detailed_error_retries_with_the_pure_python_loader(self, monkeypatch):
+        # Runs the retry logic whether or not PyYAML has libyaml.
+        class Terse(yaml.SafeLoader):
+            pass
+
+        monkeypatch.setattr(yamlio, "SAFE_LOADER", Terse)
+        used = []
+
+        def retry(loader):
+            used.append(loader)
+            yamlio.safe_load("a:\n\tb: 1", loader)
+
+        detailed = yamlio.detailed_error(yaml.YAMLError("terse"), retry)
+        assert used == [yaml.SafeLoader]
+        assert "found character '\\t'" in str(detailed)
+
+    def test_detailed_error_keeps_the_original_when_the_retry_does_not_fail_alike(
+        self, monkeypatch
+    ):
+        class Terse(yaml.SafeLoader):
+            pass
+
+        monkeypatch.setattr(yamlio, "SAFE_LOADER", Terse)
         original = yaml.YAMLError("original")
 
         def recursion(_loader):
             raise RecursionError
 
+        def fail(_loader):
+            raise AssertionError("constructor errors are not retried")
+
         assert yamlio.detailed_error(original, lambda loader: None) is original
         assert yamlio.detailed_error(original, recursion) is original
+        tag_error = yaml.constructor.ConstructorError(problem="unknown tag")
+        assert yamlio.detailed_error(tag_error, fail) is tag_error
 
 
 class TestConfigFile:

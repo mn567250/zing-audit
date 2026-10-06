@@ -179,10 +179,18 @@ BAD_YAML = [
         ("provider: x\nnote: !!python/object/apply:os.system [ls]\nmodels: []", "constructor for the tag"),
         ("a: &a [x, x]\nb: &b [*a, *a]\nc: [*b, *b]", "anchors"),
         ("provider: x\nmodels: []\n---\nprovider: y\nm: *undefined", "anchors"),
+        ("provider: x\nmodels: []\nnote: " + "[" * 33 + "]" * 33, "nested more than 32 levels"),
+        ("provider: x\nmodels:\n" + "".join("  " * i + "- \n" for i in range(40)), "nested more than"),
+        # Deep enough to overflow the C stack in libyaml's composer, were it reached.
+        ("provider: x\nmodels: []\nnote: " + "[" * 200_000 + "]" * 200_000, "nested more than"),
 ]
 
 
-@pytest.mark.parametrize(("text", "needle"), BAD_YAML)
+def _short_id(value):
+    return repr(value)[:40] if isinstance(value, str) else None
+
+
+@pytest.mark.parametrize(("text", "needle"), BAD_YAML, ids=_short_id)
 def test_scan_rejects_bad_yaml(data_dir, text, needle):
     result = scan(text)
     assert not result.ok
@@ -190,7 +198,7 @@ def test_scan_rejects_bad_yaml(data_dir, text, needle):
     assert not (data_dir / "kb.db").exists() or store.list_entries() == []
 
 
-@pytest.mark.parametrize("text", [NEW_PROVIDER_YAML, *(t for t, _ in BAD_YAML)])
+@pytest.mark.parametrize("text", [NEW_PROVIDER_YAML, *(t for t, _ in BAD_YAML)], ids=_short_id)
 def test_scan_is_the_same_with_the_c_and_pure_python_yaml_loaders(data_dir, monkeypatch, text):
     # scan() parses with libyaml when available; the documents it accepts and
     # the errors it reports (via the pure-Python loader's more detailed

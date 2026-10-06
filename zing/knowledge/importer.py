@@ -14,8 +14,8 @@ The YAML comes from an AI and is treated as untrusted input:
 
 * size-limited, parsed with PyYAML's safe loader (libyaml's C parser when
   available, :mod:`zing.utils.yamlio`) and refused when it uses
-  anchors/aliases (no "billion laughs" expansion) or a tag outside the safe
-  subset;
+  anchors/aliases (no "billion laughs" expansion), nests more than
+  ``MAX_NESTING`` levels or uses a tag outside the safe subset;
 * validated against the same pydantic schema as the packaged profiles (unknown
   fields are errors, non-English probes need a ``language_bound`` reason);
 * bounded: counts, prompt lengths, ``max_tokens``, ``temperature``, ``weight``;
@@ -54,6 +54,11 @@ MAX_FINGERPRINTS = 100
 MAX_PROMPT_CHARS = 20_000
 MAX_REGEX_CHARS = 500
 MAX_TOKENS = 32_768
+# Valid profiles nest about six levels deep. The limit keeps the loaders off
+# deeply nested input: libyaml's composer recurses in C once per level (tens
+# of thousands of levels overflow the C stack), the Python code past it hits
+# RecursionError after several hundred.
+MAX_NESTING = 32
 
 _PROVIDER_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
 _MODEL_ID_RE = re.compile(r"^[^\s\x00-\x1f\x7f]{1,200}$")
@@ -109,18 +114,27 @@ def _pydantic_errors(result: ScanResult, prefix: str, exc: ValidationError) -> N
         result.error(_loc(prefix, tuple(err.get("loc") or ())), msg)
 
 
-def _uses_anchors(text: str, loader: Any = None) -> bool:
+def _structure_problem(text: str, loader: Any = None) -> str | None:
+    """Why ``text`` is refused before it is loaded (anchors, nesting), from its parser events."""
+    depth = 0
     for event in yamlio.parse(text, loader):
         if isinstance(event, yaml.AliasEvent) or getattr(event, "anchor", None):
-            return True
-    return False
+            return "YAML anchors/aliases (& and *) are not allowed"
+        if isinstance(event, yaml.CollectionStartEvent):
+            depth += 1
+            if depth > MAX_NESTING:
+                return f"nested more than {MAX_NESTING} levels deep"
+        elif isinstance(event, yaml.CollectionEndEvent):
+            depth -= 1
+    return None
 
 
-def _load_documents(text: str, loader: Any = None) -> list[Any] | None:
-    """The non-empty documents in ``text``, or ``None`` when it uses anchors/aliases."""
-    if _uses_anchors(text, loader):
-        return None
-    return [d for d in yamlio.safe_load_all(text, loader) if d is not None]
+def _load_documents(text: str) -> list[Any] | str:
+    """The non-empty documents in ``text``, or why it is refused."""
+    problem = _structure_problem(text)
+    if problem is not None:
+        return problem
+    return [d for d in yamlio.safe_load_all(text) if d is not None]
 
 
 def _check_strings(result: ScanResult, path: str, value: Any) -> None:
@@ -196,14 +210,15 @@ def scan(text: str, *, base: KnowledgeBase | None = None) -> ScanResult:
     try:
         loaded = _load_documents(text)
     except yaml.YAMLError as c_exc:
-        exc = yamlio.detailed_error(c_exc, lambda loader: _load_documents(text, loader))
+        # Syntax errors are raised by the parser, so re-parsing is enough for the detail.
+        exc = yamlio.detailed_error(c_exc, lambda loader: _structure_problem(text, loader))
         problem = getattr(exc, "problem", None) or (str(exc).splitlines() or ["syntax error"])[0]
         mark = getattr(exc, "problem_mark", None)
         where = f" (line {mark.line + 1}, column {mark.column + 1})" if mark is not None else ""
         result.error("", f"not valid YAML: {problem}{where}")
         return result
-    if loaded is None:
-        result.error("", "YAML anchors/aliases (& and *) are not allowed")
+    if isinstance(loaded, str):
+        result.error("", loaded)
         return result
     docs = loaded
     if not docs:

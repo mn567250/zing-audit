@@ -45,6 +45,7 @@ from zing.utils import yamlio
 
 _DATA_PACKAGE = "zing.knowledge.data"
 
+
 def _parse_provider(text: str, source: str) -> ProviderProfile:
     data = yamlio.safe_load(text)
     if not isinstance(data, dict):

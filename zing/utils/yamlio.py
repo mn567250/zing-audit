@@ -1,9 +1,11 @@
 """Safe YAML loading with libyaml's C parser when PyYAML was built with it.
 
 ``CSafeLoader`` parses about 10x faster than the pure-Python ``SafeLoader`` and
-loads the same safe subset of YAML into the same data: only the scanner and
-parser are C, construction (and so the refusal of unknown or unsafe tags) is
-the same Python ``SafeConstructor``.
+loads the same safe subset of YAML into the same data: the scanner, parser and
+composer are C, construction (and so the refusal of unknown or unsafe tags) is
+the same Python ``SafeConstructor``. libyaml's composer recurses in C once per
+nesting level, so bound the nesting of untrusted input (from :func:`parse`'s
+events) before loading it, as the profile importer does.
 
 libyaml's error messages are terser, though: "found character that cannot
 start any token" instead of "found character '\\t' that cannot start any
@@ -43,17 +45,19 @@ def parse(text: str, loader: Any = None) -> Iterator[yaml.Event]:
 def detailed_error(exc: yaml.YAMLError, retry: Callable[[Any], object]) -> yaml.YAMLError:
     """The pure-Python loader's error for a load that failed with ``exc``.
 
-    ``retry`` repeats the failed load with the loader class it is given. When
-    the pure-Python loader fails too, its (more specific) error is returned;
-    otherwise -- the loaders disagree, or it fails some other way, such as a
-    RecursionError on very deep nesting -- ``exc`` is.
+    ``retry`` repeats the failed load (or just its parsing) with the loader
+    class it is given. When the pure-Python loader fails too, its (more
+    specific) error is returned; otherwise -- the loaders disagree, or the
+    retry hits RecursionError on very deep nesting -- ``exc`` is. Constructor
+    errors (such as an unknown tag) come from the same Python code with both
+    loaders, so they are returned as they are, without a retry.
     """
-    if SAFE_LOADER is yaml.SafeLoader:
+    if SAFE_LOADER is yaml.SafeLoader or isinstance(exc, yaml.constructor.ConstructorError):
         return exc
     try:
         retry(yaml.SafeLoader)
     except yaml.YAMLError as detailed:
         return detailed
-    except Exception:  # keep the original error
+    except RecursionError:
         pass
     return exc

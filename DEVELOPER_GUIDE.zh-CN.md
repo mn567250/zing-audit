@@ -303,7 +303,9 @@ API 密钥）和 `kb.db`（`knowledge/store.py`）。每次调用都打开一个
 - `findings` —— 发现 id → `[标题, 摘要模板]`（`zh.json` 中是原始中文目录）。
 
 功能也可以用片段的形式提供文案：`zing/i18n/locales/fragments/<feature>/<code>.json`，
-内容为 `{"strings": {…}}`，加载时合并进对应语言。
+内容为 `{"strings": {…}}`，加载时合并进对应语言。`/locales.js` 只发送所选语言
+（`?lang=<code>`，或 `lang.js` 写入的 `zing_lang` cookie；两者都没有时发送全部语言），
+只生成一次并通过 `ETag` 重新验证；切换语言时按需加载新语言。
 
 - **新的界面文案：** 把中文写进 HTML，英文写进 `data-en`（或使用 `T(zh, en)`），然后把英文键加入
   `en.json` 或某个片段，并在其他每种语言中加上译文。

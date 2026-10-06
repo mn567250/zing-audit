@@ -391,7 +391,10 @@ A interface e os alertas por webhook partilham um único conjunto de traduções
 
 As funcionalidades podem trazer os seus textos como fragmentos,
 `zing/i18n/locales/fragments/<feature>/<code>.json` com `{"strings": {…}}`,
-fundidos no idioma ao carregar.
+fundidos no idioma ao carregar. `/locales.js` envia apenas o idioma escolhido
+(`?lang=<code>` ou o cookie `zing_lang` definido por `lang.js`; sem nenhum dos
+dois, todos os idiomas), gerado uma vez e revalidado por `ETag`; uma troca de
+idioma carrega o novo sob demanda.
 
 - **Novo texto de interface:** escreva o chinês no HTML e o inglês em `data-en`
   (ou use `T(zh, en)`), depois acrescente a chave inglesa a `en.json` ou a um

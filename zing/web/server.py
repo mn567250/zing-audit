@@ -639,11 +639,22 @@ def create_app() -> FastAPI:
         return root_assets.asset("i18n.js", request.scope, "application/javascript")
 
     @app.get("/locales.js")
-    async def locales_js() -> Any:
-        # Translation data (zing/i18n/locales/*.json) + the lookup logic.
-        from zing.i18n import locales_script
+    async def locales_js(request: Request) -> Any:
+        # Translation data (zing/i18n/locales/*.json) + the lookup logic: one
+        # language's for ?lang= or the zing_lang cookie lang.js writes, else
+        # every language (built once, revalidated by ETag).
+        from zing.i18n import locales_bundle
 
-        return Response(locales_script(), media_type="application/javascript")
+        q = request.query_params.get("lang")
+        body, etag = locales_bundle(q if q is not None else request.cookies.get("zing_lang"))
+        headers = {"ETag": etag, "Cache-Control": "no-cache"}
+        if q is None:
+            headers["Vary"] = "Cookie"
+        inm = request.headers.get("if-none-match", "")
+        tags = {t.strip().removeprefix("W/") for t in inm.split(",")}
+        if etag in tags or "*" in tags:
+            return Response(status_code=304, headers=headers)
+        return Response(body, media_type="application/javascript", headers=headers)
 
     @app.get("/lang.js")
     async def lang_js(request: Request) -> Any:

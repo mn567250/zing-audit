@@ -12,8 +12,10 @@ The intended flow (web UI: Knowledge base page, CLI: ``zing kb prompt``):
 
 The YAML comes from an AI and is treated as untrusted input:
 
-* size-limited, parsed with ``yaml.safe_load_all`` and refused when it uses
-  anchors/aliases (no "billion laughs" expansion);
+* size-limited, parsed with PyYAML's safe loader (libyaml's C parser when
+  available, :mod:`zing.utils.yamlio`) and refused when it uses
+  anchors/aliases (no "billion laughs" expansion) or a tag outside the safe
+  subset;
 * validated against the same pydantic schema as the packaged profiles (unknown
   fields are errors, non-English probes need a ``language_bound`` reason);
 * bounded: counts, prompt lengths, ``max_tokens``, ``temperature``, ``weight``;
@@ -44,6 +46,7 @@ from pydantic import ValidationError
 from zing.knowledge import store
 from zing.knowledge.loader import load_knowledge_base
 from zing.knowledge.schema import FingerprintProbe, KnowledgeBase, ProviderProfile
+from zing.utils import yamlio
 
 MAX_YAML_BYTES = 512 * 1024
 MAX_MODELS = 200
@@ -106,11 +109,18 @@ def _pydantic_errors(result: ScanResult, prefix: str, exc: ValidationError) -> N
         result.error(_loc(prefix, tuple(err.get("loc") or ())), msg)
 
 
-def _uses_anchors(text: str) -> bool:
-    for event in yaml.parse(text, Loader=yaml.SafeLoader):
+def _uses_anchors(text: str, loader: Any = None) -> bool:
+    for event in yamlio.parse(text, loader):
         if isinstance(event, yaml.AliasEvent) or getattr(event, "anchor", None):
             return True
     return False
+
+
+def _load_documents(text: str, loader: Any = None) -> list[Any] | None:
+    """The non-empty documents in ``text``, or ``None`` when it uses anchors/aliases."""
+    if _uses_anchors(text, loader):
+        return None
+    return [d for d in yamlio.safe_load_all(text, loader) if d is not None]
 
 
 def _check_strings(result: ScanResult, path: str, value: Any) -> None:
@@ -184,16 +194,18 @@ def scan(text: str, *, base: KnowledgeBase | None = None) -> ScanResult:
         result.error("", f"larger than {MAX_YAML_BYTES // 1024} KB")
         return result
     try:
-        if _uses_anchors(text):
-            result.error("", "YAML anchors/aliases (& and *) are not allowed")
-            return result
-        docs = [d for d in yaml.safe_load_all(text) if d is not None]
-    except yaml.YAMLError as exc:
+        loaded = _load_documents(text)
+    except yaml.YAMLError as c_exc:
+        exc = yamlio.detailed_error(c_exc, lambda loader: _load_documents(text, loader))
         problem = getattr(exc, "problem", None) or (str(exc).splitlines() or ["syntax error"])[0]
         mark = getattr(exc, "problem_mark", None)
         where = f" (line {mark.line + 1}, column {mark.column + 1})" if mark is not None else ""
         result.error("", f"not valid YAML: {problem}{where}")
         return result
+    if loaded is None:
+        result.error("", "YAML anchors/aliases (& and *) are not allowed")
+        return result
+    docs = loaded
     if not docs:
         result.error("", "no YAML document found")
         return result

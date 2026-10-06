@@ -140,6 +140,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `ZING_KB_DIR` files, the data directory and the kb.db entries, so imports,
   edits and deletes still apply immediately. The Models page, `/api/kb/*` and
   the Monitors list (`/api/watches`) answer in a fraction of the time.
+- **Faster profile import checks.** Checking and importing a profile YAML (the
+  Models page, `/api/kb/scan` and `/api/kb/import`, `zing kb-import`) and
+  reading a `zing.yaml` config use libyaml's C parser too: parsing a 27 KB
+  profile takes about 5 ms instead of 80 ms. The checks are unchanged (size
+  limit, no anchors/aliases, safe tags only), and rejected YAML is reported
+  with the same detailed message as before.
 - **History loads faster.** `history.db` stores each run's performance headline
   (p50 latency, TTFT and decode speed) in its own columns, so the History list
   and trends no longer parse every saved report: `/api/history?limit=500&perf=1`

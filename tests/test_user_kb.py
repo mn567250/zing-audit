@@ -155,9 +155,7 @@ def test_disabled_entries_do_not_apply(data_dir):
 
 
 # ----- import checks ------------------------------------------------------ #
-@pytest.mark.parametrize(
-    ("text", "needle"),
-    [
+BAD_YAML = [
         ("", "empty"),
         ("- just a list", "mapping"),
         ("provider: Bad Key\nmodels: []", "provider key"),
@@ -172,13 +170,48 @@ def test_disabled_entries_do_not_apply(data_dir):
         ("provider: x\nbase_url_hints: [ftp://nope]\nmodels:\n- id: m", "http"),
         ("provider: x\nmodels: [{id: [not, a, string]}]", "id"),
         ("key: [unclosed", "not valid YAML"),
-    ],
-)
+        ("provider: x\n\tmodels: []", "not valid YAML"),
+        ("provider: x\nmodels:\n- id: m\n  note: \"bad \\q escape\"", "not valid YAML"),
+        ("provider: x\nmodels: [{id: m}]]", "not valid YAML"),
+        ("provider: x\nmodels: []\n---\n{a: 1", "not valid YAML"),
+        ("provider: x\nnote: \x07\nmodels: []", "unacceptable character"),
+        ("provider: x\nnote: !foo bar\nmodels: []", "constructor for the tag"),
+        ("provider: x\nnote: !!python/object/apply:os.system [ls]\nmodels: []", "constructor for the tag"),
+        ("a: &a [x, x]\nb: &b [*a, *a]\nc: [*b, *b]", "anchors"),
+        ("provider: x\nmodels: []\n---\nprovider: y\nm: *undefined", "anchors"),
+]
+
+
+@pytest.mark.parametrize(("text", "needle"), BAD_YAML)
 def test_scan_rejects_bad_yaml(data_dir, text, needle):
     result = scan(text)
     assert not result.ok
     assert any(needle.lower() in (e["message"] + " " + e["path"]).lower() for e in result.errors), result.errors
     assert not (data_dir / "kb.db").exists() or store.list_entries() == []
+
+
+@pytest.mark.parametrize("text", [NEW_PROVIDER_YAML, *(t for t, _ in BAD_YAML)])
+def test_scan_is_the_same_with_the_c_and_pure_python_yaml_loaders(data_dir, monkeypatch, text):
+    # scan() parses with libyaml when available; the documents it accepts and
+    # the errors it reports (via the pure-Python loader's more detailed
+    # message) must be exactly those of the pure-Python SafeLoader.
+    import yaml
+
+    from zing.utils import yamlio
+
+    if not hasattr(yaml, "CSafeLoader"):
+        pytest.skip("PyYAML built without libyaml")
+    assert yamlio.SAFE_LOADER is yaml.CSafeLoader
+    with_c = scan(text).to_dict()
+    monkeypatch.setattr(yamlio, "SAFE_LOADER", yaml.SafeLoader)
+    assert scan(text).to_dict() == with_c
+
+
+def test_scan_reports_the_detailed_yaml_error(data_dir):
+    # libyaml alone would say "found character that cannot start any token".
+    result = scan("provider: x\n\tmodels: []")
+    assert result.errors == [{"path": "", "message": "not valid YAML: found character '\\t' "
+                              "that cannot start any token (line 2, column 1)"}]
 
 
 def test_scan_rejects_oversized_input(data_dir):

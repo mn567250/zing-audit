@@ -51,7 +51,8 @@
  * picks the one-language /locales.js (no cookie: every language). Should the
  * stored language's data be missing at boot anyway (cookie lost or out of
  * date), the cookie is fixed and the page reloaded once while still hidden
- * (a sessionStorage flag prevents a loop); if that isn't possible the page
+ * (a sessionStorage flag prevents a loop); if that isn't possible, or the
+ * reload doesn't come before the reveal timers below, the page
  * shows in English and switches once /locales.js?lang=<code> has loaded.
  *
  * Outside CN the page is hidden (html visibility) until the static markup is
@@ -97,7 +98,9 @@
       var v = localStorage.getItem(KEY);
       if (v && LANGS[v]) return v;
     } catch (e) {}
-    return DEFAULT;
+    // No stored choice (or no localStorage): the cookie mirrors it.
+    var c = readCookie();
+    return c && LANGS[c] ? c : DEFAULT;
   }
 
   function locales() {
@@ -161,8 +164,8 @@
     // English until the stored language's data is here (never a page
     // without text, never a reload loop).
     lang = DEFAULT;
+    late = wanted;
     reloading = reloadFor(wanted);
-    if (!reloading) late = wanted;
   }
 
   function tr(en) {
@@ -391,6 +394,11 @@
       window.removeEventListener("error", onError);
     } catch (e) {}
     document.documentElement.style.visibility = "";
+    if (reloading) {
+      // The reload didn't happen in time: load the language in place.
+      reloading = false;
+      if (late) set(late);
+    }
   }
   function onError() {
     // Before DOMContentLoaded boot is still to come and will reveal the page.
@@ -421,7 +429,7 @@
       // reveal it should the reload not happen.
       if (!reloading) reveal();
     }
-    if (late) set(late);
+    if (late && !reloading) set(late);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

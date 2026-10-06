@@ -432,7 +432,8 @@ const run = (o, steps) => {
   const appended = [], session = Object.assign({}, o.session || {});
   const sel = { value: "", innerHTML: "", appendChild() {}, addEventListener() {} };
   global.CustomEvent = function (t, init) { this.type = t; this.detail = init.detail; };
-  global.setTimeout = () => 0; global.clearTimeout = () => {};
+  const timers = [];
+  global.setTimeout = fn => timers.push(fn); global.clearTimeout = id => { timers[id - 1] = null; };
   global.window = { addEventListener() {}, removeEventListener() {},
                     dispatchEvent(e) { out.events.push(e.detail.lang); } };
   global.document = {
@@ -441,7 +442,8 @@ const run = (o, steps) => {
     createElement: () => ({}), head: { appendChild(s) { s.parentNode = { removeChild() {} }; appended.push(s); } },
   };
   let stored = o.stored || null;
-  global.localStorage = { getItem: () => stored, setItem: (k, v) => { stored = v; } };
+  global.localStorage = o.noStorage ? { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); } }
+    : { getItem: () => stored, setItem: (k, v) => { stored = v; } };
   global.sessionStorage = { getItem: k => (k in session ? session[k] : null),
                             setItem: (k, v) => { session[k] = String(v); }, removeItem: k => { delete session[k]; } };
   global.location = { reload() { out.reloads++; } };
@@ -464,6 +466,8 @@ const run = (o, steps) => {
     try {
       if (st.set) { sel.value = st.set; window.ZING_LANG.set(st.set); }
       if (st.serve) serve(st.serve === "fail");
+      if (st.timers) timers.splice(0).forEach(fn => fn && fn());
+      if (st.report) out.report = window.ZING_LOCALES.strings;
     } catch (e) { out.errors.push(String(e)); }
     (out.after = out.after || []).push(snap());
   }
@@ -475,6 +479,9 @@ const r = {
   same: pick(run({ bundle: "de", stored: "de", cookie: "zing_lang=de", session: { "zing.lang.reload": "de" } })),
   stale: pick(run({ bundle: "de", stored: "fr", cookie: "zing_lang=de" })),
   again: pick(run({ bundle: "de", stored: "fr", cookie: "zing_lang=de", session: { "zing.lang.reload": "fr" } }, [{ serve: "ok" }])),
+  noReload: pick(run({ bundle: "de", stored: "fr", cookie: "zing_lang=de" }, [{ timers: true }, { serve: "ok" }])),
+  noStorage: pick(run({ bundle: "de", noStorage: true, cookie: "zing_lang=de" })),
+  common: pick(run({ bundle: "de", stored: "de", cookie: "zing_lang=de" }, [{ report: true }])),
   againFail: pick(run({ bundle: "de", stored: "fr", cookie: "zing_lang=de", session: { "zing.lang.reload": "fr" } }, [{ serve: "fail" }])),
   full: pick(run({ bundle: null, stored: "it" })),
   toZh: pick(run({ bundle: "en", stored: "en", cookie: "zing_lang=en" }, [{ set: "zh" }, { serve: "ok" }, { set: "en" }, { set: "zh" }])),
@@ -521,6 +528,18 @@ def test_lang_js_loads_the_missing_language_bundle(tmp_path):
     a = r["againFail"]
     assert a["after"][0]["lang"] == "en" and a["after"][0]["select"] == "en"
     assert a["after"][0]["stored"] == "fr" and a["errors"] == [] and not a["after"][0]["hidden"]
+    # The reload doesn't come: the reveal timer shows English and loads fr.
+    n = r["noReload"]
+    assert n["reloads"] == 1 and n["boot"]["hidden"]
+    assert not n["after"][0]["hidden"] and n["after"][0]["pending"] == 1
+    assert n["after"][1]["lang"] == "fr" and n["events"] == ["fr"]
+    # No localStorage: the cookie keeps the choice.
+    b = r["noStorage"]["boot"]
+    assert (b["lang"], b["cookie"], r["noStorage"]["reloads"]) == ("de", "de", 0)
+    # Other languages carry the strings report.js needs for all of them.
+    fr = r["common"]["report"]["fr"]
+    assert fr["Overall health score {1}/100."] == i18n.ui("fr", "Overall health score {1}/100.")
+    assert len(fr) == 2 and len(r["common"]["report"]["de"]) > 100
     # The full bundle (no cookie yet) has every language; the cookie is set.
     b = r["full"]["boot"]
     assert (b["lang"], b["cookie"], r["full"]["reloads"], b["pending"]) == ("it", "it", 0, 0)

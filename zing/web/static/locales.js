@@ -7,9 +7,12 @@
  *
  * /locales.js carries one language when asked for one (`?lang=<code>`, else
  * the `zing_lang` cookie lang.js writes) and every language otherwise. A
- * one-language bundle adds `lang` and `keys` (below) to the data. A second
- * bundle loaded later (lang.js does, to switch to a language not loaded yet)
- * merges its data into the existing window.ZING_LOCALES instead of replacing it.
+ * one-language bundle adds `lang`, `keys` (below) and `common` (the other
+ * languages' forms of the few strings every page needs for all of them) to
+ * the data. A second bundle loaded later (lang.js does, to switch to a
+ * language not loaded yet) merges its data into the existing
+ * window.ZING_LOCALES instead of replacing it; window.ZING_I18N_DATA then
+ * holds that last bundle's data only, so read ZING_LOCALES, not it.
  *
  * Exposes window.ZING_LOCALES = { strings, findings, patterns, add, has, merge, keys, languages }:
  *   - strings[lang][english]   UI text; the English string (a `data-en`
@@ -19,7 +22,7 @@
  *                              placeholder rules as i18n.js ("zh" is the
  *                              original Chinese catalog).
  *                              Both maps hold one object per language from the
- *                              start (empty until its data is loaded) and keep
+ *                              start (empty, or only `common`, until its data is loaded) and keep
  *                              it, so a reference taken early (i18n.js keeps
  *                              findings.zh) sees data merged later.
  *   - patterns                 [regex, english template, {group: fn}] used by
@@ -138,6 +141,15 @@
     Object.keys(locs).forEach(function (code) {
       if (code === "en") return; // English is the key language
       add(code, locs[code].strings, locs[code].findings);
+    });
+    // A few strings of the languages not loaded (see zing/i18n lang_bundle).
+    var common = (data && data.common) || {};
+    Object.keys(common).forEach(function (code) {
+      if (code === "en" || loaded[code]) return;
+      var d = strings[code] || (strings[code] = {});
+      Object.keys(common[code] || {}).forEach(function (k) {
+        d[k] = common[code][k];
+      });
     });
   }
 

@@ -65,8 +65,13 @@ def codes() -> list[str]:
 
 def normalize(lang: str | None) -> str:
     """A supported language code; anything unknown or empty becomes English."""
-    lang = (lang or "").strip().lower()
-    return lang if lang in _load() else DEFAULT
+    return _supported(lang) or DEFAULT
+
+
+def _supported(lang: str | None) -> str | None:
+    """``lang`` as a supported code, or ``None``."""
+    code = (lang or "").strip().lower()
+    return code if code in _load() else None
 
 
 def ui(lang: str | None, en: str) -> str:
@@ -134,11 +139,21 @@ def lang_bundle(lang: str) -> dict[str, Any]:
     """
     data = _load()
     d = data[lang]
-    locales = {} if lang == DEFAULT else {lang: {"strings": d.get("strings", {}), "findings": d.get("findings", {})}}
+    locales = {}
+    if lang != DEFAULT:
+        locales[lang] = {"strings": d.get("strings", {}), "findings": d.get("findings", {})}
+    # The other languages' forms of a few backend sentences, so text exported
+    # in another language is still recognised (v2/report.js strips them).
+    common = {
+        code: {en: o["strings"][en] for en in _EVERY_LANGUAGE if en in o.get("strings", {})}
+        for code, o in data.items()
+        if code not in (DEFAULT, lang)
+    }
     return {
         "languages": languages(),
         "lang": lang,
         "locales": locales,
+        "common": common,
         "keys": {
             "strings": list(data.get(DEFAULT, {}).get("strings", {})),
             "findings": list(data.get("zh", {}).get("findings", {})),
@@ -146,8 +161,15 @@ def lang_bundle(lang: str) -> dict[str, Any]:
     }
 
 
+# Strings every one-language bundle carries for all languages (see lang_bundle).
+_EVERY_LANGUAGE = (
+    "Overall health score {1}/100.",
+    "zing reports black-box evidence of divergence and risk, not proof of fraud.",
+)
+
+
 @lru_cache(maxsize=16)  # one per language + the full bundle
-def _script(lang: str | None) -> tuple[str, str]:
+def _script(lang: str | None, _version: tuple[int, int]) -> tuple[str, str]:
     payload = bundle() if lang is None else lang_bundle(lang)
     data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     body = f"window.ZING_I18N_DATA = {data};\n" + _STATIC_LOCALES_JS.read_text(encoding="utf-8")
@@ -155,16 +177,22 @@ def _script(lang: str | None) -> tuple[str, str]:
     return body, etag
 
 
+_built_from: list[Any] = [None]  # the _load() result the cached scripts come from
+
+
 def locales_bundle(lang: str | None = None) -> tuple[str, str]:
     """``(script, ETag)`` served at ``/locales.js``, built once per variant.
 
     ``lang`` (a supported code) gives the one-language bundle (see
     :func:`lang_bundle`); ``None`` or an unknown code the full bundle with
-    every language. Built once per process: call ``_script.cache_clear()``
-    after ``_load.cache_clear()``.
+    every language. Rebuilt when the locale data is reloaded
+    (``_load.cache_clear()``) or ``static/locales.js`` changes.
     """
-    code = (lang or "").strip().lower()
-    return _script(code if code in _load() else None)
+    data = _load()
+    if _built_from[0] is not data:
+        _script.cache_clear()
+        _built_from[0] = data
+    return _script(_supported(lang), (id(data), _STATIC_LOCALES_JS.stat().st_mtime_ns))
 
 
 def locales_script(lang: str | None = None) -> str:

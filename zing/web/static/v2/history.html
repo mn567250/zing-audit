@@ -466,12 +466,19 @@
     }
   });
 
+  // Intl formatters are costly to build: one per (locale, options), reused.
+  // Same output as toLocaleString(locale, options); a bad locale still throws.
+  var intlCache = {};
+  function intlFmt(Ctor, kind, loc, opts) {
+    var k = kind + "|" + (loc == null ? "" : String(loc)) + "|" + JSON.stringify(opts || {});
+    return intlCache[k] || (intlCache[k] = new Ctor(loc, opts));
+  }
   function fmtTime(ts) {
     if (!ts) return "—";
     var d = new Date(ts);
     if (isNaN(d)) return String(ts);
     try {
-      return d.toLocaleString(ZING_LANG.locale(), { dateStyle: "medium", timeStyle: "short" });
+      return intlFmt(Intl.DateTimeFormat, "d", ZING_LANG.locale(), { dateStyle: "medium", timeStyle: "short" }).format(d);
     } catch (e) {
       return d.toLocaleString();
     }

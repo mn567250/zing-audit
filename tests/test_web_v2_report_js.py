@@ -504,3 +504,71 @@ def test_performance_measurements_sit_in_the_performance_dimension(tmp_path):
     assert perf_row.startswith(' off">')
     assert '<div class="zr-extra" data-extra="performance">' in perf_row
     assert "Performance measurements" in perf_row and 'class="zp-section"' in perf_row
+
+
+_JS_INTL = r"""
+const path = require("path");
+const [dir, lang, reportJson] = process.argv.slice(1);
+// count how many Intl formatters the report builds
+const made = {};
+for (const name of ["DateTimeFormat", "NumberFormat", "DisplayNames"]) {
+  const Orig = Intl[name];
+  made[name] = 0;
+  Intl[name] = function (loc, opts) { made[name]++; return new Orig(loc, opts); };
+}
+global.window = { addEventListener() {} };
+global.document = { documentElement: { style: {}, lang: "" }, readyState: "complete",
+                    querySelectorAll: () => [], addEventListener() {} };
+global.localStorage = { getItem: () => lang, setItem() {} };
+require(path.join(dir, "locales.js"));
+require(path.join(dir, "lang.js"));
+require(path.join(dir, "i18n.js"));
+require(path.join(dir, "icons.js"));
+require(path.join(dir, "v2", "report.js"));
+const report = JSON.parse(reportJson);
+const render = () => {
+  const el = { querySelectorAll: () => [], querySelector: () => null };
+  window.ZingReport.render(el, report, {});
+  return el.innerHTML;
+};
+const first = render();
+const after1 = Object.assign({}, made);
+const second = render();
+const after2 = Object.assign({}, made);
+const loc = window.ZING_LANG.locale();
+console.log(JSON.stringify({
+  first, second, after1, after2, locale: loc,
+  time: new Date(report.generated_at).toLocaleString(loc, { dateStyle: "medium", timeStyle: "short" }),
+  lang: new Intl.DisplayNames([loc || "en"], { type: "language" }).of("de"),
+}));
+"""
+
+
+@needs_node
+@pytest.mark.parametrize("lang", ["en", "de", "zh"])
+def test_intl_formatters_are_cached_and_output_unchanged(tmp_path, lang):
+    from zing.i18n import locales_script
+
+    (tmp_path / "locales.js").write_text(locales_script(), encoding="utf-8")
+    for name in ("lang.js", "i18n.js", "icons.js"):
+        shutil.copy(_STATIC / name, tmp_path / name)
+    (tmp_path / "v2").mkdir()
+    shutil.copy(_STATIC / "v2" / "report.js", tmp_path / "v2" / "report.js")
+    report = json.loads(_FIXTURE.read_text(encoding="utf-8"))
+    report["prompt_languages"] = ["de", "en"]
+    out = json.loads(subprocess.run(
+        ["node", "-e", _JS_INTL, str(tmp_path), lang, json.dumps(report)],
+        capture_output=True, text=True, check=True,
+    ).stdout)
+    # same text as Date#toLocaleString / Intl.DisplayNames built per call
+    assert out["locale"]
+    assert htmllib.escape(out["time"], quote=False) in out["first"]
+    assert htmllib.escape(out["lang"], quote=False) in out["first"]
+    def ids(h: str) -> str:  # each render numbers its element ids anew
+        return re.sub(r"(zr-[a-z-]*?)\d+", r"\1N", h)
+
+    assert ids(out["second"]) == ids(out["first"])
+    # each (locale, options) formatter is built once and reused on re-render
+    assert out["after1"]["DateTimeFormat"] == 1 and out["after1"]["DisplayNames"] == 1
+    assert out["after1"]["NumberFormat"] >= 1
+    assert out["after2"] == out["after1"]

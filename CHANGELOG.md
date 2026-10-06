@@ -157,8 +157,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   previous-run lookups, saving a finished audit to history, recording a
   monitor's run and loading the knowledge base when an audit starts now run in
   a worker thread. A Cancel that arrives while a finished audit is being saved
-  waits for the save, so the report is kept, and a monitor stays "running"
-  until its run is recorded.
+  takes effect only once the report is stored (a background audit then ends as
+  done), and a monitor stays "running" until its run is recorded.
 
 - **Web UI responses are compressed and its assets cached.** `zing serve`
   gzips responses of 1 KiB and more (never the live audit event streams), and

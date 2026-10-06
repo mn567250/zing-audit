@@ -351,8 +351,6 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
     report_id: int | None = None
     duration: float | None = None
     cancelled = False
-    # A cancel that lands while the report is being saved keeps it as the result.
-    keep_result = False
     try:
         suite = validate_suite(str(row.get("suite") or "standard"))
         dimensions = validate_dimensions(suite, row.get("dimensions"))
@@ -423,13 +421,18 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
             )
             duration = time.perf_counter() - started
         report_dict = json.loads(report.model_dump_json())
-        # Off the loop; a cancel during the save waits for it (see jobs.settle).
-        report_id, interrupted = await jobs.settle(history.save, report_dict, watch_id=wid)
-        if report_id is not None and report_id < 0:
-            report_id = None
-        if job is not None:
-            job.report_id = report_id
-            job.emit({"type": "report", "report": report_dict, "report_id": report_id})
+
+        async def store() -> int | None:
+            # Save off the loop and report it, as one step (see jobs.settle).
+            rid: int | None = await asyncio.to_thread(history.save, report_dict, watch_id=wid)
+            if rid is not None and rid < 0:
+                rid = None
+            if job is not None:
+                job.report_id = rid
+                job.emit({"type": "report", "report": report_dict, "report_id": rid})
+            return rid
+
+        report_id = await jobs.settle(store())
 
         verdict = report_dict.get("verdict") or {}
         # report_dict came through model_dump_json, so risk_level is a plain str.
@@ -437,13 +440,6 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
         risk = raw_risk if isinstance(raw_risk, str) else None
         raw_score = verdict.get("overall_score")
         score = float(raw_score) if isinstance(raw_score, (int, float)) else None
-        if interrupted:
-            # Cancelled while saving: the stored report is this run's result
-            # (as when the save was atomic), but no alert goes out.
-            if state is not None and state.get("cancelled"):
-                return  # Cancel came too late: the run is complete
-            keep_result = True
-            raise asyncio.CancelledError  # server shutdown: let it propagate
 
         # Decide whether to alert: risk crossed the configured threshold, OR it
         # regressed versus the previous saved run.
@@ -459,7 +455,7 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
                 with contextlib.suppress(Exception):
                     await send(url.strip(), report_dict, previous=previous, lang=row.get("language"))
     except asyncio.CancelledError:
-        cancelled = not keep_result
+        cancelled = True
         raise
     finally:
         # Record the run no matter what so cadence stays honest. A cancelled
@@ -471,12 +467,10 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
                 watches.mark_run(wid, risk, score, report_id, now, duration_sec=duration)
 
         # Off the loop, but finished before the caller drops the watch from
-        # _running_watches (else the scheduler could see it due again).
-        mark_interrupted = False
+        # _running_watches (else the scheduler could see it due again); a
+        # cancel meanwhile is raised once the run is recorded.
         with contextlib.suppress(Exception):
-            _, mark_interrupted = await jobs.settle(mark)
-        if mark_interrupted:
-            raise asyncio.CancelledError
+            await jobs.settle(asyncio.to_thread(mark))
 
 
 def _risk_meets(risk: str | None, threshold: str) -> bool:

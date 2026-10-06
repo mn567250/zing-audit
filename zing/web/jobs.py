@@ -32,10 +32,9 @@ import os
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
-from typing import Any, ParamSpec, TypeVar
+from typing import Any, TypeVar
 from urllib.parse import urlsplit
 
-_P = ParamSpec("_P")
 _T = TypeVar("_T")
 
 # How many audits may run at once across all relays.
@@ -314,18 +313,13 @@ class JobManager:
                 job.waiting_for = []
                 job.emit({"type": "running", "job": job.id})
                 report = await run(job.emit)
-                # The audit is over: the save runs off the loop, and a cancel
-                # that arrives meanwhile waits for it, so the finished report
-                # is stored and reported (as before, when the save was atomic).
-                report_id, interrupted = await settle(_save, report)
-                job.report_id = report_id
-                job.status = "done"
-                job.emit({"type": "report", "report": report, "report_id": report_id})
-                if interrupted and not job.cancel_requested:
-                    raise asyncio.CancelledError  # server shutdown: let it propagate
+                # The audit is over: store and report it as one step, even if
+                # a cancel arrives while the save runs (off the loop).
+                await settle(self._finish(job, report))
         except asyncio.CancelledError:
-            job.status = "cancelled"
-            job.emit({"type": "cancelled"})
+            if job.status != "done":  # else the cancel came too late
+                job.status = "cancelled"
+                job.emit({"type": "cancelled"})
             if not job.cancel_requested:
                 raise  # server shutdown: let it propagate
         except Exception as exc:  # surface any audit failure to the client
@@ -337,6 +331,12 @@ class JobManager:
             job.emit({"type": "done"})
             job._subscribers.clear()
 
+    @staticmethod
+    async def _finish(job: Job, report: dict[str, Any]) -> None:
+        job.report_id = await asyncio.to_thread(_save, report)
+        job.status = "done"
+        job.emit({"type": "report", "report": report, "report_id": job.report_id})
+
     def _prune(self) -> None:
         now = time.time()
         finished = [j for j in self._jobs.values() if not j.active and j.finished is not None]
@@ -347,27 +347,30 @@ class JobManager:
                 self._jobs.pop(j.id, None)
 
 
-async def settle(
-    fn: Callable[_P, _T], /, *args: _P.args, **kwargs: _P.kwargs
-) -> tuple[_T, bool]:
-    """Run blocking ``fn`` in a worker thread and wait until it has finished.
+async def settle(aw: Awaitable[_T]) -> _T:
+    """Await ``aw`` to the end even if the calling task is cancelled meanwhile.
 
-    Keeps SQLite/YAML/JSON work off the event loop (audits timestamp streamed
-    chunks on it) without letting a cancellation abandon a write half-way
-    through the sequence that follows it: if the awaiting task is cancelled
-    meanwhile, this still waits for ``fn`` and returns ``(result, True)``, and
-    the caller re-raises :class:`asyncio.CancelledError` once its bookkeeping
-    is done. Exceptions from ``fn`` propagate as usual.
+    For a blocking write moved off the event loop (``asyncio.to_thread``) and
+    the bookkeeping that belongs with it: a cancellation must not abandon the
+    sequence half-way (a report saved but never recorded, a monitor dropped
+    from the running set before its run is marked). The cancellation is not
+    lost, only delayed: it is raised once ``aw`` has finished (and wins over
+    an exception from it), so a server shutdown still propagates.
     """
-    fut = asyncio.ensure_future(asyncio.to_thread(fn, *args, **kwargs))
-    interrupted = False
-    while True:
+    inner = asyncio.ensure_future(aw)
+    cancelled = False
+    while not inner.done():
         try:
-            return await asyncio.shield(fut), interrupted
+            await asyncio.shield(inner)
         except asyncio.CancelledError:
-            if fut.cancelled():
+            if inner.cancelled():
                 raise
-            interrupted = True
+            cancelled = True
+        except Exception:
+            break  # inner failed: raised below, unless a cancel came first
+    if cancelled:
+        raise asyncio.CancelledError
+    return inner.result()
 
 
 def _save(report: dict[str, Any]) -> int | None:

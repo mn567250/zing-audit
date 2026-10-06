@@ -540,14 +540,22 @@ async def test_cancel_during_a_monitor_save_keeps_its_report(tmp_path, monkeypat
     run = asyncio.create_task(server._run_one_watch(watches.get(wid)))
     try:
         assert await asyncio.to_thread(started.wait, 5)
+        job = server._running_watches[wid]["job"]
         assert server._cancel_watch(wid)
         await asyncio.sleep(0.05)
         assert not run.done()  # waits for the save instead of abandoning it
     finally:
         release.set()
-    await asyncio.wait_for(run, 5)  # too late to cancel: the run completed
+    with pytest.raises(server.WatchCancelled):
+        await asyncio.wait_for(run, 5)
+    # The report is stored and was reported; the card keeps its last result,
+    # as for any cancelled run, and the watch is no longer running.
+    assert len(history.recent(10)) == 1
+    assert job.report_id is not None
+    assert [e["type"] for e in job.events if e["type"] == "report"] == ["report"]
+    assert wid not in server._running_watches
     row = watches.get(wid)
-    assert row is not None and row["last_report_id"] is not None
+    assert row is not None and row["last_report_id"] is None and row["last_run_ts"]
 
 
 async def test_scheduler_tick_does_not_block_the_loop(tmp_path, monkeypatch):
@@ -609,6 +617,73 @@ async def test_health_stays_responsive_while_a_job_saves(tmp_path, monkeypatch):
         assert job.task is not None
         await asyncio.wait_for(job.task, 5)
     assert job.status == "done" and job.report_id is not None
+
+
+async def test_a_cancel_during_a_job_save_comes_too_late(tmp_path, monkeypatch):
+    import asyncio
+
+    from zing.web import history, jobs
+
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    real_save = history.save
+    slow, started, release = _blocking()
+
+    def save(*a, **k):
+        slow()
+        return real_save(*a, **k)
+
+    monkeypatch.setattr(history, "save", save)
+    mgr = jobs.JobManager(jobs.RelayGate(limit=4))
+
+    async def run(emit):
+        return {"verdict": {}, "target": {"base_url": "https://r.example/v1"}}
+
+    job = mgr.submit({}, ["https://r.example"], run)
+    try:
+        assert await asyncio.to_thread(started.wait, 5)
+        assert mgr.cancel(job.id)
+        await asyncio.sleep(0.05)
+        assert job.status == "running"
+    finally:
+        release.set()
+    assert job.task is not None
+    await asyncio.wait_for(job.task, 5)
+    assert job.status == "done" and job.report_id is not None
+    assert [e["type"] for e in job.events][-2:] == ["report", "done"]
+
+
+async def test_settle_delays_a_cancel_until_the_work_is_done():
+    import asyncio
+
+    from zing.web import jobs
+
+    gate, log = asyncio.Event(), []
+
+    async def work(fail: bool) -> str:
+        await gate.wait()
+        log.append("done")
+        if fail:
+            raise RuntimeError("boom")
+        return "ok"
+
+    gate.set()
+    assert await jobs.settle(work(False)) == "ok"
+    for fail in (False, True):
+        gate.clear()
+        log.clear()
+        task = asyncio.create_task(jobs.settle(work(fail)))
+        await asyncio.sleep(0)
+        task.cancel()
+        await asyncio.sleep(0)
+        task.cancel()  # a second cancel is delayed too
+        await asyncio.sleep(0.01)
+        assert not task.done()
+        gate.set()
+        with pytest.raises(asyncio.CancelledError):  # wins over the error
+            await task
+        assert log == ["done"]
+    with pytest.raises(RuntimeError, match="boom"):
+        await jobs.settle(work(True))
 
 
 async def test_job_save_errors_stay_best_effort(monkeypatch):

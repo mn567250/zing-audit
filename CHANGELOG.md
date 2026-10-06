@@ -106,6 +106,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   writes Chinese with a standard PDF font the viewer supplies, so no fonts are
   shipped. The `pdf` extra is now empty and kept only so older install commands
   still work; the Docker image drops Pango and its fonts.
+- **History loads faster.** `history.db` stores each run's performance headline
+  (p50 latency, TTFT and decode speed) in its own columns, so the History list
+  and trends no longer parse every saved report: `/api/history?limit=500&perf=1`
+  drops from about 680 ms to about 30 ms. Existing databases are filled in
+  once, on first use after the upgrade, and the schema check now runs once per
+  database instead of on every connection.
 
 ### Documentation
 

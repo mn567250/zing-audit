@@ -127,6 +127,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   drops from about 700 ms to under 100 ms for 500 runs. Existing databases are
   filled in once, on first use after the upgrade, and the schema check now runs
   once per database instead of on every connection.
+- **Web API requests no longer stall the server.** The History, knowledge
+  base, Monitors-list/edit and master-key endpoints and report downloads do
+  their SQLite, YAML and rendering work in a worker thread instead of on the
+  event loop, so other requests and live audits (which timestamp streamed
+  chunks on that loop for TTFT and inter-token latency) are not held up while
+  a large history list or the knowledge base loads.
 
 ### Documentation
 

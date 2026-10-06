@@ -96,6 +96,49 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **One TLS context per process.** Relay clients and webhook alerts share one
+  `ssl.SSLContext`, built once in a worker thread, instead of loading the CA bundle
+  for every client (and again for a proxy): opening an audit's HTTP client on the
+  event loop drops from ~38 ms to ~1 ms.
+- **Unreadable typed YAML values are refused cleanly.** `!!int abc`, `!!bool maybe`,
+  `!!timestamp 2026-99-99` and the like in an imported profile, a `--kb-dir` profile
+  or `zing.yaml` are reported as "not valid YAML: cannot read 'abc' as int" with
+  line and column, instead of a server error (500) or a traceback.
+- **Faster test runs.** `pytest-xdist` is part of the `dev` extra and CI runs the unit
+  tests with `-n auto`. The a11y harness no longer waits for Playwright's `networkidle`
+  (500 ms without any request on every page load); it counts each context's requests and
+  settles after 150 ms without one, and its longest tests are collected first. The full a11y
+  suite went from about 55–65 min serially to 12 min with 4 workers (`-n 4 --dist worksteal`),
+  the unit suite from 100 s to about 18 s. A timing-sensitive performance-probe test now gives
+  its mock relay a steady response time. In CI the a11y suite runs as four parallel
+  shards (`ZING_A11Y_SHARD=k/4`), each on its own runner; a report job merges their
+  results (`python -m tests.a11y.conformance --results` takes several files).
+- **The web UI downloads only the chosen language.** `/locales.js` sends one
+  language (the `?lang=` parameter, else a `zing_lang` cookie the UI now sets
+  next to its stored choice) instead of all seven: about 60 KB for English and
+  at most 190 KB for any other language instead of 807 KB. It is built once
+  per language instead of on every request and revalidated by `ETag`
+  (`Cache-Control: no-cache`, 304 when unchanged). Switching languages loads
+  the new one on demand; if that fails the current language stays. Without
+  the cookie the full bundle is still served.
+- **The web UI uses system fonts and makes no outgoing requests.** Every page
+  (v2 and classic) used to load a render-blocking stylesheet from Google Fonts,
+  so offline or firewalled machines waited on it and a request left the
+  machine. The pages now use the operating system's sans-serif and monospace
+  fonts (with Chinese fallbacks), and heading letter-spacing is relaxed to suit
+  them; no page, script or stylesheet loads anything from another host.
+- **Faster date and number formatting in web UI v2.** The History,
+  Knowledge base, Monitors, Accessibility and report views build each
+  `Intl.DateTimeFormat` / `Intl.NumberFormat` / `Intl.DisplayNames` once per
+  language and options and reuse it, instead of creating one per row; the
+  formatted text is unchanged.
+- **One shared date and number formatter cache.** `lang.js` now offers
+  `ZING_LANG.intl(Ctor, opts[, locale])` with the shorthands `numFmt(opts)` and
+  `dateFmt(opts)`, keeping one `Intl` formatter per constructor, locale and
+  options, shared by a page's scripts. The v2 pages, the report view and the
+  performance panel use it instead of their own caches (`report.js` and
+  `perf.js` keep a small one for when they run without `lang.js`); formatters
+  follow a language switch, and the formatted text is unchanged.
 - **PDF reports no longer need a system library.** The PDF is typeset natively
   with ReportLab (pure Python, BSD-licensed) instead of converting the HTML
   report with WeasyPrint, which needed Pango. ReportLab is a core dependency, so
@@ -106,6 +149,70 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   writes Chinese with a standard PDF font the viewer supplies, so no fonts are
   shipped. The `pdf` extra is now empty and kept only so older install commands
   still work; the Docker image drops Pango and its fonts.
+- **Faster knowledge-base loading.** Profiles are parsed with libyaml's C
+  loader when PyYAML has it, the packaged profiles are parsed once per process,
+  and the merged knowledge base is cached, keyed on the `--kb-dir` /
+  `ZING_KB_DIR` files, the data directory and the kb.db entries, so imports,
+  edits and deletes still apply immediately. The Models page, `/api/kb/*` and
+  the Monitors list (`/api/watches`) answer in a fraction of the time.
+- **Faster profile import checks.** Checking and importing a profile YAML (the
+  Models page, `/api/kb/scan` and `/api/kb/import`, `zing kb-import`) and
+  reading a `zing.yaml` config use libyaml's C parser too: parsing a 27 KB
+  profile takes about 5 ms instead of 80 ms. The checks are unchanged (size
+  limit, no anchors/aliases, safe tags only) and rejected YAML is reported
+  with the same detailed message as before; one new check refuses profiles
+  nested more than 32 levels deep (valid ones nest about six; very deep input
+  used to end in a server error). A tab after a value on a line, valid YAML that the
+  pure-Python parser refused, is now accepted.
+- **History loads faster.** `history.db` stores each run's performance headline
+  (p50 latency, TTFT and decode speed) in its own columns, so the History list
+  and trends no longer parse every saved report: `/api/history?limit=500&perf=1`
+  drops from about 700 ms to under 100 ms for 500 runs. Existing databases are
+  filled in once, on first use after the upgrade, and the schema check now runs
+  once per database instead of on every connection.
+- **Web API requests no longer stall the server.** The History, knowledge
+  base, Monitors-list/edit and master-key endpoints and report downloads do
+  their SQLite, YAML and rendering work in a worker thread instead of on the
+  event loop, so other requests and live audits (which timestamp streamed
+  chunks on that loop for TTFT and inter-token latency) are not held up while
+  a large history list or the knowledge base loads.
+- **Monitor runs, background audits and the audit start no longer stall the
+  server either.** The scheduler's due-check, a monitor's pinned-profile and
+  previous-run lookups, saving a finished audit to history, recording a
+  monitor's run and loading the knowledge base when an audit starts now run in
+  a worker thread. Cancel is refused (409) during the brief save of a finished
+  audit, a server shutdown waits for that save, a monitor run whose report is
+  stored is recorded with it, and a monitor stays "running" until its run is
+  recorded.
+
+- **Web UI responses are compressed and its assets cached.** `zing serve`
+  gzips responses of 1 KiB and more (never the live audit event streams), and
+  serves pages with their local scripts and stylesheets linked as
+  `…?v=<content hash>`. Those versioned files are cached by the browser for a
+  year, so moving between pages no longer re-fetches them; a changed file gets
+  a new hash, and pages themselves are always revalidated. Cold page loads
+  transfer about a third of what they did.
+- **Web UI v2: no forced layout in the header, no polling in background
+  tabs.** The shared header keeps the current section's link scrolled into
+  view on phones by measuring the link row after the page is parsed (in an
+  animation frame) instead of forcing a layout while it is still loading. The
+  History page (`/api/jobs`) and the Monitors page (`/api/watches`) stop their
+  2-second refresh while the tab is hidden and refresh at once when it is
+  shown again.
+- **Faster live performance panel.** While an audit streams, the panel now
+  updates its tiles, probe bar, chart and legend in place instead of redrawing
+  everything each frame, builds the data table only while "Show data table" is
+  open (appending new rows), and reuses one number formatter per locale.
+  A streamed re-render with 1,000 requests drops from about 500–700 ms to
+  about 60 ms (4× CPU throttle). Keyboard focus, the table's scroll position and the tab, progress
+  bar and chart semantics stay as before.
+- **History renders long lists faster.** Web UI v2 History shows the first 20
+  runs of each relay group and adds the rest 20 at a time with a **Show more
+  (n remaining)** button (keyboard operable, announced in a status region);
+  group trends still cover every matching run, and an open report or a focused
+  row stays shown across re-renders. Off-screen groups skip rendering until
+  scrolled near (`content-visibility`). With 500 saved runs the page builds
+  about half the DOM and resetting a filter takes roughly a third of the time.
 
 ### Documentation
 

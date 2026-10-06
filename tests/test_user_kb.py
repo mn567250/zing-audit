@@ -7,6 +7,7 @@ without the optional fastapi extra.
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -62,6 +63,35 @@ def test_imported_model_is_used_everywhere(data_dir):
     assert kb.provider_sources["acmeai"].startswith("kb.db:entry/")
     # opt-out keeps packaged + ZING_KB_DIR only
     assert load_knowledge_base(include_user=False).resolve("acme-large-2") is None
+
+
+def test_cache_follows_kb_db_changes(data_dir):
+    assert load_knowledge_base().resolve("acme-large-2") is None
+    result, ids = import_yaml(NEW_PROVIDER_YAML, origin="import:acme.yaml")
+    assert result.ok, result.errors
+    kb = load_knowledge_base()
+    assert kb.resolve("acme-large-2") is not None
+    model_entry = next(e for e in store.list_entries() if e["kind"] == "model")
+    # disable / re-enable (same file size) and delete are seen at once
+    assert store.set_enabled(model_entry["id"], False)
+    assert load_knowledge_base().resolve("acme-large-2") is None
+    assert store.set_enabled(model_entry["id"], True)
+    assert load_knowledge_base().resolve("acme-large-2") is not None
+    assert store.delete(model_entry["id"])
+    kb = load_knowledge_base()
+    assert kb.resolve("acme-large-2") is None and "acmeai" in kb.providers
+    # an edited body (re-import) replaces the cached profile
+    import_yaml(NEW_PROVIDER_YAML.replace("200000", "100000"))
+    assert load_knowledge_base().resolve("acme-large-2").model.context_window_tokens == 100000
+
+
+def test_cache_follows_data_dir(data_dir, tmp_path_factory, monkeypatch):
+    import_yaml(NEW_PROVIDER_YAML)
+    assert load_knowledge_base().resolve("acme-large-2") is not None
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path_factory.mktemp("other-data")))
+    assert load_knowledge_base().resolve("acme-large-2") is None
+    monkeypatch.setenv("ZING_DATA_DIR", str(data_dir))
+    assert load_knowledge_base().resolve("acme-large-2") is not None
 
 
 def test_env_opt_out(data_dir, monkeypatch):
@@ -125,9 +155,7 @@ def test_disabled_entries_do_not_apply(data_dir):
 
 
 # ----- import checks ------------------------------------------------------ #
-@pytest.mark.parametrize(
-    ("text", "needle"),
-    [
+BAD_YAML = [
         ("", "empty"),
         ("- just a list", "mapping"),
         ("provider: Bad Key\nmodels: []", "provider key"),
@@ -142,13 +170,62 @@ def test_disabled_entries_do_not_apply(data_dir):
         ("provider: x\nbase_url_hints: [ftp://nope]\nmodels:\n- id: m", "http"),
         ("provider: x\nmodels: [{id: [not, a, string]}]", "id"),
         ("key: [unclosed", "not valid YAML"),
-    ],
-)
+        ("provider: x\n\tmodels: []", "not valid YAML"),
+        ("provider: x\nmodels:\n- id: m\n  note: \"bad \\q escape\"", "not valid YAML"),
+        ("provider: x\nmodels: [{id: m}]]", "not valid YAML"),
+        ("provider: x\nmodels: []\n---\n{a: 1", "not valid YAML"),
+        ("provider: x\nnote: \x07\nmodels: []", "unacceptable character"),
+        ("provider: x\nnote: !foo bar\nmodels: []", "constructor for the tag"),
+        ("provider: x\nnote: !!python/object/apply:os.system [ls]\nmodels: []", "constructor for the tag"),
+        ("a: &a [x, x]\nb: &b [*a, *a]\nc: [*b, *b]", "anchors"),
+        ("provider: x\nmodels: []\n---\nprovider: y\nm: *undefined", "anchors"),
+        ("provider: x\nmodels: []\nnote: " + "[" * 33 + "]" * 33, "nested more than 32 levels"),
+        ("provider: x\nmodels:\n" + "".join("  " * i + "- \n" for i in range(40)), "nested more than"),
+        # A typed scalar its constructor cannot convert: refused like any YAML error.
+        ("provider: x\nmodels: []\nnote: !!int abc", "cannot read 'abc' as int"),
+        ("provider: x\nmodels: []\nnote: !!float nope", "cannot read 'nope' as float"),
+        ("provider: x\nmodels: []\nnote: !!bool maybe", "cannot read 'maybe' as bool"),
+        ("provider: x\nmodels:\n- id: m\n  released: !!timestamp 2026-99-99", "(line 4, column 13)"),
+        ("provider: x\nmodels: []\nnote: !!int 0x", "as int"),
+        # Deep enough to overflow the C stack in libyaml's composer, were it reached.
+        ("provider: x\nmodels: []\nnote: " + "[" * 200_000 + "]" * 200_000, "nested more than"),
+]
+
+
+def _short_id(value):
+    return repr(value)[:40] if isinstance(value, str) else None
+
+
+@pytest.mark.parametrize(("text", "needle"), BAD_YAML, ids=_short_id)
 def test_scan_rejects_bad_yaml(data_dir, text, needle):
     result = scan(text)
     assert not result.ok
     assert any(needle.lower() in (e["message"] + " " + e["path"]).lower() for e in result.errors), result.errors
     assert not (data_dir / "kb.db").exists() or store.list_entries() == []
+
+
+@pytest.mark.parametrize("text", [NEW_PROVIDER_YAML, *(t for t, _ in BAD_YAML)], ids=_short_id)
+def test_scan_is_the_same_with_the_c_and_pure_python_yaml_loaders(data_dir, monkeypatch, text):
+    # scan() parses with libyaml when available; the documents it accepts and
+    # the errors it reports (via the pure-Python loader's more detailed
+    # message) must be exactly those of the pure-Python SafeLoader.
+    import yaml
+
+    from zing.utils import yamlio
+
+    if not hasattr(yaml, "CSafeLoader"):
+        pytest.skip("PyYAML built without libyaml")
+    assert yamlio.SAFE_LOADER is yaml.CSafeLoader
+    with_c = scan(text).to_dict()
+    monkeypatch.setattr(yamlio, "SAFE_LOADER", yaml.SafeLoader)
+    assert scan(text).to_dict() == with_c
+
+
+def test_scan_reports_the_detailed_yaml_error(data_dir):
+    # libyaml alone would say "found character that cannot start any token".
+    result = scan("provider: x\n\tmodels: []")
+    assert result.errors == [{"path": "", "message": "not valid YAML: found character '\\t' "
+                              "that cannot start any token (line 2, column 1)"}]
 
 
 def test_scan_rejects_oversized_input(data_dir):
@@ -356,6 +433,17 @@ def client(data_dir):
     return TestClient(create_app(), base_url="http://localhost")
 
 
+def test_kb_api_refuses_an_unreadable_typed_value_cleanly(client):
+    # Used to escape scan() as a bare ValueError: a 500 on the Models page.
+    text = "provider: x\nmodels: []\nnote: !!int abc"
+    scanned = client.post("/api/kb/scan", json={"yaml": text})
+    assert scanned.status_code == 200 and not scanned.json()["ok"]
+    assert "cannot read 'abc' as int" in scanned.json()["errors"][0]["message"]
+    imported = client.post("/api/kb/import", json={"yaml": text})
+    assert imported.status_code == 400 and imported.json()["errors"]
+    assert client.get("/api/kb/profiles").json()["entries"] == []
+
+
 def test_kb_api_scan_import_list_toggle_delete(client):
     r = client.post("/api/kb/scan", json={"yaml": NEW_PROVIDER_YAML})
     assert r.status_code == 200 and r.json()["ok"] and client.get("/api/kb/profiles").json()["entries"] == []
@@ -392,7 +480,7 @@ def test_kb_import_refuses_cross_site_and_non_json(client):
 def test_kb_page_and_nav(client):
     r = client.get("/v2/kb")
     assert r.status_code == 200 and '<header class="znav" data-page="kb"' in r.text
-    assert '<script src="/v2/static/nav.js"></script>' in r.text
+    assert re.search(r'<script src="/v2/static/nav\.js(\?v=[0-9a-f]+)?"></script>', r.text)
     assert '"/v2/kb"' in client.get("/v2/static/nav.js").text
     assert client.get("/v2/kb?ui=v1", follow_redirects=False).headers["location"] == "/"
 

@@ -7,9 +7,6 @@
 <script src="/locales.js"></script>
 <script src="/lang.js"></script>
 <script src="/v2/static/theme.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&amp;family=Hanken+Grotesk:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/v2/static/zing.css" />
 <style>
   /* ---- accessibility conformance report (v2) — page-only rules; colours via zing.css tokens ---- */
@@ -186,13 +183,13 @@
     return s;
   }
   function num(n, digits) {
-    try { return Number(n).toLocaleString(L.locale(), { maximumFractionDigits: digits || 0 }); } catch (e) { return String(n); }
+    try { return L.numFmt({ maximumFractionDigits: digits || 0 }).format(Number(n)); } catch (e) { return String(n); }
   }
   function fmtTime(iso) {
     if (!iso) return "—";
     var d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
-    try { return d.toLocaleString(L.locale(), { dateStyle: "long", timeStyle: "short" }); } catch (e) { return d.toLocaleString(); }
+    try { return L.dateFmt({ dateStyle: "long", timeStyle: "short" }).format(d); } catch (e) { return d.toLocaleString(); }
   }
   // Catalogue text (step titles, "how"): English in the report, translated
   // through the locale fragments (zh included); untranslated text keeps

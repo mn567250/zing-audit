@@ -32,8 +32,10 @@ import os
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
-from typing import Any
+from typing import Any, TypeVar
 from urllib.parse import urlsplit
+
+_T = TypeVar("_T")
 
 # How many audits may run at once across all relays.
 MAX_PARALLEL = max(1, int(os.environ.get("ZING_MAX_PARALLEL_AUDITS", "4") or 4))
@@ -207,6 +209,8 @@ class Job:
         self._subscribers: set[asyncio.Queue[dict[str, Any]]] = set()
         self.task: asyncio.Task[None] | None = None
         self.cancel_requested = False
+        # Set while a finished audit is being saved: too late to cancel then.
+        self.finishing = False
 
     @property
     def active(self) -> bool:
@@ -287,7 +291,10 @@ class JobManager:
 
     def cancel(self, job_id: str) -> bool:
         job = self._jobs.get(job_id)
-        if job is None or not job.active or job.task is None or job.task.done():
+        if (
+            job is None or not job.active or job.finishing
+            or job.task is None or job.task.done()
+        ):
             return False
         job.cancel_requested = True
         job.task.cancel()
@@ -311,13 +318,13 @@ class JobManager:
                 job.waiting_for = []
                 job.emit({"type": "running", "job": job.id})
                 report = await run(job.emit)
-                report_id = _save(report)
-                job.report_id = report_id
-                job.status = "done"
-                job.emit({"type": "report", "report": report, "report_id": report_id})
+                # The audit is over: store and report it as one step, even if
+                # a cancel arrives while the save runs (off the loop).
+                await settle(self._finish(job, report))
         except asyncio.CancelledError:
-            job.status = "cancelled"
-            job.emit({"type": "cancelled"})
+            if job.status != "done":  # else the save finished first (shutdown)
+                job.status = "cancelled"
+                job.emit({"type": "cancelled"})
             if not job.cancel_requested:
                 raise  # server shutdown: let it propagate
         except Exception as exc:  # surface any audit failure to the client
@@ -329,6 +336,13 @@ class JobManager:
             job.emit({"type": "done"})
             job._subscribers.clear()
 
+    @staticmethod
+    async def _finish(job: Job, report: dict[str, Any]) -> None:
+        job.finishing = True
+        job.report_id = await asyncio.to_thread(_save, report)
+        job.status = "done"
+        job.emit({"type": "report", "report": report, "report_id": job.report_id})
+
     def _prune(self) -> None:
         now = time.time()
         finished = [j for j in self._jobs.values() if not j.active and j.finished is not None]
@@ -337,6 +351,33 @@ class JobManager:
         for i, j in enumerate(finished):
             if i < excess or now - (j.finished or now) > _KEEP_FINISHED_SEC:
                 self._jobs.pop(j.id, None)
+
+
+async def settle(aw: Awaitable[_T]) -> _T:
+    """Await ``aw`` to the end even if the calling task is cancelled meanwhile.
+
+    For a blocking write moved off the event loop (``asyncio.to_thread``) and
+    the bookkeeping that belongs with it: a cancellation must not abandon the
+    sequence half-way (a report saved but never recorded, a monitor dropped
+    from the running set before its run is marked). The cancellation is not
+    lost, only delayed: it is raised once ``aw`` has finished (and wins over
+    an exception from it), so a server shutdown still propagates.
+    """
+    inner = asyncio.ensure_future(aw)
+    cancelled = False
+    while not inner.done():
+        try:
+            await asyncio.shield(inner)
+        except asyncio.CancelledError:
+            if inner.cancelled():
+                raise
+            cancelled = True
+        except Exception:
+            break  # inner failed: raised below, unless a cancel came first
+    if cancelled:
+        exc = None if inner.cancelled() else inner.exception()
+        raise asyncio.CancelledError from exc
+    return inner.result()
 
 
 def _save(report: dict[str, Any]) -> int | None:

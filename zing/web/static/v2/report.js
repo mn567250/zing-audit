@@ -71,9 +71,20 @@
   function locale() {
     return window.ZING_LANG && window.ZING_LANG.locale ? window.ZING_LANG.locale() : undefined;
   }
+  // Intl formatters are costly to build: one per (locale, options), reused,
+  // from ZING_LANG.intl (lang.js). This script also runs without lang.js
+  // (e.g. evaluated on its own), so it keeps a small cache of its own then.
+  // Same output as toLocaleString(locale, options); a bad locale still throws.
+  var intlCache = {};
+  function intlFmt(Ctor, kind, loc, opts) {
+    var Z = window.ZING_LANG;
+    if (Z && Z.intl) return Z.intl(Ctor, opts, loc);
+    var k = kind + "|" + (loc === undefined ? "" : JSON.stringify(loc)) + "|" + JSON.stringify(opts || {});
+    return intlCache[k] || (intlCache[k] = new Ctor(loc, opts));
+  }
   function num(v, digits) {
     try {
-      return Number(v).toLocaleString(locale(), { maximumFractionDigits: digits });
+      return intlFmt(Intl.NumberFormat, "n", locale(), { maximumFractionDigits: digits }).format(Number(v));
     } catch (e) {
       return String(Math.round(v * Math.pow(10, digits)) / Math.pow(10, digits));
     }
@@ -230,7 +241,7 @@
 
   function langName(c) {
     try {
-      var dn = new Intl.DisplayNames([locale() || "en"], { type: "language" });
+      var dn = intlFmt(Intl.DisplayNames, "l", [locale() || "en"], { type: "language" });
       return dn.of(c) || c;
     } catch (e) {
       return c;
@@ -741,7 +752,7 @@
     if (r.generated_at) {
       var dt = new Date(r.generated_at);
       if (!isNaN(dt))
-        meta.push(item(T("时间", "Time"), esc(dt.toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }))));
+        meta.push(item(T("时间", "Time"), esc(intlFmt(Intl.DateTimeFormat, "d", locale(), { dateStyle: "medium", timeStyle: "short" }).format(dt))));
     }
     meta.push(item(T("版本", "Version"), code("zing v" + (r.tool_version || "?"))));
 

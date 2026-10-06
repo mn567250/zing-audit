@@ -8,11 +8,24 @@
  *   - langs()          the registry: [{ code, label, html, locale }] in menu order
  *                      (label is the language's own name: "English", "中文", …)
  *   - isZh()           true when the original Chinese UI is shown
- *   - set(lang)        persist + re-translate static markup + fire "zing:lang"
+ *   - set(lang)        persist + re-translate static markup + fire "zing:lang";
+ *                      when lang's data isn't loaded yet it first loads
+ *                      /locales.js?lang=<code> (asynchronously: get() changes
+ *                      once it is in); if that fails the language stays as it
+ *                      was and the switchers show it again
  *   - t(zh, en)        CN -> zh; otherwise the English text translated via tr()
  *   - tr(en)           English string -> current language (from ZING_LOCALES)
  *   - trFor(lang, en)  English string -> the given language
  *   - locale()         BCP 47 locale for dates/numbers ("fr-FR", …)
+ *   - intl(Ctor, opts[, locale])
+ *                      a shared Intl formatter, e.g. intl(Intl.DisplayNames,
+ *                      { type: "language" }), built once per (constructor,
+ *                      locale, options) and reused; locale defaults to
+ *                      locale(), so after set() callers get formatters for
+ *                      the new language. Same output as a new Ctor(locale,
+ *                      opts); a bad locale or options still throw
+ *   - numFmt(opts)     intl(Intl.NumberFormat, opts)
+ *   - dateFmt(opts)    intl(Intl.DateTimeFormat, opts)
  *   - code(v)          uppercase enum code ("HIGH", "FAIL") in the UI language
  *   - server(text)     translation of free text from the backend (detector
  *                      names, recommendations, verdict sentences, notes) into
@@ -42,6 +55,15 @@
  * zing/i18n/locales/fragments/<feature>/<code>.json ({"strings": {…}}), which
  * zing/i18n merges into that language's strings before serving /locales.js.
  *
+ * Only the chosen language is downloaded: the choice is kept in localStorage
+ * ("zing.lang") and mirrored in a "zing_lang" cookie, from which the server
+ * picks the one-language /locales.js (no cookie: every language). Should the
+ * stored language's data be missing at boot anyway (cookie lost or out of
+ * date), the cookie is fixed and the page reloaded once while still hidden
+ * (a sessionStorage flag prevents a loop); if that isn't possible, or the
+ * reload doesn't come before the reveal timers below, the page
+ * shows in English and switches once /locales.js?lang=<code> has loaded.
+ *
  * Outside CN the page is hidden (html visibility) until the static markup is
  * translated. So a failure never leaves it blank, it is shown anyway ~1.5 s
  * after DOMContentLoaded (8 s at most after this script ran) or on a window
@@ -54,6 +76,8 @@
   "use strict";
 
   var KEY = "zing.lang";
+  var COOKIE = "zing_lang"; // read by the server for /locales.js
+  var RELOAD = "zing.lang.reload"; // sessionStorage: language reloaded for
   var DEFAULT = "en";
   // The supported languages in dropdown order, from zing/i18n/locales/*.json
   // (via /locales.js). EN and CN are always available: English is the key
@@ -78,18 +102,100 @@
     ["中转站", "relay"],
   ];
 
+  // Intl formatters are costly to build (Number#toLocaleString and friends
+  // build one per call): keep one per (constructor, locale, options). The key
+  // includes the locale, so a language switch needs no reset.
+  var intlCtors = [];
+  var intlCaches = [];
+  function intl(Ctor, opts, loc) {
+    if (arguments.length < 3) loc = LANGS[lang].locale;
+    if (typeof Ctor !== "function") throw new TypeError("intl: not a constructor");
+    var i = intlCtors.indexOf(Ctor);
+    if (i < 0) {
+      intlCtors.push(Ctor);
+      intlCaches.push({});
+      i = intlCtors.length - 1;
+    }
+    var cache = intlCaches[i];
+    // undefined (the browser default), "" (an error), "en,de" (an error) and
+    // ["en", "de"] must not share a key
+    var k = (loc === undefined ? "" : JSON.stringify(loc)) + "|" + JSON.stringify(opts || {});
+    return cache[k] || (cache[k] = new Ctor(loc, opts));
+  }
+
   function read() {
     try {
       var v = localStorage.getItem(KEY);
       if (v && LANGS[v]) return v;
     } catch (e) {}
-    return DEFAULT;
+    // No stored choice (or no localStorage): the cookie mirrors it.
+    var c = readCookie();
+    return c && LANGS[c] ? c : DEFAULT;
   }
-
-  var lang = read();
 
   function locales() {
     return window.ZING_LOCALES || {};
+  }
+
+  // Is language `l`'s data loaded? (A ZING_LOCALES without has() is a bundle
+  // that carries every language.)
+  function has(l) {
+    var L = locales();
+    return l === DEFAULT || typeof L.has !== "function" || L.has(l);
+  }
+
+  function readCookie() {
+    try {
+      var m = /(?:^|;\s*)zing_lang=([^;]*)/.exec(document.cookie || "");
+      return m ? m[1] : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeCookie(l) {
+    if (readCookie() === l) return;
+    try {
+      document.cookie = COOKIE + "=" + l + "; path=/; max-age=31536000; SameSite=Lax";
+    } catch (e) {}
+  }
+
+  function persist(l) {
+    try {
+      localStorage.setItem(KEY, l);
+    } catch (e) {}
+    writeCookie(l);
+  }
+
+  // Reload once, so the server sends the bundle the cookie now names. False
+  // when that can't help (no cookie, no sessionStorage, already tried).
+  function reloadFor(l) {
+    try {
+      if (readCookie() !== l || sessionStorage.getItem(RELOAD) === l) return false;
+      sessionStorage.setItem(RELOAD, l);
+      if (sessionStorage.getItem(RELOAD) !== l) return false;
+      location.reload();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  var wanted = read();
+  var lang = wanted;
+  var reloading = false; // a reload is under way: keep the page hidden
+  var late = null; // the stored language, when it has to load after boot
+  writeCookie(wanted);
+  if (has(wanted)) {
+    try {
+      if (sessionStorage.getItem(RELOAD) != null) sessionStorage.removeItem(RELOAD);
+    } catch (e) {}
+  } else {
+    // English until the stored language's data is here (never a page
+    // without text, never a reload loop).
+    lang = DEFAULT;
+    late = wanted;
+    reloading = reloadFor(wanted);
   }
 
   function tr(en) {
@@ -217,17 +323,66 @@
     var els = root.querySelectorAll(sel);
     for (var i = 0; i < els.length; i++) applyEl(els[i]);
     document.documentElement.lang = LANGS[lang].html;
+    syncSwitchers();
+  }
+
+  function syncSwitchers() {
     var sw = document.querySelectorAll("select.lang-sel");
     for (var j = 0; j < sw.length; j++) sw[j].value = lang;
   }
 
+  // Load language `l`'s bundle (/locales.js?lang=l merges itself into
+  // ZING_LOCALES), then done(loaded?). Concurrent calls share one request.
+  var loading = {};
+  function load(l, done) {
+    if (loading[l]) {
+      loading[l].push(done);
+      return;
+    }
+    var cbs = (loading[l] = [done]);
+    function finish() {
+      delete loading[l];
+      var ok = has(l);
+      cbs.forEach(function (cb) {
+        cb(ok);
+      });
+    }
+    try {
+      var s = document.createElement("script");
+      s.src = "/locales.js?lang=" + encodeURIComponent(l);
+      s.async = true;
+      s.onload = s.onerror = function () {
+        s.onload = s.onerror = null;
+        if (s.parentNode) s.parentNode.removeChild(s);
+        finish();
+      };
+      (document.head || document.documentElement).appendChild(s);
+    } catch (e) {
+      setTimeout(finish, 0);
+    }
+  }
+
+  var pending = null; // the language being loaded for the latest set()
   function set(next) {
     next = LANGS[next] ? next : DEFAULT;
-    if (next === lang) return;
+    if (!has(next)) {
+      pending = next;
+      load(next, function (ok) {
+        if (pending !== next) return; // superseded by a later choice
+        pending = null;
+        if (ok) set(next);
+        else syncSwitchers(); // keep the current language
+      });
+      return;
+    }
+    pending = null;
+    late = null;
+    if (next === lang) {
+      persist(lang); // e.g. English picked while the stored language loads
+      return;
+    }
     lang = next;
-    try {
-      localStorage.setItem(KEY, lang);
-    } catch (e) {}
+    persist(lang);
     apply(document);
     try {
       window.dispatchEvent(new CustomEvent("zing:lang", { detail: { lang: lang } }));
@@ -269,6 +424,11 @@
       window.removeEventListener("error", onError);
     } catch (e) {}
     document.documentElement.style.visibility = "";
+    if (reloading) {
+      // The reload didn't happen in time: load the language in place.
+      reloading = false;
+      if (late) set(late);
+    }
   }
   function onError() {
     // Before DOMContentLoaded boot is still to come and will reveal the page.
@@ -295,8 +455,11 @@
       apply(document);
       wireSwitchers();
     } finally {
-      reveal();
+      // While reloading the page stays hidden; the timers above still
+      // reveal it should the reload not happen.
+      if (!reloading) reveal();
     }
+    if (late && !reloading) set(late);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
@@ -313,6 +476,13 @@
     },
     locale: function () {
       return LANGS[lang].locale;
+    },
+    intl: intl,
+    numFmt: function (opts) {
+      return intl(Intl.NumberFormat, opts);
+    },
+    dateFmt: function (opts) {
+      return intl(Intl.DateTimeFormat, opts);
     },
     set: set,
     t: t,

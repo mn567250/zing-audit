@@ -7,9 +7,6 @@
 <script src="/locales.js"></script>
 <script src="/lang.js"></script>
 <script src="/v2/static/theme.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&amp;family=Hanken+Grotesk:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/v2/static/zing.css" />
 <link rel="stylesheet" href="/v2/static/fields.css" />
 <style>
@@ -179,7 +176,7 @@
   function fmtTime(ts) {
     if (!ts) return "—";
     try {
-      return new Date(ts * 1000).toLocaleString(L.locale(), { dateStyle: "medium", timeStyle: "short" });
+      return L.dateFmt({ dateStyle: "medium", timeStyle: "short" }).format(new Date(ts * 1000));
     } catch (e) {
       return new Date(ts * 1000).toLocaleString();
     }
@@ -482,7 +479,7 @@
 
   function num(v) {
     var n = Number(v);
-    return isFinite(n) && n > 0 ? n.toLocaleString(L.locale()) : "—";
+    return isFinite(n) && n > 0 ? L.numFmt().format(n) : "—";
   }
   function paintProfiles() {
     if (!data) return;

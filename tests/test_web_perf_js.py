@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -215,3 +217,206 @@ def test_perf_js_axes_fit_the_data():
     chart = out["chart"]
     assert 'text-anchor="end">600s</text>' in chart and "1,000s" not in chart and "1000s" not in chart
     assert 'text-anchor="end">400</text>' in chart and ">500</text>" not in chart  # 350 x 1.05 -> 0..400
+
+
+_FMT_JS = r"""
+const path = require("path");
+global.window = {};
+global.document = undefined;
+let made = 0;
+const Real = Intl.NumberFormat;
+Intl.NumberFormat = function (locale, opts) { made++; return new Real(locale, opts); };
+require(path.join(process.argv[1], "perf.js"));
+const P = window.ZingPerf;
+const recs = JSON.parse(process.argv[2]);
+const out = {};
+for (const locale of ["", "en-US", "de-DE", "zh-CN"]) {
+  window.ZING_LANG = locale ? { t: (zh, en) => en, locale: () => locale } : undefined;
+  const loc = locale || undefined;
+  const a = P.chart(recs, "latency"), b = P.chart(recs, "latency");
+  // what the cached formatters must match: Number#toLocaleString
+  const one = (v) => v.toLocaleString(loc, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  out[locale] = {
+    stable: a === b,
+    latency: a.includes("Latency: " + Math.round(1234.5).toLocaleString(loc) + " ms"),
+    ttft: a.includes("TTFT: " + one(12.25) + " ms"),
+    tick: a.includes(">" + (1000).toLocaleString(loc) + "</text>"),
+    tps: P.chart(recs, "tps").includes("Decode speed: " + (0.5).toLocaleString(loc, {
+      minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " tok/s"),
+  };
+}
+console.log(JSON.stringify({ out, made }));
+"""
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to evaluate the UI's JS")
+def test_perf_js_number_formatters_are_cached_with_the_same_output():
+    recs = [{"seq": i, "op": "complete", "endpoint": "target", "phase": "probe", "ok": True,
+             "stream": True, "start_ms": i * 1000.0, "duration_ms": 1234.5, "ttft_ms": 12.25,
+             "decode_tps_local": 0.5}
+            for i in range(40)]
+    res = json.loads(subprocess.run(
+        ["node", "-e", _FMT_JS, str(_STATIC), json.dumps(recs)], capture_output=True, text=True, check=True,
+    ).stdout)
+    for locale, o in res["out"].items():
+        assert o == {"stable": True, "latency": True, "ttft": True, "tick": True, "tps": True}, locale
+    # one formatter per locale and digit count, however many numbers are drawn
+    # (4 locales x {integer, 1, 2 digits}), not one per number
+    assert 0 < res["made"] <= 12
+
+
+_LIVE_OPEN_JS = r"""
+const path = require("path");
+global.window = {};
+global.document = undefined;
+require(path.join(process.argv[1], "perf.js"));
+global.document = { activeElement: null };
+const out = {};
+for (const open of [false, true]) {
+  const host = { innerHTML: "", contains: () => false, querySelector: () => null, querySelectorAll: () => [] };
+  const live = new window.ZingPerf.Live(host);
+  live.reset({ probeTotal: 10 });
+  live.records = JSON.parse(process.argv[2]);
+  live.open = open;
+  live.render();
+  out[open] = host.innerHTML;
+}
+console.log(JSON.stringify(out));
+"""
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to evaluate the UI's JS")
+def test_live_builds_the_data_table_only_when_open():
+    recs = [RequestRecord(seq=i, endpoint="target", phase="probe", op="complete", ok=i != 2, stream=True,
+                          status_code=200 if i != 2 else 502, start_ms=i * 100.0, duration_ms=900.0)
+            for i in range(4)]
+    out = json.loads(subprocess.run(
+        ["node", "-e", _LIVE_OPEN_JS, str(_STATIC), json.dumps([r.model_dump() for r in recs])],
+        capture_output=True, text=True, check=True,
+    ).stdout)
+    closed, opened = out["false"], out["true"]
+    # the toggle is there either way (keyboard and screen readers reach it) ...
+    for html in (closed, opened):
+        assert '<summary>Show data table</summary><div class="zp-data-scroll" tabindex="0">' in html
+        assert 'role="progressbar" aria-label="Performance probe" aria-valuemin="0" aria-valuemax="10" ' \
+               'aria-valuenow="4"' in html
+        assert re.search(r'role="tabpanel" id="(zpl\d+)-panel" aria-labelledby="\1-tab-latency"', html)
+    # ... but only an open one carries its rows
+    assert '<details class="zp-data"><summary>' in closed and "<table" not in closed
+    assert '<details class="zp-data" open><summary>' in opened and opened.count("<tr>") == 5
+    assert "failed (502)" in opened
+
+
+_REC_JS = """window.mk = (i, ok = true) => ({seq: i, endpoint: i % 2 ? 'baseline' : 'target', phase: 'probe',
+  op: 'complete', stream: true, start_ms: i * 400, ok, status_code: ok ? 200 : 502,
+  duration_ms: 800 + (i % 7) * 40, ttft_ms: 300 + i, decode_tps_local: 60, itl_mean_ms: 9});"""
+
+
+def test_live_panel_updates_in_place_in_a_browser():
+    sync_api = pytest.importorskip("playwright.sync_api")
+    with sync_api.sync_playwright() as pw:
+        try:
+            browser = pw.chromium.launch(executable_path=os.environ.get("ZING_A11Y_CHROMIUM") or None)
+        except Exception as e:  # no browser installed
+            pytest.skip(f"no Chromium: {e}")
+        try:
+            _drive_live_panel(browser.new_page())
+        finally:
+            browser.close()
+
+
+def _drive_live_panel(page) -> None:
+    errors: list[str] = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.set_content('<!doctype html><html lang="en"><head><title>t</title></head><body><div id="host"></div></body></html>')
+    page.add_script_tag(content=(_STATIC / "perf.js").read_text(encoding="utf-8"))
+    page.add_script_tag(content=_REC_JS)
+    page.evaluate("""() => {
+      window.L = new ZingPerf.Live(document.getElementById('host'));
+      L.reset({probeTotal: 50, hasBaseline: true});
+      for (let i = 0; i < 20; i++) L.records.push(mk(i, i !== 5));
+      L.render();
+      window.firstTile = document.querySelector('.zp-tv');
+      window.firstTab = document.querySelector('.zp-tabs [data-metric="ttft"]');
+      window.firstSummary = document.querySelector('.zp-data summary');
+    }""")
+    # closed: the table is not built
+    assert page.evaluate("document.querySelectorAll('.zp-data-scroll tr').length") == 0
+    # streamed records while a metric tab has keyboard focus
+    page.focus('.zp-tabs [data-metric="ttft"]')
+    page.evaluate("() => { L.records.push(mk(20)); L.render(); }")
+    state = page.evaluate("""() => ({
+      sameTile: document.querySelector('.zp-tv') === firstTile,
+      sameTab: document.querySelector('.zp-tabs [data-metric="ttft"]') === firstTab,
+      focus: document.activeElement.getAttribute('data-metric'),
+      requests: document.querySelector('.zp-tv').textContent,
+      now: document.querySelector('.zp-bar').getAttribute('aria-valuenow'),
+      width: document.querySelector('.zp-bar i').style.width,
+      label: document.querySelector('.zp-chart').getAttribute('aria-label'),
+    })""")
+    assert state["sameTile"] and state["sameTab"] and state["focus"] == "ttft"
+    assert state["requests"] == "21" and state["now"] == "11" and state["width"] == "22%"
+    assert state["label"].startswith("Latency (ms) over time: 21 requests")
+    # keyboard: the arrow key selects and focuses the next tab
+    page.evaluate("() => { window.foc = []; document.addEventListener('focusin', e => foc.push(e.target.dataset.metric)); }")
+    page.keyboard.press("ArrowRight")
+    assert page.evaluate("foc") == ["tps"]  # straight to the new tab, not via the old one
+    # the buttons stay; their markup is what a fresh render draws
+    assert page.evaluate("document.querySelector('.zp-tabs [data-metric=\"ttft\"]') === firstTab")
+    assert page.evaluate("""() => { const h = document.createElement('div'); document.body.appendChild(h);
+      const M = new ZingPerf.Live(h); M.pid = L.pid; M.records = L.records.slice(); M.metric = L.metric; M.render();
+      const s = h.querySelector('.zp-tabs').outerHTML; h.remove();
+      return s === document.querySelector('#host .zp-tabs').outerHTML; }""")
+    tabs = page.evaluate("""() => [...document.querySelectorAll('.zp-tabs [role=tab]')].map(b =>
+      [b.dataset.metric, b.getAttribute('aria-selected'), b.tabIndex, b === document.activeElement])""")
+    assert ["tps", "true", 0, True] in tabs and ["ttft", "false", -1, False] in tabs
+    assert page.get_attribute(".zp-plot", "aria-labelledby").endswith("-tab-tps")
+    page.evaluate("() => { L.records.push(mk(21)); L.render(); }")
+    assert page.evaluate("document.activeElement.dataset.metric") == "tps"
+    # opening the toggle with the keyboard builds the table right away
+    page.focus(".zp-data summary")
+    page.keyboard.press("Enter")
+    page.wait_for_function("document.querySelector('.zp-data').open && L.open")
+    assert page.evaluate("document.querySelectorAll('.zp-data-scroll tbody tr').length") == 22
+    page.evaluate("() => { L.records.push(mk(22)); L.render(); }")
+    assert page.evaluate("document.querySelector('.zp-data summary') === firstSummary")
+    assert page.evaluate("document.activeElement === firstSummary")
+    # new records are appended; the focused, scrolled table stays put
+    page.evaluate("() => { for (let i = 23; i < 80; i++) L.records.push(mk(i)); L.render(); }")
+    page.focus(".zp-data-scroll")
+    page.evaluate("document.querySelector('.zp-data-scroll').scrollTop = 120")
+    page.evaluate("() => { L.records.push(mk(80, false)); L.render(); }")
+    box = page.evaluate("""() => { const b = document.querySelector('.zp-data-scroll');
+      return {top: b.scrollTop, focused: b === document.activeElement, rows: b.querySelectorAll('tbody tr').length,
+              last: b.querySelector('tbody tr:last-child').textContent}; }""")
+    assert box["top"] == 120 and box["focused"] and box["rows"] == 81
+    assert box["last"].startswith("80") and "failed (502)" in box["last"]
+    # the appended table is the one a fresh render builds
+    fresh = page.evaluate("""() => { const h = document.createElement('div'); document.body.appendChild(h);
+      const M = new ZingPerf.Live(h); M.records = L.records.slice(); M.metric = L.metric; M.open = true; M.render();
+      const s = h.querySelector('.zp-data-scroll').innerHTML; h.remove(); return s; }""")
+    assert fresh == page.evaluate("document.querySelector('#host .zp-data-scroll').innerHTML")
+    # a metric switch rebuilds it for that metric
+    page.evaluate("() => L.setMetric('latency')")
+    assert "Latency" in page.evaluate("document.querySelector('#host .zp-data-scroll thead').textContent")
+    # a language switch redraws the labels and keeps focus on the selected tab
+    page.focus('.zp-tabs [data-metric="latency"]')
+    page.evaluate("() => { window.ZING_LANG = {t: (zh, en) => zh, locale: () => 'zh-CN'}; L.render(); }")
+    zh = page.evaluate("""() => [document.activeElement.dataset.metric, document.activeElement.textContent,
+      document.querySelector('#host .zp-data summary').textContent,
+      document.querySelector('#host .zp-data-scroll thead').textContent.includes('延迟'),
+      document.querySelectorAll('#host .zp-data-scroll tbody tr').length]""")
+    assert zh == ["latency", "延迟", "查看数据表", True, 81]
+    page.evaluate("() => { delete window.ZING_LANG; L.render(); }")
+    # tooltips work on marks drawn after the first render
+    page.locator("#host .zp-pt").last.hover()
+    tip = page.evaluate("() => { const t = document.querySelector('.zp-tip'); return [t.style.display, t.textContent]; }")
+    assert tip[0] == "block" and tip[1].startswith("#")
+    page.mouse.move(1, 1)
+    assert page.evaluate("document.querySelector('.zp-tip').style.display") == "none"
+    # once closed, later renders leave the table alone
+    page.evaluate("() => { document.querySelector('.zp-data').open = false; }")
+    page.wait_for_function("L.open === false")
+    page.evaluate("() => { L.records.push(mk(81)); L.render(); }")
+    assert page.evaluate("document.querySelectorAll('#host .zp-data-scroll tbody tr').length") == 81
+    assert errors == []

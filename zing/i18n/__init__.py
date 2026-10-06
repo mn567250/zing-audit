@@ -9,7 +9,8 @@ The single source is ``zing/i18n/locales/<code>.json``, one file per language:
 * ``findings`` — finding id -> ``[title, summary template]`` (``zh.json`` holds
   the original Chinese catalog; ``en`` needs none — the backend is English).
 
-The browser gets the same data through ``/locales.js`` (see :func:`locales_script`);
+The browser gets the same data through ``/locales.js`` (see :func:`locales_script`:
+the full bundle, or one language's via ``?lang=`` / the ``zing_lang`` cookie);
 this module gives Python code (``zing.notify``) the lookups it needs. Adding a
 language means adding one JSON file here — nothing else.
 
@@ -21,6 +22,7 @@ the canonical key list and the completeness tests cover it too).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from functools import lru_cache
@@ -63,8 +65,13 @@ def codes() -> list[str]:
 
 def normalize(lang: str | None) -> str:
     """A supported language code; anything unknown or empty becomes English."""
-    lang = (lang or "").strip().lower()
-    return lang if lang in _load() else DEFAULT
+    return _supported(lang) or DEFAULT
+
+
+def _supported(lang: str | None) -> str | None:
+    """``lang`` as a supported code, or ``None``."""
+    code = (lang or "").strip().lower()
+    return code if code in _load() else None
 
 
 def ui(lang: str | None, en: str) -> str:
@@ -123,7 +130,71 @@ def bundle() -> dict[str, Any]:
     }
 
 
-def locales_script() -> str:
+def lang_bundle(lang: str) -> dict[str, Any]:
+    """What a page in ``lang`` needs: the language list, ``lang``'s own data
+    (none for ``en``, the key language) and the translatable keys.
+
+    ``keys`` is ``ZING_LOCALES.keys`` precomputed (every English UI string, every
+    finding id), so the identity map ``en.json`` need not be sent.
+    """
+    data = _load()
+    d = data[lang]
+    locales = {}
+    if lang != DEFAULT:
+        locales[lang] = {"strings": d.get("strings", {}), "findings": d.get("findings", {})}
+    # The other languages' forms of a few backend sentences, so text exported
+    # in another language is still recognised (v2/report.js strips them).
+    common = {
+        code: {en: o["strings"][en] for en in _EVERY_LANGUAGE if en in o.get("strings", {})}
+        for code, o in data.items()
+        if code not in (DEFAULT, lang)
+    }
+    return {
+        "languages": languages(),
+        "lang": lang,
+        "locales": locales,
+        "common": common,
+        "keys": {
+            "strings": list(data.get(DEFAULT, {}).get("strings", {})),
+            "findings": list(data.get("zh", {}).get("findings", {})),
+        },
+    }
+
+
+# Strings every one-language bundle carries for all languages (see lang_bundle).
+_EVERY_LANGUAGE = (
+    "Overall health score {1}/100.",
+    "zing reports black-box evidence of divergence and risk, not proof of fraud.",
+)
+
+
+@lru_cache(maxsize=16)  # one per language + the full bundle
+def _script(lang: str | None, _version: tuple[int, int]) -> tuple[str, str]:
+    payload = bundle() if lang is None else lang_bundle(lang)
+    data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    body = f"window.ZING_I18N_DATA = {data};\n" + _STATIC_LOCALES_JS.read_text(encoding="utf-8")
+    etag = '"' + hashlib.sha256(body.encode("utf-8")).hexdigest()[:20] + '"'
+    return body, etag
+
+
+_built_from: list[Any] = [None]  # the _load() result the cached scripts come from
+
+
+def locales_bundle(lang: str | None = None) -> tuple[str, str]:
+    """``(script, ETag)`` served at ``/locales.js``, built once per variant.
+
+    ``lang`` (a supported code) gives the one-language bundle (see
+    :func:`lang_bundle`); ``None`` or an unknown code the full bundle with
+    every language. Rebuilt when the locale data is reloaded
+    (``_load.cache_clear()``) or ``static/locales.js`` changes.
+    """
+    data = _load()
+    if _built_from[0] is not data:
+        _script.cache_clear()
+        _built_from[0] = data
+    return _script(_supported(lang), (id(data), _STATIC_LOCALES_JS.stat().st_mtime_ns))
+
+
+def locales_script(lang: str | None = None) -> str:
     """The JS served at ``/locales.js``: the JSON data, then the lookup logic."""
-    data = json.dumps(bundle(), ensure_ascii=False, separators=(",", ":"))
-    return f"window.ZING_I18N_DATA = {data};\n" + _STATIC_LOCALES_JS.read_text(encoding="utf-8")
+    return locales_bundle(lang)[0]

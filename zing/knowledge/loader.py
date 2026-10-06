@@ -14,18 +14,26 @@ Layers, later ones winning:
    :mod:`zing.knowledge.store`). Left out with ``include_user=False``, or
    ``ZING_NO_USER_KB=1``.
 
-The knowledge base is re-read on every call, so an edit (or a new kb.db entry)
-applies to the next audit without a restart.
+An edit (or a new kb.db entry) applies to the next call without a restart.
+Merged results are cached, keyed on everything they are built from: the
+``--kb-dir`` / ``ZING_KB_DIR`` files (path and content digest), the user-KB switch,
+the kb.db location and the kb.db entries themselves (one small query per call),
+so an import, edit, toggle or delete is picked up immediately. The packaged
+profiles are immutable package data and parsed once per process. Every call
+returns a deep copy, so callers may modify what they get.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
+import threading
+from collections import OrderedDict
+from functools import lru_cache
 from importlib import resources
 from pathlib import Path
 from typing import Any
-
-import yaml
 
 from zing.knowledge.schema import (
     FingerprintProbe,
@@ -33,12 +41,13 @@ from zing.knowledge.schema import (
     ModelProfile,
     ProviderProfile,
 )
+from zing.utils import yamlio
 
 _DATA_PACKAGE = "zing.knowledge.data"
 
 
 def _parse_provider(text: str, source: str) -> ProviderProfile:
-    data = yaml.safe_load(text)
+    data = yamlio.safe_load(text)
     if not isinstance(data, dict):
         raise ValueError(f"Knowledge profile {source} is not a YAML mapping")
     try:
@@ -47,7 +56,9 @@ def _parse_provider(text: str, source: str) -> ProviderProfile:
         raise ValueError(f"Invalid knowledge profile {source}: {exc}") from exc
 
 
+@lru_cache(maxsize=1)
 def _load_packaged() -> dict[str, tuple[ProviderProfile, str]]:
+    """The packaged profiles, parsed once per process; copy the dict before changing it."""
     providers: dict[str, tuple[ProviderProfile, str]] = {}
     root = resources.files(_DATA_PACKAGE)
     for entry in root.iterdir():
@@ -184,6 +195,35 @@ def apply_user_entries(kb: KnowledgeBase, entries: list[dict[str, Any]]) -> None
         kb.entries[f"model:{key}"] = entry_ref(entry)
 
 
+_CACHE_SIZE = 8
+_cache: OrderedDict[tuple[Any, ...], KnowledgeBase] = OrderedDict()
+_cache_lock = threading.Lock()
+
+
+def _dirs_key(dirs: list[Path]) -> tuple[Any, ...]:
+    """The YAML files of ``dirs`` as they are now: path as given plus a content digest.
+
+    Hashing the (small) files is far cheaper than parsing them, and unlike
+    mtimes it cannot miss an edit.
+    """
+    out: list[Any] = []
+    for directory in dirs:
+        files: list[Any] = []
+        if directory.is_dir():
+            for path in sorted(directory.glob("*.y*ml")):
+                try:
+                    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                except OSError as exc:
+                    digest = f"unreadable:{exc.errno}"
+                files.append((path.name, digest))
+        out.append((str(directory), tuple(files)))
+    return tuple(out)
+
+
+def _entries_key(entries: list[dict[str, Any]]) -> str:
+    return json.dumps(entries, sort_keys=True, ensure_ascii=False, default=str)
+
+
 def load_knowledge_base(
     extra_dirs: list[Path] | None = None,
     *,
@@ -194,14 +234,57 @@ def load_knowledge_base(
 
     Later sources win, so a user-supplied profile for ``provider: openai``
     overrides the packaged one. ``user_entries`` replaces reading kb.db (used
-    to preview an import before it is saved).
+    to preview an import before it is saved; such loads are not cached).
+    The result is the caller's own copy.
     """
-    layered = _load_packaged()
-
     dirs: list[Path] = list(extra_dirs or [])
     env_dir = os.environ.get("ZING_KB_DIR")
     if env_dir:
         dirs.append(Path(env_dir))
+    use_user = user_kb_enabled(include_user)
+
+    if user_entries is not None:
+        return _build(dirs, use_user, user_entries, []).model_copy(deep=True)
+
+    entries: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    cacheable = True
+    db_location = ""
+    if use_user:
+        from zing import datadir
+        from zing.knowledge import store
+
+        try:
+            db_location = str(datadir.db_path(store.DB_NAME).resolve())
+            entries = store.list_entries(enabled_only=True)
+        except Exception as exc:  # an unreadable kb.db must not break audits
+            warnings.append(f"kb.db could not be read: {_short_error(exc)}")
+            cacheable = False
+
+    if not cacheable:
+        return _build(dirs, use_user, entries, warnings).model_copy(deep=True)
+    key = (_dirs_key(dirs), use_user, db_location, _entries_key(entries))
+    with _cache_lock:
+        cached = _cache.get(key)
+        if cached is not None:
+            _cache.move_to_end(key)
+    if cached is None:
+        cached = _build(dirs, use_user, entries, warnings)
+        with _cache_lock:
+            _cache[key] = cached
+            _cache.move_to_end(key)
+            while len(_cache) > _CACHE_SIZE:
+                _cache.popitem(last=False)
+    return cached.model_copy(deep=True)
+
+
+def _build(
+    dirs: list[Path],
+    use_user: bool,
+    user_entries: list[dict[str, Any]],
+    warnings: list[str],
+) -> KnowledgeBase:
+    layered = dict(_load_packaged())
     for directory in dirs:
         layered.update(_load_dir(directory))
 
@@ -213,16 +296,9 @@ def load_knowledge_base(
         for m in prof.models:
             kb.model_sources[f"{name}/{m.id}"] = kb.provider_sources[name]
 
-    if not user_kb_enabled(include_user):
+    if not use_user:
         kb.user_kb = False
         return kb
-    if user_entries is None:
-        from zing.knowledge import store
-
-        try:
-            user_entries = store.list_entries(enabled_only=True)
-        except Exception as exc:  # an unreadable kb.db must not break audits
-            kb.warnings.append(f"kb.db could not be read: {_short_error(exc)}")
-            user_entries = []
+    kb.warnings.extend(warnings)
     apply_user_entries(kb, user_entries)
     return kb

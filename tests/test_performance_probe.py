@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 
 import httpx
@@ -34,6 +35,23 @@ class UniqueReplyServer(MockServer):
         if m:
             return f"Answer {m.group(1)} " + "word " * 40
         return super()._reply_for(body)
+
+
+class SteadyReplyServer(UniqueReplyServer):
+    """Takes a fixed, non-blocking 100 ms per request, like a relay with a
+    steady response time. The mock's own sub-millisecond replies made the
+    load-stability ratio compare ~1 ms with ~0 ms, which a busy machine (or a
+    parallel test run) tipped past the "slower" threshold."""
+
+    delay_s = 0.1
+
+    async def _delayed(self, request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(self.delay_s)
+        return self.handler(request)
+
+    @property
+    def transport(self) -> httpx.MockTransport:
+        return httpx.MockTransport(self._delayed)
 
 
 def _ids(suite: str, has_baseline: bool) -> set[str]:
@@ -91,7 +109,7 @@ async def _run_probe(server: MockServer, *, suite="deep", n=6, baseline=False, k
 
 
 async def test_probe_sends_uncacheable_uniform_requests(knowledge_base):
-    server = UniqueReplyServer()
+    server = SteadyReplyServer()
     result, rec = await _run_probe(server, knowledge_base=knowledge_base)
 
     phases = [r.phase for r in rec.records]

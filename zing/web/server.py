@@ -57,7 +57,6 @@ from typing import Any
 # (CLI `serve`) or by the web tests, both of which handle a missing dependency.
 from fastapi import FastAPI, Request
 from fastapi.responses import (
-    FileResponse,
     JSONResponse,
     RedirectResponse,
     Response,
@@ -79,6 +78,7 @@ from zing.detectors.performance import stream_mode
 from zing.models import KnowledgeUsage, TargetConfig
 from zing.runner import run_audit
 from zing.web import jobs
+from zing.web.caching import CachedStaticFiles, CompressionMiddleware, html_page
 from zing.web.security import LocalOnlyMiddleware
 
 _STATIC = Path(__file__).parent / "static"
@@ -127,7 +127,7 @@ def _classic_page(request: Request, path: str) -> Response:
     if choice == "v2":
         resp = RedirectResponse(v2_path, status_code=307)
     else:
-        resp = FileResponse(_STATIC / file)
+        resp = html_page(_STATIC / file, request.scope)
     return _remember_ui(resp, ui)
 
 
@@ -138,7 +138,7 @@ def _v2_page(request: Request, path: str) -> Response:
     if ui == "v1":
         resp = RedirectResponse(path, status_code=307)
     else:
-        resp = FileResponse(_V2 / _UI_PAGES[path][0])
+        resp = html_page(_V2 / _UI_PAGES[path][0], request.scope)
     return _remember_ui(resp, ui)
 
 
@@ -261,7 +261,7 @@ async def _run_one_watch(row: dict[str, Any]) -> None:
         from zing.web import watches
 
         with contextlib.suppress(Exception):
-            watches.mark_attempt(wid, time.time())
+            await asyncio.to_thread(watches.mark_attempt, wid, time.time())
         raise WatchKeyUnreadable(row["key_error"])
     state: dict[str, Any] = {
         "cancelled": False,
@@ -327,8 +327,8 @@ def _cancel_watch(wid: int) -> bool:
     """Stop a running watch; False when it is not running."""
     state = _running_watches.get(wid)
     task = state.get("task") if state else None
-    if state is None or task is None or task.done():
-        return False
+    if state is None or task is None or task.done() or state.get("saving"):
+        return False  # not running, or saving its report: too late to cancel
     state["cancelled"] = True
     task.cancel()
     return True
@@ -351,6 +351,7 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
     report_id: int | None = None
     duration: float | None = None
     cancelled = False
+    saved = False  # a run whose report is stored is recorded with it, even if cancelled
     try:
         suite = validate_suite(str(row.get("suite") or "standard"))
         dimensions = validate_dimensions(suite, row.get("dimensions"))
@@ -369,23 +370,27 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
             dimensions=dimensions,
             performance_streaming=row.get("performance_streaming") is not False,
         )
-        # Audit against the profile pinned when the watch was created, so a
-        # knowledge-base edit cannot silently change what the monitor measures.
-        pinned_raw = watches.pinned_knowledge(wid)
-        pinned = KnowledgeUsage(**pinned_raw) if pinned_raw else None
-
-        # Previous saved run for this target+model — used for the regression check
-        # and the "since last run" delta in the alert. notify.send needs the full report,
-        # so find the most recent prior history row for this target and re-fetch it.
         claimed = target.claimed_model or target.model
-        previous: dict[str, Any] | None = None
-        for item in history.recent(50):  # newest first
-            if (
-                item.get("base_url") == target.base_url
-                and item.get("claimed_model") == claimed
-            ):
-                previous = history.get(int(item["id"]))
-                break
+
+        def stored() -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+            # Blocking SQLite reads: run in a worker thread, off the loop.
+            # Audit against the profile pinned when the watch was created, so a
+            # knowledge-base edit cannot silently change what the monitor measures.
+            pinned_raw = watches.pinned_knowledge(wid)
+            # Previous saved run for this target+model — used for the regression check
+            # and the "since last run" delta in the alert. notify.send needs the full
+            # report, so find the most recent prior history row for this target and
+            # re-fetch it.
+            for item in history.recent(50):  # newest first
+                if (
+                    item.get("base_url") == target.base_url
+                    and item.get("claimed_model") == claimed
+                ):
+                    return pinned_raw, history.get(int(item["id"]))
+            return pinned_raw, None
+
+        pinned_raw, previous = await asyncio.to_thread(stored)
+        pinned = KnowledgeUsage(**pinned_raw) if pinned_raw else None
 
         job = state.get("job") if state is not None else None
 
@@ -417,12 +422,24 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
             )
             duration = time.perf_counter() - started
         report_dict = json.loads(report.model_dump_json())
-        report_id = history.save(report_dict, watch_id=wid)
-        if report_id is not None and report_id < 0:
-            report_id = None
-        if job is not None:
-            job.report_id = report_id
-            job.emit({"type": "report", "report": report_dict, "report_id": report_id})
+
+        async def store() -> None:
+            # Save off the loop and report it, as one step (see jobs.settle).
+            nonlocal report_id, saved
+            rid = await asyncio.to_thread(history.save, report_dict, watch_id=wid)
+            report_id = rid if rid is not None and rid >= 0 else None
+            saved = True
+            if job is not None:
+                job.report_id = report_id
+                job.emit({"type": "report", "report": report_dict, "report_id": report_id})
+
+        if state is not None:
+            state["saving"] = True  # Cancel is refused meanwhile
+        try:
+            await jobs.settle(store())
+        finally:
+            if state is not None:
+                state["saving"] = False
 
         verdict = report_dict.get("verdict") or {}
         # report_dict came through model_dump_json, so risk_level is a plain str.
@@ -448,13 +465,20 @@ async def _run_one_watch_inner(row: dict[str, Any], state: dict[str, Any] | None
         cancelled = True
         raise
     finally:
-        # Record the run no matter what so cadence stays honest. A cancelled
-        # run keeps the previous result on the card, only its time moves on.
-        with contextlib.suppress(Exception):
-            if cancelled:
+        # Record the run no matter what so cadence stays honest. A run
+        # cancelled before its report was stored keeps the previous result on
+        # the card, only its time moves on.
+        def mark() -> None:
+            if cancelled and not saved:
                 watches.mark_attempt(wid, now)
             else:
                 watches.mark_run(wid, risk, score, report_id, now, duration_sec=duration)
+
+        # Off the loop, but finished before the caller drops the watch from
+        # _running_watches (else the scheduler could see it due again); a
+        # cancel meanwhile is raised once the run is recorded.
+        with contextlib.suppress(Exception):
+            await jobs.settle(asyncio.to_thread(mark))
 
 
 def _risk_meets(risk: str | None, threshold: str) -> bool:
@@ -483,13 +507,17 @@ async def _scheduler_loop() -> None:
     from zing.web import watches
     from zing.web.masterkey import vault
 
+    def due_now() -> list[dict[str, Any]]:
+        # Notice another process changing the master key. While it is
+        # locked, watches that need it raise WatchLocked and wait; keyless
+        # and env:/file: ones run as usual.
+        vault.verify()
+        return watches.due(time.time())
+
     while True:
         try:
-            # Notice another process changing the master key. While it is
-            # locked, watches that need it raise WatchLocked and wait; keyless
-            # and env:/file: ones run as usual.
-            vault.verify()
-            due = watches.due(time.time())
+            # SQLite reads (and the key check): off the loop.
+            due = await asyncio.to_thread(due_now)
         except Exception:
             due = []
         for row in due:
@@ -567,7 +595,9 @@ def create_app() -> FastAPI:
         lifespan=_lifespan,
     )
     # Local-only: Host allowlist (DNS rebinding), Origin + JSON checks (CSRF),
-    # security headers. See zing/web/security.py.
+    # security headers. See zing/web/security.py. Added last, so it runs first:
+    # refused requests never reach the gzip layer below it.
+    app.add_middleware(CompressionMiddleware)  # gzip >= 1 KiB, never for SSE
     app.add_middleware(LocalOnlyMiddleware)
 
     @app.get("/api/health")
@@ -582,7 +612,7 @@ def create_app() -> FastAPI:
     async def console(request: Request) -> Any:
         # Classic only: the console has no v2 counterpart, so the UI cookie
         # never redirects it.
-        return FileResponse(_STATIC / "console.html")
+        return html_page(_STATIC / "console.html")
 
     # ----- v2 UI (side by side with the classic one, for A/B) ------------- #
     @app.get("/v2")
@@ -612,7 +642,7 @@ def create_app() -> FastAPI:
         if request.query_params.get("ui") == "v1":
             resp = RedirectResponse("/", status_code=307)
         else:
-            resp = FileResponse(_V2 / "kb.html")
+            resp = html_page(_V2 / "kb.html", request.scope)
         return _remember_ui(resp, request.query_params.get("ui"))
 
     @app.get("/v2/accessibility")
@@ -624,47 +654,64 @@ def create_app() -> FastAPI:
         if request.query_params.get("ui") == "v1":
             resp = RedirectResponse("/", status_code=307)
         else:
-            resp = FileResponse(_V2 / "accessibility.html")
+            resp = html_page(_V2 / "accessibility.html", request.scope)
         return _remember_ui(resp, request.query_params.get("ui"))
 
     # v2 stylesheets / scripts, e.g. /v2/static/zing.css
-    app.mount("/v2/static", StaticFiles(directory=str(_V2)), name="v2-static")
+    # `?v=<hash>` URLs (written into pages by html_page) are cached immutably.
+    app.mount("/v2/static", CachedStaticFiles(directory=str(_V2)), name="v2-static")
+    root_assets = CachedStaticFiles(directory=str(_STATIC))
 
     @app.get("/i18n.js")
-    async def i18n_js() -> Any:
-        return FileResponse(_STATIC / "i18n.js", media_type="application/javascript")
+    async def i18n_js(request: Request) -> Any:
+        return root_assets.asset("i18n.js", request.scope, "application/javascript")
 
     @app.get("/locales.js")
-    async def locales_js() -> Any:
-        # Translation data (zing/i18n/locales/*.json) + the lookup logic.
-        from zing.i18n import locales_script
+    async def locales_js(request: Request) -> Any:
+        # Translation data (zing/i18n/locales/*.json) + the lookup logic: one
+        # language's for ?lang= or the zing_lang cookie lang.js writes, else
+        # every language (built once, revalidated by ETag).
+        from zing.i18n import locales_bundle
 
-        return Response(locales_script(), media_type="application/javascript")
+        q = request.query_params.get("lang")
+        body, etag = locales_bundle(q if q is not None else request.cookies.get("zing_lang"))
+        headers = {"ETag": etag, "Cache-Control": "no-cache"}
+        if q is None:
+            headers["Vary"] = "Cookie"
+        inm = request.headers.get("if-none-match", "")
+        tags = {t.strip().removeprefix("W/") for t in inm.split(",")}
+        if etag in tags or "*" in tags:
+            return Response(status_code=304, headers=headers)
+        return Response(body, media_type="application/javascript", headers=headers)
 
     @app.get("/lang.js")
-    async def lang_js() -> Any:
-        return FileResponse(_STATIC / "lang.js", media_type="application/javascript")
+    async def lang_js(request: Request) -> Any:
+        return root_assets.asset("lang.js", request.scope, "application/javascript")
 
     @app.get("/icons.js")
-    async def icons_js() -> Any:
-        return FileResponse(_STATIC / "icons.js", media_type="application/javascript")
+    async def icons_js(request: Request) -> Any:
+        return root_assets.asset("icons.js", request.scope, "application/javascript")
 
     @app.get("/modelpicker.js")
-    async def modelpicker_js() -> Any:
-        return FileResponse(
-            _STATIC / "modelpicker.js", media_type="application/javascript"
-        )
+    async def modelpicker_js(request: Request) -> Any:
+        return root_assets.asset("modelpicker.js", request.scope, "application/javascript")
 
     @app.get("/perf.js")
-    async def perf_js() -> Any:
-        return FileResponse(_STATIC / "perf.js", media_type="application/javascript")
+    async def perf_js(request: Request) -> Any:
+        return root_assets.asset("perf.js", request.scope, "application/javascript")
 
     @app.get("/secretfield.js")
-    async def secretfield_js() -> Any:
-        return FileResponse(_STATIC / "secretfield.js", media_type="application/javascript")
+    async def secretfield_js(request: Request) -> Any:
+        return root_assets.asset("secretfield.js", request.scope, "application/javascript")
 
+    # Handlers that do blocking work (SQLite, YAML/JSON parsing, the knowledge
+    # base load, file reads) are plain `def`: Starlette runs them in its thread
+    # pool, so the event loop (live audits timestamp chunks on it) never stalls.
+    # Async handlers that must await the request body offload only the blocking
+    # part with asyncio.to_thread; anything touching loop-owned state
+    # (_running_watches, jobs, tasks) stays on the loop.
     @app.get("/api/kb")
-    async def kb() -> Any:
+    def kb() -> Any:
         # Public model metadata only — no keys, no secrets. Mirrors the grouping
         # the CLI `kb --json` command uses: providers sorted, each with its models.
         from zing.knowledge import load_knowledge_base
@@ -683,7 +730,7 @@ def create_app() -> FastAPI:
 
     # ----- Knowledge base: browse, research prompt, import/export -------- #
     @app.get("/api/kb/profiles")
-    async def kb_profiles() -> Any:
+    def kb_profiles() -> Any:
         # Every provider/model as merged for audits, with its source and the
         # user's entries (kb.db) — plus entries that were skipped.
         from zing.knowledge import load_knowledge_base, store
@@ -711,7 +758,7 @@ def create_app() -> FastAPI:
                              "user_kb": knowledge.user_kb, "warnings": knowledge.warnings})
 
     @app.get("/api/kb/prompt")
-    async def kb_prompt(model: str = "", provider: str = "") -> Any:
+    def kb_prompt(model: str = "", provider: str = "") -> Any:
         from zing.knowledge import load_knowledge_base
         from zing.knowledge.research import research_prompt
 
@@ -723,7 +770,7 @@ def create_app() -> FastAPI:
         from zing.knowledge import load_knowledge_base
 
         body = await request.json()
-        knowledge = load_knowledge_base()
+        knowledge = await asyncio.to_thread(load_knowledge_base)
         r = knowledge.resolve(str(body.get("model") or "")[:200], body.get("provider") or None)
         if r is None:
             return JSONResponse({"matched": False})
@@ -744,19 +791,21 @@ def create_app() -> FastAPI:
         from zing.knowledge.importer import scan
 
         text, _name = await _yaml_body(request)
-        return JSONResponse(scan(text).to_dict())
+        return JSONResponse((await asyncio.to_thread(scan, text)).to_dict())
 
     @app.post("/api/kb/import")
     async def kb_import(request: Request) -> Any:
         from zing.knowledge.importer import import_yaml
 
         text, name = await _yaml_body(request)
-        result, ids = import_yaml(text, origin=f"import:{name}" if name else "import")
+        result, ids = await asyncio.to_thread(
+            import_yaml, text, origin=f"import:{name}" if name else "import"
+        )
         body = {**result.to_dict(), "entry_ids": ids}
         return JSONResponse(body, status_code=201 if result.ok else 400)
 
     @app.get("/api/kb/export")
-    async def kb_export(provider: str = "") -> Any:
+    def kb_export(provider: str = "") -> Any:
         from zing.knowledge.importer import export_yaml
 
         text = export_yaml(provider or None)
@@ -771,12 +820,12 @@ def create_app() -> FastAPI:
         body = await request.json()
         if "enabled" not in body:
             return JSONResponse({"error": "nothing to change"}, status_code=400)
-        if not store.set_enabled(entry_id, bool(body.get("enabled"))):
+        if not await asyncio.to_thread(store.set_enabled, entry_id, bool(body.get("enabled"))):
             return JSONResponse({"error": "not found"}, status_code=404)
         return JSONResponse({"ok": True})
 
     @app.delete("/api/kb/entries/{entry_id}")
-    async def kb_entry_delete(entry_id: int) -> Any:
+    def kb_entry_delete(entry_id: int) -> Any:
         from zing.knowledge import store
 
         if not store.delete(entry_id):
@@ -1002,8 +1051,12 @@ def create_app() -> FastAPI:
                 {"error": f"unknown format {format!r}; choose from: {', '.join(media)}"},
                 status_code=400,
             )
+        raw = await request.body()
         try:
-            report = AuditReport.model_validate(await request.json())
+            # Decoding and validating a large report is CPU work: off the loop.
+            report = await asyncio.to_thread(
+                lambda: AuditReport.model_validate(json.loads(raw))
+            )
         except (ValueError, ValidationError) as exc:
             return JSONResponse({"error": f"not a zing report: {exc}"[:500]}, status_code=400)
 
@@ -1015,7 +1068,8 @@ def create_app() -> FastAPI:
             except Exception as exc:  # a layout failure must still reach the UI as JSON
                 return JSONResponse({"error": f"PDF rendering failed: {exc}"[:500]}, status_code=500)
         else:
-            body = {"json": render_json, "md": render_markdown, "html": render_html}[format](report)
+            render = {"json": render_json, "md": render_markdown, "html": render_html}[format]
+            body = await asyncio.to_thread(render, report)
         fname = f"{report_stem(report)}.{format}"
         return Response(body, media_type=media[format],
                         headers={"Content-Disposition": f'attachment; filename="{fname}"'})
@@ -1025,19 +1079,19 @@ def create_app() -> FastAPI:
         return _classic_page(request, "/history")
 
     @app.get("/api/history")
-    async def history_list(limit: int = 50, perf: bool = False) -> Any:
+    def history_list(limit: int = 50, perf: bool = False) -> Any:
         from zing.web import history
 
         return JSONResponse(history.recent(limit, perf=perf))
 
     @app.get("/api/history/trend")
-    async def history_trend(base_url: str, claimed_model: str, limit: int = 30) -> Any:
+    def history_trend(base_url: str, claimed_model: str, limit: int = 30) -> Any:
         from zing.web import history
 
         return JSONResponse(history.trend(base_url, claimed_model, limit))
 
     @app.get("/api/history/{rid}")
-    async def history_get(rid: int) -> Any:
+    def history_get(rid: int) -> Any:
         from zing.web import history
 
         report = history.get(rid)
@@ -1046,14 +1100,14 @@ def create_app() -> FastAPI:
         return JSONResponse(report)
 
     @app.delete("/api/history/{rid}")
-    async def history_delete(rid: int) -> Any:
+    def history_delete(rid: int) -> Any:
         from zing.web import history
 
         history.delete(rid)
         return JSONResponse({"ok": True})
 
     @app.delete("/api/history")
-    async def history_clear() -> Any:
+    def history_clear() -> Any:
         from zing.web import history
 
         history.clear()
@@ -1064,25 +1118,23 @@ def create_app() -> FastAPI:
     async def watches_page(request: Request) -> Any:
         return _classic_page(request, "/watches")
 
-    @app.get("/api/watches")
-    async def watches_list() -> Any:
+    def _watch_rows() -> list[dict[str, Any]]:
+        """The stored watches with their schedule floor, protocol and KB drift.
+
+        Blocking (SQLite + knowledge base load): runs in a worker thread.
+        Touches no loop-owned state; live run state is added on the loop.
+        """
+        from zing.knowledge import load_knowledge_base
         from zing.web import watches
 
         # list_all() never returns api_key, so this is safe to send to the browser.
         rows = watches.list_all()
         # Flag pinned profiles that differ from what the knowledge base resolves now.
-        from zing.knowledge import load_knowledge_base
-
         try:
             kb = load_knowledge_base() if rows else None
         except Exception:
             kb = None
         for row in rows:
-            state = _running_watches.get(int(row["id"]))
-            row["running"] = state is not None
-            # waiting for its relay: another audit is using it
-            row["queued"] = state is not None and not state.get("started")
-            row["progress"] = _watch_progress(state) if state is not None else None
             row["min_interval_sec"] = _min_interval_sec(row.get("run_duration_sec"))
             row.update(_watch_protocol(row))
             row["kb_current_hash"] = None
@@ -1096,6 +1148,18 @@ def create_app() -> FastAPI:
             row["kb_current_hash"] = current
             pinned_hash = (row.get("kb") or {}).get("profile_hash")
             row["kb_changed"] = bool(pinned_hash and pinned_hash != current)
+        return rows
+
+    @app.get("/api/watches")
+    async def watches_list() -> Any:
+        rows = await asyncio.to_thread(_watch_rows)
+        # Live run state belongs to the event loop: read it here, not in the thread.
+        for row in rows:
+            state = _running_watches.get(int(row["id"]))
+            row["running"] = state is not None
+            # waiting for its relay: another audit is using it
+            row["queued"] = state is not None and not state.get("started")
+            row["progress"] = _watch_progress(state) if state is not None else None
         return JSONResponse(rows)
 
     @app.post("/api/watches")
@@ -1127,13 +1191,13 @@ def create_app() -> FastAPI:
             "performance_streaming": body.get("performance_streaming") is not False,
         }
         try:
-            knowledge = _watch_knowledge(cfg)
+            knowledge = await asyncio.to_thread(_watch_knowledge, cfg)
         except Exception as exc:  # e.g. a broken ZING_KB_DIR file
             return JSONResponse({"error": f"knowledge base: {exc}"}, status_code=400)
         from zing.secretbox import SecretLocked
 
         try:
-            wid = watches.create(cfg, knowledge=knowledge)
+            wid = await asyncio.to_thread(watches.create, cfg, knowledge=knowledge)
         except SecretLocked as exc:
             return _locked_response(exc)
         return JSONResponse({"ok": True, "id": wid}, status_code=201)
@@ -1152,10 +1216,10 @@ def create_app() -> FastAPI:
         """
         from zing.web import history, watches
 
-        report = history.get(rid)
+        report = await asyncio.to_thread(history.get, rid)
         if report is None:
             return JSONResponse({"error": "not found"}, status_code=404)
-        if history.watch_of(rid) is not None:
+        if await asyncio.to_thread(history.watch_of, rid) is not None:
             return JSONResponse({"error": "this run was produced by a monitor"}, status_code=409)
         try:
             body = await request.json()
@@ -1196,14 +1260,14 @@ def create_app() -> FastAPI:
             "run_duration_sec": history.run_duration_sec(report),
         }
         try:
-            knowledge = _watch_knowledge(cfg)
+            knowledge = await asyncio.to_thread(_watch_knowledge, cfg)
         except Exception as exc:  # e.g. a broken ZING_KB_DIR file
             return JSONResponse({"error": f"knowledge base: {exc}"}, status_code=400)
-        wid = watches.create(cfg, knowledge=knowledge, draft=True)
+        wid = await asyncio.to_thread(watches.create, cfg, knowledge=knowledge, draft=True)
         return JSONResponse({"ok": True, "id": wid}, status_code=201)
 
     @app.delete("/api/watches/{wid}")
-    async def watches_delete(wid: int) -> Any:
+    def watches_delete(wid: int) -> Any:
         from zing.web import watches
 
         watches.delete(wid)
@@ -1213,7 +1277,7 @@ def create_app() -> FastAPI:
     async def watches_patch(wid: int, request: Request) -> Any:
         from zing.web import watches
 
-        row = watches.get(wid)
+        row = await asyncio.to_thread(watches.get, wid)
         if row is None:
             return JSONResponse({"error": "not found"}, status_code=404)
         body = await request.json()
@@ -1254,27 +1318,34 @@ def create_app() -> FastAPI:
             return JSONResponse({"error": "set an interval first"}, status_code=400)
         from zing.secretbox import SecretLocked
 
-        try:
-            watches.update(wid, interval_sec=interval, api_key=key, alert_on=alert_on, webhooks=hooks)
-        except SecretLocked as exc:
-            return _locked_response(exc)
-        if "enabled" in body:
-            watches.set_enabled(wid, bool(body.get("enabled")))
-        if "language" in body:
-            watches.set_language(wid, body.get("language"))
-        if body.get("repin"):
-            # Re-pin to the profile the knowledge base resolves to now.
+
+        def store() -> JSONResponse:
+            # All of the PATCH's writes in one worker-thread call, in order.
             try:
-                watches.pin(wid, _watch_knowledge(row))
-            except Exception as exc:
-                return JSONResponse({"error": f"knowledge base: {exc}"}, status_code=400)
-        return JSONResponse({"ok": True})
+                watches.update(
+                    wid, interval_sec=interval, api_key=key, alert_on=alert_on, webhooks=hooks
+                )
+            except SecretLocked as exc:
+                return _locked_response(exc)
+            if "enabled" in body:
+                watches.set_enabled(wid, bool(body.get("enabled")))
+            if "language" in body:
+                watches.set_language(wid, body.get("language"))
+            if body.get("repin"):
+                # Re-pin to the profile the knowledge base resolves to now.
+                try:
+                    watches.pin(wid, _watch_knowledge(row))
+                except Exception as exc:
+                    return JSONResponse({"error": f"knowledge base: {exc}"}, status_code=400)
+            return JSONResponse({"ok": True})
+
+        return await asyncio.to_thread(store)
 
     @app.post("/api/watches/{wid}/run")
     async def watches_run(wid: int) -> Any:
         from zing.web import watches
 
-        row = watches.get(wid)
+        row = await asyncio.to_thread(watches.get, wid)
         if row is None:
             return JSONResponse({"error": "not found"}, status_code=404)
         # Run the same path the scheduler uses (audit + persist + alert + mark).
@@ -1299,11 +1370,13 @@ def create_app() -> FastAPI:
         # Return the freshly saved report so the UI can show the result.
         from zing.web import history
 
-        refreshed = watches.get(wid)
-        report = None
-        if refreshed and refreshed.get("last_report_id") is not None:
-            report = history.get(int(refreshed["last_report_id"]))
-        return JSONResponse({"ok": True, "report": report})
+        def saved_report() -> dict[str, Any] | None:
+            refreshed = watches.get(wid)
+            if refreshed and refreshed.get("last_report_id") is not None:
+                return history.get(int(refreshed["last_report_id"]))
+            return None
+
+        return JSONResponse({"ok": True, "report": await asyncio.to_thread(saved_report)})
 
     @app.post("/api/watches/{wid}/cancel")
     async def watches_cancel(wid: int) -> Any:
@@ -1334,13 +1407,13 @@ def create_app() -> FastAPI:
             return _secret_json({"error": str(exc)}, status_code=exc.status)
 
     @app.get("/api/secret")
-    async def secret_status() -> Any:
+    def secret_status() -> Any:
         from zing.web.masterkey import vault
 
         return _secret_json(vault.status())
 
     @app.post("/api/secret/new")
-    async def secret_new() -> Any:
+    def secret_new() -> Any:
         """A new master key, shown once; confirmed by /api/secret/new/confirm."""
         from zing.secretbox import SecretBox
         from zing.web.masterkey import PENDING_TTL_SEC, VaultError, vault
@@ -1359,16 +1432,18 @@ def create_app() -> FastAPI:
     async def secret_new_confirm(request: Request) -> Any:
         from zing.web.masterkey import vault
 
-        return _vault_call(vault.confirm_new, await _typed_key(request))
+        typed = await _typed_key(request)
+        return await asyncio.to_thread(_vault_call, vault.confirm_new, typed)
 
     @app.post("/api/secret/unlock")
     async def secret_unlock(request: Request) -> Any:
         from zing.web.masterkey import vault
 
-        return _vault_call(vault.unlock, await _typed_key(request))
+        typed = await _typed_key(request)
+        return await asyncio.to_thread(_vault_call, vault.unlock, typed)
 
     @app.post("/api/secret/lock")
-    async def secret_lock() -> Any:
+    def secret_lock() -> Any:
         # Audits already running finish with the key they decrypted.
         from zing.web.masterkey import vault
 
@@ -1390,6 +1465,9 @@ def create_app() -> FastAPI:
             return _secret_json(
                 {"error": f"cannot reset the master key while it is {st['state']}"}, status_code=409
             )
+        # Stays on the loop on purpose: check, cancel the running monitors and
+        # reset without yielding, so no monitor can start (and no unlock can
+        # land) in between. A rare, deliberate action.
         for wid in list(_running_watches):
             _cancel_watch(wid)
         try:
@@ -1428,7 +1506,8 @@ def create_app() -> FastAPI:
         # in which case the auditor records the observed dimension instead.
         claimed_dimensions = _coerce_int(body.get("claimed_dimensions"))
         if claimed_dimensions <= 0:
-            claimed_dimensions = _kb_embedding_dimensions(
+            claimed_dimensions = await asyncio.to_thread(
+                _kb_embedding_dimensions,
                 target.claimed_model or target.model,
                 target.declared_provider,
             )
@@ -1485,7 +1564,7 @@ def create_app() -> FastAPI:
         if request.url.path.startswith("/v2/static/"):
             return Response("not found", status_code=404, media_type="text/plain")
         if request.url.path.startswith("/v2/"):
-            return FileResponse(_V2 / "index.html")
-        return FileResponse(_STATIC / "index.html")
+            return html_page(_V2 / "index.html", request.scope)
+        return html_page(_STATIC / "index.html", request.scope)
 
     return app

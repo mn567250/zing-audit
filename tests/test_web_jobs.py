@@ -14,6 +14,15 @@ from zing.web import jobs  # noqa: E402
 from zing.web.server import create_app  # noqa: E402
 
 
+async def _until(cond, timeout: float = 5.0) -> None:
+    """Wait for ``cond()``: history and watch-store calls hop to a worker thread."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while not cond():
+        assert loop.time() < deadline, "condition not met in time"
+        await asyncio.sleep(0.005)
+
+
 def test_relay_key_is_the_host_and_folds_loopback():
     assert jobs.relay_key("https://Relay.Example.com:8443/v1") == "relay.example.com"
     assert jobs.relay_key("http://relay.example.com/v1") == "relay.example.com"
@@ -114,9 +123,9 @@ async def test_jobs_queue_per_relay_and_replay_their_log(tmp_path, monkeypatch):
     assert [e["type"] for e in b.events] == ["queued"]
 
     gates["a"].set()
-    await asyncio.sleep(0.01)
-    assert a.status == "done" and a.report_id is not None
-    assert b.status == "running"
+    await _until(lambda: a.status == "done")
+    assert a.report_id is not None
+    await _until(lambda: b.status == "running")  # the relay is free once a is saved
 
     # a late subscriber gets the whole log, then the live tail
     chunks: list[str] = []
@@ -173,34 +182,36 @@ def test_jobs_endpoints(tmp_path, monkeypatch):
         return _fake_report(target)
 
     monkeypatch.setattr("zing.web.server.run_audit", fake_run_audit)
-    client = TestClient(create_app(), base_url="http://localhost")
+    # One event loop for every request (as under uvicorn): the job runs on in
+    # the background, its history save in a worker thread.
+    with TestClient(create_app(), base_url="http://localhost") as client:
+        bad = client.post("/api/jobs", json={"base_url": "", "model": ""})
+        assert bad.status_code == 400 and bad.json()["error"]
 
-    bad = client.post("/api/jobs", json={"base_url": "", "model": ""})
-    assert bad.status_code == 400 and bad.json()["error"]
+        created = client.post(
+            "/api/jobs",
+            json={"base_url": "https://x.example/v1", "model": "m", "api_key": "sk-secret"},
+        )
+        assert created.status_code == 200
+        job = created.json()
+        assert job["base_url"] == "https://x.example/v1" and "sk-secret" not in created.text
 
-    created = client.post(
-        "/api/jobs", json={"base_url": "https://x.example/v1", "model": "m", "api_key": "sk-secret"}
-    )
-    assert created.status_code == 200
-    job = created.json()
-    assert job["base_url"] == "https://x.example/v1" and "sk-secret" not in created.text
+        r = client.get(f"/api/jobs/{job['id']}/events")
+        events = [json.loads(line[5:]) for line in r.text.splitlines() if line.startswith("data:")]
+        types = [e["type"] for e in events]
+        assert types[-2:] == ["report", "done"] and "start" in types
+        report_id = events[-2]["report_id"]
+        assert client.get(f"/api/history/{report_id}").status_code == 200
 
-    r = client.get(f"/api/jobs/{job['id']}/events")
-    events = [json.loads(line[5:]) for line in r.text.splitlines() if line.startswith("data:")]
-    types = [e["type"] for e in events]
-    assert types[-2:] == ["report", "done"] and "start" in types
-    report_id = events[-2]["report_id"]
-    assert client.get(f"/api/history/{report_id}").status_code == 200
+        listed = client.get("/api/jobs").json()
+        mine = [j for j in listed["jobs"] if j["id"] == job["id"]]
+        assert mine and mine[0]["status"] == "done" and mine[0]["report_id"] == report_id
+        assert listed["max_parallel"] >= 1
+        assert "sk-secret" not in json.dumps(listed)
 
-    listed = client.get("/api/jobs").json()
-    mine = [j for j in listed["jobs"] if j["id"] == job["id"]]
-    assert mine and mine[0]["status"] == "done" and mine[0]["report_id"] == report_id
-    assert listed["max_parallel"] >= 1
-    assert "sk-secret" not in json.dumps(listed)
-
-    assert client.get("/api/jobs/nope").status_code == 404
-    assert client.get("/api/jobs/nope/events").status_code == 404
-    assert client.post(f"/api/jobs/{job['id']}/cancel").status_code == 409
+        assert client.get("/api/jobs/nope").status_code == 404
+        assert client.get("/api/jobs/nope/events").status_code == 404
+        assert client.post(f"/api/jobs/{job['id']}/cancel").status_code == 409
 
 
 def test_running_monitors_are_listed_as_jobs():
@@ -240,7 +251,7 @@ async def test_a_monitor_waits_for_an_audit_of_its_relay(tmp_path, monkeypatch):
     holder = asyncio.create_task(other_audit())
     await asyncio.sleep(0)
     run = asyncio.create_task(server._run_one_watch(watches.get(wid)))
-    await asyncio.sleep(0.01)
+    await _until(lambda: "waiting_for" in server._running_watches.get(wid, {}))
     state = server._running_watches[wid]
     assert not started.is_set() and not state.get("started")
     assert state["waiting_for"] == ["relay.test"]

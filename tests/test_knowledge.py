@@ -15,6 +15,56 @@ from zing.knowledge.schema import (
 # --------------------------------------------------------------------------- #
 # loading
 # --------------------------------------------------------------------------- #
+def test_c_yaml_loader_matches_pure_python_for_packaged_profiles():
+    # The loader prefers libyaml's CSafeLoader; it must yield exactly the data
+    # the pure-Python SafeLoader does for every shipped profile.
+    from importlib import resources
+
+    import pytest
+    import yaml
+
+    from zing.utils import yamlio
+
+    if not hasattr(yaml, "CSafeLoader"):
+        pytest.skip("PyYAML built without libyaml")
+    assert yamlio.SAFE_LOADER is yaml.CSafeLoader
+    files = [e for e in resources.files("zing.knowledge.data").iterdir()
+             if e.name.endswith((".yaml", ".yml"))]
+    assert files
+    for entry in files:
+        text = entry.read_text(encoding="utf-8")
+        assert yaml.load(text, Loader=yaml.CSafeLoader) == yaml.load(text, Loader=yaml.SafeLoader), entry.name
+
+
+def test_cached_knowledge_base_is_a_private_copy():
+    first = load_knowledge_base()
+    first.providers["openai"].models.clear()
+    first.providers["openai"].fingerprints.clear()
+    first.warnings.append("mutated")
+    del first.providers["anthropic"]
+    second = load_knowledge_base()
+    assert second is not first
+    assert second.providers["openai"].models and "anthropic" in second.providers
+    assert "mutated" not in second.warnings
+
+
+def test_kb_dir_edit_invalidates_cache(tmp_path, monkeypatch):
+    monkeypatch.delenv("ZING_KB_DIR", raising=False)
+    path = tmp_path / "acme.yaml"
+    path.write_text("provider: acmeai\nmodels:\n- id: acme-one\n", encoding="utf-8")
+    kb = load_knowledge_base([tmp_path])
+    assert kb.resolve("acme-one") is not None
+    path.write_text("provider: acmeai\nmodels:\n- id: acme-two-longer\n", encoding="utf-8")
+    kb = load_knowledge_base([tmp_path])
+    assert kb.resolve("acme-two-longer") is not None
+    assert [m.id for m in kb.providers["acmeai"].models] == ["acme-two-longer"]
+    path.unlink()
+    assert "acmeai" not in load_knowledge_base([tmp_path]).providers
+    monkeypatch.setenv("ZING_KB_DIR", str(tmp_path))
+    (tmp_path / "beta.yaml").write_text("provider: betaai\nmodels: []\n", encoding="utf-8")
+    assert "betaai" in load_knowledge_base().providers
+
+
 def test_load_knowledge_base_has_providers(knowledge_base):
     assert isinstance(knowledge_base, KnowledgeBase)
     assert knowledge_base.providers, "expected packaged provider profiles"

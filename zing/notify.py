@@ -29,6 +29,7 @@ from urllib.parse import urlparse
 import httpx
 
 from zing import i18n
+from zing.clients.base import get_ssl_context
 from zing.models import RiskLevel
 
 # Ordering used to decide whether the current risk is *worse* than the previous
@@ -299,7 +300,8 @@ async def send(
         return False
     payload = build_payload(report, kind=kind, previous=previous, webhook_url=webhook_url, lang=lang)
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        # the relay clients' shared TLS context: no CA bundle load per alert
+        async with httpx.AsyncClient(timeout=timeout, verify=await get_ssl_context()) as client:
             resp = await client.post(webhook_url, json=payload)
         return resp.status_code < 400
     except Exception:

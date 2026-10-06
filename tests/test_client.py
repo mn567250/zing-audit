@@ -183,3 +183,40 @@ async def test_secret_never_leaks_into_evidence(client, mock_server):
     # The configured secret must not appear in any redacted error/header surface.
     blob = (out.error_message or "") + "".join(out.headers.values())
     assert "sk-test-secret-key-do-not-leak" not in blob
+
+
+# --------------------------------------------------------------------------- #
+# one TLS context per process (zing/clients/base.py)
+# --------------------------------------------------------------------------- #
+async def test_clients_share_one_tls_context_built_off_the_event_loop(monkeypatch):
+    import ssl
+    import threading
+
+    from zing.clients import base
+
+    built: list[int] = []
+    real = httpx.create_ssl_context
+
+    def counting(*args, **kwargs):
+        built.append(threading.get_ident())
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(base, "_SSL_CONTEXT", None)
+    monkeypatch.setattr(httpx, "create_ssl_context", counting)
+    loop_thread = threading.get_ident()
+    cfg = TargetConfig(name="t", kind="target", base_url="https://relay.test/v1", model="m")
+
+    contexts = []
+    for _ in range(3):  # no transport given: real httpx transports, no request is sent
+        async with OpenAICompatibleClient(cfg) as client:
+            assert client._client is not None
+            transports = [client._client._transport, *client._client._mounts.values()]
+            contexts += [t._pool._ssl_context for t in transports if t is not None]
+        async with client._session() as session:  # the short-lived client too
+            contexts.append(session._transport._pool._ssl_context)
+
+    assert len(built) == 1 and built[0] != loop_thread  # once, in a worker thread
+    shared = contexts[0]
+    assert all(c is shared for c in contexts) and shared is base.shared_ssl_context()
+    # still httpx's verifying default
+    assert shared.verify_mode == ssl.CERT_REQUIRED and shared.check_hostname

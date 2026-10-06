@@ -291,9 +291,50 @@ def update_docs(path: Path = DOCS) -> bool:
     return False
 
 
+def _test_sort_key(entry: dict[str, Any]) -> str:
+    return str(entry.get("test", ""))
+
+
+def merge_results(parts: list[dict[str, Any]]) -> dict[str, Any]:
+    """Results of several runs over disjoint tests (CI shards, see
+    ZING_A11Y_SHARD in tests/a11y/conftest.py) -> the results one run over
+    all of them would have written (tests/a11y/results.py:build_results)."""
+    if len(parts) == 1:
+        return parts[0]
+    merged: dict[str, Any] = {}
+    for part in parts:  # metadata: languages, themes, pages, axe version
+        for k, v in part.items():
+            if k not in ("tests", "steps", "axe_rules", "generated_at"):
+                merged.setdefault(k, v)
+    stamps = [p["generated_at"] for p in parts if p.get("generated_at")]
+    if stamps:
+        merged["generated_at"] = max(stamps)
+    tests: dict[str, Any] = {}
+    steps: dict[str, list[dict[str, Any]]] = {}
+    rules: dict[str, dict[str, Any]] = {}
+    for part in parts:
+        tests.update(part.get("tests") or {})
+        for step, entries in (part.get("steps") or {}).items():
+            steps.setdefault(step, []).extend(entries)
+        for rid, e in (part.get("axe_rules") or {}).items():
+            g = rules.setdefault(rid, {"steps": e["steps"], "help": e["help"], "counts": {}})
+            for k, v in e["counts"].items():
+                g["counts"][k] = g["counts"].get(k, 0) + v
+    merged["tests"] = dict(sorted(tests.items()))
+    merged["steps"] = {
+        step: sorted(entries, key=_test_sort_key)
+        for step, entries in sorted(steps.items(), key=lambda kv: [int(x) for x in kv[0].split(".")])
+    }
+    merged["axe_rules"] = dict(sorted(rules.items()))
+    return merged
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m tests.a11y.conformance", description=__doc__.split("\n\n")[0])
-    ap.add_argument("--results", type=Path, help="per-step results written by the a11y suite (ZING_A11Y_RESULTS)")
+    ap.add_argument(
+        "--results", type=Path, nargs="+",
+        help="per-step results written by the a11y suite (ZING_A11Y_RESULTS); several files (one per CI shard) are merged",
+    )
     ap.add_argument("--llm", type=Path, help="optional semi-automated review notes per step")
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT, help=f"report to write (default: {DEFAULT_OUT.relative_to(ROOT)})")
     ap.add_argument("--docs", action="store_true", help="rewrite the coverage table in docs/ACCESSIBILITY.md")
@@ -303,9 +344,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.docs:
         print(("updated " if update_docs() else "unchanged ") + str(DOCS.relative_to(ROOT)))
     if args.results:
-        results = json.loads(args.results.read_text(encoding="utf-8")) if args.results.exists() else None
+        parts = []
+        for path in args.results:
+            if path.exists():
+                parts.append(json.loads(path.read_text(encoding="utf-8")))
+            else:
+                print(f"warning: {path} not found", file=sys.stderr)
+        results = merge_results(parts) if parts else None
         if results is None:
-            print(f"warning: {args.results} not found, every step is reported as not tested", file=sys.stderr)
+            print("warning: no results found, every step is reported as not tested", file=sys.stderr)
         llm = None
         if args.llm:
             if args.llm.exists():

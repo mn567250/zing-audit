@@ -393,7 +393,10 @@ en `zing/i18n/locales/<code>.json`:
 
 Las funcionalidades pueden incluir sus textos como fragmentos,
 `zing/i18n/locales/fragments/<feature>/<code>.json` con `{"strings": {…}}`, que se
-fusionan en el idioma al cargarse.
+fusionan en el idioma al cargarse. `/locales.js` envía solo el idioma elegido
+(`?lang=<code>` o la cookie `zing_lang` que fija `lang.js`; sin ninguno, todos
+los idiomas), generado una vez y revalidado por `ETag`; al cambiar de idioma
+se carga el nuevo bajo demanda.
 
 - **Nuevo texto de interfaz:** escribe el chino en el HTML y el inglés en
   `data-en` (o usa `T(zh, en)`), luego añade la clave inglesa a `en.json` o a un
@@ -433,6 +436,7 @@ puntuación**.
 pytest                       # todo
 pytest tests/test_billing.py # un módulo
 pytest -k streaming          # por palabra clave
+pytest -n auto               # en paralelo, un worker por CPU (pytest-xdist)
 ```
 
 - `tests/conftest.py` ofrece `MockServer`, un endpoint compatible con OpenAI

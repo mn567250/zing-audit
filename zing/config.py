@@ -14,6 +14,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from zing.models import Dimension, TargetConfig
+from zing.utils import yamlio
 
 # ``custom`` runs the dimensions the user picks (``AuditOptions.dimensions``) at
 # deep depth; the others are cumulative tiers.
@@ -91,8 +92,10 @@ def load_config_file(path: Path | None) -> dict[str, Any]:
     if not path.exists():
         raise ConfigError(f"Config file not found: {path}")
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except yaml.YAMLError as exc:
+        text = path.read_text(encoding="utf-8")
+        data = yamlio.safe_load(text)
+    except yaml.YAMLError as c_exc:
+        exc = yamlio.detailed_error(c_exc, lambda loader: yamlio.safe_load(text, loader))
         raise ConfigError(f"Invalid YAML in {path}: {exc}") from exc
     if data is None:
         return {}

@@ -57,6 +57,7 @@ from tests.a11y.harness import (
     assert_no_issues,
     expand_all,
     settle,
+    track_network,
 )
 from tests.a11y.zing_proc import FIXED_TS, ZingProc
 
@@ -100,6 +101,7 @@ def new_context(browser: Browser, base: str, lang: str, **opts: Any) -> BrowserC
     """A context like harness.Opener's: language preset, light theme, UTC, and
     offline except for ``base`` (the fake relay is reached by the server)."""
     ctx = browser.new_context(viewport=DESKTOP, color_scheme="light", timezone_id="UTC", locale="en-US", **opts)
+    track_network(ctx)
     ctx.add_init_script(
         f"try {{ localStorage.setItem('zing.lang', {json.dumps(lang)});"
         f" localStorage.setItem('zing.v2.theme', 'light'); }} catch (e) {{}}"
@@ -337,7 +339,7 @@ class Flow:
         """A step that loads another page (the tracker starts over there)."""
         action()
         self.page.wait_for_url(url_glob)
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("load")
         settle(self.page)
         self.watch(messages)
         if expect_focus is not None and not self.page.evaluate(
@@ -363,7 +365,7 @@ def open_flow(
     ctx.add_init_script(TRACK_JS)
     page = ctx.new_page()
     page.set_default_timeout(TIMEOUT)
-    page.goto(base + path, wait_until="networkidle")
+    page.goto(base + path, wait_until="load")
     settle(page)
     return Flow(page, f"{where} [{lang}]", messages)
 
@@ -761,7 +763,7 @@ def aria_tree(browser: Browser, contexts: list[BrowserContext], base: str, page_
         contexts.append(ctx)
         ctx.clock.set_fixed_time(dt.datetime.fromtimestamp(FIXED_TS, dt.timezone.utc))
         page = ctx.new_page()
-        page.goto(base + PAGES[page_id], wait_until="networkidle")
+        page.goto(base + PAGES[page_id], wait_until="load")
         settle(page)
         expand_all(page)
         page.mouse.move(0, 0)

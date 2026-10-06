@@ -123,6 +123,46 @@ def test_cli_writes_the_report(tmp_path):
     assert json.loads(out.read_text(encoding="utf-8"))["totals"]["steps"] == 50
 
 
+def test_shard_results_merge_into_the_results_of_one_run(tmp_path):
+    """CI runs the suite as parallel shards (ZING_A11Y_SHARD); merging their
+    results must give exactly what one run over every test writes."""
+    axe = results._merge_axe([[_rule("color-contrast", "pass", ["wcag2aa", "wcag143"])]])
+    axe2 = results._merge_axe([[_rule("color-contrast", "violation", ["wcag2aa", "wcag143"]),
+                                _rule("image-alt", "pass", ["wcag2a", "wcag111"])]])
+    tests = {
+        "tests/a11y/test_axe.py::test_wcag[kb-en]": {"steps": ["9.1.4.3"], "outcome": "passed", "axe": axe},
+        "tests/a11y/test_axe.py::test_wcag[kb-de]": {
+            "steps": ["9.1.4.3", "9.1.1.1"], "outcome": "failed", "when": "call", "axe": axe2,
+            "message": "1 accessibility rule(s) violated on kb [de, light] as loaded:"},
+        "tests/a11y/test_visual.py::test_reflow[de-kb]": {"steps": ["9.1.4.10"], "outcome": "failed", "when": "call",
+                                                          "message": "page scrolls horizontally", "axe": None},
+        "tests/a11y/test_visual.py::test_forced[kb]": {"steps": ["11.7", "9.1.4.3"], "outcome": "passed", "axe": None},
+    }
+    meta = {"langs": ["en", "de"], "themes": ["light"], "pages": {"kb": "/v2/kb"}, "axe_version": "4.13.0"}
+    names = sorted(tests)
+    # dealt like the conftest does: shard k of n takes every n-th test
+    parts = [results.build_results({t: tests[t] for t in names[k::2]}, meta) for k in range(2)]
+    whole = results.build_results(tests, meta)
+    merged = conformance.merge_results(parts)
+    for d in (whole, merged):
+        d.pop("generated_at")
+    assert merged == whole
+
+    # and through the CLI, from one file per shard
+    files = []
+    for k, part in enumerate(parts):
+        f = tmp_path / f"a11y-results-{k}.json"
+        f.write_text(json.dumps(part), encoding="utf-8")
+        files.append(str(f))
+    out = tmp_path / "bitv-report.json"
+    assert conformance.main(["--results", *files, "--out", str(out)]) == 0
+    rep = json.loads(out.read_text(encoding="utf-8"))
+    one = conformance.build_report(results.build_results(tests, meta), None, commit=rep["commit"])
+    for r in (rep, one):
+        r.pop("generated_at"), r.pop("tests_run_at")
+    assert rep == one
+
+
 def test_docs_table_lists_every_step_and_marked_tests():
     marked = conformance.marked_tests()
     # the axe tests are marked through the AXE_WCAG_STEPS tuple

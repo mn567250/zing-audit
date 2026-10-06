@@ -7,9 +7,6 @@
 <script src="/locales.js"></script>
 <script src="/lang.js"></script>
 <script src="/v2/static/theme.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&amp;family=Hanken+Grotesk:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/v2/static/zing.css" />
 <link rel="stylesheet" href="/v2/static/fields.css" />
 <style>
@@ -185,7 +182,7 @@
   function fmtTime(ts) {
     if (!ts) return T("从未运行", "Never run");
     try {
-      return new Date(ts * 1000).toLocaleString(L.locale(), { dateStyle: "medium", timeStyle: "short" });
+      return L.dateFmt({ dateStyle: "medium", timeStyle: "short" }).format(new Date(ts * 1000));
     } catch (e) {
       return new Date(ts * 1000).toLocaleString();
     }
@@ -565,12 +562,27 @@
   }
 
   // Runs started by the scheduler (or another tab) finish without the page
-  // knowing, so refresh while any monitor is running.
-  var pollTimer = null;
+  // knowing, so refresh while any monitor is running. Paused while the tab is
+  // hidden: a poll that comes due then is only marked (pollDue) and runs as
+  // soon as the tab is visible again.
+  var pollTimer = null, pollDue = false;
   function schedulePoll() {
     clearTimeout(pollTimer);
-    if ((watches || []).some(isRunning)) pollTimer = setTimeout(load, 2000);
+    pollTimer = null;
+    pollDue = false;
+    if ((watches || []).some(isRunning)) pollTimer = setTimeout(poll, 2000);
   }
+  function poll() {
+    pollTimer = null;
+    if (document.hidden) pollDue = true;
+    else load();
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && pollDue) {
+      pollDue = false;
+      load();
+    }
+  });
 
   function load() {
     return fetch("/api/watches")

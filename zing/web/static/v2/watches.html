@@ -179,10 +179,17 @@
     if (sec >= 60 && sec % 60 === 0) return Tf("每 {n} 分钟", "every {n} min", { n: sec / 60 });
     return Tf("每 {n} 秒", "every {n} s", { n: sec });
   }
+  // Intl formatters are costly to build: one per (locale, options), reused.
+  // Same output as toLocaleString(locale, options); a bad locale still throws.
+  var intlCache = {};
+  function intlFmt(Ctor, kind, loc, opts) {
+    var k = kind + "|" + (loc == null ? "" : String(loc)) + "|" + JSON.stringify(opts || {});
+    return intlCache[k] || (intlCache[k] = new Ctor(loc, opts));
+  }
   function fmtTime(ts) {
     if (!ts) return T("从未运行", "Never run");
     try {
-      return new Date(ts * 1000).toLocaleString(L.locale(), { dateStyle: "medium", timeStyle: "short" });
+      return intlFmt(Intl.DateTimeFormat, "d", L.locale(), { dateStyle: "medium", timeStyle: "short" }).format(new Date(ts * 1000));
     } catch (e) {
       return new Date(ts * 1000).toLocaleString();
     }

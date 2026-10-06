@@ -119,6 +119,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   machine. The pages now use the operating system's sans-serif and monospace
   fonts (with Chinese fallbacks), and heading letter-spacing is relaxed to suit
   them; no page, script or stylesheet loads anything from another host.
+- **Faster date and number formatting in web UI v2.** The History,
+  Knowledge base, Monitors, Accessibility and report views build each
+  `Intl.DateTimeFormat` / `Intl.NumberFormat` / `Intl.DisplayNames` once per
+  language and options and reuse it, instead of creating one per row; the
+  formatted text is unchanged.
 - **PDF reports no longer need a system library.** The PDF is typeset natively
   with ReportLab (pure Python, BSD-licensed) instead of converting the HTML
   report with WeasyPrint, which needed Pango. ReportLab is a core dependency, so

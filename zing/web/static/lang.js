@@ -102,6 +102,27 @@
     ["中转站", "relay"],
   ];
 
+  // Intl formatters are costly to build (Number#toLocaleString and friends
+  // build one per call): keep one per (constructor, locale, options). The key
+  // includes the locale, so a language switch needs no reset.
+  var intlCtors = [];
+  var intlCaches = [];
+  function intl(Ctor, opts, loc) {
+    if (arguments.length < 3) loc = LANGS[lang].locale;
+    if (typeof Ctor !== "function") throw new TypeError("intl: not a constructor");
+    var i = intlCtors.indexOf(Ctor);
+    if (i < 0) {
+      intlCtors.push(Ctor);
+      intlCaches.push({});
+      i = intlCtors.length - 1;
+    }
+    var cache = intlCaches[i];
+    // undefined (the browser default), "" (an error), "en,de" (an error) and
+    // ["en", "de"] must not share a key
+    var k = (loc === undefined ? "" : JSON.stringify(loc)) + "|" + JSON.stringify(opts || {});
+    return cache[k] || (cache[k] = new Ctor(loc, opts));
+  }
+
   function read() {
     try {
       var v = localStorage.getItem(KEY);
@@ -442,26 +463,6 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
-
-  // Intl formatters are costly to build (Number#toLocaleString and friends
-  // build one per call): keep one per (constructor, locale, options). The key
-  // includes the locale, so a language switch needs no reset.
-  var intlCtors = [];
-  var intlCaches = [];
-  function intl(Ctor, opts, loc) {
-    if (arguments.length < 3) loc = LANGS[lang].locale;
-    if (typeof Ctor !== "function") throw new TypeError("intl: not a constructor");
-    var i = intlCtors.indexOf(Ctor);
-    if (i < 0) {
-      intlCtors.push(Ctor);
-      intlCaches.push({});
-      i = intlCtors.length - 1;
-    }
-    var cache = intlCaches[i];
-    // undefined (the browser default) and "" (an error) must not share a key
-    var k = (loc === undefined ? "" : "=" + String(loc)) + "|" + JSON.stringify(opts || {});
-    return cache[k] || (cache[k] = new Ctor(loc, opts));
-  }
 
   window.ZING_LANG = {
     get: function () {

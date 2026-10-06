@@ -604,6 +604,7 @@ out.errors = {
   locale: err(() => L.intl(Intl.NumberFormat, {}, "not a locale!")),
   options: err(() => L.dateFmt({ dateStyle: "nope" })),
   ctor: err(() => L.intl(undefined, {})),
+  joined: err(() => { L.intl(Intl.NumberFormat, {}, ["en-US", "fr-FR"]); L.intl(Intl.NumberFormat, {}, "en-US,fr-FR"); }),
 };
 out.browserDefault = L.intl(Intl.NumberFormat, {}, undefined).format(1234) === (1234).toLocaleString();
 out.same = L.numFmt() === L.numFmt() && L.numFmt() !== L.intl(Intl.NumberFormat, undefined, undefined);
@@ -632,5 +633,7 @@ def test_shared_intl_formatters_are_cached_per_locale(tmp_path):
     assert res["afterEn"] == {"DateTimeFormat": 1, "NumberFormat": 2, "DisplayNames": 1}
     assert res["afterBack"] == {"DateTimeFormat": 2, "NumberFormat": 4, "DisplayNames": 2}
     # bad input still throws, so the callers' fallbacks run as before
-    assert out["errors"] == {"locale": "RangeError", "options": "RangeError", "ctor": "TypeError"}
+    assert out["errors"] == {
+        "locale": "RangeError", "options": "RangeError", "ctor": "TypeError", "joined": "RangeError",
+    }
     assert out["browserDefault"] and out["same"]

@@ -127,7 +127,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **One shared date and number formatter cache.** `lang.js` now offers
   `ZING_LANG.intl(Ctor, opts[, locale])` with the shorthands `numFmt(opts)` and
   `dateFmt(opts)`, keeping one `Intl` formatter per constructor, locale and
-  options for the whole page. The v2 pages, the report view and the
+  options, shared by a page's scripts. The v2 pages, the report view and the
   performance panel use it instead of their own caches (`report.js` and
   `perf.js` keep a small one for when they run without `lang.js`); formatters
   follow a language switch, and the formatted text is unchanged.

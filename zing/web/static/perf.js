@@ -61,6 +61,7 @@
   // options) (that is how the spec defines it); when Intl is missing, or for
   // a non-number, that call is still what runs.
   var fmts = {};
+  var digitOpts = {}; // one options object per digit count
   function numberFormat(locale, opts) {
     var Z = window.ZING_LANG;
     if (Z && Z.intl) return Z.intl(Intl.NumberFormat, opts, locale);
@@ -70,7 +71,8 @@
   }
   function format(v, digits) {
     var locale = loc();
-    var opts = digits == null ? undefined : { minimumFractionDigits: digits, maximumFractionDigits: digits };
+    var opts = digits == null ? undefined
+      : digitOpts[digits] || (digitOpts[digits] = { minimumFractionDigits: digits, maximumFractionDigits: digits });
     if (typeof v !== "number" || typeof Intl === "undefined" || !Intl.NumberFormat)
       return opts ? v.toLocaleString(locale, opts) : v.toLocaleString(locale);
     return numberFormat(locale, opts).format(v);

@@ -63,7 +63,7 @@ jobs:
         env:
           # per-step results for the BITV conformance report (tests/a11y/results.py)
           ZING_A11Y_RESULTS: a11y-results.json
-        run: pytest tests/a11y -m a11y -n auto -q -p no:cacheprovider
+        run: pytest tests/a11y -m a11y -n auto --dist worksteal -q -p no:cacheprovider
       - name: Conformance report (bitv-report.json)
         if: always()
         run: python -m tests.a11y.conformance --results a11y-results.json --out bitv-report.json

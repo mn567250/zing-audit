@@ -199,9 +199,10 @@ def track_network(ctx: BrowserContext) -> None:
     after creating the context, before any page loads."""
     pending: set[Any] = set()
     _inflight[ctx] = pending
-    ctx.on("request", pending.add)
-    ctx.on("requestfinished", pending.discard)
-    ctx.on("requestfailed", pending.discard)
+    # Playwright needs Python functions here, not builtin methods
+    ctx.on("request", lambda req: pending.add(req))
+    ctx.on("requestfinished", lambda req: pending.discard(req))
+    ctx.on("requestfailed", lambda req: pending.discard(req))
 
 
 def wait_idle(page: Page, quiet_ms: int = QUIET_MS, timeout_ms: int = IDLE_TIMEOUT_MS) -> None:

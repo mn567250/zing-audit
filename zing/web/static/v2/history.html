@@ -69,6 +69,12 @@
   /* group */
   .grp-h { display: flex; align-items: center; gap: 14px; padding: 18px 18px 8px 28px; flex-wrap: wrap; }
   .group + .group { border-top: 1px solid var(--line); }
+  /* off-screen groups skip style/layout/paint until scrolled near; their rows
+     stay in the DOM, so find-in-page, Tab order and the accessibility tree are
+     unaffected. A group with an open report keeps normal rendering (the
+     containment would clip the report's popovers). Browsers without :has()
+     drop the rule and render as before. */
+  .group:not(:has(.panel:not([hidden]))) { content-visibility: auto; contain-intrinsic-size: auto 1300px; }
   .gtitle { flex: 1 1 220px; min-width: 0; }
   .gtitle h2 { font-family: var(--disp); font-weight: 600; font-size: 17px; letter-spacing: -0.3px; margin: 0; overflow-wrap: anywhere; }
   .gtitle .gu { display: flex; align-items: center; gap: 6px; margin-top: 4px; min-width: 0; }
@@ -187,6 +193,9 @@
   .panel .zr { box-shadow: none; }
 
   /* list footer: quiet clear-history */
+  /* "Show more" under a group's first rows */
+  .gmore { padding: 2px 28px 16px; }
+  .gmore .btn { max-width: 100%; white-space: normal; text-align: center; }
   .lfoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 18px 14px 28px; border-top: 1px solid var(--line); background: var(--surface-2); }
   .lfoot .aside { font-size: 12px; }
   .lfoot .confirm { flex: 1 1 100%; margin: 0; }
@@ -204,6 +213,7 @@
     .colhead { display: none; }
     .grp-h { padding: 16px 14px 6px 16px; }
     .rows { padding: 0 8px 8px; }
+    .gmore { padding: 2px 16px 14px; }
     .lfoot { padding: 12px 14px; }
     .rmain {
       grid-template-columns: auto auto minmax(0, 1fr) 18px; gap: 6px 10px; padding: 11px 8px;
@@ -283,6 +293,12 @@
   var FKEY = "zing.v2.history.filters", NONE = "__none__";
   var FDEF = { host: "", model: "", suite: "", mode: "", api: "", detect: "", stream: "", risk: "", min: "", days: "", exec: "", q: "" };
   var state = { rows: null, error: null, reports: {}, open: null, confirm: null, filters: loadFilters() };
+  // Rows are rendered PAGE at a time per group ("Show more" appends the next
+  // page); state.shown remembers how far each group (by key) was expanded
+  // across re-renders, state.groups holds the groups of the last render.
+  var PAGE = 20;
+  state.shown = {};
+  state.groups = [];
 
   $("#lockIcon").innerHTML = ico("lock");
 
@@ -522,6 +538,13 @@
       if (p.firstElementChild && p.firstElementChild.classList.contains("rep")) keep[p.getAttribute("data-id")] = p.firstElementChild;
     });
     var focusSel = focusKey(document.activeElement);
+    // rows that must stay rendered even beyond a group's page: the open
+    // report, an open delete confirmation and the row that has focus
+    var need = {};
+    if (state.open != null) need[String(state.open)] = 1;
+    if (state.confirm != null && state.confirm !== "all") need[String(state.confirm)] = 1;
+    var frow = document.activeElement && host.contains(document.activeElement) && document.activeElement.closest(".row");
+    if (frow) need[frow.getAttribute("data-id")] = 1;
 
     if (state.error != null) {
       host.innerHTML = '<div class="errbox" role="alert">' + esc(T("无法读取历史：", "Could not read history: ")) + esc(state.error) +
@@ -548,6 +571,16 @@
     }
 
     var groups = groupsOf(rows);
+    groups.forEach(function (g) {
+      var lim = Math.max(PAGE, state.shown[g.key] || 0);
+      g.rows.forEach(function (r, i) {
+        if (i >= lim && need[String(r.id)]) lim = Math.ceil((i + 1) / PAGE) * PAGE;
+      });
+      if (lim > PAGE) state.shown[g.key] = lim;
+      g.limit = Math.min(lim, g.rows.length);
+    });
+    state.groups = groups;
+    var more = groups.some(function (g) { return g.limit < g.rows.length; });
     host.innerHTML =
       '<div class="colhead" aria-hidden="true"><div class="cells">' +
       "<span>" + esc(T("时间", "Time")) + "</span>" +
@@ -560,6 +593,7 @@
       '<span class="aside">' + esc(isFiltered()
         ? Tf("显示 {shown} / {n} 条记录", "Showing {shown} of {n} audits", { shown: rows.length, n: state.rows.length })
         : Tf("共 {n} 条记录", "Saved audits: {n}", { n: state.rows.length })) + "</span>" +
+      (more ? '<p class="sr-only" id="hmore" role="status"></p>' : "") +
       '<button type="button" class="linkbtn clr" id="clr" aria-expanded="' + (state.confirm === "all") + '" aria-controls="clrConfirm">' +
       ico("trash") + esc(T("清空历史", "Clear history")) + "</button>" +
       confirmHTML("clrConfirm", "all", T("确定清空全部检测历史？此操作不可撤销。", "Clear the entire audit history? This cannot be undone."), T("清空历史", "Clear history")) +
@@ -588,6 +622,7 @@
     if (row && el.classList.contains("rdel")) return '.row[data-id="' + row.getAttribute("data-id") + '"] .rdel';
     if (row && el.classList.contains("rrerun")) return '.row[data-id="' + row.getAttribute("data-id") + '"] .rrerun';
     if (row && el.classList.contains("rsched")) return '.row[data-id="' + row.getAttribute("data-id") + '"] .rsched';
+    if (el.hasAttribute("data-more")) return '[data-more="' + el.getAttribute("data-more") + '"]';
     return null;
   }
 
@@ -605,7 +640,38 @@
       esc(g.claimed_model || T("(未声明模型)", "(no model declared)")) + "</h2>" +
       '<div class="gu"><code class="key">base_url</code><span title="' + esc(g.base_url || "") + '">' + esc(g.base_url || "—") + "</span></div></div>" +
       trendHTML(g.rows) + "</div>" +
-      '<ul class="rows">' + g.rows.map(rowHTML).join("") + "</ul></section>";
+      '<ul class="rows">' + g.rows.slice(0, g.limit).map(rowHTML).join("") + "</ul>" + moreHTML(g, gi) + "</section>";
+  }
+
+  // "Show more" under a group whose rows are not all rendered yet; its
+  // description is the group heading (several groups have such a button)
+  function moreHTML(g, gi) {
+    var left = g.rows.length - g.limit;
+    if (left <= 0) return "";
+    return '<div class="gmore"><button type="button" class="btn sm" data-more="' + gi + '" aria-describedby="g' + gi + '">' +
+      esc(Tf("显示更多（还剩 {k} 条）", "Show more ({k} remaining)", { k: left })) + "</button></div>";
+  }
+
+  // append the group's next page of rows without rebuilding the list; focus
+  // stays on the button while rows remain, else moves to the first new row
+  function showMore(btn) {
+    var gi = Number(btn.getAttribute("data-more")), g = state.groups[gi];
+    var sec = btn.closest(".group"), ul = sec && sec.querySelector(".rows");
+    if (!g || !ul) return;
+    var from = g.limit, to = Math.min(g.rows.length, from + PAGE);
+    ul.insertAdjacentHTML("beforeend", g.rows.slice(from, to).map(rowHTML).join(""));
+    g.limit = to;
+    state.shown[g.key] = Math.max(state.shown[g.key] || 0, to);
+    var left = g.rows.length - to;
+    if (left > 0) {
+      btn.textContent = Tf("显示更多（还剩 {k} 条）", "Show more ({k} remaining)", { k: left });
+    } else {
+      var first = ul.querySelector('.row[data-id="' + CSS.escape(String(g.rows[from].id)) + '"] .rmain');
+      if (first) first.focus();
+      btn.parentNode.remove();
+    }
+    var live = document.getElementById("hmore");
+    if (live) live.textContent = Tf("本组显示 {shown} / {total} 条记录", "Showing {shown} of {total} audits in this group", { shown: to, total: g.rows.length });
   }
 
   // small sparkline of vals (oldest -> newest) scaled to [lo, hi]; area fill
@@ -893,6 +959,7 @@
       return;
     }
     if (t.classList.contains("rmain")) return toggle(t.id.slice(2));
+    if (t.hasAttribute("data-more")) return showMore(t);
     if (t.hasAttribute("data-rerun")) return rerun(t.getAttribute("data-rerun"));
     if (t.hasAttribute("data-sched")) return schedule(t.getAttribute("data-sched"));
     if (t.classList.contains("rdel")) {

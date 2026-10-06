@@ -106,6 +106,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   writes Chinese with a standard PDF font the viewer supplies, so no fonts are
   shipped. The `pdf` extra is now empty and kept only so older install commands
   still work; the Docker image drops Pango and its fonts.
+- **History renders long lists faster.** Web UI v2 History shows the first 20
+  runs of each relay group and adds the rest 20 at a time with a **Show more
+  (n remaining)** button (keyboard operable, announced in a status region);
+  group trends still cover every matching run, and an open report or a focused
+  row stays shown across re-renders. Off-screen groups skip rendering until
+  scrolled near (`content-visibility`). With 500 saved runs the page builds
+  about half the DOM and resetting a filter takes roughly a third of the time.
 
 ### Documentation
 

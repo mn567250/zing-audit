@@ -311,7 +311,7 @@ def instrumented(open_page: Any, page_id: str, lang: str = "en", expand: bool = 
     """Open a page with INSTRUMENT_JS running before the app's own scripts."""
     page: Page = open_page(PAGES[page_id], lang)
     page.context.add_init_script(INSTRUMENT_JS)
-    page.reload(wait_until="networkidle")
+    page.reload(wait_until="load")
     settle(page)
     if expand:
         expand_all(page)
@@ -331,7 +331,7 @@ def take_reactions(page: Page) -> list[dict[str, str]]:
 
 def _reopen(page: Page, url: str) -> None:
     """Back to the page under test after a navigation, in the same state."""
-    page.goto(url, wait_until="networkidle")
+    page.goto(url, wait_until="load")
     settle(page)
     expand_all(page)
     page.mouse.move(*NEUTRAL)

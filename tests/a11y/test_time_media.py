@@ -229,7 +229,7 @@ def open_state(
         _route_history_charts(page)
         reload_needed = True
     if reload_needed:
-        page.goto(open_page.base_url + path, wait_until="networkidle")
+        page.goto(open_page.base_url + path, wait_until="load")
         settle(page)
     if page_id == "audit-running":
         page.wait_for_function("() => typeof window.__a11yPush === 'function'")

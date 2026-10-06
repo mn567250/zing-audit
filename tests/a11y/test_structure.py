@@ -541,7 +541,7 @@ def _guarded_page(open_page: Any, page_id: str, log: list[str], dialogs: list[st
         d.dismiss()  # "Cancel": nothing may be deleted
 
     page.on("dialog", on_dialog)
-    page.reload(wait_until="networkidle")
+    page.reload(wait_until="load")
     settle(page)
     for _ in range(2):
         if not page.evaluate(SAFE_EXPAND_JS, [DESTRUCTIVE_WORDS]):
@@ -939,7 +939,7 @@ def _mock_list(page: Page, path: str, rows: Any) -> None:
             route.fallback()
 
     page.context.route("**/api/**", handle)
-    page.reload(wait_until="networkidle")
+    page.reload(wait_until="load")
     settle(page)
     page.add_style_tag(content=NO_TRANSITIONS_CSS)
 

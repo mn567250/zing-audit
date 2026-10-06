@@ -96,6 +96,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **The web UI downloads only the chosen language.** `/locales.js` sends one
+  language (the `?lang=` parameter, else a `zing_lang` cookie the UI now sets
+  next to its stored choice) instead of all seven: about 60 KB for English and
+  at most 190 KB for any other language instead of 807 KB. It is built once
+  per language instead of on every request and revalidated by `ETag`
+  (`Cache-Control: no-cache`, 304 when unchanged). Switching languages loads
+  the new one on demand; if that fails the current language stays. Without
+  the cookie the full bundle is still served.
 - **PDF reports no longer need a system library.** The PDF is typeset natively
   with ReportLab (pure Python, BSD-licensed) instead of converting the HTML
   report with WeasyPrint, which needed Pango. ReportLab is a core dependency, so

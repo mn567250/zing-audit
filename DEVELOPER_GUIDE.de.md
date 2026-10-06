@@ -396,7 +396,10 @@ Oberfläche und Webhook-Warnungen teilen sich einen Satz Übersetzungen in
 
 Features können ihre Texte als Fragmente mitbringen,
 `zing/i18n/locales/fragments/<feature>/<code>.json` mit `{"strings": {…}}`, die
-beim Laden in die Sprache eingemischt werden.
+beim Laden in die Sprache eingemischt werden. `/locales.js` liefert nur die
+gewählte Sprache (`?lang=<code>` oder das Cookie `zing_lang`, das `lang.js`
+setzt; ohne beides alle Sprachen), einmal erzeugt und per `ETag` revalidiert;
+ein Sprachwechsel lädt die neue Sprache bei Bedarf nach.
 
 - **Neuer Text in der Oberfläche:** den chinesischen Text ins HTML und den
   englischen in `data-en` schreiben (oder `T(zh, en)` nutzen), dann den

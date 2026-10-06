@@ -5,18 +5,32 @@
  * `window.ZING_I18N_DATA = {languages, locales}` followed by this file, so
  * the data is in place before the code below runs. Load it before /lang.js.
  *
- * Exposes window.ZING_LOCALES = { strings, findings, patterns, add, keys, languages }:
+ * /locales.js carries one language when asked for one (`?lang=<code>`, else
+ * the `zing_lang` cookie lang.js writes) and every language otherwise. A
+ * one-language bundle adds `lang` and `keys` (below) to the data. A second
+ * bundle loaded later (lang.js does, to switch to a language not loaded yet)
+ * merges its data into the existing window.ZING_LOCALES instead of replacing it.
+ *
+ * Exposes window.ZING_LOCALES = { strings, findings, patterns, add, has, merge, keys, languages }:
  *   - strings[lang][english]   UI text; the English string (a `data-en`
  *                              attribute or the 2nd argument of T(zh, en)) is
  *                              the key. Missing keys fall back to English.
  *   - findings[lang][id]       { title, tpl } per audit finding, same
  *                              placeholder rules as i18n.js ("zh" is the
  *                              original Chinese catalog).
+ *                              Both maps hold one object per language from the
+ *                              start (empty until its data is loaded) and keep
+ *                              it, so a reference taken early (i18n.js keeps
+ *                              findings.zh) sees data merged later.
  *   - patterns                 [regex, english template, {group: fn}] used by
  *                              ZING_LANG.server() to translate known backend
  *                              sentences (verdict summary and headline).
  *   - add(code, strings, findings)   register a language at runtime.
- *   - keys                     { strings: every translatable English string,
+ *   - has(code)                true when that language's data is loaded
+ *                              (always for "en", the key language).
+ *   - merge(data)              add() every language of a ZING_I18N_DATA-shaped
+ *                              object ({ locales: { code: { strings, findings } } }).
+ *   - keys                    { strings: every translatable English string,
  *                                findings: every finding id }.
  *   - languages                [{ code, label, html, locale, order }] in menu order.
  *
@@ -26,6 +40,14 @@
   "use strict";
 
   var DATA = window.ZING_I18N_DATA || { languages: [], locales: {} };
+
+  // A further bundle (/locales.js?lang=…, loaded by lang.js on a switch):
+  // add its language to the lookups already in place.
+  var prev = window.ZING_LOCALES;
+  if (prev && typeof prev.merge === "function") {
+    prev.merge(DATA);
+    return;
+  }
 
   function esc(s) {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -79,23 +101,55 @@
 
   var strings = {};
   var findings = {};
+  var loaded = {};
+
+  // The (emptied) object of language `code` in `map`: one per language, kept
+  // for good (see the header).
+  function slot(map, code) {
+    if (!Object.prototype.hasOwnProperty.call(map, code)) map[code] = {};
+    var d = map[code];
+    Object.keys(d).forEach(function (k) {
+      delete d[k];
+    });
+    return d;
+  }
 
   // Register a language. `s` maps English UI string -> translation; `f` maps
   // finding id -> [title, summary template]. Missing entries fall back to
   // English at runtime.
   function add(code, s, f) {
-    strings[code] = s || {};
-    var d = (findings[code] = {});
+    var sd = slot(strings, code);
+    Object.keys(s || {}).forEach(function (k) {
+      sd[k] = s[k];
+    });
+    var d = slot(findings, code);
     Object.keys(f || {}).forEach(function (id) {
       d[id] = { title: f[id][0], tpl: f[id][1] };
     });
+    loaded[code] = true;
   }
 
-  Object.keys(DATA.locales).forEach(function (code) {
-    if (code === "en") return; // English is the key language
-    add(code, DATA.locales[code].strings, DATA.locales[code].findings);
-  });
+  function has(code) {
+    return code === "en" || loaded[code] === true;
+  }
 
+  function merge(data) {
+    var locs = (data && data.locales) || {};
+    Object.keys(locs).forEach(function (code) {
+      if (code === "en") return; // English is the key language
+      add(code, locs[code].strings, locs[code].findings);
+    });
+  }
+
+  (DATA.languages || []).forEach(function (l) {
+    if (l.code !== "en") {
+      slot(strings, l.code);
+      slot(findings, l.code);
+    }
+  });
+  merge(DATA);
+
+  // A one-language bundle sends the keys; the full one has en and zh to read them from.
   var en = DATA.locales.en || {};
   var zh = DATA.locales.zh || {};
   window.ZING_LOCALES = {
@@ -103,7 +157,9 @@
     findings: findings,
     patterns: P,
     add: add,
-    keys: { strings: Object.keys(en.strings || {}), findings: Object.keys(zh.findings || {}) },
+    has: has,
+    merge: merge,
+    keys: DATA.keys || { strings: Object.keys(en.strings || {}), findings: Object.keys(zh.findings || {}) },
     languages: DATA.languages || [],
   };
 })();

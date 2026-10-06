@@ -367,3 +367,180 @@ def test_monitor_and_master_key_strings_are_translatable(page):
     keys = set(i18n._load()["en"].get("strings", {}))
     missing = sorted(_source_strings(_STATIC / page) - keys)
     assert not missing, f"{page}: add to zing/i18n/locales (fragments): {missing}"
+
+
+# --------------------------------------------------------------------------- #
+# Per-language /locales.js
+# --------------------------------------------------------------------------- #
+def test_one_language_bundle_carries_only_that_language():
+    from zing import i18n
+
+    full = i18n.bundle()
+    for code in i18n.codes():
+        b = i18n.lang_bundle(code)
+        assert b["lang"] == code and b["languages"] == full["languages"]
+        assert set(b["locales"]) == (set() if code == "en" else {code})
+        # ZING_LOCALES.keys, without shipping the identity map en.json
+        assert b["keys"]["strings"] == list(full["locales"]["en"]["strings"])
+        assert b["keys"]["findings"] == list(full["locales"]["zh"]["findings"])
+        assert len(i18n.locales_script(code)) < len(i18n.locales_script()) / 3
+    # built once per variant; unknown codes get the full bundle
+    assert i18n.locales_bundle("de") is i18n.locales_bundle("DE")
+    assert i18n.locales_script("xx") == i18n.locales_script(None) == i18n.locales_script()
+    assert i18n.locales_bundle("de")[1] != i18n.locales_bundle("fr")[1]
+
+
+def test_locales_route_picks_the_language_and_revalidates():
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from zing.web.server import create_app
+
+    client = TestClient(create_app(), base_url="http://localhost")
+    full = client.get("/locales.js")
+    assert full.status_code == 200 and '"code":"de"' in full.text
+    assert full.headers["cache-control"] == "no-cache" and full.headers["vary"] == "Cookie"
+    assert '"lang":' not in full.text.split(";\n", 1)[0]  # every language
+
+    de = client.get("/locales.js?lang=de")
+    assert de.status_code == 200 and '"lang":"de"' in de.text
+    assert "application/javascript" in de.headers["content-type"]
+    assert de.headers["etag"] != full.headers["etag"]
+    assert "vary" not in de.headers  # the query decides, not the cookie
+    assert len(de.content) < len(full.content) / 3
+
+    client.cookies.set("zing_lang", "fr")
+    fr = client.get("/locales.js")
+    assert '"lang":"fr"' in fr.text and fr.headers["vary"] == "Cookie"
+    assert '"lang":"de"' in client.get("/locales.js?lang=de").text  # query wins
+    client.cookies.clear()
+
+    etag = de.headers["etag"]
+    for inm in (etag, f"W/{etag}", f'"nope", {etag}'):
+        r = client.get("/locales.js?lang=de", headers={"If-None-Match": inm})
+        assert r.status_code == 304 and r.content == b"" and r.headers["etag"] == etag
+    assert client.get("/locales.js?lang=fr", headers={"If-None-Match": etag}).status_code == 200
+
+
+_SWITCH_JS = r"""
+const path = require("path"), fs = require("fs");
+const dir = process.argv[1];
+const file = l => path.join(dir, l ? "locales-" + l + ".js" : "locales.js");
+const run = (o, steps) => {
+  for (const k of Object.keys(require.cache)) delete require.cache[k];
+  const out = { reloads: 0, events: [], errors: [] };
+  const appended = [], session = Object.assign({}, o.session || {});
+  const sel = { value: "", innerHTML: "", appendChild() {}, addEventListener() {} };
+  global.CustomEvent = function (t, init) { this.type = t; this.detail = init.detail; };
+  global.setTimeout = () => 0; global.clearTimeout = () => {};
+  global.window = { addEventListener() {}, removeEventListener() {},
+                    dispatchEvent(e) { out.events.push(e.detail.lang); } };
+  global.document = {
+    documentElement: { style: {}, lang: "" }, readyState: "complete", cookie: o.cookie || "",
+    querySelectorAll: s => (s === "select.lang-sel" ? [sel] : []), addEventListener() {},
+    createElement: () => ({}), head: { appendChild(s) { s.parentNode = { removeChild() {} }; appended.push(s); } },
+  };
+  let stored = o.stored || null;
+  global.localStorage = { getItem: () => stored, setItem: (k, v) => { stored = v; } };
+  global.sessionStorage = { getItem: k => (k in session ? session[k] : null),
+                            setItem: (k, v) => { session[k] = String(v); }, removeItem: k => { delete session[k]; } };
+  global.location = { reload() { out.reloads++; } };
+  require(file(o.bundle));
+  require(path.join(dir, "lang.js"));
+  require(path.join(dir, "i18n.js"));
+  // Serve (or fail) the bundles lang.js asked for.
+  const serve = fail => appended.splice(0).forEach(s => {
+    out.requested = (out.requested || []).concat(s.src);
+    if (fail) return s.onerror();
+    require(file(/lang=(\w+)/.exec(s.src)[1]));
+    s.onload();
+  });
+  const snap = () => ({ lang: window.ZING_LANG.get(), html: document.documentElement.lang,
+    hidden: document.documentElement.style.visibility === "hidden", select: sel.value,
+    history: window.ZING_LANG.tr("History"), stored, cookie: /zing_lang=(\w+)/.exec(document.cookie)?.[1] || null,
+    session: Object.assign({}, session), pending: appended.length, zhFindings: Object.keys(window.ZING_I18N.FINDINGS).length });
+  out.boot = snap();
+  for (const st of steps || []) {
+    try {
+      if (st.set) { sel.value = st.set; window.ZING_LANG.set(st.set); }
+      if (st.serve) serve(st.serve === "fail");
+    } catch (e) { out.errors.push(String(e)); }
+    (out.after = out.after || []).push(snap());
+  }
+  out.locales = window.ZING_LOCALES;
+  return out;
+};
+const pick = r => ({ ...r, locales: undefined });
+const r = {
+  same: pick(run({ bundle: "de", stored: "de", cookie: "zing_lang=de", session: { "zing.lang.reload": "de" } })),
+  stale: pick(run({ bundle: "de", stored: "fr", cookie: "zing_lang=de" })),
+  again: pick(run({ bundle: "de", stored: "fr", cookie: "zing_lang=de", session: { "zing.lang.reload": "fr" } }, [{ serve: "ok" }])),
+  againFail: pick(run({ bundle: "de", stored: "fr", cookie: "zing_lang=de", session: { "zing.lang.reload": "fr" } }, [{ serve: "fail" }])),
+  full: pick(run({ bundle: null, stored: "it" })),
+  toZh: pick(run({ bundle: "en", stored: "en", cookie: "zing_lang=en" }, [{ set: "zh" }, { serve: "ok" }, { set: "en" }, { set: "zh" }])),
+  fail: pick(run({ bundle: "en", stored: "en", cookie: "zing_lang=en" }, [{ set: "de" }, { serve: "fail" }])),
+  superseded: pick(run({ bundle: "en", stored: "en", cookie: "zing_lang=en" }, [{ set: "de" }, { set: "fr" }, { serve: "ok" }])),
+};
+// Every one-language bundle merged together is the full bundle.
+const m = run({ bundle: "en", stored: "en" }).locales;
+for (const c of m.languages.map(l => l.code)) if (c !== "en") require(file(c));
+const f = run({ bundle: null }).locales;
+const same = k => JSON.stringify(m[k]) === JSON.stringify(f[k]);
+r.merged = { strings: same("strings"), findings: same("findings"), keys: same("keys"), languages: same("languages") };
+console.log(JSON.stringify(r));
+"""
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to evaluate the UI's JS")
+def test_lang_js_loads_the_missing_language_bundle(tmp_path):
+    from zing import i18n
+
+    _ui_js(tmp_path)
+    for code in i18n.codes():
+        (tmp_path / f"locales-{code}.js").write_text(i18n.locales_script(code), encoding="utf-8")
+    r = json.loads(subprocess.run(
+        ["node", "-e", _SWITCH_JS, str(tmp_path)], capture_output=True, text=True, check=True,
+    ).stdout)
+    de_history = i18n.ui("de", "History")
+    fr_history = i18n.ui("fr", "History")
+
+    # The bundle has the stored language: no reload, the guard is cleared.
+    b = r["same"]["boot"]
+    assert (b["lang"], b["html"], b["history"], b["hidden"]) == ("de", "de", de_history, False)
+    assert r["same"]["reloads"] == 0 and b["session"] == {} and b["pending"] == 0
+    # Stale cookie: fix it and reload once, the page still hidden.
+    b = r["stale"]["boot"]
+    assert r["stale"]["reloads"] == 1 and b["cookie"] == "fr" and b["hidden"]
+    assert b["session"] == {"zing.lang.reload": "fr"} and b["stored"] == "fr"
+    # Already reloaded once: no loop; English at once, then the bundle loads.
+    a = r["again"]
+    assert a["reloads"] == 0 and a["boot"]["lang"] == "en" and not a["boot"]["hidden"]
+    assert a["requested"] == ["/locales.js?lang=fr"]
+    assert a["after"][0]["lang"] == "fr" and a["after"][0]["history"] == fr_history
+    assert a["events"] == ["fr"] and a["after"][0]["html"] == "fr"
+    a = r["againFail"]
+    assert a["after"][0]["lang"] == "en" and a["after"][0]["select"] == "en"
+    assert a["after"][0]["stored"] == "fr" and a["errors"] == [] and not a["after"][0]["hidden"]
+    # The full bundle (no cookie yet) has every language; the cookie is set.
+    b = r["full"]["boot"]
+    assert (b["lang"], b["cookie"], r["full"]["reloads"], b["pending"]) == ("it", "it", 0, 0)
+
+    # set() to a language not loaded: fetch, merge, then switch.
+    z = r["toZh"]
+    assert z["boot"]["zhFindings"] == 0
+    assert z["after"][0]["lang"] == "en" and z["after"][0]["pending"] == 1
+    assert z["after"][1]["lang"] == "zh" and z["after"][1]["html"] == "zh-CN"
+    # i18n.js's catalog reference sees the merged zh findings
+    assert z["after"][1]["zhFindings"] == len(i18n._load()["zh"]["findings"])
+    assert (z["after"][1]["stored"], z["after"][1]["cookie"]) == ("zh", "zh")
+    assert z["after"][3]["lang"] == "zh" and z["after"][3]["pending"] == 0  # cached now
+    assert z["events"] == ["zh", "en", "zh"] and z["errors"] == []
+    # A failed load keeps the language and puts the switcher back.
+    f = r["fail"]["after"][-1]
+    assert (f["lang"], f["select"], f["stored"], f["cookie"]) == ("en", "en", "en", "en")
+    assert r["fail"]["events"] == [] and r["fail"]["errors"] == []
+    # Only the latest choice applies.
+    s = r["superseded"]
+    assert s["after"][-1]["lang"] == "fr" and s["events"] == ["fr"]
+
+    assert r["merged"] == {"strings": True, "findings": True, "keys": True, "languages": True}

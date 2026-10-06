@@ -15,12 +15,14 @@ options, monitor details) and every tab panel shown.
 ```bash
 pip install -e '.[web,a11y]'
 playwright install chromium            # or ZING_A11Y_CHROMIUM=/path/to/chrome
-pytest -m a11y                         # add -n auto with pytest-xdist
+pytest -m a11y -n auto                 # pytest-xdist, in the dev extra
 ```
 
 Findings are also written to `a11y-report.json` (`ZING_A11Y_REPORT` moves it).
-In CI the `accessibility (informational)` job runs the suite without failing
-the pipeline and uploads that file. It becomes a required check once the suite
+`ZING_A11Y_SHARD=k/n` runs only the k-th of n equal parts of the suite (the
+slowest tests are spread evenly). In CI four `accessibility k/4
+(informational)` jobs run one shard each, in parallel, without failing the
+pipeline, and upload those files. They become a required check once the suite
 is green.
 
 ## Coverage by BITV / EN 301 549 test step
@@ -124,8 +126,10 @@ every applicable step passes *and* a manual review is recorded. `--llm` merges
 per-step notes of a semi-automated review into the report; they are shown with
 the step but never change its status.
 
-CI runs the suite with `ZING_A11Y_RESULTS`, generates the report even when
-tests fail and uploads `bitv-report.json` with the other findings. The copy
+CI runs the suite with `ZING_A11Y_RESULTS`, one results file per shard. The
+`accessibility report` job merges them (`--results` takes several files),
+generates the report even when tests fail and uploads `bitv-report.json` with
+the other findings. The copy
 committed in the repository is regenerated with the commands above.
 
 ## Manual review still needed

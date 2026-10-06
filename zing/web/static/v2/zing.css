@@ -1,8 +1,8 @@
 /* zing web UI v2 — shared design tokens and base components.
  *
  * The "calm lab report" language of the classic UI (sage + warm white, ink and
- * teal, a lime highlighter stroke, Bricolage Grotesque / Hanken Grotesk /
- * JetBrains Mono, generous radii) as ONE stylesheet every v2 page links:
+ * teal, a lime highlighter stroke, system font stacks (no web fonts),
+ * generous radii) as ONE stylesheet every v2 page links:
  *   <link rel="stylesheet" href="/v2/static/zing.css" />
  *
  * Rules for pages:
@@ -62,9 +62,12 @@
   --shadow-card: 0 26px 60px -42px rgba(15, 60, 50, 0.45), 0 2px 0 rgba(255, 255, 255, 0.9) inset;
   --shadow-pop: 0 18px 40px -24px rgba(15, 60, 50, 0.5);
   /* type */
-  --disp: "Bricolage Grotesque", system-ui, sans-serif;
-  --sans: "Hanken Grotesk", system-ui, sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, monospace;
+  /* System font stacks only: the app is local-only, so no web fonts are
+   * fetched (works offline / behind firewalls, nothing leaves the machine).
+   * Latin faces first, then CJK faces, then the generic family. */
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --disp: var(--sans);
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   /* shape */
   --r-card: 22px;
   --r-field: 13px;
@@ -196,7 +199,7 @@ main[tabindex="-1"]:focus { outline: none; }
 .znav { display: flex; align-items: center; gap: 12px; padding: 18px 0 6px; min-width: 0; }
 .znav .logo {
   display: flex; align-items: center; gap: 9px; flex: 0 0 auto; text-decoration: none; color: var(--ink);
-  font-family: var(--disp); font-weight: 700; font-size: 21px; letter-spacing: -0.4px;
+  font-family: var(--disp); font-weight: 700; font-size: 21px; letter-spacing: -0.01em;
 }
 .znav .logo .b {
   width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
@@ -271,8 +274,11 @@ main[tabindex="-1"]:focus { outline: none; }
 .hero { padding: 24px 0 4px; }
 .hero h1 {
   font-family: var(--disp); font-weight: 700; font-size: clamp(28px, 5vw, 40px);
-  line-height: 1.08; letter-spacing: -1px; margin: 0; overflow-wrap: anywhere;
+  line-height: 1.12; letter-spacing: -0.015em; margin: 0; overflow-wrap: anywhere;
 }
+/* Negative tracking was tuned for Latin display faces; CJK glyphs are
+ * full-width and look cramped with it, so Chinese headings use none. */
+:lang(zh) .hero h1, :lang(zh) .znav .logo { letter-spacing: 0; }
 .hero h1 .u { background: linear-gradient(transparent 62%, var(--lime) 0); padding: 0 4px; color: inherit; }
 :root[data-theme="dark"] .hero h1 .u { background: linear-gradient(transparent 62%, rgba(199, 242, 90, 0.35) 0); }
 @media (prefers-color-scheme: dark) {

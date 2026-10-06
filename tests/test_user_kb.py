@@ -64,6 +64,35 @@ def test_imported_model_is_used_everywhere(data_dir):
     assert load_knowledge_base(include_user=False).resolve("acme-large-2") is None
 
 
+def test_cache_follows_kb_db_changes(data_dir):
+    assert load_knowledge_base().resolve("acme-large-2") is None
+    result, ids = import_yaml(NEW_PROVIDER_YAML, origin="import:acme.yaml")
+    assert result.ok, result.errors
+    kb = load_knowledge_base()
+    assert kb.resolve("acme-large-2") is not None
+    model_entry = next(e for e in store.list_entries() if e["kind"] == "model")
+    # disable / re-enable (same file size) and delete are seen at once
+    assert store.set_enabled(model_entry["id"], False)
+    assert load_knowledge_base().resolve("acme-large-2") is None
+    assert store.set_enabled(model_entry["id"], True)
+    assert load_knowledge_base().resolve("acme-large-2") is not None
+    assert store.delete(model_entry["id"])
+    kb = load_knowledge_base()
+    assert kb.resolve("acme-large-2") is None and "acmeai" in kb.providers
+    # an edited body (re-import) replaces the cached profile
+    import_yaml(NEW_PROVIDER_YAML.replace("200000", "100000"))
+    assert load_knowledge_base().resolve("acme-large-2").model.context_window_tokens == 100000
+
+
+def test_cache_follows_data_dir(data_dir, tmp_path_factory, monkeypatch):
+    import_yaml(NEW_PROVIDER_YAML)
+    assert load_knowledge_base().resolve("acme-large-2") is not None
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path_factory.mktemp("other-data")))
+    assert load_knowledge_base().resolve("acme-large-2") is None
+    monkeypatch.setenv("ZING_DATA_DIR", str(data_dir))
+    assert load_knowledge_base().resolve("acme-large-2") is not None
+
+
 def test_env_opt_out(data_dir, monkeypatch):
     import_yaml(NEW_PROVIDER_YAML)
     monkeypatch.setenv("ZING_NO_USER_KB", "1")

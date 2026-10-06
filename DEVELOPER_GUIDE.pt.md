@@ -429,6 +429,7 @@ pontuação com a redação que a interface mostra em **Escala de pontuação**.
 pytest                       # tudo
 pytest tests/test_billing.py # um módulo
 pytest -k streaming          # por palavra-chave
+pytest -n auto               # em paralelo, um worker por CPU (pytest-xdist)
 ```
 
 - `tests/conftest.py` fornece `MockServer`, um endpoint compatível com OpenAI

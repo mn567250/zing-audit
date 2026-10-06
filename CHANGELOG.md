@@ -96,6 +96,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Faster test runs.** `pytest-xdist` is part of the `dev` extra and CI runs the unit
+  tests with `-n auto`. The a11y harness no longer waits for Playwright's `networkidle`
+  (500 ms without any request on every page load); it counts each context's requests and
+  settles after 150 ms without one, and its longest tests are collected first. The full a11y
+  suite went from about 55–65 min serially to 12 min with 4 workers (`-n 4 --dist worksteal`),
+  the unit suite from 100 s to about 18 s. A timing-sensitive performance-probe test now gives
+  its mock relay a steady response time. In CI the a11y suite runs as four parallel
+  shards (`ZING_A11Y_SHARD=k/4`), each on its own runner; a report job merges their
+  results (`python -m tests.a11y.conformance --results` takes several files).
 - **PDF reports no longer need a system library.** The PDF is typeset natively
   with ReportLab (pure Python, BSD-licensed) instead of converting the HTML
   report with WeasyPrint, which needed Pango. ReportLab is a core dependency, so

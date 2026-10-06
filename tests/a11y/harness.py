@@ -18,6 +18,7 @@ import os
 import socket
 import threading
 import time
+import weakref
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -146,6 +147,7 @@ class Opener:
             **context_opts,
         )
         self.contexts.append(ctx)
+        track_network(ctx)
         ctx.add_init_script(
             f"try {{ localStorage.setItem('zing.lang', {json.dumps(lang)});"
             f" localStorage.setItem('zing.v2.theme', {json.dumps(theme)}); }} catch (e) {{}}"
@@ -156,7 +158,7 @@ class Opener:
             lambda route: route.continue_() if route.request.url.startswith(self.base_url) else route.abort(),
         )
         page = ctx.new_page()
-        page.goto(self.base_url + path, wait_until="networkidle")
+        page.goto(self.base_url + path, wait_until="load")
         settle(page)
         return page
 
@@ -182,11 +184,63 @@ FINISH_ANIMATIONS_JS = """
 """
 
 
+# Requests still in flight per browser context (see track_network). Playwright's
+# own "networkidle" waits for 500 ms without any request on every page load,
+# which made it the largest fixed cost of the suite; wait_idle() asks for a
+# shorter quiet window over the same events.
+_inflight: weakref.WeakKeyDictionary[BrowserContext, set[Any]] = weakref.WeakKeyDictionary()
+QUIET_MS = 150
+IDLE_TIMEOUT_MS = 5000
+
+
+def track_network(ctx: BrowserContext) -> None:
+    """Count the context's requests from start to finish (or failure), so
+    wait_idle() knows when the page's network has gone quiet. Call it right
+    after creating the context, before any page loads."""
+    pending: set[Any] = set()
+    _inflight[ctx] = pending
+    # Playwright needs Python functions here, not builtin methods
+    ctx.on("request", lambda req: pending.add(req))
+    ctx.on("requestfinished", lambda req: pending.discard(req))
+    ctx.on("requestfailed", lambda req: pending.discard(req))
+
+
+def wait_idle(page: Page, quiet_ms: int = QUIET_MS, timeout_ms: int = IDLE_TIMEOUT_MS) -> None:
+    """Wait until the page is loaded and no request has been in flight for
+    ``quiet_ms`` (at most ``timeout_ms``, like networkidle before: a stream
+    that never ends must not hang the test). Pages of contexts without
+    track_network() fall back to Playwright's networkidle."""
+    pending = _inflight.get(page.context)
+    if pending is None:
+        with contextlib.suppress(Exception):
+            page.wait_for_load_state("networkidle", timeout=timeout_ms)
+        return
+    with contextlib.suppress(Exception):
+        page.wait_for_load_state("load", timeout=timeout_ms)
+    deadline = time.monotonic() + timeout_ms / 1000
+    quiet_since: float | None = None
+    while time.monotonic() < deadline:
+        now = time.monotonic()
+        if pending:
+            quiet_since = None
+        elif quiet_since is None:
+            quiet_since = now
+        elif now - quiet_since >= quiet_ms / 1000:
+            return
+        # sleeping through Playwright lets it deliver the request events
+        page.wait_for_timeout(25)
+
+
+NEXT_FRAME_JS = "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+
+
 def settle(page: Page) -> None:
     """Let rendering, fetches and transitions finish."""
+    wait_idle(page)
+    # the DOM work that follows the last response lands within the quiet
+    # window; two frames make sure it has been laid out and painted
     with contextlib.suppress(Exception):
-        page.wait_for_load_state("networkidle", timeout=5000)
-    page.wait_for_timeout(150)
+        page.evaluate(NEXT_FRAME_JS)
     # finite transitions/animations (panel fade-ins) must end before anything
     # is measured, or contrast is read at partial opacity on a busy machine
     with contextlib.suppress(Exception):

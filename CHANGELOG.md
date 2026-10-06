@@ -155,6 +155,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   year, so moving between pages no longer re-fetches them; a changed file gets
   a new hash, and pages themselves are always revalidated. Cold page loads
   transfer about a third of what they did.
+- **Web UI v2: no forced layout in the header, no polling in background
+  tabs.** The shared header keeps the current section's link scrolled into
+  view on phones by measuring the link row after the page is parsed (in an
+  animation frame) instead of forcing a layout while it is still loading. The
+  History page (`/api/jobs`) and the Monitors page (`/api/watches`) stop their
+  2-second refresh while the tab is hidden and refresh at once when it is
+  shown again.
 
 ### Documentation
 

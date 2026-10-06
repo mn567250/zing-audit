@@ -562,12 +562,27 @@
   }
 
   // Runs started by the scheduler (or another tab) finish without the page
-  // knowing, so refresh while any monitor is running.
-  var pollTimer = null;
+  // knowing, so refresh while any monitor is running. Paused while the tab is
+  // hidden: a poll that comes due then is only marked (pollDue) and runs as
+  // soon as the tab is visible again.
+  var pollTimer = null, pollDue = false;
   function schedulePoll() {
     clearTimeout(pollTimer);
-    if ((watches || []).some(isRunning)) pollTimer = setTimeout(load, 2000);
+    pollTimer = null;
+    pollDue = false;
+    if ((watches || []).some(isRunning)) pollTimer = setTimeout(poll, 2000);
   }
+  function poll() {
+    pollTimer = null;
+    if (document.hidden) pollDue = true;
+    else load();
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && pollDue) {
+      pollDue = false;
+      load();
+    }
+  });
 
   function load() {
     return fetch("/api/watches")

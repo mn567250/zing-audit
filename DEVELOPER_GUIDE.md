@@ -417,6 +417,7 @@ scales with the wording the UI shows under **Scoring scale**.
 pytest                       # everything
 pytest tests/test_billing.py # one module
 pytest -k streaming          # by keyword
+pytest -n auto               # in parallel, one worker per CPU (pytest-xdist)
 ```
 
 - `tests/conftest.py` provides `MockServer`, an OpenAI-compatible endpoint on

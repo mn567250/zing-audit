@@ -438,6 +438,7 @@ sous **Barème**.
 pytest                       # tout
 pytest tests/test_billing.py # un module
 pytest -k streaming          # par mot-clé
+pytest -n auto               # en parallèle, un worker par CPU (pytest-xdist)
 ```
 
 - `tests/conftest.py` fournit `MockServer`, un endpoint compatible OpenAI sur

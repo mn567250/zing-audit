@@ -437,6 +437,7 @@ Oberfläche unter **Bewertungsskala** zeigt.
 pytest                       # alles
 pytest tests/test_billing.py # ein Modul
 pytest -k streaming          # nach Stichwort
+pytest -n auto               # parallel, ein Worker pro CPU (pytest-xdist)
 ```
 
 - `tests/conftest.py` stellt `MockServer` bereit, einen OpenAI-kompatiblen

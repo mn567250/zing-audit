@@ -431,6 +431,7 @@ punteggi**.
 pytest                       # tutto
 pytest tests/test_billing.py # un modulo
 pytest -k streaming          # per parola chiave
+pytest -n auto               # in parallelo, un worker per CPU (pytest-xdist)
 ```
 
 - `tests/conftest.py` fornisce `MockServer`, un endpoint compatibile OpenAI su

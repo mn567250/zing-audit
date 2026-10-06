@@ -336,6 +336,7 @@ API 密钥）和 `kb.db`（`knowledge/store.py`）。每次调用都打开一个
 pytest                       # 全部
 pytest tests/test_billing.py # 单个模块
 pytest -k streaming          # 按关键字
+pytest -n auto               # 并行运行，每个 CPU 一个 worker（pytest-xdist）
 ```
 
 - `tests/conftest.py` 提供 `MockServer`：基于 `httpx.MockTransport` 的 OpenAI 兼容端点，

@@ -361,6 +361,12 @@ def _drive_live_panel(page) -> None:
     page.evaluate("() => { window.foc = []; document.addEventListener('focusin', e => foc.push(e.target.dataset.metric)); }")
     page.keyboard.press("ArrowRight")
     assert page.evaluate("foc") == ["tps"]  # straight to the new tab, not via the old one
+    # the buttons stay; their markup is what a fresh render draws
+    assert page.evaluate("document.querySelector('.zp-tabs [data-metric=\"ttft\"]') === firstTab")
+    assert page.evaluate("""() => { const h = document.createElement('div'); document.body.appendChild(h);
+      const M = new ZingPerf.Live(h); M.pid = L.pid; M.records = L.records.slice(); M.metric = L.metric; M.render();
+      const s = h.querySelector('.zp-tabs').outerHTML; h.remove();
+      return s === document.querySelector('#host .zp-tabs').outerHTML; }""")
     tabs = page.evaluate("""() => [...document.querySelectorAll('.zp-tabs [role=tab]')].map(b =>
       [b.dataset.metric, b.getAttribute('aria-selected'), b.tabIndex, b === document.activeElement])""")
     assert ["tps", "true", 0, True] in tabs and ["ttft", "false", -1, False] in tabs
@@ -393,6 +399,15 @@ def _drive_live_panel(page) -> None:
     # a metric switch rebuilds it for that metric
     page.evaluate("() => L.setMetric('latency')")
     assert "Latency" in page.evaluate("document.querySelector('#host .zp-data-scroll thead').textContent")
+    # a language switch redraws the labels and keeps focus on the selected tab
+    page.focus('.zp-tabs [data-metric="latency"]')
+    page.evaluate("() => { window.ZING_LANG = {t: (zh, en) => zh, locale: () => 'zh-CN'}; L.render(); }")
+    zh = page.evaluate("""() => [document.activeElement.dataset.metric, document.activeElement.textContent,
+      document.querySelector('#host .zp-data summary').textContent,
+      document.querySelector('#host .zp-data-scroll thead').textContent.includes('延迟'),
+      document.querySelectorAll('#host .zp-data-scroll tbody tr').length]""")
+    assert zh == ["latency", "延迟", "查看数据表", True, 81]
+    page.evaluate("() => { delete window.ZING_LANG; L.render(); }")
     # tooltips work on marks drawn after the first render
     page.locator("#host .zp-pt").last.hover()
     tip = page.evaluate("() => { const t = document.querySelector('.zp-tip'); return [t.style.display, t.textContent]; }")

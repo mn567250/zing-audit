@@ -659,7 +659,7 @@
       tabs: root.querySelector(".zp-tabs"),
       plot: root.querySelector(".zp-plot"),
       legend: root.querySelector(".zp-legend"),
-      cache: { tabs: v.tabs, chart: v.chart.html, empty: v.chart.empty, legend: v.legend },
+      cache: { tabs: v.tabs, tabsKey: tabs(METRICS[0].id, this.pid), chart: v.chart.html, empty: v.chart.empty, legend: v.legend },
     };
     this.wirePlot();
     wireTabs(root, function (id) { self.setMetric(id); });
@@ -708,7 +708,21 @@
       setAttr(el.probe.bar, "aria-valuenow", v.probe.now);
       if (el.probe.fill.style.width !== v.probe.width) el.probe.fill.style.width = v.probe.width;
     }
+    var tabsKey = tabs(METRICS[0].id, this.pid);
+    if (v.tabs !== c.tabs && tabsKey === c.tabsKey) {
+      // another metric: move the selection, keeping the buttons (and focus)
+      el.tabs.querySelectorAll("[data-metric]").forEach(function (b) {
+        var on = b.getAttribute("data-metric") === self.metric;
+        setAttr(b, "aria-selected", String(on));
+        if (b.tabIndex !== (on ? 0 : -1)) b.tabIndex = on ? 0 : -1;
+        b.classList.toggle("on", on);
+        if (!on && b.getAttribute("class") === "") b.removeAttribute("class");
+      });
+      c.tabs = v.tabs;
+    }
     if (v.tabs !== c.tabs) {
+      // new labels (a language switch): redraw them
+      c.tabsKey = tabsKey;
       el.tabs.outerHTML = v.tabs;
       el.tabs = el.root.querySelector(".zp-tabs");
       wireTabs(el.root, function (id) { self.setMetric(id); });

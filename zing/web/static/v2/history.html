@@ -921,11 +921,23 @@
   // Polled while anything is queued or running; when a run finishes the
   // history list below is reloaded so its report shows up there.
   var jobsBox = $("#jobs"), jlist = $("#jlist");
-  var jobs = { rows: [], timer: null, active: {}, msg: {} };
+  // Paused while the tab is hidden: a poll that comes due then is only
+  // marked (jobs.due) and runs as soon as the tab is visible again.
+  var jobs = { rows: [], timer: null, due: false, active: {}, msg: {} };
   $("#jobsIcon").innerHTML = ico("play");
   function isActive(j) { return j.status === "queued" || j.status === "running"; }
+  function pollJobs() {
+    jobs.timer = null;
+    if (document.hidden) jobs.due = true;
+    else loadJobs();
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && jobs.due) loadJobs();
+  });
   function loadJobs() {
     clearTimeout(jobs.timer);
+    jobs.timer = null;
+    jobs.due = false;
     return fetch("/api/jobs")
       .then(function (r) { return r.ok ? r.json() : { jobs: [] }; })
       .then(function (d) {
@@ -942,7 +954,8 @@
       })
       .catch(function () {})
       .then(function () {
-        if (Object.keys(jobs.active).length) jobs.timer = setTimeout(loadJobs, 2000);
+        clearTimeout(jobs.timer);
+        if (Object.keys(jobs.active).length) jobs.timer = setTimeout(pollJobs, 2000);
       });
   }
   function jobStateHTML(j) {

@@ -82,9 +82,25 @@
     // keep the active tab visible when the link row scrolls (phones). Scroll
     // the row itself: scrollIntoView() would also move Chromium's sequential
     // focus starting point to the active link, so the first Tab would jump
-    // past the skip link.
+    // past the skip link. Not measured here: reading scrollWidth while the
+    // page is still being parsed forces a synchronous layout of the half-built
+    // page. Instead wait for DOMContentLoaded (lang.js, loaded earlier, has
+    // translated the labels by then) and measure in the next animation frame,
+    // with the layout the browser computes anyway. rAF runs while the page is
+    // still visibility:hidden, so the row is scrolled before it is painted.
     var active = header.querySelector('[aria-current="page"]');
-    var row = active && active.parentNode;
+    if (!active) return;
+    var fit = function () { centerActive(active); };
+    var later = function () {
+      if (window.requestAnimationFrame) window.requestAnimationFrame(fit);
+      else fit();
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", later);
+    else later();
+  }
+
+  function centerActive(active) {
+    var row = active.parentNode;
     if (row && row.scrollWidth > row.clientWidth) {
       row.scrollLeft = active.offsetLeft - row.offsetLeft - (row.clientWidth - active.offsetWidth) / 2;
     }

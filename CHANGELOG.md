@@ -106,6 +106,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   writes Chinese with a standard PDF font the viewer supplies, so no fonts are
   shipped. The `pdf` extra is now empty and kept only so older install commands
   still work; the Docker image drops Pango and its fonts.
+- **Web UI v2: no forced layout in the header, no polling in background
+  tabs.** The shared header keeps the current section's link scrolled into
+  view on phones by measuring the link row after the page is parsed (in an
+  animation frame) instead of forcing a layout while it is still loading. The
+  History page (`/api/jobs`) and the Monitors page (`/api/watches`) stop their
+  2-second refresh while the tab is hidden and refresh at once when it is
+  shown again.
 
 ### Documentation
 

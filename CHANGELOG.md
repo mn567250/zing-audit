@@ -110,8 +110,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   updates its tiles, probe bar, chart and legend in place instead of redrawing
   everything each frame, builds the data table only while "Show data table" is
   open (appending new rows), and reuses one number formatter per locale.
-  Re-renders with 1,000 requests drop from about 530 ms to 45 ms (4× CPU
-  throttle). Keyboard focus, the table's scroll position and the tab, progress
+  A streamed re-render with 1,000 requests drops from about 500–700 ms to
+  about 60 ms (4× CPU throttle). Keyboard focus, the table's scroll position and the tab, progress
   bar and chart semantics stay as before.
 
 ### Documentation

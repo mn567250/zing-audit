@@ -6,6 +6,50 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.18.0] — web UI v2: guided relay configuration
+
+### Added
+
+- **Guided relay configuration on the v2 Audit and Tools pages.** The form now
+  starts with **Relay / provider**: a provider of the knowledge base or a relay
+  you saved. Picking one fills in its base URL (the provider's other known URLs
+  are offered as suggestions; **Other** takes any URL). zing then lists the
+  relay's models on its own (when a relay is picked and whenever the URL or API
+  key changes; **Refresh models** asks again) and **Model to request** becomes a
+  pick from that list; a relay without a model list falls back to typing the id.
+  **Claimed model** lists the knowledge base's models (chat models on the audit,
+  embedding models on the embedding check), preselects the profile the
+  requested model resolves to and names the profile the audit will use. The
+  trusted baseline and the rerank check are configured the same way, without a
+  claimed model.
+- **Saved relays.** **Save to knowledge base** keeps a relay that is not listed
+  yet under a name you give it: a provider entry in `kb.db` with the name and the
+  base URL, no models (no schema change, readable by older versions). It is
+  offered in the relay list from then on and shown on **Models** with a **Relay**
+  badge, where it can be disabled or deleted like any entry. API:
+  `POST /api/kb/relays {name, base_url}` (400 for bad input, 409 when the name
+  or the URL is already known).
+- `GET /api/kb` lists each provider's usable `base_urls` (the `base_url_hints`
+  without bare hosts, path fragments, URL templates and endpoint suffixes), a
+  `relay` flag and its `entry_id`, and each model's `kind` (`chat` /
+  `embedding`).
+
+### Changed
+
+- **Declared provider is derived** in web UI v2 instead of typed: the claimed
+  model's provider, else the provider the requested model resolves to (exact id
+  or alias); a saved relay is never a declared provider. The audit request and
+  the History re-run keep sending and restoring `declared_provider`.
+- Web UI v2 no longer loads `modelpicker.js` (the classic UI keeps it with
+  **Fetch models**); the relay configuration is `v2/relaycfg.js`. Model lists
+  are fetched once per URL, key and protocol, a newer request cancels an older
+  one, and a fetch never switches the model field while you type in it.
+- A 401/403 from a relay's model list reads as "Enter the API key to list the
+  models" instead of a connection failure.
+- Accessibility: the audit and tools flows of the browser suite now cover the
+  relay configuration (listing models, saving and re-picking a relay); the
+  accessibility-tree snapshots and the conformance report are regenerated.
+
 ## [0.17.3] — readable durations and numbers in reports
 
 ### Fixed

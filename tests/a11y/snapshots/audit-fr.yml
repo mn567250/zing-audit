@@ -55,7 +55,7 @@
     - button "Actualiser les modèles" [disabled]
     - status: Sélectionnez un relais ou saisissez son URL, et zing liste ses modèles.
     - text: Modèle annoncé claimed_model Facultatif
-    - combobox "Modèle annoncé":
+    - combobox "Modèle annoncé claimed_model Facultatif":
       - option "Identique au modèle demandé" [selected]
     - button "Saisir manuellement"
     - text: Seulement si le relais le vend sous un autre nom — zing vérifie les réponses par rapport à ce modèle. Protocole

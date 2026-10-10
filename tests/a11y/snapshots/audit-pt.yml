@@ -55,7 +55,7 @@
     - button "Atualizar modelos" [disabled]
     - status: Selecione um relay ou introduza o seu URL, e o zing lista os seus modelos.
     - text: Modelo declarado claimed_model Opcional
-    - combobox "Modelo declarado":
+    - combobox "Modelo declarado claimed_model Opcional":
       - option "Igual ao modelo pedido" [selected]
     - button "Introduzir manualmente"
     - text: Só se o intermediário o vender com outro nome — o zing confronta as respostas com este modelo. Protocolo

@@ -55,7 +55,7 @@
     - button "Modelle neu laden" [disabled]
     - status: Wähle ein Relay oder gib seine URL ein, dann listet zing seine Modelle auf.
     - text: Angegebenes Modell claimed_model Optional
-    - combobox "Angegebenes Modell":
+    - combobox "Angegebenes Modell claimed_model Optional":
       - option "Wie das angefragte Modell" [selected]
     - button "Manuell eingeben"
     - text: Nur wenn das Relay es unter anderem Namen verkauft — zing prüft die Antworten gegen dieses Modell. Protokoll

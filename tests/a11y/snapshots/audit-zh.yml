@@ -55,7 +55,7 @@
     - button "刷新模型列表" [disabled]
     - status: 选择中转站或填写地址后，zing 会列出它的模型。
     - text: 声称的模型 claimed_model 可选
-    - combobox "声称的模型":
+    - combobox "声称的模型 claimed_model 可选":
       - option "同请求的模型" [selected]
     - button "手动输入"
     - text: 仅当中转站以另一个名字售卖时填写 —— zing 会按这个模型核对回答。 协议

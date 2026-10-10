@@ -58,7 +58,7 @@
     - button "Aggiorna modelli" [disabled]
     - status: Seleziona un relay o inseriscine l'URL e zing ne elenca i modelli.
     - text: Modello dichiarato claimed_model Facoltativo
-    - combobox "Modello dichiarato":
+    - combobox "Modello dichiarato claimed_model Facoltativo":
       - option "Uguale al modello richiesto" [selected]
     - button "Inserisci a mano"
     - text: Solo se l'intermediario lo vende con un altro nome — zing confronta le risposte con questo modello. Dimensione dichiarata claimed_dimensions Facoltativo

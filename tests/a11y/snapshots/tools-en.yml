@@ -58,7 +58,7 @@
     - button "Refresh models" [disabled]
     - status: Select a relay or enter its URL, and zing lists its models.
     - text: Claimed model claimed_model Optional
-    - combobox "Claimed model":
+    - combobox "Claimed model claimed_model Optional":
       - option "Same as the model to request" [selected]
     - button "Enter manually"
     - text: Only if the relay sells it under another name — zing checks the answers against this model. Claimed dimension claimed_dimensions Optional

@@ -139,13 +139,13 @@
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
   }
-  // The field's visible label text without the key chip / "optional" suffix.
-  function labelText(input) {
+  // Name a select by the field's visible label (aria-labelledby, so the name
+  // follows the label through every language switch).
+  function labelBy(sel, input) {
     var l = input.id && document.querySelector('label[for="' + input.id + '"]');
-    if (!l) return "";
-    var c = l.cloneNode(true);
-    [].slice.call(c.querySelectorAll(".key,.opt")).forEach(function (x) { x.parentNode.removeChild(x); });
-    return (c.textContent || "").replace(/\s+/g, " ").trim();
+    if (!l) return;
+    if (!l.id) l.id = input.id + "-lab";
+    sel.setAttribute("aria-labelledby", l.id);
   }
   function paintSel(sel) {
     var o = sel.options[sel.selectedIndex];
@@ -173,7 +173,8 @@
       tog.hidden = c.manual && !c.hasList;
       tog.textContent = c.manual ? T("← 从列表选择", "← Pick from the list") : T("手动输入", "Enter manually");
     };
-    c.paint = function () { c.setManual(c.manual); sel.setAttribute("aria-label", labelText(input)); };
+    labelBy(sel, input);
+    c.paint = function () { c.setManual(c.manual); };
     sel.addEventListener("change", function () {
       paintSel(sel);
       input.value = sel.value;

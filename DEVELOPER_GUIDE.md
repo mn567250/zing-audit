@@ -208,6 +208,11 @@ stores the user's entries (`store.py`), checks and imports YAML
 resolve through aliases and the declared provider; every report records how the
 id matched.
 
+Relays are endpoints too: `relays.py` turns a provider's `base_url_hints` into
+usable base URLs (`GET /api/kb` → `base_urls`) and saves a relay from the web UI
+as a provider entry in `kb.db` (`origin = relay`: a `display_name` and one base
+URL, no models; no schema change).
+
 ### Prompt library
 
 Every text zing sends to an LLM API — chat probes, the judge's prompt, tool
@@ -255,6 +260,8 @@ All decoding (image headers, WAV) is standard library only.
   `/api/models` lists a relay's models; `/api/report/export` renders a report;
   `/api/history…`, `/api/watches…`, `/api/kb…`, `/api/embed` and `/api/rerank`
   back the other pages.
+- **Relays.** `POST /api/kb/relays` saves a relay `{name, base_url}` (400 for bad
+  input, 409 when the name or URL is already known).
 - **Background audits.** `jobs.py` runs every audit as a job owned by the
   server. `POST /api/jobs` queues one, `GET /api/jobs` lists queued, running and
   recently finished jobs (plus running monitors) with progress,
@@ -284,6 +291,13 @@ build step. The classic pages live in `zing/web/static/`; the new UI in
 `lang.js` (language switch), `locales.js` (translation data), `i18n.js` (finding
 translations), `icons.js`, `modelpicker.js` (**Fetch models**), `secretfield.js`
 and `perf.js` (performance charts).
+
+The v2 **Audit** and **Tools** pages configure relays with `v2/relaycfg.js`:
+relay/provider select → base URL → the relay's models (`/api/models`, on change,
+cached per URL/key/protocol) → claimed model from the knowledge base
+(`/api/kb/resolve` preselects it) → derived declared provider, plus **Save to
+knowledge base** (`POST /api/kb/relays`). Its pure helpers are tested under node;
+the classic pages keep `modelpicker.js`.
 
 **Translation convention.** The Chinese text written in the HTML is the
 original and stays untouched; every element carries its English text in
@@ -431,7 +445,7 @@ pytest -n auto               # in parallel, one worker per CPU (pytest-xdist)
   `test_responses.py`); the web server is tested through FastAPI's test client
   (`test_web*.py`), including the local-only protections
   (`test_web_security.py`).
-- The browser scripts (`lang.js`, `modelpicker.js`, `perf.js`, `secretfield.js`,
+- The browser scripts (`lang.js`, `modelpicker.js`, `v2/relaycfg.js`, `perf.js`, `secretfield.js`,
   `v2/report.js`, the locales) are evaluated under `node` in
   `test_web_*_js.py` and `test_web_locales.py`; they are skipped without Node.js.
 - No test may reach the network.

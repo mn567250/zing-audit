@@ -218,6 +218,11 @@ dell'utente), salva le voci dell'utente (`store.py`), controlla e importa YAML
 id di modello si risolvono tramite alias e fornitore dichiarato; ogni rapporto
 registra come è stato risolto l'id.
 
+Anche i relay sono endpoint: `relays.py` trasforma i `base_url_hints` di un
+provider in URL di base utilizzabili (`GET /api/kb` → `base_urls`) e salva un
+relay dall'interfaccia web come voce di provider in `kb.db` (`origin = relay`: un
+`display_name` e un URL di base, nessun modello; nessuna modifica allo schema).
+
 ### Libreria dei prompt
 
 Ogni testo che zing invia a un'API di LLM — sonde di chat, il prompt del giudice,
@@ -267,6 +272,8 @@ solo la libreria standard.
   SSE; `/api/models` elenca i modelli di un relay; `/api/report/export`
   renderizza un rapporto; `/api/history…`, `/api/watches…`, `/api/kb…`,
   `/api/embed` e `/api/rerank` servono le altre pagine.
+- **Relay.** `POST /api/kb/relays` salva un relay `{name, base_url}` (400 per un
+  input non valido, 409 se il nome o l'URL sono già noti).
 - **Verifiche in background.** `jobs.py` esegue ogni verifica come job del
   server. `POST /api/jobs` ne accoda uno, `GET /api/jobs` elenca i job in coda,
   in corso e appena conclusi (e i monitor in esecuzione) con l'avanzamento,
@@ -300,6 +307,14 @@ serviti dalla radice: `lang.js` (cambio lingua), `locales.js` (dati di
 traduzione), `i18n.js` (traduzione delle rilevazioni), `icons.js`,
 `modelpicker.js` (**Recupera modelli**), `secretfield.js` e `perf.js` (grafici
 delle prestazioni).
+
+Le pagine v2 **Verifica** e **Strumenti** configurano i relay con
+`v2/relaycfg.js`: scelta relay/provider → URL di base → i modelli del relay
+(`/api/models`, al cambiamento, in cache per URL/chiave/protocollo) → modello
+dichiarato dalla base di conoscenza (`/api/kb/resolve` lo preseleziona) →
+provider derivato, più **Salva nella base** (`POST /api/kb/relays`). Le sue
+funzioni pure sono testate con node; le pagine classiche mantengono
+`modelpicker.js`.
 
 **Convenzione di traduzione.** Il testo cinese scritto nell'HTML è l'originale e
 resta intatto; ogni elemento porta il suo testo inglese in `data-en` (e
@@ -446,7 +461,7 @@ pytest -n auto               # in parallelo, un worker per CPU (pytest-xdist)
   `test_responses.py`); il server web è testato con il client di test di FastAPI
   (`test_web*.py`), comprese le protezioni per l'uso locale
   (`test_web_security.py`).
-- Gli script del browser (`lang.js`, `modelpicker.js`, `perf.js`,
+- Gli script del browser (`lang.js`, `modelpicker.js`, `v2/relaycfg.js`, `perf.js`,
   `secretfield.js`, `v2/report.js`, le traduzioni) vengono valutati con `node` in
   `test_web_*_js.py` e `test_web_locales.py`; senza Node.js vengono saltati.
 - Nessun test può accedere alla rete.

@@ -216,6 +216,11 @@ usuario), guarda las entradas del usuario (`store.py`), comprueba e importa YAML
 (`snapshot.py`). Los ids de modelo se resuelven mediante alias y el proveedor
 declarado; cada informe registra cómo se resolvió el id.
 
+Los relays también son endpoints: `relays.py` convierte los `base_url_hints`
+de un proveedor en URL base utilizables (`GET /api/kb` → `base_urls`) y guarda un
+relay desde la interfaz web como entrada de proveedor en `kb.db` (`origin =
+relay`: un `display_name` y una URL base, sin modelos; sin cambios de esquema).
+
 ### Biblioteca de prompts
 
 Todo texto que zing envía a una API de LLM — sondas de chat, el prompt del juez,
@@ -266,6 +271,8 @@ solo la biblioteca estándar.
   SSE; `/api/models` lista los modelos de un relay; `/api/report/export`
   renderiza un informe; `/api/history…`, `/api/watches…`, `/api/kb…`,
   `/api/embed` y `/api/rerank` dan servicio a las demás páginas.
+- **Relays.** `POST /api/kb/relays` guarda un relay `{name, base_url}` (400 si la
+  entrada no es válida, 409 si el nombre o la URL ya se conocen).
 - **Auditorías en segundo plano.** `jobs.py` ejecuta cada auditoría como un
   trabajo del servidor. `POST /api/jobs` pone uno en cola, `GET /api/jobs` lista
   los trabajos en cola, en marcha y recién terminados (y los monitores en
@@ -298,6 +305,14 @@ informes (`report.js`), el selector de tema (`theme.js`) y los estilos
 sirven desde la raíz: `lang.js` (cambio de idioma), `locales.js` (datos de
 traducción), `i18n.js` (traducción de hallazgos), `icons.js`, `modelpicker.js`
 (**Obtener modelos**), `secretfield.js` y `perf.js` (gráficos de rendimiento).
+
+Las páginas v2 **Auditoría** y **Herramientas** configuran los relays con
+`v2/relaycfg.js`: selección de relay/proveedor → URL base → los modelos del relay
+(`/api/models`, al cambiar, en caché por URL/clave/protocolo) → modelo declarado
+de la base de conocimiento (`/api/kb/resolve` lo preselecciona) → proveedor
+derivado, además de **Guardar en la base** (`POST /api/kb/relays`). Sus funciones
+auxiliares puras se prueban con node; las páginas clásicas conservan
+`modelpicker.js`.
 
 **Convención de traducción.** El texto chino escrito en el HTML es el original y
 no se toca; cada elemento lleva su texto inglés en `data-en` (y
@@ -448,7 +463,7 @@ pytest -n auto               # en paralelo, un worker por CPU (pytest-xdist)
   (`test_anthropic.py`, `test_responses.py`); el servidor web se prueba con el
   cliente de pruebas de FastAPI (`test_web*.py`), incluidas las protecciones de
   uso local (`test_web_security.py`).
-- Los scripts del navegador (`lang.js`, `modelpicker.js`, `perf.js`,
+- Los scripts del navegador (`lang.js`, `modelpicker.js`, `v2/relaycfg.js`, `perf.js`,
   `secretfield.js`, `v2/report.js`, las traducciones) se evalúan con `node` en
   `test_web_*_js.py` y `test_web_locales.py`; se omiten sin Node.js.
 - Ninguna prueba puede acceder a la red.

@@ -213,11 +213,29 @@ pip install 'zing-audit[web]'     # ou: uv tool install 'zing-audit[web]'
 zing serve                        # abre http://localhost:8000
 ```
 
-Introduza o **URL do intermediário**, a **Chave API** e o modelo; opcionalmente,
-um **Modelo declarado** (se o relay o vender com outro nome), um **Fornecedor
-declarado** e uma referência de confiança (**Comparar com uma referência
-confiável**). **Obter modelos** lista o que o relay anuncia, e escolher um
-preenche o modelo e o seu fornecedor. Depois, **Iniciar auditoria** e acompanhe
+Na nova interface o formulário guia a configuração:
+
+1. Escolha o **Relay / provedor**: um provedor da base de conhecimento ou um
+   relay que guardou. O seu URL base é preenchido (os outros URL conhecidos do
+   provedor são oferecidos como sugestões). Para qualquer outro relay escolha
+   **Outro (introduzir o URL)** e introduza o **URL do intermediário**.
+2. Acrescente a **Chave de API** se o relay precisar de uma.
+3. O zing lista sozinho os modelos do relay (ao escolher um relay e sempre que
+   o URL ou a chave mudam; **Atualizar modelos** pergunta de novo). Escolha o
+   **Modelo pedido**. Um relay sem lista de modelos recorre à introdução do id
+   (**Introduzir manualmente**).
+4. Opcionalmente escolha o **Modelo declarado** entre os modelos da base de
+   conhecimento: o modelo que o relay diz servir. Se o modelo pedido estiver na
+   base de conhecimento, fica pré-selecionado; mude-o apenas se o relay vender o
+   modelo com outro nome. Dele resulta o perfil do provedor usado na auditoria.
+
+Um relay que ainda não está na lista pode ser mantido com **Salvar na base** com
+o nome que lhe der; da próxima vez basta escolhê-lo. A referência confiável
+(**Comparar com uma referência confiável**) e a página **Ferramentas** são
+configuradas da mesma forma. A interface clássica mantém os campos simples com
+**Obter modelos**.
+
+Depois, **Iniciar auditoria** e acompanhe
 as verificações **ao vivo**: cada verificação mostra a sua pontuação e quanto
 tempo levou, e uma verificação com constatações expande-se para mostrar as
 evidências. O resultado é um relatório de veredito que pode partilhar: nota,
@@ -243,7 +261,7 @@ clássica** volta atrás. A escolha é memorizada por navegador.
 | **Ferramentas** | `/tools` | `/v2/tools` | Auditorias de embeddings e rerank |
 | **Histórico** | `/history` | `/v2/history` | Cada auditoria executada nesta máquina, agrupada por relay + modelo declarado, com tendências |
 | **Monitores** | `/watches` | `/v2/watches` | Reauditorias agendadas com alertas por webhook |
-| **Modelos** | — | `/v2/kb` | Explorar a base de conhecimento e adicionar os seus próprios perfis de modelo |
+| **Modelos** | — | `/v2/kb` | Explorar a base de conhecimento, adicionar os seus próprios perfis de modelo e ver os relays guardados |
 
 A nova interface acrescenta: filtros e tendências configuráveis (pontuação, nota,
 latência p50, tokens/s) no **Histórico**; **Agendar como monitor** e **Executar auditoria novamente** em cada
@@ -632,6 +650,9 @@ Moonshot (`zing kb` lista-os). Há três camadas; as posteriores prevalecem:
      salvar**. **Todos os perfis** lista cada perfil com a sua origem; **Qual
      perfil um ID de modelo usa?** mostra como um id é resolvido; **Suas
      entradas** podem ser exportadas como YAML;
+   - nas páginas **Auditoria** e **Ferramentas** da interface web: **Salvar na
+     base** mantém o nome e o URL base de um relay (uma entrada de provedor sem
+     modelos), mostrado em **Modelos** com o selo **Relay**;
    - na linha de comandos: `zing kb-prompt <model>`, `zing kb-import <file>`
      (acrescente `--check` para apenas verificar) e `zing kb-export`.
 

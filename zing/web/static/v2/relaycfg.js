@@ -321,7 +321,7 @@
       fBtn.disabled = !hasUrl || st === "busy";
       fBtn.textContent = T("刷新模型列表", "Refresh models");
       if (st === "busy") { k = "busy"; text = T("正在获取中转站的模型…", "Listing the relay's models…"); }
-      else if (st && st.kind === "ok") { k = "ok"; text = "✓ " + T("中转站提供 {n} 个模型", "The relay lists {n} models").replace("{n}", st.count); }
+      else if (st && st.kind === "ok") { k = "ok"; text = "✓ " + T("中转站列出的模型：{n}", "Models listed by the relay: {n}").replace("{n}", st.count); }
       else if (st && st.kind === "empty") { k = "warn"; text = "⚠ " + T("中转站未列出任何模型——请手动填写模型。", "The relay lists no models — enter the model manually."); }
       else if (st && st.kind === "auth") { k = "warn"; text = T("请填写 API 密钥以列出模型（HTTP {code}）。", "Enter the API key to list the models (HTTP {code}).").replace("{code}", st.code); }
       else if (st && st.kind === "error") { k = "error"; text = "✗ " + T("无法列出模型：", "Could not list the models: ") + st.message; }

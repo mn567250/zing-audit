@@ -160,17 +160,12 @@
               <div class="hint" id="e-claimed-hint" data-en="Only if the relay sells it under another name — zing checks the answers against this model.">仅当中转站以另一个名字售卖时填写 —— zing 会按这个模型核对回答。</div>
             </div>
           </div>
-          <div class="two">
-            <div class="grp">
-              <label class="lab" for="e-dims"><span data-en="Claimed dimension">声称维度</span> <span class="key">claimed_dimensions</span> <span class="opt" data-en="Optional">可选</span></label>
-              <input class="in" id="e-dims" type="number" min="1" step="1" inputmode="numeric" placeholder="留空 = 查知识库" data-en-placeholder="Empty = look up in knowledge base">
-            </div>
-            <div class="grp">
-              <label class="lab" for="e-provider"><span data-en="Declared provider">声明的厂商</span> <span class="key">declared_provider</span> <span class="opt" data-en="Optional">可选</span></label>
-              <input class="in" id="e-provider" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="e-provider-hint" placeholder="如 openai / deepseek" data-en-placeholder="e.g. openai / deepseek">
-              <div class="hint" id="e-provider-hint" data-en="Helps zing pick the right model profile when the model name alone is ambiguous. Choosing a model from the list fills it in.">当仅凭模型名无法确定厂商时，帮助 zing 选对模型资料。从列表选择模型时会自动填写。</div>
-            </div>
+          <div class="grp narrow">
+            <label class="lab" for="e-dims"><span data-en="Claimed dimension">声称维度</span> <span class="key">claimed_dimensions</span> <span class="opt" data-en="Optional">可选</span></label>
+            <input class="in" id="e-dims" type="number" min="1" step="1" inputmode="numeric" placeholder="留空 = 查知识库" data-en-placeholder="Empty = look up in knowledge base">
           </div>
+          <!-- declared_provider: derived from the claimed model's profile (relaycfg.js) -->
+          <input type="hidden" id="e-provider">
           <div class="grp">
             <div class="lab" id="e-api-lab" data-en="Protocol">协议</div>
             <div class="seg" role="group" aria-labelledby="e-api-lab" data-seg="e-api">
@@ -248,7 +243,7 @@
 <script src="/i18n.js"></script>
 <script src="/icons.js"></script>
 <script src="/secretfield.js"></script>
-<script src="/modelpicker.js"></script>
+<script src="/v2/static/relaycfg.js"></script>
 <script src="/v2/static/nav.js"></script>
 <script>
 (function () {
@@ -485,19 +480,14 @@
     });
   });
 
-  // ---------- model pickers: the same relay config as the audit page ----------
-  // (knowledge-base providers + "Fetch models" from the relay's own /models)
-  if (window.ZingModelPicker) {
-    try {
-      ZingModelPicker.enhance({
-        claimedInput: "#e-model", providerInput: "#e-provider", urlInput: "#e-url", keyInput: "#e-key",
-        api: function () { return segVal("e-api"); }, unstyled: true,
-      });
-      ZingModelPicker.enhance({
-        claimedInput: "#r-model", urlInput: "#r-url", keyInput: "#r-key",
-        api: function () { return segVal("r-api"); }, unstyled: true,
-      });
-    } catch (e) {}
+  // ---------- relay configuration: the same flow as the audit page ----------
+  // (relay / provider -> base URL -> the relay's models -> claimed model)
+  if (window.ZingRelayConfig) {
+    ZingRelayConfig.bind({
+      url: "#e-url", key: "#e-key", model: "#e-model", claimed: "#e-claimed", provider: "#e-provider",
+      kind: "embedding", api: function () { return segVal("e-api"); },
+    });
+    ZingRelayConfig.bind({ url: "#r-url", key: "#r-key", model: "#r-model", kind: "rerank", api: function () { return segVal("r-api"); } });
   }
 })();
 </script>

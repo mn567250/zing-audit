@@ -143,7 +143,7 @@
                 - listitem:
                   - text: "Resultado: Correcto. Completado de chat básico Devolvió contenido en <duration>; modelo devuelto: gpt-4o-mini."
                   - button "Ocultar evidencia" [expanded]
-                  - text: "duration_ms: 2.0326839999142976 model_returned: gpt-4o-mini canary_echoed: false"
+                  - text: "duration_ms: <duration> model_returned: gpt-4o-mini canary_echoed: false"
             - button "Conformidad del protocolo" [expanded]
             - text: ¿Cumple la API la especificación?
             - meter "Conformidad del protocolo ¿Cumple la API la especificación?"
@@ -227,7 +227,7 @@
                 - listitem:
                   - text: "Resultado: Correcto. Streaming auténtico 2 fragmentos en <duration>, primer token a los <duration>."
                   - button "Ocultar evidencia" [expanded]
-                  - text: "chunk_count: 2 duration_ms: 3 ttft_ms: 1.8"
+                  - text: "chunk_count: 2 duration_ms: <duration> ttft_ms: <duration>"
             - button "Facturación y uso" [expanded]
             - text: ¿Está inflado el uso de tokens?
             - meter "Facturación y uso ¿Está inflado el uso de tokens?"

@@ -143,7 +143,7 @@
                 - listitem:
                   - text: 结果：通过。 基础对话补全 返回了内容，耗时 <duration>；返回模型为 gpt-4o-mini。
                   - button "收起证据" [expanded]
-                  - text: "duration_ms: 2.0326839999142976 model_returned: gpt-4o-mini canary_echoed: false"
+                  - text: "duration_ms: <duration> model_returned: gpt-4o-mini canary_echoed: false"
             - button "协议兼容" [expanded]
             - text: 接口是否规范？
             - meter "协议兼容 接口是否规范？"
@@ -227,7 +227,7 @@
                 - listitem:
                   - text: 结果：通过。 流式表现真实 共 2 个分片，耗时 <duration>，首 token 于 <duration> 到达。
                   - button "收起证据" [expanded]
-                  - text: "chunk_count: 2 duration_ms: 3 ttft_ms: 1.8"
+                  - text: "chunk_count: 2 duration_ms: <duration> ttft_ms: <duration>"
             - button "计费用量" [expanded]
             - text: token 有没有虚报？
             - meter "计费用量 token 有没有虚报？"

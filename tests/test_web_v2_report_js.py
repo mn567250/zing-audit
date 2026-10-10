@@ -572,3 +572,16 @@ def test_intl_formatters_are_cached_and_output_unchanged(tmp_path, lang):
     assert out["after1"]["DateTimeFormat"] == 1 and out["after1"]["DisplayNames"] == 1
     assert out["after1"]["NumberFormat"] >= 1
     assert out["after2"] == out["after1"]
+
+
+@needs_node
+def test_report_evidence_durations_are_readable(tmp_path):
+    report = json.loads(_FIXTURE.read_text(encoding="utf-8"))
+    for det in report["detectors"]:
+        for f in det["findings"]:
+            if f["id"] == "billing.usage-inflation":
+                f["evidence"] = {"ttft_ms": 5457.0, "duration_ms": 6097.3,
+                                 "slow_ms": 65432.0, "short_duration_s": 0.00085}
+    html = _render(tmp_path, "en", report)["html"]
+    assert "ttft_ms: 5 s 457 ms" in html and "duration_ms: 6 s 97 ms" in html
+    assert "slow_ms: 1 min 5 s" in html and "short_duration_s: 850 µs" in html

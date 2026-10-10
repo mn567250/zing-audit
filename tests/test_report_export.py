@@ -164,3 +164,50 @@ def test_export_refuses_cross_site_posts(client, report_dict):
     r = client.post("/api/report/export?format=md", json=report_dict,
                     headers={"Origin": "https://evil.example"})
     assert r.status_code == 403
+
+
+@pytest.mark.parametrize(("ms", "text"), [
+    (0, "0 ms"),
+    (0.85, "850 µs"),
+    (3.2, "3.2 ms"),
+    (457, "457 ms"),
+    (999.6, "1 s"),
+    (6097.3, "6 s 97 ms"),
+    (5457.0, "5 s 457 ms"),
+    (60_000, "1 min"),
+    (65_432, "1 min 5 s"),
+    (3_723_000, "1 h 2 min 3 s"),
+    (3_600_000, "1 h"),
+    (-1200.4, "-1 s 200 ms"),
+])
+def test_fmt_duration_uses_only_the_units_it_needs(ms, text):
+    from zing.report.render import _fmt_duration
+
+    assert _fmt_duration(ms) == text
+
+
+def test_fmt_evidence_value_never_uses_scientific_notation():
+    from zing.report.render import _fmt_evidence_value as fmt
+
+    assert fmt(6097.3, "duration_ms") == "6 s 97 ms"
+    assert fmt(2.5, "short_duration_s") == "2 s 500 ms"
+    assert fmt([1.5, 2400.0], "deltas_ms") == "[1.5 ms, 2 s 400 ms]"
+    assert fmt(123456.7, "ratio") == "123457"
+    assert fmt(0.0000123, "ratio") == "0.0000123"
+    assert fmt(0.123, "ratio") == "0.123"
+    assert fmt(1760000000, "created") == "1760000000"  # ints stay as they are
+    assert fmt(True, "flag_ms") == "True"
+
+
+def test_reports_show_readable_durations(report_dict):
+    from zing.report import render_html, render_markdown
+
+    for det in report_dict["detectors"]:
+        for f in det["findings"]:
+            if f["id"] == "billing.usage-inflation":
+                f["evidence"].update(ttft_ms=5457.0, duration_ms=6097.3, ratio=12345.6)
+    report_dict["reliability"]["latency_ms"] = {"p50": 6097.3, "p95": 65432.0}
+    report = AuditReport.model_validate(report_dict)
+    for text in (render_markdown(report), render_html(report), _text(render_pdf(report))):
+        assert "5 s 457 ms" in text and "6 s 97 ms" in text and "1 min 5 s" in text
+        assert "e+0" not in text and "5.46e" not in text

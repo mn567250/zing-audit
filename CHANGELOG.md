@@ -6,6 +6,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.17.3] — readable durations and numbers in reports
+
+### Fixed
+
+- **Report numbers no longer use scientific notation.** Evidence durations
+  (`*_ms`, `*_s`) read in mixed units with only the units they need (`6 s 97 ms`,
+  `1 min 5 s`, `850 µs`) instead of `6.1e+03`; other large or tiny values are
+  written out in full (`123457`, `0.0000123`). Reliability latencies use the same
+  format, in the HTML, Markdown and PDF reports and the web UI report.
+
 ## [0.17.2] — request timeouts that fit slow and local models
 
 ### Changed

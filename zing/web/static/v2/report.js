@@ -247,8 +247,34 @@
       return c;
     }
   }
-  function fmt(x) {
+  // a duration in mixed units, only those it needs (mirrors _fmt_duration in
+  // zing/report/render.py): 850 µs, 457 ms, 6 s 97 ms, 1 min 5 s, 2 h 3 min 4 s
+  function fmtDuration(ms) {
+    var sign = ms < 0 ? "-" : "";
+    ms = Math.abs(ms);
+    if (ms === 0) return "0 ms";
+    if (ms < 1) return sign + Math.round(ms * 1000) + " µs";
+    if (ms < 10) return sign + ms.toFixed(1).replace(/\.0$/, "") + " ms";
+    var t = Math.round(ms), parts;
+    if (t < 1000) return sign + t + " ms";
+    if (t < 60000) parts = [[Math.floor(t / 1000), "s"], [t % 1000, "ms"]];
+    else {
+      var s = Math.round(ms / 1000);
+      parts = [[Math.floor(s / 3600), "h"], [Math.floor(s / 60) % 60, "min"], [s % 60, "s"]];
+    }
+    return sign + parts.filter(function (p) { return p[0]; })
+      .map(function (p) { return p[0] + " " + p[1]; }).join(" ");
+  }
+  function fmt(x, k) {
     if (x == null) return "null";
+    if (typeof x === "number" && k) {
+      if (/_ms$/.test(k)) return fmtDuration(x);
+      if (/_(s|sec|seconds)$/.test(k)) return fmtDuration(x * 1000);
+    }
+    if (Array.isArray(x) && k && /_(ms|s|sec|seconds)$/.test(k) &&
+        x.every(function (v) { return typeof v === "number"; }))
+      return "[" + x.slice(0, 6).map(function (v) { return fmt(v, k); }).join(", ") +
+        (x.length > 6 ? ", …" : "") + "]";
     if (typeof x === "object") return JSON.stringify(x).slice(0, 200);
     return String(x).slice(0, 240);
   }
@@ -257,7 +283,7 @@
     return Object.keys(e)
       .slice(0, n || 6)
       .map(function (k) {
-        return k + ": " + fmt(e[k]);
+        return k + ": " + fmt(e[k], k);
       })
       .join("\n");
   }

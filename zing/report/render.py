@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import html
 import json
+from decimal import Decimal
 from typing import Any
 
 from zing.models import (
@@ -113,12 +114,62 @@ def _fmt_score(score: float | None) -> str:
     return "—" if score is None else f"{score:g}"
 
 
-def _fmt_evidence_value(value: object) -> str:
-    """Compact, single-line rendering of one evidence value for a highlight."""
-    if isinstance(value, float):
-        text = f"{value:.3g}"
+def _fmt_duration(ms: float) -> str:
+    """A duration in mixed units, only those it needs: ``850 µs``, ``457 ms``,
+    ``6 s 97 ms``, ``1 min 5 s``, ``2 h 3 min 4 s``."""
+    sign = "-" if ms < 0 else ""
+    ms = abs(ms)
+    if ms == 0:
+        return "0 ms"
+    if ms < 1:
+        return f"{sign}{ms * 1000:.0f} µs"
+    if ms < 10:
+        return f"{sign}{ms:.1f} ms".replace(".0 ms", " ms")
+    total_ms = round(ms)
+    if total_ms < 1000:
+        return f"{sign}{total_ms} ms"
+    if total_ms < 60_000:
+        parts = [(total_ms // 1000, "s"), (total_ms % 1000, "ms")]
+    else:
+        total_s = round(ms / 1000)
+        parts = [(total_s // 3600, "h"), (total_s // 60 % 60, "min"), (total_s % 60, "s")]
+    while parts and parts[0][0] == 0:
+        parts.pop(0)
+    return sign + " ".join(f"{n} {unit}" for n, unit in parts if n)
+
+
+def _fmt_float(value: float) -> str:
+    """Three significant digits, never in scientific notation."""
+    text = f"{value:.3g}"
+    if "e" not in text:
+        return text
+    if abs(value) >= 1000:
+        return f"{value:.0f}"
+    return format(Decimal(text), "f")
+
+
+def _duration_ms(key: str, value: object) -> float | None:
+    """The value in milliseconds when the evidence key names a duration."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if key.endswith("_ms"):
+        return float(value)
+    if key.endswith(("_s", "_sec", "_seconds")):
+        return float(value) * 1000
+    return None
+
+
+def _fmt_evidence_value(value: object, key: str = "") -> str:
+    """Compact, single-line rendering of one evidence value for a highlight.
+
+    ``key`` is the evidence key: ``*_ms``/``*_s`` values render as durations."""
+    ms = _duration_ms(key, value)
+    if ms is not None:
+        text = _fmt_duration(ms)
+    elif isinstance(value, float):
+        text = _fmt_float(value)
     elif isinstance(value, (list, tuple)):
-        items = ", ".join(_fmt_evidence_value(v) for v in list(value)[:6])
+        items = ", ".join(_fmt_evidence_value(v, key) for v in list(value)[:6])
         if len(value) > 6:
             items += ", …"
         text = f"[{items}]"
@@ -409,7 +460,7 @@ def render_markdown(report: AuditReport) -> str:
                 if f.summary:
                     lines.append(f"  - {_md(f.summary)}")
                 for key, value in list(f.evidence.items())[:8]:
-                    lines.append(f"  - `{_md(key)}`: {_md(_fmt_evidence_value(value))}")
+                    lines.append(f"  - `{_md(key)}`: {_md(_fmt_evidence_value(value, key))}")
                 if f.recommendation:
                     lines.append(f"  - _Recommendation: {_md(f.recommendation)}_")
             lines.append("")
@@ -427,7 +478,7 @@ def render_markdown(report: AuditReport) -> str:
             lines.append(f"- Rate-limited (429): {r.rate_limited} (excluded from success rate)")
         if r.latency_ms:
             parts = [
-                f"{k} {v:.0f} ms"
+                f"{k} {_fmt_duration(v)}"
                 for k, v in r.latency_ms.items()
                 if v is not None
             ]
@@ -626,7 +677,7 @@ def render_html(report: AuditReport) -> str:
                         out.append(
                             "<tr>"
                             f"<td class=\"ekey\">{_esc(key)}</td>"
-                            f"<td><code>{_esc(_fmt_evidence_value(value))}</code></td>"
+                            f"<td><code>{_esc(_fmt_evidence_value(value, key))}</code></td>"
                             "</tr>"
                         )
                     out.append("</tbody></table>")
@@ -650,7 +701,7 @@ def render_html(report: AuditReport) -> str:
             )
         if r.latency_ms:
             parts = [
-                f"{_esc(k)} {v:.0f} ms"
+                f"{_esc(k)} {_esc(_fmt_duration(v))}"
                 for k, v in r.latency_ms.items()
                 if v is not None
             ]

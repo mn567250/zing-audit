@@ -52,6 +52,7 @@ from zing.report.render import (
     _DISCLAIMER,
     _RISK_COLOR,
     _RISK_LABEL,
+    _fmt_duration,
     _fmt_evidence_value,
     _fmt_score,
     _knowledge_lines,
@@ -425,7 +426,7 @@ def _finding(f: Finding) -> Table:
     if f.summary:
         rows.append([_p(_t(f.summary))])
     if f.evidence:
-        ev = [[_t(k, color=_MUTED), _code(_fmt_evidence_value(v))]
+        ev = [[_t(k, color=_MUTED), _code(_fmt_evidence_value(v, k))]
               for k, v in list(f.evidence.items())[:12]]
         rows.append([_table(None, ev, _fit([1, 3], _WIDTH - 22))])
     if f.recommendation:
@@ -486,7 +487,7 @@ def _reliability(report: AuditReport) -> list[Flowable]:
     items = [_t(f"Requests: {r.successes}/{r.requests} succeeded ({r.success_rate * 100:.0f}%)")]
     if r.rate_limited:
         items.append(_t(f"Rate-limited (429): {r.rate_limited} (excluded from success rate)"))
-    parts = [f"{k} {v:.0f} ms" for k, v in (r.latency_ms or {}).items() if v is not None]
+    parts = [f"{k} {_fmt_duration(v)}" for k, v in (r.latency_ms or {}).items() if v is not None]
     if parts:
         items.append(_t(f"Latency: {', '.join(parts)}"))
     if r.errors:

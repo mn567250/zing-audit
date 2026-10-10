@@ -143,7 +143,7 @@
                 - listitem:
                   - text: "Result: Pass. Basic chat completion works Returned content in <duration>; canary not echoed."
                   - button "Hide evidence" [expanded]
-                  - text: "duration_ms: 2.0326839999142976 model_returned: gpt-4o-mini canary_echoed: false"
+                  - text: "duration_ms: <duration> model_returned: gpt-4o-mini canary_echoed: false"
             - button "Protocol compliance" [expanded]
             - text: Is the API spec-compliant?
             - meter "Protocol compliance Is the API spec-compliant?"
@@ -227,7 +227,7 @@
                 - listitem:
                   - text: "Result: Pass. Streaming looks authentic 2 chunks over <duration>, first token at <duration>."
                   - button "Hide evidence" [expanded]
-                  - text: "chunk_count: 2 duration_ms: 3 ttft_ms: 1.8"
+                  - text: "chunk_count: 2 duration_ms: <duration> ttft_ms: <duration>"
             - button "Billing & usage" [expanded]
             - text: Is token usage inflated?
             - meter "Billing & usage Is token usage inflated?"

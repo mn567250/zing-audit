@@ -143,7 +143,7 @@
                 - listitem:
                   - text: "Résultat : Réussi. Complétion de chat de base Contenu renvoyé en <duration> ; modèle renvoyé : gpt-4o-mini."
                   - button "Masquer les preuves" [expanded]
-                  - text: "duration_ms: 2.0326839999142976 model_returned: gpt-4o-mini canary_echoed: false"
+                  - text: "duration_ms: <duration> model_returned: gpt-4o-mini canary_echoed: false"
             - button "Conformité du protocole" [expanded]
             - text: L'API respecte-t-elle la spécification ?
             - meter "Conformité du protocole L'API respecte-t-elle la spécification ?"
@@ -227,7 +227,7 @@
                 - listitem:
                   - text: "Résultat : Réussi. Streaming authentique 2 fragments en <duration>, premier token à <duration>."
                   - button "Masquer les preuves" [expanded]
-                  - text: "chunk_count: 2 duration_ms: 3 ttft_ms: 1.8"
+                  - text: "chunk_count: 2 duration_ms: <duration> ttft_ms: <duration>"
             - button "Facturation et consommation" [expanded]
             - text: La consommation de tokens est-elle gonflée ?
             - meter "Facturation et consommation La consommation de tokens est-elle gonflée ?"

@@ -269,6 +269,8 @@ prompt）以及 `context.lost-in-middle-rag`（廉价的 RAG/摘要垫片只转�
    开头和结尾能召回而中间不能，记为一条发现。
 4. 报错信息提到上下文长度的 4xx 视为按长度拒绝；拒绝 `max_tokens`（推理模型）
    会改用 `max_completion_tokens` 重试，绝不当作上限。
+5. 探测超时会结束阶梯，但不算作失败：最后一个成功召回长度以上的窗口记为未验证
+   （不确定），绝不判为截断。
 
 实测窗口与声称窗口对比。没有声称窗口时，只报告测量结果，不计分。
 
@@ -282,6 +284,7 @@ prompt）以及 `context.lost-in-middle-rag`（廉价的 RAG/摘要垫片只转�
 | `context_window.rejected_below_claim` | 远小于声明窗口的提示被以过长为由拒绝。 | 失败 · 高 | 不扣分 |
 | `context_window.measured` | 没有可对照的声明窗口：只做测量，不计分。 | 信息 | 不扣分 |
 | `context_window.no_ladder` | 在下限与上限之间没有可用的探测长度。 | 不确定 · 低 | 不扣分 |
+| `context_window.timed_out` | 探测在达到声明窗口之前超时：说明端点较慢，而非截断的证据。 | 不确定 · 低 | 不扣分 |
 
 **注意事项.** 真正的长上下文模型也会在中段丢针，所以只有**边缘**失败才被视为截断。
 临界点附近的召回是概率性的，得出结论前应重跑。该探测受 `--max-context-tokens` 约束，

@@ -332,6 +332,9 @@ restituer.
 4. Un 4xx dont le message évoque la longueur de contexte est un rejet pour
    taille ; un rejet de `max_tokens` (modèles de raisonnement) est réessayé avec
    `max_completion_tokens` et n'est jamais lu comme un plafond.
+5. Une sonde qui dépasse son délai arrête l'échelle sans compter comme un échec :
+   la fenêtre au-delà de la dernière taille rappelée est signalée comme non
+   vérifiée (non concluant), jamais comme une troncature.
 
 La fenêtre mesurée est comparée à la fenêtre annoncée. Sans fenêtre annoncée,
 la mesure est rapportée mais non notée.
@@ -346,6 +349,7 @@ la mesure est rapportée mais non notée.
 | `context_window.rejected_below_claim` | Un prompt bien en dessous de la fenêtre annoncée a été rejeté comme trop long. | Échec · Élevée | Aucune déduction |
 | `context_window.measured` | Aucune fenêtre annoncée pour comparer : mesurée seulement, non notée. | Info | Aucune déduction |
 | `context_window.no_ladder` | Aucune taille de sonde ne tenait entre le plancher et le plafond. | Non concluant · Faible | Aucune déduction |
+| `context_window.timed_out` | Une sonde a dépassé son délai avant d'atteindre la fenêtre annoncée : un endpoint lent, pas une preuve de troncature. | Non concluant · Faible | Aucune déduction |
 
 **Mises en garde.** Les vrais modèles à long contexte perdent aussi des
 aiguilles au milieu ; seul un échec en **bordure** est donc lu comme une

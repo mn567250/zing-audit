@@ -330,6 +330,9 @@ con el tokenizer del modelo declarado, y el modelo debe devolverlo.
 4. Un 4xx cuyo mensaje menciona la longitud de contexto es un rechazo por
    tamaño; un rechazo de `max_tokens` (modelos de razonamiento) se reintenta con
    `max_completion_tokens` y nunca se lee como un techo.
+5. Una sonda que agota el tiempo de espera termina la escalera sin contar como
+   fallo: la ventana por encima del último tamaño recordado se informa como no
+   verificada (no concluyente), nunca como truncamiento.
 
 La ventana medida se compara con la declarada. Sin ventana declarada, la medida
 se informa pero no se puntúa.
@@ -344,6 +347,7 @@ se informa pero no se puntúa.
 | `context_window.rejected_below_claim` | Un prompt muy por debajo de la ventana declarada fue rechazado por demasiado largo. | Fallo · Alta | Sin deducción |
 | `context_window.measured` | No hay ventana declarada con la que comparar: solo se mide, no puntúa. | Info | Sin deducción |
 | `context_window.no_ladder` | Ningún tamaño de sonda cabía entre el mínimo y el tope. | No concluyente · Baja | Sin deducción |
+| `context_window.timed_out` | Una sonda agotó el tiempo de espera antes de alcanzar la ventana declarada: un endpoint lento, no una prueba de truncamiento. | No concluyente · Baja | Sin deducción |
 
 **Advertencias.** Los modelos reales de contexto largo también pierden agujas
 en el medio; por eso solo un fallo en el **borde** se lee como recorte. La

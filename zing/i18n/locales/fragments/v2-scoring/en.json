@@ -89,6 +89,7 @@
   "A prompt well below the declared window was rejected as too long.": "A prompt well below the declared window was rejected as too long.",
   "No declared window to compare against: measured only, not scored.": "No declared window to compare against: measured only, not scored.",
   "No probe size fit between the floor and the cap.": "No probe size fit between the floor and the cap.",
+  "A probe timed out before the declared window was reached: a slow endpoint, not evidence of truncation.": "A probe timed out before the declared window was reached: a slow endpoint, not evidence of truncation.",
   "Effective context window": "Effective context window",
   "Input-token overhead is small and no hidden instructions leaked.": "Input-token overhead is small and no hidden instructions leaked.",
   "Instruction-like text leaked when asked (weak on its own).": "Instruction-like text leaked when asked (weak on its own).",

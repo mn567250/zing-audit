@@ -429,6 +429,16 @@ rapport JSON conserve les temps de chaque requête (des nombres uniquement, aucu
 texte) ; le rapport HTML et l'interface web les tracent sur la chronologie de
 l'audit.
 
+**Délais des requêtes.** `timeout_sec` (`--timeout`, 60 s par défaut) sert de base ;
+chaque requête reçoit du temps en plus selon la taille du prompt et le budget de
+sortie, pour qu'une longue sonde de fenêtre de contexte ou un modèle auto-hébergé
+lent ne soit pas coupé au bout d'une minute. Les hôtes locaux et privés
+(`localhost`, `127.x`, `192.168.x`, `host.docker.internal`, …) ont au moins 300 s.
+`max_request_sec` (`--max-request-time`, 900 s par défaut) est le plafond absolu
+de chaque requête, flux compris, si bien qu'aucune requête ne peut rester bloquée
+indéfiniment. Une sonde de fenêtre de contexte qui dépasse malgré tout son délai
+est signalée comme non concluante, pas comme une troncature.
+
 ## Mode comparaison et juge LLM
 
 zing dispose de deux modes de détection :

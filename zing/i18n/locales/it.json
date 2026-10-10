@@ -308,6 +308,7 @@
   "A conformant relay should reject invalid input with a 4xx and an {'error': {...}} body.": "Un intermediario conforme dovrebbe rifiutare input non validi con un 4xx e un corpo {'error': {...}}.",
   "A proxy rewriting URLs/package names is a supply-chain risk — stop using it.": "Un proxy che riscrive URL/nomi di pacchetti è un rischio per la supply chain — smetti di usarlo.",
   "Treat the advertised context window as unverified.": "Considera la finestra di contesto dichiarata come non verificata.",
+  "Raise --timeout / --max-request-time, or lower --max-context-tokens, to measure the full window.": "Aumenta --timeout / --max-request-time, o riduci --max-context-tokens, per misurare la finestra completa.",
   "Compare against a trusted baseline to confirm.": "Confronta con un riferimento affidabile per conferma.",
   "The relay likely truncates or summarizes long prompts.": "L'intermediario probabilmente tronca o riassume i prompt lunghi.",
   "Re-run once the endpoint reliably returns completions.": "Riesegui quando l'endpoint restituirà completamenti in modo affidabile.",

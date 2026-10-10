@@ -430,6 +430,16 @@ informe JSON guarda los tiempos de cada petición (solo números, sin texto); el
 informe HTML y la interfaz web los representan a lo largo de la línea temporal de
 la auditoría.
 
+**Tiempos de espera.** `timeout_sec` (`--timeout`, 60 s por defecto) es la base;
+cada petición recibe más tiempo según el tamaño del prompt y el presupuesto de
+salida, para que una sonda larga de ventana de contexto o un modelo autoalojado
+lento no se corte al minuto. Los hosts locales y privados (`localhost`, `127.x`,
+`192.168.x`, `host.docker.internal`, …) reciben al menos 300 s. `max_request_sec`
+(`--max-request-time`, 900 s por defecto) es el tope absoluto de cada petición,
+streams incluidos, así que ninguna petición puede quedarse colgada para siempre.
+Una sonda de ventana de contexto que aun así agota el tiempo se informa como no
+concluyente, no como truncamiento.
+
 ## Modo comparación y juez LLM
 
 zing tiene dos modos de detección:

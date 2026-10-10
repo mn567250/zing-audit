@@ -427,6 +427,16 @@ campioni sufficienti (p90 da 10, p95 da 20, p99 da 100). Il rapporto JSON conser
 i tempi di ogni richiesta (solo numeri, nessun testo); il rapporto HTML e
 l'interfaccia web li tracciano sulla linea temporale della verifica.
 
+**Timeout delle richieste.** `timeout_sec` (`--timeout`, predefinito 60 s) è la
+base; ogni richiesta riceve tempo in più in base alla dimensione del prompt e al
+budget di output, così una lunga sonda della finestra di contesto o un modello
+self-hosted lento non viene interrotto dopo un minuto. Gli host locali e privati
+(`localhost`, `127.x`, `192.168.x`, `host.docker.internal`, …) hanno almeno 300 s.
+`max_request_sec` (`--max-request-time`, predefinito 900 s) è il limite massimo di
+ogni singola richiesta, stream compresi, quindi nessuna richiesta può restare
+appesa all'infinito. Una sonda della finestra di contesto che va comunque in
+timeout è riportata come non conclusiva, non come troncamento.
+
 ## Modalità di confronto e giudice LLM
 
 zing ha due modalità di rilevamento:

@@ -314,6 +314,9 @@ tokenizer, and the model must return it.
 4. A 4xx whose message names the context length is a size rejection; a
    rejection of `max_tokens` (reasoning models) is retried with
    `max_completion_tokens` and never read as a ceiling.
+5. A timed-out probe ends the ladder without counting as a failure: the window
+   above the last recalled size is reported as unverified (inconclusive), never
+   as truncation.
 
 The measured window is compared with the declared one. Without a declared
 window the measurement is reported but not scored.
@@ -328,6 +331,7 @@ window the measurement is reported but not scored.
 | `context_window.rejected_below_claim` | A prompt well below the declared window was rejected as too long. | Fail · High | No deduction |
 | `context_window.measured` | No declared window to compare against: measured only, not scored. | Info | No deduction |
 | `context_window.no_ladder` | No probe size fit between the floor and the cap. | Inconclusive · Low | No deduction |
+| `context_window.timed_out` | A probe timed out before the declared window was reached: a slow endpoint, not evidence of truncation. | Inconclusive · Low | No deduction |
 
 **Caveats.** Genuine long-context models also lose needles in the middle, so
 only an **edge** failure is read as truncation. Recall near the ceiling is

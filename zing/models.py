@@ -91,7 +91,11 @@ class TargetConfig(BaseModel):
     declared_provider: str | None = None
     declared_context_window: int | None = None
     declared_max_output: int | None = None
+    # Base HTTP timeout. Each completion gets more on top for its prompt size and
+    # output budget (and local hosts at least 300 s), see BaseHTTPClient.
     timeout_sec: float = 60.0
+    # Hard ceiling for one request, however large its budget: no call runs longer.
+    max_request_sec: float = 900.0
     headers: dict[str, str] = Field(default_factory=dict)
     max_retries: int = 0
 

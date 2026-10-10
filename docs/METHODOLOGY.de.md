@@ -336,6 +336,9 @@ des angegebenen Modells bemessen ist, und das Modell muss ihn zurückgeben.
 4. Ein 4xx, dessen Meldung die Kontextlänge nennt, ist eine Ablehnung wegen der
    Größe; eine Ablehnung von `max_tokens` (Reasoning-Modelle) wird mit
    `max_completion_tokens` wiederholt und nie als Obergrenze gelesen.
+5. Eine Probe mit Zeitüberschreitung beendet die Leiter, ohne als Fehlschlag zu
+   zählen: das Fenster oberhalb der letzten erinnerten Größe gilt als nicht
+   geprüft (nicht eindeutig), nie als Kürzung.
 
 Das gemessene Fenster wird mit dem angegebenen verglichen. Ohne angegebenes
 Fenster wird die Messung berichtet, aber nicht bewertet.
@@ -350,6 +353,7 @@ Fenster wird die Messung berichtet, aber nicht bewertet.
 | `context_window.rejected_below_claim` | Ein Prompt weit unter dem angegebenen Fenster wurde als zu lang abgelehnt. | Fehlgeschlagen · Hoch | Kein Abzug |
 | `context_window.measured` | Kein angegebenes Fenster zum Vergleich: nur gemessen, nicht gewertet. | Info | Kein Abzug |
 | `context_window.no_ladder` | Keine Probengröße passte zwischen Unter- und Obergrenze. | Nicht eindeutig · Niedrig | Kein Abzug |
+| `context_window.timed_out` | Eine Probe lief vor Erreichen des angegebenen Fensters in eine Zeitüberschreitung: ein langsamer Endpunkt, kein Hinweis auf Kürzung. | Nicht eindeutig · Niedrig | Kein Abzug |
 
 **Einschränkungen.** Auch echte Langkontext-Modelle verlieren Nadeln in der
 Mitte; deshalb gilt nur ein Fehlschlag am **Rand** als Kürzung. Der Abruf nahe

@@ -130,6 +130,7 @@ def build_target(
     model: str | None,
     declared_provider: str | None = None,
     timeout_sec: float | None = None,
+    max_request_sec: float | None = None,
     headers: dict[str, str] | None = None,
     api: str | None = None,
     claimed_model: str | None = None,
@@ -152,6 +153,7 @@ def build_target(
         claimed_model=claimed_model,
         declared_provider=declared_provider,
         timeout_sec=timeout_sec if timeout_sec is not None else 60.0,
+        max_request_sec=max_request_sec if max_request_sec is not None else 900.0,
         headers=headers or {},
         api=validate_api(api),
     )
@@ -235,7 +237,8 @@ target:
   model: gpt-4o
   api: auto                        # auto | openai | anthropic (wire protocol)
   declared_provider: openai        # optional; inferred from model id if omitted
-  timeout_sec: 60
+  timeout_sec: 60                  # base HTTP timeout; grows with prompt and output size
+  max_request_sec: 900             # hard cap per request (seconds)
   headers: {}
 
 # Optional trusted baseline for `zing compare` (strongest downgrade evidence).

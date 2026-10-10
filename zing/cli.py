@@ -256,6 +256,7 @@ def _target_from(
     headers: list[str] | None,
     api: str | None = None,
     claimed_model: str | None = None,
+    max_request_time: float | None = None,
 ) -> TargetConfig:
     fs = section(cfg, sect)
     merged_headers = merge_headers(fs.get("headers"), headers)
@@ -267,6 +268,7 @@ def _target_from(
         model=model or fs.get("model"),
         declared_provider=declared_provider or fs.get("declared_provider"),
         timeout_sec=timeout if timeout is not None else fs.get("timeout_sec"),
+        max_request_sec=max_request_time if max_request_time is not None else fs.get("max_request_sec"),
         headers=merged_headers,
         api=api or fs.get("api"),
         claimed_model=claimed_model or fs.get("claimed_model"),
@@ -502,7 +504,8 @@ def check_command(
     skip: Annotated[list[str] | None, typer.Option("--skip", help="Skip these detector ids (repeatable).")] = None,
     out_dir: Annotated[Path | None, typer.Option("--out-dir", help="Report output directory.")] = None,
     fmt: Annotated[str | None, typer.Option("--format", help="json | md | html | pdf | all (pdf needs the [pdf] extra).")] = None,
-    timeout: Annotated[float | None, typer.Option("--timeout", help="HTTP timeout (seconds).")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout", help="Base HTTP timeout (seconds); grows with prompt and output size.")] = None,
+    max_request_time: Annotated[float | None, typer.Option("--max-request-time", help="Hard cap for one request (seconds, default 900).")] = None,
     reliability_requests: Annotated[int | None, typer.Option("--reliability-requests", help="Reliability probe request count (0 disables).")] = None,
     concurrency: Annotated[int | None, typer.Option("--concurrency", help="Reliability probe concurrency.")] = None,
     max_context_tokens: Annotated[int | None, typer.Option("--max-context-tokens", help="Cap for the real-context-window probe.")] = None,
@@ -523,7 +526,7 @@ def check_command(
         target = _target_from(
             cfg, "target", kind="target", name=name, base_url=base_url, api_key=api_key,
             model=model, declared_provider=declared_provider, timeout=timeout, headers=header,
-            api=api, claimed_model=claimed_model,
+            api=api, claimed_model=claimed_model, max_request_time=max_request_time,
         )
         options = _build_options(
             cfg, suite=suite, dimensions=dimension, judge=judge, only=only, skip=skip,
@@ -576,7 +579,8 @@ def compare_command(
     judge_model: Annotated[str | None, typer.Option("--judge-model", help="Judge model id (defaults to baseline).")] = None,
     out_dir: Annotated[Path | None, typer.Option("--out-dir", help="Report output directory.")] = None,
     fmt: Annotated[str | None, typer.Option("--format", help="json | md | html | pdf | all (pdf needs the [pdf] extra).")] = None,
-    timeout: Annotated[float | None, typer.Option("--timeout", help="HTTP timeout (seconds).")] = None,
+    timeout: Annotated[float | None, typer.Option("--timeout", help="Base HTTP timeout (seconds); grows with prompt and output size.")] = None,
+    max_request_time: Annotated[float | None, typer.Option("--max-request-time", help="Hard cap for one request (seconds, default 900).")] = None,
     max_context_tokens: Annotated[int | None, typer.Option("--max-context-tokens", help="Cap for the context-window probe.")] = None,
     performance_requests: Annotated[int | None, typer.Option("--performance-requests", help="Performance probe requests per endpoint (0 disables; standard suite uses 5).")] = None,
     performance_max_tokens: Annotated[int | None, typer.Option("--performance-max-tokens", help="Output tokens per performance probe request.")] = None,
@@ -595,12 +599,12 @@ def compare_command(
         target = _target_from(
             cfg, "target", kind="target", name=target_name, base_url=target_base_url,
             api_key=target_api_key, model=target_model, declared_provider=declared_provider,
-            timeout=timeout, headers=None, api=target_api,
+            timeout=timeout, headers=None, api=target_api, max_request_time=max_request_time,
         )
         baseline = _target_from(
             cfg, "baseline", kind="baseline", name=baseline_name, base_url=baseline_base_url,
             api_key=baseline_api_key, model=baseline_model, declared_provider=None,
-            timeout=timeout, headers=None, api=baseline_api,
+            timeout=timeout, headers=None, api=baseline_api, max_request_time=max_request_time,
         )
         options = _build_options(
             cfg, suite=suite, default_suite="deep", dimensions=dimension, judge=judge,

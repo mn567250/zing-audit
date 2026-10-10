@@ -89,6 +89,7 @@
   "A prompt well below the declared window was rejected as too long.": "Un prompt muy por debajo de la ventana declarada fue rechazado por demasiado largo.",
   "No declared window to compare against: measured only, not scored.": "No hay ventana declarada con la que comparar: solo se mide, no puntúa.",
   "No probe size fit between the floor and the cap.": "Ningún tamaño de sonda cabía entre el mínimo y el tope.",
+  "A probe timed out before the declared window was reached: a slow endpoint, not evidence of truncation.": "Una sonda agotó el tiempo de espera antes de alcanzar la ventana declarada: un endpoint lento, no una prueba de truncamiento.",
   "Effective context window": "Ventana de contexto efectiva",
   "Input-token overhead is small and no hidden instructions leaked.": "La sobrecarga de tokens de entrada es pequeña y no se filtraron instrucciones ocultas.",
   "Instruction-like text leaked when asked (weak on its own).": "Se filtró texto con aspecto de instrucciones al pedirlo (débil por sí solo).",

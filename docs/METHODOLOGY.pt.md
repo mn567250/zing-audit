@@ -328,6 +328,9 @@ com o tokenizer do modelo declarado, e o modelo tem de o devolver.
 4. Um 4xx cuja mensagem refere o comprimento do contexto é uma rejeição por
    tamanho; uma rejeição de `max_tokens` (modelos de raciocínio) é repetida com
    `max_completion_tokens` e nunca é lida como um teto.
+5. Uma sonda que esgota o tempo encerra a escada sem contar como falha: a
+   janela acima do último tamanho recordado é reportada como não verificada
+   (inconclusiva), nunca como truncamento.
 
 A janela medida é comparada com a declarada. Sem janela declarada, a medida é
 reportada mas não pontuada.
@@ -342,6 +345,7 @@ reportada mas não pontuada.
 | `context_window.rejected_below_claim` | Um prompt bem abaixo da janela declarada foi rejeitado como longo demais. | Falha · Alta | Sem dedução |
 | `context_window.measured` | Não há janela declarada para comparar: apenas medido, não pontua. | Info | Sem dedução |
 | `context_window.no_ladder` | Nenhum tamanho de sonda coube entre o mínimo e o limite. | Inconclusivo · Baixa | Sem dedução |
+| `context_window.timed_out` | Uma sonda esgotou o tempo antes de atingir a janela declarada: um endpoint lento, não uma prova de truncamento. | Inconclusivo · Baixa | Sem dedução |
 
 **Ressalvas.** Os modelos genuínos de contexto longo também perdem agulhas no
 meio; por isso só uma falha na **extremidade** é lida como truncagem. A

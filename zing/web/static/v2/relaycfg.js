@@ -418,8 +418,8 @@
           fstate = st;
           fetched = st.kind === "ok" ? data.models.slice() : [];
           paintModels();
-          // a list to pick from, unless the user chose to type
-          if (!m.chosen) m.setManual(!fetched.length);
+          // a list to pick from, unless the user chose to type (or is typing)
+          if (!m.chosen && document.activeElement !== model) m.setManual(!fetched.length);
           paintFetch();
         })
         .catch(function (e) {

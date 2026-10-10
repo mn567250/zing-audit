@@ -380,23 +380,64 @@ def press(page: Page, selector: str, key: str = "Enter") -> None:
 # 1 + 2: audit
 # --------------------------------------------------------------------------- #
 AUDIT_MESSAGES = ["#now", "#formerr", "#formnote", ".zmp-status"]
-MODEL_GRP = ".grp:has(#i-model)"
+RELAY_STATUS = ".zmp-status"
 
 
-def fill_audit(page: Page, url: str, fetch: bool = False) -> None:
-    """Fill the audit form; ``fetch``: list the relay's models with the
-    picker's "Fetch models" button first (its result is a status message)."""
-    page.fill("#i-url", url)
+def enter_url(page: Page, url_sel: str, model_sel: str, url: str) -> None:
+    """Type a relay URL and leave the field: the relay configuration lists the
+    relay's models (its result is a status message)."""
+    page.fill(url_sel, url)
+    page.dispatch_event(url_sel, "change")
+    page.wait_for_function(
+        "sel => { const s = document.querySelector(sel); return !!s && !s.classList.contains('is-busy') && !!s.innerText.trim(); }",
+        arg=f".grp:has({model_sel}) {RELAY_STATUS}",
+    )
+
+
+def pick_model(page: Page, model_sel: str, model: str) -> None:
+    """Pick a model from the relay's list, or type it when there is no list."""
+    sel = page.locator(f".grp:has({model_sel}) select.zmp-sel")
+    if sel.is_visible():
+        sel.select_option(model)
+    else:
+        page.fill(model_sel, model)
+        page.dispatch_event(model_sel, "change")
+
+
+def fill_audit(page: Page, url: str) -> None:
+    """Fill the audit form: key, relay URL (its models are listed), model."""
     page.fill("#i-key", "sk-test")
-    page.select_option(f"{MODEL_GRP} .zmp-prov", "openai")
-    if fetch:
-        press(page, f"{MODEL_GRP} .zmp-fetch-btn")
-        page.wait_for_function(
-            "sel => (document.querySelector(sel).innerText || '').trim().length > 0", arg=f"{MODEL_GRP} .zmp-status"
-        )
-    page.select_option(f"{MODEL_GRP} .zmp-model", "gpt-4o-mini")
+    enter_url(page, "#i-url", "#i-model", url)
+    pick_model(page, "#i-model", "gpt-4o-mini")
     page.click('#api button[data-v="openai"]')
     page.click('#suite button[data-v="smoke"]')
+
+
+def save_relay(page: Page, name: str) -> None:
+    """Save the URL as a relay; it is selected in the relay list afterwards."""
+    press(page, ".grp:has(#i-url) .rc-save-t")
+    page.fill("#i-url-rname", name)
+    press(page, "#i-url-rname", "Enter")
+    page.wait_for_function("() => !['', '__other__'].includes(document.querySelector('#i-url-relay').value)")
+
+
+def reselect_relay(page: Page) -> None:
+    """Clear the URL, then pick the saved relay again: its URL is filled in."""
+    key = page.input_value("#i-url-relay")
+    page.fill("#i-url", "")
+    page.dispatch_event("#i-url", "change")
+    page.select_option("#i-url-relay", key)
+    page.wait_for_function("() => document.querySelector('#i-url').value.trim().length > 0")
+
+
+def delete_relays(page: Page) -> None:
+    """Remove the relays the flow saved (the session server is shared)."""
+    page.evaluate(
+        """async () => {
+          const kb = await (await fetch('/api/kb')).json();
+          for (const p of kb.providers) if (p.relay && p.entry_id) await fetch('/api/kb/entries/' + p.entry_id, { method: 'DELETE' });
+        }"""
+    )
 
 
 def run_to_report(flow: Flow, name: str) -> None:
@@ -418,12 +459,15 @@ def test_audit_flow(browser, contexts, zing, relay, lang: str) -> None:
     """Start an audit, follow the scan to the report, start another one."""
     flow = open_flow(contexts, browser, zing.url, "/v2/", lang, AUDIT_MESSAGES, "audit flow")
     page = flow.page
-    flow.step("fill the form, fetch the relay's models", lambda: fill_audit(page, relay.url, fetch=True))
+    flow.step("fill the form; the relay's models are listed", lambda: fill_audit(page, relay.url))
+    flow.step("save the relay to the knowledge base", lambda: save_relay(page, f"A11y relay {lang}"))
+    flow.step("pick the saved relay: its URL is filled in", lambda: reselect_relay(page))
     run_to_report(flow, "start the audit")
     # "Test another": the report's own action, back to the form
     flow.step("test another", lambda: press(page, '#report [data-action="0"]'))
     if not page.evaluate("() => !!document.activeElement && !!document.activeElement.closest('#v1')"):
         flow.issues.append("test another: the form is shown but focus is not in it  —  BITV 9.2.4.3")
+    delete_relays(page)
     flow.done("#now", ".zmp-status")
 
 
@@ -540,10 +584,11 @@ TOOLS_MESSAGES = ["#e-out", "#r-out", ".zmp-status"]
 
 
 def type_model(page: Page, input_sel: str, model: str) -> None:
-    """Type a model id, switching the model picker to free text if needed."""
+    """Type a model id, switching the relay's model list to free text if needed."""
     if not page.locator(input_sel).is_visible():
         press(page, f".grp:has({input_sel}) .zmp-custom")
     page.fill(input_sel, model)
+    page.dispatch_event(input_sel, "change")
 
 
 @pytest.mark.bitv("9.4.1.3", "9.2.4.3", "9.3.3.1")
@@ -555,8 +600,8 @@ def test_tools_flow(browser, contexts, zing, relay, broken_relay, lang: str) -> 
     flow.step("embedding: submit the empty form", lambda: press(page, "#e-go"))
 
     def embed() -> None:
-        page.fill("#e-url", relay.url)
         page.fill("#e-key", "sk-test")
+        enter_url(page, "#e-url", "#e-model", relay.url)
         type_model(page, "#e-model", "text-embedding-3-small")
         press(page, "#e-go")
         page.wait_for_selector("#e-out .res")
@@ -566,8 +611,8 @@ def test_tools_flow(browser, contexts, zing, relay, broken_relay, lang: str) -> 
 
     def rerank(url: str) -> Callable[[], None]:
         def run() -> None:
-            page.fill("#r-url", url)
             page.fill("#r-key", "sk-test")
+            enter_url(page, "#r-url", "#r-model", url)
             type_model(page, "#r-model", "bge-reranker-v2-m3")
             press(page, "#r-go")
             page.wait_for_selector("#r-out .res")

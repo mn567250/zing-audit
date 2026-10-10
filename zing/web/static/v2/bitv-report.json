@@ -5,10 +5,10 @@
   "en": "EN 301 549 V3.2.1, chapter 9",
   "wcag": "WCAG 2.1 level A + AA"
  },
- "generated_at": "2026-10-04T19:42:48+00:00",
- "tests_run_at": "2026-10-04T19:42:41+00:00",
- "zing_version": "0.11.0",
- "commit": "30a78b7d9e9c",
+ "generated_at": "2026-10-10T10:58:11+00:00",
+ "tests_run_at": "2026-10-10T10:57:51+00:00",
+ "zing_version": "0.18.0",
+ "commit": "807091ee8001",
  "axe_version": "4.13.0",
  "tested": {
   "languages": [
@@ -81,8 +81,8 @@
    }
   },
   "tests": {
-   "run": 1109,
-   "passed": 1109,
+   "run": 1115,
+   "passed": 1115,
    "failed": 0,
    "skipped": 0
   }
@@ -351,12 +351,13 @@
    "how": "Text contrast is measured on every page, in every language, in the light and the dark theme.",
    "status": "pass",
    "tests": {
-    "run": 170,
-    "passed": 170,
+    "run": 172,
+    "passed": 172,
     "failed": 0,
     "skipped": 10
    },
    "test_names": [
+    "test_paged_history_wcag_rules",
     "test_wcag_rules_as_loaded",
     "test_wcag_rules_every_tab_panel",
     "test_wcag_rules_expanded"
@@ -413,12 +414,13 @@
    "how": "At 320 CSS px width the page needs no horizontal scrolling and loses no content, in every language.",
    "status": "pass",
    "tests": {
-    "run": 42,
-    "passed": 42,
+    "run": 43,
+    "passed": 43,
     "failed": 0,
     "skipped": 0
    },
    "test_names": [
+    "test_paged_history_reflows_at_320_css_px",
     "test_reflow_at_320_css_px"
    ],
    "failures": []
@@ -453,10 +455,10 @@
    "how": "The WCAG text spacing values are applied and no content is cut off.",
    "status": "pass",
    "tests": {
-    "run": 210,
-    "passed": 210,
+    "run": 206,
+    "passed": 206,
     "failed": 0,
-    "skipped": 12
+    "skipped": 16
    },
    "test_names": [
     "test_text_spacing_override",
@@ -496,8 +498,8 @@
    "how": "Every control is reached with the Tab key; popups, dialogs and tabs work with the keyboard.",
    "status": "pass",
    "tests": {
-    "run": 60,
-    "passed": 60,
+    "run": 61,
+    "passed": 61,
     "failed": 0,
     "skipped": 180
    },
@@ -505,6 +507,7 @@
     "test_dialogs_close_with_escape",
     "test_every_control_reachable_by_tab_without_trap",
     "test_popups_close_with_escape_and_return_focus",
+    "test_show_more_by_keyboard",
     "test_tabs_follow_arrow_key_pattern",
     "test_wcag_rules_as_loaded",
     "test_wcag_rules_every_tab_panel",
@@ -669,8 +672,8 @@
    "how": "Nothing hidden takes focus and no positive tabindex is used. Whether the order is logical is judged by a person.",
    "status": "manual review pending",
    "tests": {
-    "run": 93,
-    "passed": 93,
+    "run": 94,
+    "passed": 94,
     "failed": 0,
     "skipped": 0
    },
@@ -683,6 +686,7 @@
     "test_focused_element_is_on_screen",
     "test_kb_flow",
     "test_monitor_flow",
+    "test_show_more_by_keyboard",
     "test_tools_flow"
    ],
    "failures": []
@@ -758,14 +762,15 @@
    "how": "Every Tab stop looks different with and without focus, in the light and the dark theme.",
    "status": "pass",
    "tests": {
-    "run": 18,
-    "passed": 18,
+    "run": 20,
+    "passed": 20,
     "failed": 0,
     "skipped": 0
    },
    "test_names": [
     "test_focus_is_visible",
-    "test_focused_element_is_on_screen"
+    "test_focused_element_is_on_screen",
+    "test_show_more_focus_visible"
    ],
    "failures": []
   },
@@ -1076,8 +1081,8 @@
    "how": "Every control has a name, a valid role and the states it needs.",
    "status": "pass",
    "tests": {
-    "run": 262,
-    "passed": 262,
+    "run": 264,
+    "passed": 264,
     "failed": 0,
     "skipped": 10
    },
@@ -1085,6 +1090,7 @@
     "test_aria_snapshot_unchanged",
     "test_aria_tree_names",
     "test_monitor_flow",
+    "test_paged_history_wcag_rules",
     "test_tabs_follow_arrow_key_pattern",
     "test_wcag_rules_as_loaded",
     "test_wcag_rules_every_tab_panel",
@@ -1101,8 +1107,8 @@
    "how": "Status areas are live regions. Whether each status change is announced is judged by a person.",
    "status": "manual review pending",
    "tests": {
-    "run": 15,
-    "passed": 15,
+    "run": 16,
+    "passed": 16,
     "failed": 0,
     "skipped": 0
    },
@@ -1111,6 +1117,7 @@
     "test_failing_audit_flow",
     "test_kb_flow",
     "test_monitor_flow",
+    "test_show_more_by_keyboard",
     "test_tools_flow"
    ],
    "failures": []

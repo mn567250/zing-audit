@@ -41,39 +41,29 @@
     - tab "Embedding audit" [selected]
     - tab "Rerank audit"
   - tabpanel "Embedding audit":
-    - text: Relay URL base_url
-    - textbox "Relay URL base_url":
-      - /placeholder: https://relay.example.com/v1
+    - text: Relay / provider Optional
+    - combobox "Relay / provider Optional":
+      - option "Select a relay or provider…" [selected]
+      - option "Other (enter the URL)"
+    - text: Selecting one fills in its URL; for any other relay choose “Other” and enter the URL. Relay URL base_url
+    - combobox "Relay URL base_url"
     - text: API key Supports env:VAR / file:/path
     - textbox "API key":
       - /placeholder: sk-... or env:ZING_API_KEY
       - text: env:ZING_API_KEY
     - button "Show key" [pressed]
     - text: Model to request model
-    - combobox "Model to request provider":
-      - option "Select provider…" [selected]
-      - option "Anthropic"
-      - option "DeepSeek"
-      - option "Google"
-      - option "Zhipu AI"
-      - option "Moonshot AI"
-      - option "OpenAI"
-      - option "Alibaba Cloud"
-      - option "Custom (from relay)"
-    - button "Fetch models" [disabled]
-    - status
-    - combobox "Model to request model" [disabled]:
-      - option "Select model…" [selected]
-    - button "Custom input"
+    - textbox "Model to request model":
+      - /placeholder: text-embedding-3-large
+    - button "Refresh models" [disabled]
+    - status: Select a relay or enter its URL, and zing lists its models.
     - text: Claimed model claimed_model Optional
-    - textbox "Claimed model claimed_model Optional":
-      - /placeholder: Empty = same as model to request
+    - combobox "Claimed model claimed_model Optional":
+      - option "Same as the model to request" [selected]
+    - button "Enter manually"
     - text: Only if the relay sells it under another name — zing checks the answers against this model. Claimed dimension claimed_dimensions Optional
     - spinbutton "Claimed dimension claimed_dimensions Optional"
-    - text: Declared provider declared_provider Optional
-    - textbox "Declared provider declared_provider Optional":
-      - /placeholder: e.g. openai / deepseek
-    - text: Helps zing pick the right model profile when the model name alone is ambiguous. Choosing a model from the list fills it in. Protocol
+    - text: Protocol
     - group "Protocol":
       - button "Auto" [pressed]
       - button "OpenAI-compatible"

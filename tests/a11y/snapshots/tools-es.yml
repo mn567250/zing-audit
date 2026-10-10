@@ -41,39 +41,29 @@
     - tab "Auditoría de embeddings" [selected]
     - tab "Auditoría de rerank"
   - tabpanel "Auditoría de embeddings":
-    - text: URL del intermediario base_url
-    - textbox "URL del intermediario base_url":
-      - /placeholder: https://relay.example.com/v1
+    - text: Relay / proveedor Opcional
+    - combobox "Relay / proveedor Opcional":
+      - option "Selecciona un relay o proveedor…" [selected]
+      - option "Otro (introducir la URL)"
+    - text: Al seleccionar uno se rellena su URL; para cualquier otro relay elige «Otro» e introduce la URL. URL del intermediario base_url
+    - combobox "URL del intermediario base_url"
     - text: Clave de API Admite env:VAR / file:/ruta
     - textbox "Clave de API":
       - /placeholder: sk-... o env:ZING_API_KEY
       - text: env:ZING_API_KEY
     - button "Mostrar clave" [pressed]
     - text: Modelo solicitado model
-    - combobox "Modelo solicitado proveedor":
-      - option "Seleccione proveedor…" [selected]
-      - option "Anthropic"
-      - option "DeepSeek"
-      - option "Google"
-      - option "Zhipu AI"
-      - option "Moonshot AI"
-      - option "OpenAI"
-      - option "Alibaba Cloud"
-      - option "Personalizado (desde el relay)"
-    - button "Obtener modelos" [disabled]
-    - status
-    - combobox "Modelo solicitado modelo" [disabled]:
-      - option "Seleccione modelo…" [selected]
-    - button "Entrada personalizada"
+    - textbox "Modelo solicitado model":
+      - /placeholder: text-embedding-3-large
+    - button "Actualizar modelos" [disabled]
+    - status: Selecciona un relay o introduce su URL y zing listará sus modelos.
     - text: Modelo declarado claimed_model Opcional
-    - textbox "Modelo declarado claimed_model Opcional":
-      - /placeholder: Vacío = igual que el modelo solicitado
+    - combobox "Modelo declarado claimed_model Opcional":
+      - option "Igual que el modelo solicitado" [selected]
+    - button "Introducir a mano"
     - text: Solo si el intermediario lo vende con otro nombre — zing contrasta las respuestas con este modelo. Dimensión declarada claimed_dimensions Opcional
     - spinbutton "Dimensión declarada claimed_dimensions Opcional"
-    - text: Proveedor declarado declared_provider Opcional
-    - textbox "Proveedor declarado declared_provider Opcional":
-      - /placeholder: p. ej. openai / deepseek
-    - text: Ayuda a zing a elegir el perfil de modelo correcto cuando el nombre del modelo por sí solo es ambiguo. Elegir un modelo de la lista lo rellena. Protocolo
+    - text: Protocolo
     - group "Protocolo":
       - button "Auto" [pressed]
       - button "Compatible con OpenAI"

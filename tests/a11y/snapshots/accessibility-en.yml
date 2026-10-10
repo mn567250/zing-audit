@@ -42,11 +42,11 @@
     - definition:
       - code: <id>
     - term: zing version
-    - definition: 0.11.0
+    - definition: 0.18.0
     - term: axe-core version
     - definition: 4.13.0
     - term: Tests
-    - definition: 1109 run, 1109 passed, 0 failed, 0 skipped
+    - definition: 1115 run, 1115 passed, 0 failed, 0 skipped
     - term: Languages
     - definition: English, Deutsch, Español, Français, Italiano, Português, 中文
     - term: Themes

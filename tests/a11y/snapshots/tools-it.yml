@@ -41,39 +41,29 @@
     - tab "Verifica embedding" [selected]
     - tab "Verifica rerank"
   - tabpanel "Verifica embedding":
-    - text: URL dell'intermediario base_url
-    - textbox "URL dell'intermediario base_url":
-      - /placeholder: https://relay.example.com/v1
+    - text: Relay / provider Facoltativo
+    - combobox "Relay / provider Facoltativo":
+      - option "Seleziona un relay o un provider…" [selected]
+      - option "Altro (inserisci l'URL)"
+    - text: Selezionandone uno ne viene compilato l'URL; per qualsiasi altro relay scegli «Altro» e inserisci l'URL. URL dell'intermediario base_url
+    - combobox "URL dell'intermediario base_url"
     - text: Chiave API Supporta env:VAR / file:/percorso
     - textbox "Chiave API":
       - /placeholder: sk-... o env:ZING_API_KEY
       - text: env:ZING_API_KEY
     - button "Mostra chiave" [pressed]
     - text: Modello richiesto model
-    - combobox "Modello richiesto fornitore":
-      - option "Seleziona fornitore…" [selected]
-      - option "Anthropic"
-      - option "DeepSeek"
-      - option "Google"
-      - option "Zhipu AI"
-      - option "Moonshot AI"
-      - option "OpenAI"
-      - option "Alibaba Cloud"
-      - option "Personalizzato (dal relay)"
-    - button "Recupera modelli" [disabled]
-    - status
-    - combobox "Modello richiesto modello" [disabled]:
-      - option "Seleziona modello…" [selected]
-    - button "Inserimento libero"
+    - textbox "Modello richiesto model":
+      - /placeholder: text-embedding-3-large
+    - button "Aggiorna modelli" [disabled]
+    - status: Seleziona un relay o inseriscine l'URL e zing ne elenca i modelli.
     - text: Modello dichiarato claimed_model Facoltativo
-    - textbox "Modello dichiarato claimed_model Facoltativo":
-      - /placeholder: Vuoto = come il modello richiesto
+    - combobox "Modello dichiarato claimed_model Facoltativo":
+      - option "Uguale al modello richiesto" [selected]
+    - button "Inserisci a mano"
     - text: Solo se l'intermediario lo vende con un altro nome — zing confronta le risposte con questo modello. Dimensione dichiarata claimed_dimensions Facoltativo
     - spinbutton "Dimensione dichiarata claimed_dimensions Facoltativo"
-    - text: Fornitore dichiarato declared_provider Facoltativo
-    - textbox "Fornitore dichiarato declared_provider Facoltativo":
-      - /placeholder: ad es. openai / deepseek
-    - text: Aiuta zing a scegliere il profilo di modello giusto quando il solo nome del modello è ambiguo. Scegliere un modello dall'elenco lo compila. Protocollo
+    - text: Protocollo
     - group "Protocollo":
       - button "Auto" [pressed]
       - button "Compatibile OpenAI"

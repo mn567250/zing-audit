@@ -51,6 +51,10 @@
   .prov th { white-space: nowrap; overflow-wrap: normal; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--faint); }
   .prov td.num { text-align: right; font-family: var(--mono); white-space: nowrap; }
   @media (max-width: 620px) { .prov .hide-sm { display: none; } }
+  .prov.relay { padding: 14px 16px; }
+  .prov.relay .rl { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-weight: 600; }
+  .prov.relay .cnt { color: var(--ink2); font-weight: 500; font-size: 13px; min-width: 0; }
+  .prov.relay .hint { margin: 6px 0 0; }
   .filter { max-width: 360px; }
   #list-title:focus, #all-title:focus { outline: none; }
   /* the empty-state live region stays in the DOM (a region created with its message is not announced) */
@@ -435,7 +439,7 @@
     var s = st(e.id);
     var what = e.kind === "model"
       ? T("模型", "Model") + " <code>" + esc(e.provider + "/" + e.model_id) + "</code>"
-      : T("厂商数据", "Provider data") + " <code>" + esc(e.provider) + "</code>";
+      : (e.origin === "relay" ? T("中转站", "Relay") : T("厂商数据", "Provider data")) + " <code>" + esc(e.provider) + "</code>";
     var aside = Tf("更新于 {when}", "updated {when}", { when: fmtTime(e.updated_ts) }) + (e.origin ? " · " + e.origin : "");
     var actions = s.confirm
       ? '<span class="ask">' + esc(T("删除这个条目？", "Delete this entry?")) + "</span>" +
@@ -486,6 +490,17 @@
     var q = $("filter").value.trim().toLowerCase();
     var total = 0;
     var html = (data.providers || []).map(function (p) {
+      // a relay saved on the Audit or Tools page: a name and a base URL, no models
+      if (!(p.models || []).length) {
+        var urls = p.base_url_hints || [];
+        if (q && [p.provider, p.display_name].concat(urls).join(" ").toLowerCase().indexOf(q) < 0) return "";
+        return (
+          '<div class="card prov relay"><div class="rl">' + ZING_LANG.markCJK(p.display_name || p.provider) +
+          " <code>" + esc(p.provider) + "</code> " + sourceBadge(p.source) + ' <span class="badge sky">' + esc(T("中转站", "Relay")) + "</span>" +
+          (urls.length ? ' <span class="cnt"><code>' + esc(urls[0]) + "</code></span>" : "") + "</div>" +
+          '<p class="hint">' + esc(T("已保存的中转站：在检测和工具页面会自动填写其地址。", "Saved relay: the base URL is filled in on the Audit and Tools pages.")) + "</p></div>"
+        );
+      }
       var models = (p.models || []).filter(function (m) {
         if (!q) return true;
         var hay = [p.provider, p.display_name, m.id].concat(m.aliases || []).join(" ").toLowerCase();

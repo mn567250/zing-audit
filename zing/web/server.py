@@ -6,6 +6,8 @@ Endpoints:
                              ?ui=v1|v2 on any page picks one (remembered in the
                              `zing_ui` cookie)
   GET  /api/health           {ok, version}
+  GET  /api/kb               providers (base URLs, saved relays) and their models
+  POST /api/kb/relays        save a relay {name, base_url} in kb.db
   GET  /api/kb/profiles      the merged knowledge base with sources + your kb.db entries
   GET  /api/kb/prompt        research prompt for an external AI (?model=&provider=)
   POST /api/kb/scan          check uploaded profile YAML (writes nothing)
@@ -716,17 +718,43 @@ def create_app() -> FastAPI:
         # the CLI `kb --json` command uses: providers sorted, each with its models.
         from zing.knowledge import load_knowledge_base
 
+        # base_urls: the usable base URLs from the provider's hints (the relay
+        # configuration fills the first one in); relay: a relay the user saved
+        # (or any provider without models); kind: chat or embedding model.
+        from zing.knowledge.relays import base_urls, is_relay
+
         knowledge = load_knowledge_base()
         provs = sorted(knowledge.providers.values(), key=lambda p: p.provider)
-        providers = [
-            {
+        providers = []
+        for prov in provs:
+            entry = knowledge.entries.get(f"provider:{prov.provider}")
+            providers.append({
                 "provider": prov.provider,
                 "display_name": prov.display_name,
-                "models": [{"id": m.id, "aliases": list(m.aliases)} for m in prov.models],
-            }
-            for prov in provs
-        ]
+                "base_urls": base_urls(prov),
+                "relay": is_relay(prov, entry),
+                "entry_id": (entry or {}).get("id"),
+                "models": [
+                    {"id": m.id, "aliases": list(m.aliases),
+                     "kind": "embedding" if m.embedding_dimensions else "chat"}
+                    for m in prov.models
+                ],
+            })
         return JSONResponse({"providers": providers})
+
+    @app.post("/api/kb/relays")
+    async def kb_add_relay(request: Request) -> Any:
+        # Save a relay (name + base URL) as a provider entry in kb.db.
+        from zing.knowledge.relays import RelayError, add_relay
+
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"error": "expected a JSON object"}, status_code=400)
+        try:
+            saved = await asyncio.to_thread(add_relay, str(body.get("name") or ""), str(body.get("base_url") or ""))
+        except RelayError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=exc.status)
+        return JSONResponse(saved, status_code=201)
 
     # ----- Knowledge base: browse, research prompt, import/export -------- #
     @app.get("/api/kb/profiles")

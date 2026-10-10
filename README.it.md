@@ -213,11 +213,30 @@ pip install 'zing-audit[web]'     # oppure: uv tool install 'zing-audit[web]'
 zing serve                        # apre http://localhost:8000
 ```
 
-Inserisci l'**URL dell'intermediario**, la **Chiave API** e il modello;
-facoltativamente un **Modello dichiarato** (se il relay lo vende con un altro
-nome), un **Fornitore dichiarato** e un riferimento affidabile (**Confronta con
-un riferimento affidabile**). **Recupera modelli** elenca ciò che il relay
-pubblicizza, e sceglierne uno compila il modello e il suo fornitore. Poi **Avvia
+Nella nuova interfaccia il modulo guida la configurazione:
+
+1. Scegli il **Relay / provider**: un provider della base di conoscenza o un
+   relay che hai salvato. Il suo URL di base viene compilato (gli altri URL noti
+   del provider sono offerti come suggerimenti). Per qualsiasi altro relay
+   scegli **Altro (inserisci l'URL)** e inserisci l'**URL dell'intermediario**.
+2. Aggiungi la **Chiave API** se il relay ne richiede una.
+3. zing elenca da solo i modelli del relay (alla scelta di un relay e ogni volta
+   che cambiano URL o chiave; **Aggiorna modelli** chiede di nuovo). Scegli il
+   **Modello richiesto**. Un relay senza elenco di modelli ripiega
+   sull'inserimento dell'id (**Inserisci a mano**).
+4. Facoltativamente scegli il **Modello dichiarato** tra i modelli della base di
+   conoscenza: il modello che il relay dice di servire. Se il modello richiesto
+   è nella base di conoscenza viene preselezionato; cambialo solo se il relay
+   vende il modello con un altro nome. Da esso deriva il profilo del provider
+   usato per la verifica.
+
+Un relay non ancora in elenco si può conservare con **Salva nella base** con un
+nome a tua scelta; la volta successiva basta sceglierlo. Il riferimento
+affidabile (**Confronta con un riferimento affidabile**) e la pagina
+**Strumenti** si configurano allo stesso modo. L'interfaccia classica mantiene i
+campi semplici con **Recupera modelli**.
+
+Poi **Avvia
 verifica** e segui i controlli **in tempo reale**: ogni controllo mostra il suo
 punteggio e quanto è durato, e un controllo con rilevazioni si espande per
 mostrare le prove. Il risultato è un rapporto con il verdetto da condividere:
@@ -243,7 +262,7 @@ nuova interfaccia** passa alla **nuova interfaccia** sotto `/v2/`, il cui link
 | **Strumenti** | `/tools` | `/v2/tools` | Verifiche di embedding e rerank |
 | **Cronologia** | `/history` | `/v2/history` | Ogni verifica eseguita su questa macchina, raggruppata per relay + modello dichiarato, con tendenze |
 | **Monitor** | `/watches` | `/v2/watches` | Verifiche ripetute pianificate con avvisi via webhook |
-| **Modelli** | — | `/v2/kb` | Sfogliare la base di conoscenza e aggiungere i tuoi profili di modello |
+| **Modelli** | — | `/v2/kb` | Sfogliare la base di conoscenza, aggiungere i tuoi profili di modello e vedere i relay salvati |
 
 La nuova interfaccia aggiunge: filtri e tendenze configurabili (punteggio, voto,
 latenza p50, token/s) nella **Cronologia**; **Pianifica come monitor** e **Riesegui audit** su ogni
@@ -630,6 +649,9 @@ coprono OpenAI, Anthropic, Google Gemini, DeepSeek, Qwen, GLM e Moonshot
      i profili** elenca ogni profilo con la sua origine; **Quale profilo usa un ID
      di modello?** mostra come si risolve un id; **Le tue voci** si possono
      esportare in YAML;
+   - nelle pagine **Verifica** e **Strumenti** dell'interfaccia web: **Salva
+     nella base** conserva nome e URL di base di un relay (una voce di provider
+     senza modelli), mostrato in **Modelli** con il badge **Relay**;
    - da riga di comando: `zing kb-prompt <model>`, `zing kb-import <file>`
      (aggiungi `--check` per limitarti a verificarlo) e `zing kb-export`.
 

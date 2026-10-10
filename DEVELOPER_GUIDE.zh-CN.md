@@ -178,6 +178,10 @@ Dockerfile             Web 界面镜像
 生成供外部助手使用的调研提示词（`research.py`），并为一次运行所用的画像拍快照（`snapshot.py`）。
 模型 id 通过别名和声明的厂商解析；每份报告都会记录 id 是如何匹配的。
 
+中转站也是端点：`relays.py` 把厂商的 `base_url_hints` 转换为可用的基础地址（`GET /api/kb` →
+`base_urls`），并把 Web 界面中保存的中转站作为厂商条目写入 `kb.db`（`origin = relay`：一个
+`display_name` 和一个基础地址，不含模型；无需修改结构）。
+
 ### 提示词库
 
 zing 发给 LLM API 的每一段文本——对话探测、裁判提示词、工具 schema、embedding / rerank /
@@ -213,6 +217,7 @@ Embedding/rerank（`embed_audit.py`）和图像/音频（`media_audit.py`）不�
 - **API。** `/api/audit/stream` 运行检测并通过 SSE 推送事件；`/api/models` 列出中转站的模型；
   `/api/report/export` 渲染报告；`/api/history…`、`/api/watches…`、`/api/kb…`、`/api/embed`
   和 `/api/rerank` 为其他页面提供服务。
+- **中转站。** `POST /api/kb/relays` 保存中转站 `{name, base_url}`（输入无效时返回 400，名称或地址已存在时返回 409）。
 - **后台检测。** `jobs.py` 把每次检测作为服务器拥有的任务运行。`POST /api/jobs` 排入一个任务，
   `GET /api/jobs` 列出排队中、运行中和刚结束的任务（以及运行中的监控）及其进度，
   `GET /api/jobs/{id}/events` 先回放任务的事件日志，再通过 SSE 实时跟随，
@@ -235,6 +240,11 @@ Embedding/rerank（`embed_audit.py`）和图像/音频（`media_audit.py`）不�
 `perf.css`）。共用脚本从根路径提供：`lang.js`（语言切换）、`locales.js`（翻译数据）、
 `i18n.js`（发现的翻译）、`icons.js`、`modelpicker.js`（**获取模型列表**）、`secretfield.js`
 和 `perf.js`（性能图表）。
+
+v2 的**检测**和**工具**页面用 `v2/relaycfg.js` 配置中转站：选择中转站/厂商 → 基础地址 → 中转站的模型
+（`/api/models`，在改变时获取，按地址/密钥/协议缓存）→ 从知识库选择声称的模型（`/api/kb/resolve`
+预选）→ 推导出声明的厂商，另有**保存到知识库**（`POST /api/kb/relays`）。其纯函数在 node 下测试；
+经典页面继续使用 `modelpicker.js`。
 
 **翻译约定。** 写在 HTML 中的中文是原文，保持不动；每个元素在 `data-en`（以及
 `data-en-placeholder`、`data-en-title`、`data-en-aria-label`）中携带英文文本。英文文本是
@@ -347,7 +357,7 @@ pytest -n auto               # 并行运行，每个 CPU 一个 worker（pytest-
 - Anthropic 与 Responses 客户端有各自的测试（`test_anthropic.py`、`test_responses.py`）；
   Web 服务通过 FastAPI 的测试客户端测试（`test_web*.py`），包括仅限本地的防护
   （`test_web_security.py`）。
-- 浏览器脚本（`lang.js`、`modelpicker.js`、`perf.js`、`secretfield.js`、`v2/report.js`、
+- 浏览器脚本（`lang.js`、`modelpicker.js`、`v2/relaycfg.js`、`perf.js`、`secretfield.js`、`v2/report.js`、
   翻译数据）在 `test_web_*_js.py` 和 `test_web_locales.py` 中由 `node` 执行；没有 Node.js 时跳过。
 - 任何测试都不得访问网络。
 

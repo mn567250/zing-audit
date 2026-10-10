@@ -37,38 +37,28 @@
     - listitem: Report
   - region "Is this relay serving the real thing?":
     - heading "Is this relay serving the real thing?" [level=1]
-    - paragraph: Enter the relay's address and the model it claims to serve. zing runs a full black-box test suite on your machine and produces a readable, evidence-backed verification report.
-    - text: Relay URL base_url
-    - textbox "Relay URL base_url":
-      - /placeholder: https://relay.example.com/v1
+    - paragraph: Choose the relay, pick the model to audit and, if it is sold under another name, the model it claims to be. zing runs a full black-box test suite on your machine and produces a readable, evidence-backed verification report.
+    - text: Relay / provider Optional
+    - combobox "Relay / provider Optional":
+      - option "Select a relay or provider…" [selected]
+      - option "Other (enter the URL)"
+    - text: Selecting one fills in its URL; for any other relay choose “Other” and enter the URL. Relay URL base_url
+    - combobox "Relay URL base_url"
     - text: API key Supports env:VAR / file:/path
     - textbox "API key":
       - /placeholder: sk-... or env:ZING_API_KEY
       - text: env:ZING_API_KEY
     - button "Show key" [pressed]
     - text: Model to request model
-    - combobox "Model to request provider":
-      - option "Select provider…" [selected]
-      - option "Anthropic"
-      - option "DeepSeek"
-      - option "Google"
-      - option "Zhipu AI"
-      - option "Moonshot AI"
-      - option "OpenAI"
-      - option "Alibaba Cloud"
-      - option "Custom (from relay)"
-    - button "Fetch models" [disabled]
-    - status
-    - combobox "Model to request model" [disabled]:
-      - option "Select model…" [selected]
-    - button "Custom input"
+    - textbox "Model to request model":
+      - /placeholder: deepseek-chat
+    - button "Refresh models" [disabled]
+    - status: Select a relay or enter its URL, and zing lists its models.
     - text: Claimed model claimed_model Optional
-    - textbox "Claimed model claimed_model Optional":
-      - /placeholder: Empty = same as model to request
-    - text: Only if the relay sells it under another name — zing checks the answers against this model. Declared provider declared_provider Optional
-    - textbox "Declared provider declared_provider Optional":
-      - /placeholder: e.g. openai / deepseek
-    - text: Helps zing pick the right model profile when the model name alone is ambiguous. Choosing a model from the list fills it in. Protocol
+    - combobox "Claimed model claimed_model Optional":
+      - option "Same as the model to request" [selected]
+    - button "Enter manually"
+    - text: Only if the relay sells it under another name — zing checks the answers against this model. Protocol
     - group "Protocol":
       - button "Auto" [pressed]
       - button "OpenAI"
@@ -88,29 +78,21 @@
     - text: On standard the probe runs only with a baseline; otherwise the audit's own requests are used.
     - button "Compare against a trusted baseline compare" [expanded]
     - paragraph: Enter an endpoint for the same model that you trust (e.g. the official API). zing uses it to corroborate the target's behavior, making substitution/downgrade verdicts more reliable — the quality judge and tamper detection only reach their highest level with a baseline.
-    - text: Baseline URL base_url
-    - textbox "Baseline URL base_url":
-      - /placeholder: https://api.openai.com/v1
+    - text: Relay / provider Optional
+    - combobox "Relay / provider Optional":
+      - option "Select a relay or provider…" [selected]
+      - option "Other (enter the URL)"
+    - text: Selecting one fills in its URL; for any other relay choose “Other” and enter the URL. Baseline URL base_url
+    - combobox "Baseline URL base_url"
     - text: Baseline API key
     - textbox "Baseline API key":
       - /placeholder: sk-... or env:OPENAI_API_KEY
     - button "Show key"
     - text: Baseline model model
-    - combobox "Baseline model provider":
-      - option "Select provider…" [selected]
-      - option "Anthropic"
-      - option "DeepSeek"
-      - option "Google"
-      - option "Zhipu AI"
-      - option "Moonshot AI"
-      - option "OpenAI"
-      - option "Alibaba Cloud"
-      - option "Custom (from relay)"
-    - button "Fetch models" [disabled]
-    - status
-    - combobox "Baseline model model" [disabled]:
-      - option "Select model…" [selected]
-    - button "Custom input"
+    - textbox "Baseline model model":
+      - /placeholder: Official id of the same model
+    - button "Refresh models" [disabled]
+    - status: Select a relay or enter its URL, and zing lists its models.
     - text: Baseline protocol
     - group "Baseline protocol":
       - button "Auto" [pressed]

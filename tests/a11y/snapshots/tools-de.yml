@@ -41,39 +41,29 @@
     - tab "Embedding-Prüfung" [selected]
     - tab "Rerank-Prüfung"
   - tabpanel "Embedding-Prüfung":
-    - text: Relay-URL base_url
-    - textbox "Relay-URL base_url":
-      - /placeholder: https://relay.example.com/v1
+    - text: Relay / Anbieter Optional
+    - combobox "Relay / Anbieter Optional":
+      - option "Relay oder Anbieter wählen…" [selected]
+      - option "Andere (URL eingeben)"
+    - text: Die Auswahl füllt die URL aus; für jedes andere Relay wähle „Andere“ und gib die URL ein. Relay-URL base_url
+    - combobox "Relay-URL base_url"
     - text: API-Schlüssel Unterstützt env:VAR / file:/pfad
     - textbox "API-Schlüssel":
       - /placeholder: sk-... oder env:ZING_API_KEY
       - text: env:ZING_API_KEY
     - button "Schlüssel anzeigen" [pressed]
     - text: Angefragtes Modell model
-    - combobox "Angefragtes Modell Anbieter":
-      - option "Anbieter wählen…" [selected]
-      - option "Anthropic"
-      - option "DeepSeek"
-      - option "Google"
-      - option "Zhipu AI"
-      - option "Moonshot AI"
-      - option "OpenAI"
-      - option "Alibaba Cloud"
-      - option "Benutzerdefiniert (vom Relay)"
-    - button "Modelle abrufen" [disabled]
-    - status
-    - combobox "Angefragtes Modell Modell" [disabled]:
-      - option "Modell wählen…" [selected]
-    - button "Freie Eingabe"
+    - textbox "Angefragtes Modell model":
+      - /placeholder: text-embedding-3-large
+    - button "Modelle neu laden" [disabled]
+    - status: Wähle ein Relay oder gib seine URL ein, dann listet zing seine Modelle auf.
     - text: Angegebenes Modell claimed_model Optional
-    - textbox "Angegebenes Modell claimed_model Optional":
-      - /placeholder: Leer = wie angefragtes Modell
+    - combobox "Angegebenes Modell claimed_model Optional":
+      - option "Wie das angefragte Modell" [selected]
+    - button "Manuell eingeben"
     - text: Nur wenn das Relay es unter anderem Namen verkauft — zing prüft die Antworten gegen dieses Modell. Angegebene Dimension claimed_dimensions Optional
     - spinbutton "Angegebene Dimension claimed_dimensions Optional"
-    - text: Angegebener Anbieter declared_provider Optional
-    - textbox "Angegebener Anbieter declared_provider Optional":
-      - /placeholder: z. B. openai / deepseek
-    - text: Hilft zing, das richtige Modellprofil zu wählen, wenn der Modellname allein nicht eindeutig ist. Die Auswahl eines Modells aus der Liste füllt es aus. Protokoll
+    - text: Protokoll
     - group "Protokoll":
       - button "Auto" [pressed]
       - button "OpenAI-kompatibel"

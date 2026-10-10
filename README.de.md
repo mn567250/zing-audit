@@ -215,11 +215,31 @@ pip install 'zing-audit[web]'     # oder: uv tool install 'zing-audit[web]'
 zing serve                        # öffnet http://localhost:8000
 ```
 
-Geben Sie **Relay-URL**, **API-Schlüssel** und Modell ein; optional
-**Angegebenes Modell** (wenn das Relay es unter anderem Namen verkauft),
-**Angegebener Anbieter** und eine vertrauenswürdige Referenz (**Mit
-vertrauenswürdiger Referenz vergleichen**). **Modelle abrufen** listet, was das
-Relay bewirbt; die Auswahl eines Modells füllt Modell und Anbieter aus. Dann
+In der neuen Oberfläche führt das Formular durch die Konfiguration:
+
+1. Wählen Sie **Relay / Anbieter**: einen Anbieter der Wissensbasis oder ein von
+   Ihnen gespeichertes Relay. Seine Basis-URL wird ausgefüllt (weitere bekannte
+   URLs des Anbieters werden als Vorschläge angeboten). Für jedes andere Relay
+   wählen Sie **Andere (URL eingeben)** und geben die **Relay-URL** ein.
+2. Ergänzen Sie den **API-Schlüssel**, falls das Relay einen braucht.
+3. zing listet die Modelle des Relays selbst auf (bei der Auswahl eines Relays
+   und immer, wenn sich URL oder Schlüssel ändern; **Modelle neu laden** fragt
+   erneut). Wählen Sie das **Angefragte Modell**. Ein Relay ohne Modellliste
+   fällt auf die Eingabe der ID zurück (**Manuell eingeben**).
+4. Wählen Sie optional das **Angegebene Modell** aus den Modellen der
+   Wissensbasis: das Modell, das das Relay zu liefern behauptet. Ist das
+   angefragte Modell in der Wissensbasis, ist es vorausgewählt; ändern Sie es
+   nur, wenn das Relay das Modell unter anderem Namen verkauft. Das
+   Anbieterprofil, gegen das zing prüft, ergibt sich daraus.
+
+Ein Relay, das noch nicht in der Liste steht, lässt sich mit **In der
+Wissensbasis speichern** unter einem Namen Ihrer Wahl behalten; beim nächsten Mal
+ist es eine Auswahl entfernt. Die vertrauenswürdige Referenz (**Mit
+vertrauenswürdiger Referenz vergleichen**) und die Seite **Werkzeuge** werden
+genauso konfiguriert. Die klassische Oberfläche behält die einfachen Felder mit
+**Modelle abrufen**.
+
+Dann
 **Prüfung starten** und die Prüfungen **live** verfolgen: jede Prüfung zeigt ihre
 Bewertung und Dauer, und eine Prüfung mit Befunden klappt auf und zeigt die
 Belege. Das Ergebnis ist ein teilbarer Urteilsbericht: Note, die **Prüfungen je
@@ -245,7 +265,7 @@ Oberfläche** zurückführt. Die Wahl wird pro Browser gespeichert.
 | **Werkzeuge** | `/tools` | `/v2/tools` | Embedding- und Rerank-Prüfungen |
 | **Verlauf** | `/history` | `/v2/history` | Jede Prüfung auf diesem Rechner, gruppiert nach Relay + angegebenem Modell, mit Trends |
 | **Überwachung** | `/watches` | `/v2/watches` | Geplante Wiederholungsprüfungen mit Webhook-Warnungen |
-| **Modelle** | — | `/v2/kb` | Die Wissensbasis durchsuchen und eigene Modellprofile hinzufügen |
+| **Modelle** | — | `/v2/kb` | Die Wissensbasis durchsuchen, eigene Modellprofile hinzufügen und gespeicherte Relays sehen |
 
 Die neue Oberfläche bietet zusätzlich: Filter und konfigurierbare Trends
 (Bewertung, Note, Latenz p50, Token/s) im **Verlauf**; **Als Überwachung
@@ -641,6 +661,10 @@ ab (`zing kb` listet sie). Es gibt drei Ebenen; spätere haben Vorrang:
      **Prüfen und speichern**. **Alle Profile** listet jedes Profil mit seiner
      Quelle; **Welches Profil verwendet eine Modell-ID?** zeigt, wie eine ID
      aufgelöst wird; **Deine Einträge** lassen sich als YAML exportieren;
+   - auf den Seiten **Prüfung** und **Werkzeuge** der Weboberfläche: **In der
+     Wissensbasis speichern** behält Namen und Basis-URL eines Relays (ein
+     Anbieter-Eintrag ohne Modelle), auf **Modelle** mit dem Abzeichen **Relay**
+     angezeigt;
    - auf der Kommandozeile: `zing kb-prompt <model>`, `zing kb-import <file>`
      (mit `--check` nur prüfen) und `zing kb-export`.
 

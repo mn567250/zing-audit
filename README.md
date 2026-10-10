@@ -208,10 +208,27 @@ pip install 'zing-audit[web]'     # or: uv tool install 'zing-audit[web]'
 zing serve                        # opens http://localhost:8000
 ```
 
-Enter the **Relay URL**, the **API key** and the model; optionally a **Claimed
-model** (if the relay sells it under another name), a **Declared provider** and a
-trusted baseline (**Compare against a trusted baseline**). **Fetch models** lists
-what the relay advertises, and picking one fills in the model and its provider.
+In the new UI the form guides you through the configuration:
+
+1. Choose the **Relay / provider**: a provider of the knowledge base or a relay
+   you saved. Its base URL is filled in (other known URLs of the provider are
+   offered as suggestions). For any other relay choose **Other** and enter the
+   **Relay URL**.
+2. Add the **API key** if the relay needs one.
+3. zing lists the relay's models on its own (when you pick a relay and whenever
+   the URL or key changes; **Refresh models** asks again). Pick the **Model to
+   request**. A relay without a model list falls back to typing the id
+   (**Enter manually**).
+4. Optionally pick the **Claimed model** from the knowledge base's models: the
+   model the relay says it serves. When the requested model is in the knowledge
+   base it is preselected; change it only if the relay sells the model under
+   another name. The provider profile zing audits against follows from it.
+
+A relay that is not in the list yet can be kept with **Save to knowledge base**
+under a name you give it; next time it is one pick away. The trusted baseline
+(**Compare against a trusted baseline**) and the **Tools** page are configured
+the same way. The classic UI keeps the plain fields with **Fetch models**.
+
 Then **Start audit** and watch the checks run **live**: every check shows its
 score and how long it took, and a check with findings expands to show the
 evidence. The result is a shareable verdict report: grade, the per-dimension
@@ -236,7 +253,7 @@ choice is remembered per browser.
 | **Tools** | `/tools` | `/v2/tools` | Embedding and rerank audits |
 | **History** | `/history` | `/v2/history` | Every audit run on this machine, grouped by relay + claimed model, with trends |
 | **Monitors** | `/watches` | `/v2/watches` | Scheduled re-audits with webhook alerts |
-| **Models** | — | `/v2/kb` | Browse the knowledge base and add your own model profiles |
+| **Models** | — | `/v2/kb` | Browse the knowledge base, add your own model profiles and see your saved relays |
 
 The new UI adds: filters and configurable trends (score, grade, latency p50,
 tokens/s) on **History**; **Schedule as monitor** and **Re-run audit** on every History run; **Download
@@ -601,6 +618,9 @@ OpenAI, Anthropic, Google Gemini, DeepSeek, Qwen, GLM and Moonshot
      YAML it answers with, then **Check and save**. **All profiles** lists every
      profile with its source; **Which profile does a model id use?** shows how an
      id resolves; **Your entries** can be exported as YAML;
+   - on the web UI's **Audit** and **Tools** pages: **Save to knowledge base**
+     keeps a relay's name and base URL (a provider entry without models), shown
+     on **Models** with a **Relay** badge;
    - on the CLI: `zing kb-prompt <model>`, `zing kb-import <file>` (add `--check`
      to only check it) and `zing kb-export`.
 

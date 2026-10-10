@@ -217,6 +217,12 @@ YAML (`importer.py`), erzeugt den Recherche-Prompt für externe Assistenten
 verwendet hat (`snapshot.py`). Modell-IDs werden über Aliasse und den angegebenen
 Anbieter aufgelöst; jeder Bericht vermerkt, wie die ID zugeordnet wurde.
 
+Relays sind ebenfalls Endpunkte: `relays.py` macht aus den `base_url_hints`
+eines Anbieters verwendbare Basis-URLs (`GET /api/kb` → `base_urls`) und speichert
+ein Relay aus der Weboberfläche als Anbieter-Eintrag in `kb.db` (`origin =
+relay`: ein `display_name` und eine Basis-URL, keine Modelle; keine
+Schemaänderung).
+
 ### Prompt-Bibliothek
 
 Jeder Text, den zing an eine LLM-API sendet — Chat-Tests, der Prompt des
@@ -267,6 +273,8 @@ Standardbibliothek.
   per SSE; `/api/models` listet die Modelle eines Relays; `/api/report/export`
   rendert einen Bericht; `/api/history…`, `/api/watches…`, `/api/kb…`,
   `/api/embed` und `/api/rerank` bedienen die übrigen Seiten.
+- **Relays.** `POST /api/kb/relays` speichert ein Relay `{name, base_url}` (400
+  bei ungültiger Eingabe, 409, wenn Name oder URL schon bekannt sind).
 - **Prüfungen im Hintergrund.** `jobs.py` führt jede Prüfung als Auftrag des
   Servers aus. `POST /api/jobs` stellt einen ein, `GET /api/jobs` listet
   wartende, laufende und kürzlich beendete Aufträge (und laufende
@@ -301,6 +309,14 @@ von der Wurzel ausgeliefert: `lang.js` (Sprachwahl), `locales.js`
 (Übersetzungsdaten), `i18n.js` (Übersetzung der Befunde), `icons.js`,
 `modelpicker.js` (**Modelle abrufen**), `secretfield.js` und `perf.js`
 (Leistungsdiagramme).
+
+Die v2-Seiten **Prüfung** und **Werkzeuge** konfigurieren Relays mit
+`v2/relaycfg.js`: Auswahl Relay/Anbieter → Basis-URL → die Modelle des Relays
+(`/api/models`, bei Änderung, zwischengespeichert pro URL/Schlüssel/Protokoll) →
+angegebenes Modell aus der Wissensbasis (`/api/kb/resolve` wählt es vor) →
+abgeleiteter Anbieter, dazu **In der Wissensbasis speichern** (`POST
+/api/kb/relays`). Seine reinen Hilfsfunktionen werden unter node getestet; die
+klassischen Seiten behalten `modelpicker.js`.
 
 **Übersetzungskonvention.** Der chinesische Text im HTML ist das Original und
 bleibt unverändert; jedes Element trägt seinen englischen Text in `data-en` (und
@@ -452,7 +468,7 @@ pytest -n auto               # parallel, ein Worker pro CPU (pytest-xdist)
   `test_responses.py`); der Webserver wird über den Testclient von FastAPI
   getestet (`test_web*.py`), einschließlich der Schutzmaßnahmen für den lokalen
   Betrieb (`test_web_security.py`).
-- Die Browser-Skripte (`lang.js`, `modelpicker.js`, `perf.js`,
+- Die Browser-Skripte (`lang.js`, `modelpicker.js`, `v2/relaycfg.js`, `perf.js`,
   `secretfield.js`, `v2/report.js`, die Übersetzungen) werden in
   `test_web_*_js.py` und `test_web_locales.py` unter `node` ausgeführt; ohne
   Node.js werden sie übersprungen.

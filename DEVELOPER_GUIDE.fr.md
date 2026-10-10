@@ -219,6 +219,12 @@ une exécution (`snapshot.py`). Les identifiants de modèle se résolvent via le
 alias et le fournisseur déclaré ; chaque rapport consigne comment l'id a été
 résolu.
 
+Les relais sont aussi des points d'accès : `relays.py` transforme les
+`base_url_hints` d'un fournisseur en URL de base utilisables (`GET /api/kb` →
+`base_urls`) et enregistre un relais depuis l'interface web comme entrée de
+fournisseur dans `kb.db` (`origin = relay` : un `display_name` et une URL de base,
+sans modèles ; aucun changement de schéma).
+
 ### Bibliothèque de prompts
 
 Tout texte que zing envoie à une API de LLM — sondes de chat, prompt du juge,
@@ -268,6 +274,8 @@ que la bibliothèque standard.
   `/api/models` liste les modèles d'un relais ; `/api/report/export` rend un
   rapport ; `/api/history…`, `/api/watches…`, `/api/kb…`, `/api/embed` et
   `/api/rerank` servent les autres pages.
+- **Relais.** `POST /api/kb/relays` enregistre un relais `{name, base_url}` (400
+  pour une saisie invalide, 409 si le nom ou l'URL est déjà connu).
 - **Audits en arrière-plan.** `jobs.py` exécute chaque audit comme une tâche
   du serveur. `POST /api/jobs` en met une en file, `GET /api/jobs` liste les
   tâches en attente, en cours et récemment terminées (et les surveillances en
@@ -301,6 +309,14 @@ servis depuis la racine : `lang.js` (choix de la langue), `locales.js` (données
 de traduction), `i18n.js` (traduction des constats), `icons.js`,
 `modelpicker.js` (**Récupérer les modèles**), `secretfield.js` et `perf.js`
 (graphiques de performance).
+
+Les pages v2 **Audit** et **Outils** configurent les relais avec
+`v2/relaycfg.js` : choix du relais/fournisseur → URL de base → les modèles du
+relais (`/api/models`, au changement, mis en cache par URL/clé/protocole) → modèle
+annoncé depuis la base de connaissances (`/api/kb/resolve` le présélectionne) →
+fournisseur déduit, plus **Enregistrer dans la base** (`POST /api/kb/relays`). Ses
+fonctions pures sont testées sous node ; les pages classiques gardent
+`modelpicker.js`.
 
 **Convention de traduction.** Le texte chinois écrit dans le HTML est l'original
 et reste intact ; chaque élément porte son texte anglais dans `data-en` (et
@@ -453,7 +469,7 @@ pytest -n auto               # en parallèle, un worker par CPU (pytest-xdist)
   (`test_anthropic.py`, `test_responses.py`) ; le serveur web est testé via le
   client de test de FastAPI (`test_web*.py`), y compris les protections
   locales (`test_web_security.py`).
-- Les scripts du navigateur (`lang.js`, `modelpicker.js`, `perf.js`,
+- Les scripts du navigateur (`lang.js`, `modelpicker.js`, `v2/relaycfg.js`, `perf.js`,
   `secretfield.js`, `v2/report.js`, les traductions) sont évalués sous `node`
   dans `test_web_*_js.py` et `test_web_locales.py` ; ils sont ignorés sans
   Node.js.

@@ -121,3 +121,15 @@
 /* field-level error message, linked to its field with aria-describedby (BITV 9.3.3.1) */
 .ferr { margin: 6px 0 0; font-size: 12.5px; font-weight: 600; color: var(--bad); line-height: 1.45; }
 .ferr[hidden] { display: none; }
+
+/* ---------- relay configuration (/v2/static/relaycfg.js) ---------- */
+/* the select / text input pairs reuse the model picker's .zmp styles */
+.rc-choice [hidden], .rc-save [hidden], .rc-save[hidden] { display: none; }
+.rc-match { margin: 6px 0 0; overflow-wrap: anywhere; }
+.rc-match:empty { display: none; }
+/* "Save to knowledge base" under the URL field */
+.rc-save { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rc-save-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rc-save-body .lab { margin: 0; }
+.rc-save-row { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; min-width: 0; }
+.rc-save-row .in { flex: 1 1 200px; min-width: 0; }

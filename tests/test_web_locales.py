@@ -356,9 +356,10 @@ def _source_strings(path: Path) -> set[str]:
 
 
 @pytest.mark.parametrize(
-    "page", ["v2/masterkey.js", "v2/watches.html", "watches.html"]
+    "page",
+    ["v2/masterkey.js", "v2/watches.html", "watches.html", "v2/relaycfg.js", "v2/index.html", "v2/tools.html", "v2/kb.html"],
 )
-def test_monitor_and_master_key_strings_are_translatable(page):
+def test_page_strings_are_translatable(page):
     # Every English text these pages show must be a key of the merged `en`
     # strings; test_every_ui_language_is_complete then requires all languages
     # to translate it, so a new string cannot silently stay English.

@@ -214,11 +214,31 @@ pip install 'zing-audit[web]'     # ou : uv tool install 'zing-audit[web]'
 zing serve                        # ouvre http://localhost:8000
 ```
 
-Saisissez l'**URL du relais**, la **Clé API** et le modèle ; en option un
-**Modèle annoncé** (si le relais le vend sous un autre nom), un **Fournisseur
-déclaré** et une référence de confiance (**Comparer à une référence de
-confiance**). **Récupérer les modèles** liste ce que le relais annonce, et le
-choix d'un modèle remplit le modèle et son fournisseur. Puis **Lancer l'audit**
+Dans la nouvelle interface, le formulaire guide la configuration :
+
+1. Choisissez le **Relais / fournisseur** : un fournisseur de la base de
+   connaissances ou un relais que vous avez enregistré. Son URL de base est
+   remplie (les autres URL connues du fournisseur sont proposées en
+   suggestions). Pour tout autre relais, choisissez **Autre (saisir l'URL)** et
+   saisissez l'**URL du relais**.
+2. Ajoutez la **Clé API** si le relais en demande une.
+3. zing liste lui-même les modèles du relais (au choix d'un relais et à chaque
+   changement d'URL ou de clé ; **Actualiser les modèles** redemande). Choisissez
+   le **Modèle demandé**. Un relais sans liste de modèles revient à la saisie de
+   l'identifiant (**Saisir manuellement**).
+4. Choisissez en option le **Modèle annoncé** parmi les modèles de la base de
+   connaissances : le modèle que le relais dit servir. Si le modèle demandé est
+   dans la base, il est présélectionné ; ne le changez que si le relais vend le
+   modèle sous un autre nom. Le profil de fournisseur utilisé pour l'audit en
+   découle.
+
+Un relais absent de la liste peut être conservé avec **Enregistrer dans la
+base** sous le nom de votre choix ; la fois suivante, il suffit de le choisir.
+La référence de confiance (**Comparer à une référence de confiance**) et la page
+**Outils** se configurent de la même façon. L'interface classique garde les
+champs simples avec **Récupérer les modèles**.
+
+Puis **Lancer l'audit**
 et suivez les vérifications **en direct** : chaque vérification affiche son score
 et sa durée, et une vérification avec des constats se déplie pour montrer les
 preuves. Le résultat est un rapport de verdict partageable : note, **Contrôles par
@@ -244,7 +264,7 @@ navigateur.
 | **Outils** | `/tools` | `/v2/tools` | Audits d'embedding et de rerank |
 | **Historique** | `/history` | `/v2/history` | Chaque audit exécuté sur cette machine, groupé par relais + modèle annoncé, avec tendances |
 | **Surveillances** | `/watches` | `/v2/watches` | Ré-audits planifiés avec alertes webhook |
-| **Modèles** | — | `/v2/kb` | Parcourir la base de connaissances et ajouter vos propres profils de modèles |
+| **Modèles** | — | `/v2/kb` | Parcourir la base de connaissances, ajouter vos propres profils de modèles et voir vos relais enregistrés |
 
 La nouvelle interface ajoute : des filtres et des tendances configurables (score,
 note, latence p50, tokens/s) dans l'**Historique** ; **Planifier comme
@@ -635,6 +655,9 @@ l'emportant :
      enregistrer**. **Tous les profils** liste chaque profil avec sa source ;
      **Quel profil un identifiant de modèle utilise-t-il ?** montre comment un id
      se résout ; **Vos entrées** s'exportent en YAML ;
+   - sur les pages **Audit** et **Outils** de l'interface web : **Enregistrer
+     dans la base** conserve le nom et l'URL de base d'un relais (une entrée de
+     fournisseur sans modèles), affiché sur **Modèles** avec le badge **Relais** ;
    - en ligne de commande : `zing kb-prompt <model>`, `zing kb-import <file>`
      (ajoutez `--check` pour seulement vérifier) et `zing kb-export`.
 

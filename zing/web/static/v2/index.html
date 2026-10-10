@@ -180,7 +180,7 @@
     <section class="view show" id="v1" aria-labelledby="h-form">
       <div class="hero">
         <h1 id="h-form" tabindex="-1" data-en="Is this relay serving the <span class='u'>real thing</span>?">这家中转站，给的是<span class="u">真货</span>吗？</h1>
-        <p data-en="Enter the relay's address and the model it claims to serve. zing runs a full black-box test suite on your machine and produces a readable, evidence-backed verification report.">填入中转站地址和它声称的模型，zing 在你本地跑一整套黑盒检测，出一份能看懂、有依据的验真报告。</p>
+        <p data-en="Choose the relay, pick the model to audit and, if it is sold under another name, the model it claims to be. zing runs a full black-box test suite on your machine and produces a readable, evidence-backed verification report.">选择中转站，挑选要检测的模型；若它以另一个名字售卖，再选它声称的模型。zing 在你本地跑一整套黑盒检测，出一份能看懂、有依据的验真报告。</p>
       </div>
       <div class="card card-pad form-card">
         <form id="form" novalidate>
@@ -206,11 +206,8 @@
               <div class="hint" id="i-claimed-hint" data-en="Only if the relay sells it under another name — zing checks the answers against this model.">仅当中转站以另一个名字售卖时填写 —— zing 会按这个模型核对回答。</div>
             </div>
           </div>
-          <div class="grp">
-            <label class="lab" for="i-prov"><span data-en="Declared provider">声明的厂商</span> <span class="key">declared_provider</span> <span class="opt" data-en="Optional">可选</span></label>
-            <input class="in" id="i-prov" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="i-prov-hint" placeholder="如 openai / deepseek" data-en-placeholder="e.g. openai / deepseek">
-            <div class="hint" id="i-prov-hint" data-en="Helps zing pick the right model profile when the model name alone is ambiguous. Choosing a model from the list fills it in.">当仅凭模型名无法确定厂商时，帮助 zing 选对模型资料。从列表选择模型时会自动填写。</div>
-          </div>
+          <!-- declared_provider: derived from the claimed model's profile (relaycfg.js) -->
+          <input type="hidden" id="i-prov">
           <div class="grp">
             <span class="lab" id="lab-api" data-en="Protocol">协议</span>
             <div class="seg q" id="api" role="group" aria-labelledby="lab-api">
@@ -315,7 +312,7 @@
 <script src="/perf.js"></script>
 <script src="/icons.js"></script>
 <script src="/secretfield.js"></script>
-<script src="/modelpicker.js"></script>
+<script src="/v2/static/relaycfg.js"></script>
 <script src="/v2/static/nav.js"></script>
 <script src="/v2/static/report.js"></script>
 <script src="/v2/static/dimpick.js"></script>
@@ -860,18 +857,16 @@
   $("#now").textContent = nowText();
   syncProbeMode();
   syncCmpBadge();
-  if (window.ZingModelPicker) {
-    try {
-      ZingModelPicker.enhance({
-        claimedInput: "#i-model", providerInput: "#i-prov", urlInput: "#i-url", keyInput: "#i-key",
-        api: function () { return segVal("api"); }, unstyled: true,
-      });
-      // the trusted baseline is a relay/provider too: same picker, same "Fetch models"
-      ZingModelPicker.enhance({
-        claimedInput: "#b-model", urlInput: "#b-url", keyInput: "#b-key",
-        api: function () { return segVal("b-api"); }, unstyled: true,
-      });
-    } catch (e) {}
+  // Relay / provider -> base URL -> key -> the relay's models -> claimed model
+  // (knowledge base); the trusted baseline is configured the same way, without
+  // a claimed model.
+  var relayCfg = null;
+  if (window.ZingRelayConfig) {
+    relayCfg = ZingRelayConfig.bind({
+      url: "#i-url", key: "#i-key", model: "#i-model", claimed: "#i-claimed", provider: "#i-prov",
+      api: function () { return segVal("api"); },
+    });
+    ZingRelayConfig.bind({ url: "#b-url", key: "#b-key", model: "#b-model", api: function () { return segVal("b-api"); } });
   }
   // /v2/?rerun=<history id> (from History): fill the form with that run's
   // configuration. The API key is never stored in history, so the key field
@@ -889,10 +884,12 @@
       .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function (rep) {
         var t = rep.target || {};
-        $("#i-url").value = t.base_url || "";
-        $("#i-model").value = t.model || "";
-        $("#i-claimed").value = t.claimed_model && t.claimed_model !== t.model ? t.claimed_model : "";
-        $("#i-prov").value = t.declared_provider || "";
+        var v = {
+          url: t.base_url || "", model: t.model || "", provider: t.declared_provider || "",
+          claimed: t.claimed_model && t.claimed_model !== t.model ? t.claimed_model : "",
+        };
+        if (relayCfg) relayCfg.set(v);
+        else { $("#i-url").value = v.url; $("#i-model").value = v.model; $("#i-claimed").value = v.claimed; $("#i-prov").value = v.provider; }
         seg("api", t.api_auto === false && t.api ? t.api : "auto");
         seg("suite", rep.suite || "standard");
         if (rep.suite === "custom") dims.set(rep.dimensions_selected);

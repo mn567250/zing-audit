@@ -434,6 +434,16 @@ Stichproben angezeigt (p90 ab 10, p95 ab 20, p99 ab 100). Der JSON-Bericht
 speichert die Zeiten jeder Anfrage (nur Zahlen, kein Text); HTML-Bericht und
 Weboberfläche stellen sie entlang der Zeitachse der Prüfung dar.
 
+**Request-Timeouts.** `timeout_sec` (`--timeout`, Standard 60 s) ist die Basis;
+jede Anfrage bekommt zusätzlich Zeit für Prompt-Größe und Ausgabebudget, damit
+eine lange Kontextfenster-Probe oder ein langsames selbst gehostetes Modell nicht
+nach einer Minute abbricht. Lokale und private Hosts (`localhost`, `127.x`,
+`192.168.x`, `host.docker.internal`, …) bekommen mindestens 300 s.
+`max_request_sec` (`--max-request-time`, Standard 900 s) ist die harte Obergrenze
+jeder einzelnen Anfrage, Streams eingeschlossen, sodass keine Anfrage endlos
+hängen kann. Eine Kontextfenster-Probe, die trotzdem in ein Timeout läuft, gilt
+als nicht eindeutig, nicht als Kürzung.
+
 ## Vergleichsmodus und LLM-Richter
 
 zing hat zwei Erkennungsmodi:

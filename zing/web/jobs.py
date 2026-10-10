@@ -33,7 +33,8 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from typing import Any, TypeVar
-from urllib.parse import urlsplit
+
+from zing.utils.net import is_loopback_host, url_host
 
 _T = TypeVar("_T")
 
@@ -44,21 +45,14 @@ MAX_PARALLEL = max(1, int(os.environ.get("ZING_MAX_PARALLEL_AUDITS", "4") or 4))
 _KEEP_FINISHED_SEC = 15 * 60
 _KEEP_FINISHED_MAX = 20
 
-_LOOPBACK = {"localhost", "0.0.0.0", "::1", "::", ""}
-
 Emit = Callable[[dict[str, Any]], None]
 Runner = Callable[[Emit], Awaitable[dict[str, Any]]]
 
 
 def relay_key(base_url: str | None) -> str:
     """The gate key of a relay URL: its lower-cased host name, any port."""
-    try:
-        host = (urlsplit(str(base_url or "")).hostname or "").lower().rstrip(".")
-    except ValueError:
-        host = ""
-    if host in _LOOPBACK or host.startswith("127.") or host.endswith(".localhost"):
-        return "localhost"
-    return host
+    host = url_host(base_url)
+    return "localhost" if is_loopback_host(host) else host
 
 
 # --------------------------------------------------------------------------- #

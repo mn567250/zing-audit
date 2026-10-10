@@ -48,3 +48,31 @@ async def test_truncation_below_claim_is_flagged(audit_context, mock_server):
                  "context_window.rejected_below_claim")
         for f in result.findings
     )
+
+
+def test_classify_timeout_is_its_own_status():
+    o = CompletionOutcome(ok=False, error_type="ReadTimeout", headers={"x-zing-needle": "N"})
+    assert ContextWindowDetector._classify(o, 16000) == (False, False, "timeout")
+
+
+async def test_timeout_is_inconclusive_not_truncation(audit_context):
+    # A slow endpoint: recalls small prompts, times out on large ones.
+    real = audit_context.client.complete
+    timed_out_sizes: list[int] = []
+
+    async def slow_complete(spec):
+        size = len(spec.messages[0]["content"])
+        if size > 20_000:
+            timed_out_sizes.append(size)
+            return CompletionOutcome(ok=False, error_type="ReadTimeout", error_message="timed out")
+        return await real(spec)
+
+    audit_context.client.complete = slow_complete
+    result = await ContextWindowDetector().run(audit_context)
+    ids = {f.id for f in result.findings}
+    assert result.status == Status.INCONCLUSIVE
+    assert result.score is None
+    assert "context_window.timed_out" in ids
+    assert not ids & {"context_window.truncation", "context_window.short", "context_window.no_recall"}
+    # The ladder stops at the first timeout instead of retrying the other edge.
+    assert len(timed_out_sizes) == 1

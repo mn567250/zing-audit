@@ -8,7 +8,8 @@ target:
   api_key: env:ZING_API_KEY          # env:VAR | file:/path | raw literal
   model: gpt-4o
   declared_provider: openai          # optional; inferred from model id otherwise
-  timeout_sec: 60
+  timeout_sec: 60                    # base HTTP timeout; grows with prompt and output size
+  max_request_sec: 900               # hard cap per request (seconds)
   headers: {}                        # extra HTTP headers if the relay needs them
 
 # Trusted baseline for `zing compare` (an endpoint you trust to be genuine).

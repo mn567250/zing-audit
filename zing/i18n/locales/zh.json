@@ -52,6 +52,7 @@
   "A conformant relay should reject invalid input with a 4xx and an {'error': {...}} body.": "合规的中转站应以 4xx 和 {'error': {...}} 响应体拒绝非法输入。",
   "A proxy rewriting URLs/package names is a supply-chain risk — stop using it.": "改写 URL/包名的代理属于供应链风险 —— 请停止使用。",
   "Treat the advertised context window as unverified.": "请将宣传的上下文窗口视为未经核实。",
+  "Raise --timeout / --max-request-time, or lower --max-context-tokens, to measure the full window.": "请调高 --timeout / --max-request-time，或调低 --max-context-tokens，以测量完整窗口。",
   "Compare against a trusted baseline to confirm.": "请对照可信基线加以确认。",
   "The relay likely truncates or summarizes long prompts.": "该中转站很可能截断或摘要长提示词。",
   "Re-run once the endpoint reliably returns completions.": "待端点能稳定返回补全后再重跑。",

@@ -332,6 +332,9 @@ restituirlo.
 4. Un 4xx il cui messaggio cita la lunghezza del contesto è un rifiuto per
    dimensione; un rifiuto di `max_tokens` (modelli di ragionamento) viene
    ritentato con `max_completion_tokens` e non viene mai letto come un tetto.
+5. Una sonda andata in timeout chiude la scala senza contare come fallimento:
+   la finestra oltre l'ultima dimensione ricordata è riportata come non
+   verificata (non conclusiva), mai come troncamento.
 
 La finestra misurata viene confrontata con quella dichiarata. Senza finestra
 dichiarata la misura viene riportata ma non valutata.
@@ -346,6 +349,7 @@ dichiarata la misura viene riportata ma non valutata.
 | `context_window.rejected_below_claim` | Un prompt ben al di sotto della finestra dichiarata è stato rifiutato come troppo lungo. | Fallito · Alta | Nessuna detrazione |
 | `context_window.measured` | Nessuna finestra dichiarata con cui confrontare: solo misurata, non conteggiata. | Info | Nessuna detrazione |
 | `context_window.no_ladder` | Nessuna dimensione di sonda rientrava tra il minimo e il limite. | Non conclusivo · Bassa | Nessuna detrazione |
+| `context_window.timed_out` | Una sonda è andata in timeout prima di raggiungere la finestra dichiarata: un endpoint lento, non una prova di troncamento. | Non conclusivo · Bassa | Nessuna detrazione |
 
 **Avvertenze.** Anche i veri modelli a contesto lungo perdono aghi nel mezzo;
 per questo solo un fallimento al **bordo** viene letto come troncamento. Il

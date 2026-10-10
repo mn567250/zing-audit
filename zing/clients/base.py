@@ -15,12 +15,14 @@ import ssl
 import threading
 import time
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from typing import Any
 
 import httpx
 
 from zing.models import CompletionOutcome, RequestSpec, TargetConfig
 from zing.perf.recorder import RequestRecorder, current_net_trace, net_trace_scope
+from zing.utils.net import is_local_host
 from zing.utils.redact import redact_json, redact_text
 
 # One TLS context for every relay client in the process. httpx builds a new
@@ -32,6 +34,50 @@ from zing.utils.redact import redact_json, redact_text
 # those variables later in the process does not affect it.
 _SSL_CONTEXT: ssl.SSLContext | None = None
 _SSL_LOCK = threading.Lock()
+
+# Per-completion timeout budget. A fixed timeout fails slow endpoints on large
+# requests: a non-streaming call sends nothing until prefill and decode are both
+# done, and a self-hosted model can need minutes to read a long prompt. Each
+# completion therefore gets ``timeout_sec`` plus time for its prompt and output at
+# deliberately low throughputs, and never more than ``max_request_sec``.
+_PREFILL_TPS = 100.0
+_DECODE_TPS = 10.0
+# Local or private hosts (llama.cpp, Ollama, vLLM on modest hardware).
+_LOCAL_PREFILL_TPS = 30.0
+_LOCAL_DECODE_TPS = 3.0
+_LOCAL_MIN_BASE_SEC = 300.0
+# Output budget assumed when a request sets no max_tokens.
+_DEFAULT_OUTPUT_TOKENS = 1024
+# The httpx timeout of the completion running in this task (see complete()).
+_CALL_TIMEOUT: ContextVar[httpx.Timeout | None] = ContextVar("zing_call_timeout", default=None)
+
+
+def _prompt_tokens(messages: list[dict[str, Any]]) -> int:
+    """A generous prompt-size estimate (~2 characters per token) for the timeout
+    budget. Counting characters keeps a 200k-token prompt off the event loop's
+    clock; CJK text (~1 token per character) is covered by the low throughputs."""
+    chars = 0
+    for message in messages:
+        content = message.get("content") if isinstance(message, dict) else None
+        if isinstance(content, str):
+            chars += len(content)
+        elif isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict) and isinstance(part.get("text"), str):
+                    chars += len(part["text"])
+    return chars // 2
+
+
+def _output_tokens(spec: RequestSpec) -> int:
+    """The output budget a request asks for (or the default when it sets none)."""
+    for value in (
+        spec.max_tokens,
+        spec.extra_body.get("max_completion_tokens"),
+        spec.extra_body.get("max_output_tokens"),
+    ):
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            return value
+    return _DEFAULT_OUTPUT_TOKENS
 
 
 def shared_ssl_context() -> ssl.SSLContext:
@@ -68,6 +114,7 @@ class BaseHTTPClient:
         # ``endpoint`` says which side ("target" / "baseline") this client is.
         self.recorder: RequestRecorder | None = None
         self.endpoint = config.kind
+        self.local = is_local_host(self.base_url)
 
     # -- lifecycle ---------------------------------------------------------- #
     async def __aenter__(self):
@@ -119,6 +166,35 @@ class BaseHTTPClient:
             connect=min(15.0, self.config.timeout_sec),
         )
 
+    def request_budget(self, spec: RequestSpec) -> tuple[httpx.Timeout, float]:
+        """The httpx timeout and the wall-clock deadline (seconds) for a completion.
+
+        Non-streaming, the read timeout covers prefill and decode (no byte arrives
+        before both are done). Streaming, it covers prefill only, the longest gap
+        between chunks; the deadline still bounds the whole stream, so a relay
+        that trickles a byte now and then cannot hold a request open forever.
+        Both are clamped to ``max_request_sec`` (or ``timeout_sec`` if larger).
+        """
+        cfg = self.config
+        base = cfg.timeout_sec
+        prefill_tps, decode_tps = _PREFILL_TPS, _DECODE_TPS
+        if self.local:
+            base = max(base, _LOCAL_MIN_BASE_SEC)
+            prefill_tps, decode_tps = _LOCAL_PREFILL_TPS, _LOCAL_DECODE_TPS
+        cap = max(cfg.max_request_sec, cfg.timeout_sec)
+        prefill = _prompt_tokens(spec.messages) / prefill_tps
+        decode = _output_tokens(spec) / decode_tps
+        total = min(cap, base + prefill + decode)
+        read = min(cap, base + prefill) if spec.stream else total
+        connect = min(15.0, cfg.timeout_sec)
+        # Keep connect + read inside the deadline's slack, so httpx reports its own
+        # timeout first whenever it can.
+        return httpx.Timeout(read, connect=connect), total + connect
+
+    def _call_timeout(self) -> httpx.Timeout:
+        """The timeout for the completion in flight (set by :meth:`complete`)."""
+        return _CALL_TIMEOUT.get() or self._timeout()
+
     def _extra_secrets(self) -> list[str | None]:
         """Secrets to scrub from any relay-controlled text before it is stored."""
         return [self.config.api_key]
@@ -151,12 +227,29 @@ class BaseHTTPClient:
     # -- public calls (recorded for the performance section) --------------- #
     async def complete(self, spec: RequestSpec) -> CompletionOutcome:
         if self.recorder is None:
-            return await self._complete(spec)
+            return await self._complete_bounded(spec)
         started = time.perf_counter()
         with net_trace_scope() as net:
-            outcome = await self._complete(spec)
+            outcome = await self._complete_bounded(spec)
         self.recorder.record_completion(self.endpoint, spec, outcome, started, net)
         return outcome
+
+    async def _complete_bounded(self, spec: RequestSpec) -> CompletionOutcome:
+        """Run one completion under its timeout budget and hard deadline."""
+        timeout, deadline = self.request_budget(spec)
+        started = time.perf_counter()
+        token = _CALL_TIMEOUT.set(timeout)
+        try:
+            return await asyncio.wait_for(self._complete(spec), deadline)
+        except asyncio.TimeoutError:
+            return CompletionOutcome(
+                ok=False,
+                duration_ms=(time.perf_counter() - started) * 1000,
+                error_type="DeadlineTimeout",
+                error_message=f"Request exceeded its {deadline:.0f} s deadline.",
+            )
+        finally:
+            _CALL_TIMEOUT.reset(token)
 
     async def list_models(
         self, *, no_cache: bool = False

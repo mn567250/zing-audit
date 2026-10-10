@@ -70,6 +70,7 @@
   "A prompt well below the declared window was rejected as too long.": "远小于声明窗口的提示被以过长为由拒绝。",
   "No declared window to compare against: measured only, not scored.": "没有可对照的声明窗口：只做测量，不计分。",
   "No probe size fit between the floor and the cap.": "在下限与上限之间没有可用的探测长度。",
+  "A probe timed out before the declared window was reached: a slow endpoint, not evidence of truncation.": "探测在达到声明窗口之前超时：说明端点较慢，而非截断的证据。",
   "Effective context window": "实际上下文窗口",
   "Input-token overhead is small and no hidden instructions leaked.": "输入 token 开销很小，且没有泄露隐藏指令。",
   "Instruction-like text leaked when asked (weak on its own).": "被要求时泄露了类似指令的文本（单独来看较弱）。",

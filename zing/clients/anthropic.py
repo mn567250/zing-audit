@@ -188,7 +188,7 @@ class AnthropicClient(BaseHTTPClient):
         started = time.perf_counter()
         try:
             async with self._session() as client:
-                response = await client.post(self.messages_url, json=body)
+                response = await client.post(self.messages_url, json=body, timeout=self._call_timeout())
                 duration_ms = (time.perf_counter() - started) * 1000
                 headers = redact_headers(dict(response.headers), extra_secrets=self._extra_secrets())
                 if response.status_code >= 400:
@@ -238,7 +238,7 @@ class AnthropicClient(BaseHTTPClient):
 
         try:
             async with self._session() as client, client.stream(
-                "POST", self.messages_url, json=body
+                "POST", self.messages_url, json=body, timeout=self._call_timeout()
             ) as response:
                 headers = redact_headers(dict(response.headers), extra_secrets=self._extra_secrets())
                 if response.status_code >= 400:

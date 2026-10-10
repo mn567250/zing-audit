@@ -415,6 +415,15 @@ enough samples (p90 from 10, p95 from 20, p99 from 100). The JSON report keeps
 every request's timings (numbers only, no text); the HTML report and the web UI
 chart them over the audit's timeline.
 
+**Request timeouts.** `timeout_sec` (`--timeout`, default 60 s) is the base;
+each request gets more for its prompt size and output budget, so a long
+context-window probe or a slow self-hosted model is not cut off after a minute.
+Local and private hosts (`localhost`, `127.x`, `192.168.x`, `host.docker.internal`,
+…) get at least 300 s. `max_request_sec` (`--max-request-time`, default 900 s) is
+the hard cap for any single request, streams included, so no request can hang
+forever. A context-window probe that still times out is reported as
+inconclusive, not as truncation.
+
 ## Compare mode and the LLM judge
 
 zing has two detection modes:

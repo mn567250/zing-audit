@@ -7,6 +7,8 @@ shaping, and /v1/models parsing.
 
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 import pytest
 from conftest import BASE_URL
@@ -220,3 +222,79 @@ async def test_clients_share_one_tls_context_built_off_the_event_loop(monkeypatc
     assert all(c is shared for c in contexts) and shared is base.shared_ssl_context()
     # still httpx's verifying default
     assert shared.verify_mode == ssl.CERT_REQUIRED and shared.check_hostname
+
+
+# --------------------------------------------------------------------------- #
+# per-request timeout budget and hard deadline
+# --------------------------------------------------------------------------- #
+def _budget(base_url=BASE_URL, stream=False, chars=10, max_tokens=None, **cfg):
+    c = OpenAICompatibleClient(TargetConfig(base_url=base_url, model="m", **cfg))
+    spec = RequestSpec(
+        messages=[{"role": "user", "content": "x" * chars}], stream=stream, max_tokens=max_tokens
+    )
+    return c.request_budget(spec)
+
+
+def test_budget_grows_with_prompt_and_output():
+    small, small_deadline = _budget(chars=100, max_tokens=64)
+    big_prompt, _ = _budget(chars=200_000, max_tokens=64)
+    big_output, _ = _budget(chars=100, max_tokens=4000)
+    assert small.read >= 60
+    assert big_prompt.read > small.read + 900 - 60 or big_prompt.read == 900
+    assert big_output.read > small.read
+    assert small_deadline >= small.read
+
+
+def test_budget_streaming_read_covers_prefill_only():
+    stream, stream_deadline = _budget(stream=True, chars=20_000, max_tokens=2000)
+    nonstream, _ = _budget(stream=False, chars=20_000, max_tokens=2000)
+    assert stream.read < nonstream.read
+    # The deadline still covers decode, so a long stream is not cut short.
+    assert stream_deadline >= nonstream.read
+
+
+def test_budget_local_hosts_get_more_time():
+    remote, _ = _budget(chars=1000, max_tokens=64)
+    local, _ = _budget(base_url="http://127.0.0.1:11434/v1", chars=1000, max_tokens=64)
+    assert local.read >= 300 > remote.read
+
+
+def test_budget_is_capped():
+    timeout, deadline = _budget(chars=2_000_000, max_tokens=100_000, max_request_sec=120)
+    assert timeout.read == 120
+    assert deadline <= 120 + 15
+    # An explicit timeout_sec above the cap still wins.
+    timeout, _ = _budget(chars=2_000_000, timeout_sec=600, max_request_sec=120)
+    assert timeout.read == 600
+
+
+async def test_deadline_ends_a_trickling_stream():
+    async def trickle():
+        while True:
+            await asyncio.sleep(0.05)
+            yield b": keep-alive\n\n"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=trickle())
+
+    cfg = TargetConfig(base_url=BASE_URL, model="m", timeout_sec=0.2, max_request_sec=0.4)
+    async with OpenAICompatibleClient(cfg, transport=httpx.MockTransport(handler)) as c:
+        out = await asyncio.wait_for(c.complete(_spec(stream=True, max_tokens=8)), 5)
+    assert out.ok is False
+    assert "timeout" in (out.error_type or "").lower()
+
+
+async def test_per_request_read_timeout_is_applied():
+    seen: dict[str, float] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["read"] = request.extensions["timeout"]["read"]
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
+
+    cfg = TargetConfig(base_url=BASE_URL, model="m")
+    async with OpenAICompatibleClient(cfg, transport=httpx.MockTransport(handler)) as c:
+        out = await c.complete(
+            RequestSpec(messages=[{"role": "user", "content": "x" * 40_000}], max_tokens=64)
+        )
+    assert out.ok
+    assert seen["read"] > 60

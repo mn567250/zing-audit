@@ -6,6 +6,36 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.17.2] — request timeouts that fit slow and local models
+
+### Changed
+
+- **Timeouts scale with the request.** `timeout_sec` (`--timeout`, default 60 s) is
+  now the base of each completion's timeout, which grows with the prompt size and
+  the output budget at deliberately low throughputs (100 tokens/s prefill, 10
+  tokens/s decode). Non-streaming calls get time for both, since no byte arrives
+  before generation ends; streaming calls get time for prefill between chunks. A
+  long context-window probe no longer fails with `ReadTimeout` after a minute.
+- **More headroom for local models.** Relays on this machine or a private network
+  (`localhost`, `127.x`, `::1`, RFC 1918 and link-local addresses, `*.local`,
+  `host.docker.internal`, …) get at least 300 s and are budgeted at 30 tokens/s
+  prefill and 3 tokens/s decode, for llama.cpp, Ollama or vLLM on modest hardware.
+- **A hard cap per request.** `max_request_sec` (`--max-request-time`, default 900 s)
+  bounds every completion, streams included: a relay that trickles a keep-alive
+  byte now and then can no longer hold a request open forever. A request past its
+  deadline fails as `DeadlineTimeout` and counts as a timeout in the performance
+  section. Requests are still not retried.
+
+### Fixed
+
+- **A slow endpoint is no longer reported as truncating its context.** A
+  context-window probe that times out ends the ladder without counting as a recall
+  failure (and without probing the other edge at the same size). The window above
+  the last recalled size is reported as unverified, with the new inconclusive
+  outcome `context_window.timed_out`, instead of "Real context window far below the
+  declared one". A timed-out depth probe no longer reads as a lost-in-the-middle
+  needle.
+
 ## [0.17.1] — web UI v2 performance: faster pages and API, no outgoing requests
 
 ### Changed

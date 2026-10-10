@@ -430,6 +430,16 @@ com amostras suficientes (p90 a partir de 10, p95 a partir de 20, p99 a partir d
 relatório HTML e a interface web representam-nos ao longo da linha temporal da
 auditoria.
 
+**Tempos limite.** `timeout_sec` (`--timeout`, 60 s por omissão) é a base; cada
+requisição recebe mais tempo conforme o tamanho do prompt e o orçamento de
+saída, para que uma sonda longa de janela de contexto ou um modelo auto-hospedado
+lento não seja interrompido ao fim de um minuto. Hosts locais e privados
+(`localhost`, `127.x`, `192.168.x`, `host.docker.internal`, …) recebem pelo menos
+300 s. `max_request_sec` (`--max-request-time`, 900 s por omissão) é o teto
+absoluto de cada requisição, streams incluídos, para que nenhuma fique pendurada
+para sempre. Uma sonda de janela de contexto que ainda assim esgota o tempo é
+reportada como inconclusiva, não como truncamento.
+
 ## Modo de comparação e juiz LLM
 
 O zing tem dois modos de deteção:

@@ -80,6 +80,9 @@ SCALE = DeductionScale(
             label="No declared window to compare against: measured only, not scored."),
     outcome("context_window.no_ladder", "no_sizes", None, Status.INCONCLUSIVE, Severity.LOW,
             label="No probe size fit between the floor and the cap."),
+    outcome("context_window.timed_out", "timeout", None, Status.INCONCLUSIVE, Severity.LOW,
+            label="A probe timed out before the declared window was reached: "
+                  "a slow endpoint, not evidence of truncation."),
     titles={"context_window.window": "Effective context window"},
 )
 
@@ -135,6 +138,9 @@ class ContextWindowDetector(Detector):
         last_pass: int | None = None
         first_fail: int | None = None
         rejected_at: int | None = None
+        # A timeout says the endpoint is slow at this size, not that it truncates:
+        # it ends the ladder without counting as a failure.
+        timed_out_at: int | None = None
 
         for size in ladder_sizes:
             recalled, rejected, status, n = await self._probe_size(
@@ -148,6 +154,9 @@ class ContextWindowDetector(Detector):
                 last_pass = size
                 effective_window = size
                 continue
+            if status == "timeout":
+                timed_out_at = size
+                break
             # First non-recall (a clean fail, a size rejection, or an odd error).
             first_fail = size
             if rejected:
@@ -174,6 +183,8 @@ class ContextWindowDetector(Detector):
                 if recalled:
                     last_pass = mid
                     effective_window = mid
+                elif status == "timeout":
+                    timed_out_at = mid
                 elif rejected and rejected_at is None:
                     rejected_at = mid
 
@@ -181,14 +192,19 @@ class ContextWindowDetector(Detector):
         depth_results: dict[str, bool | None] = {}
         mid_size = min(32_000, effective_window or 16_000)
         # Only worth spending calls if the mid size is at/below what we know works.
-        if mid_size >= floor and (effective_window is None or mid_size <= effective_window):
+        if (
+            mid_size >= floor
+            and (effective_window is None or mid_size <= effective_window)
+            and (timed_out_at is None or mid_size < timed_out_at)
+        ):
             for depth in (0.1, 0.5, 0.9):
                 outcome = await self._probe(
                     ctx, mid_size, depth=depth, tokenizer=tokenizer, reasoning=reasoning
                 )
                 calls += 1
-                recalled, _, _ = self._classify(outcome, mid_size)
-                depth_results[f"{depth:.1f}"] = recalled
+                recalled, _, status = self._classify(outcome, mid_size)
+                # A timed-out depth is unknown, not a lost needle.
+                depth_results[f"{depth:.1f}"] = None if status == "timeout" else recalled
             start_ok = depth_results.get("0.1") is True
             end_ok = depth_results.get("0.9") is True
             middle_ok = depth_results.get("0.5") is True
@@ -224,7 +240,40 @@ class ContextWindowDetector(Detector):
                 )
             )
 
-        if declared:
+        # The ladder stopped on a timeout below the claim (or with nothing recalled):
+        # the window is unverified, so report that instead of a window verdict.
+        timed_out_short = timed_out_at is not None and (
+            effective_window is None or (declared is not None and effective_window < 0.9 * declared)
+        )
+        if timed_out_short:
+            verified = (
+                f"recall verified up to ~{effective_window} tokens"
+                if effective_window
+                else "no size could be verified"
+            )
+            result.findings.append(
+                SCALE.finding(
+                    "context_window.timed_out",
+                    "timeout",
+                    title="Context-window probe timed out",
+                    summary=(
+                        f"A ~{timed_out_at}-token probe timed out; {verified}. A slow "
+                        "endpoint, not evidence of truncation."
+                    ),
+                    evidence={
+                        "declared": declared,
+                        "timed_out_at": timed_out_at,
+                        "effective_window": effective_window,
+                    },
+                    recommendation=(
+                        "Raise --timeout / --max-request-time, or lower --max-context-tokens, "
+                        "to measure the full window."
+                    ),
+                )
+            )
+            result.status = Status.INCONCLUSIVE
+            result.score = None
+        elif declared:
             measured = effective_window or 0
             ratio = measured / declared if declared else 0.0
             if effective_window is None:
@@ -316,6 +365,7 @@ class ContextWindowDetector(Detector):
             {
                 "declared": declared,
                 "effective_window": effective_window,
+                "timed_out_at": timed_out_at,
                 "ladder": ladder_log,
                 "depth_results": depth_results,
                 "calls": calls,
@@ -371,8 +421,9 @@ class ContextWindowDetector(Detector):
             last_status = status
             if recalled:
                 return True, False, status, calls
-            if rejected:
-                return False, True, status, calls
+            if rejected or status == "timeout":
+                # A timeout at one edge would time out at the other too.
+                return False, rejected, status, calls
             # else non-recall / param_error / transport error — try the other edge.
         return False, False, last_status, calls
 
@@ -441,7 +492,9 @@ class ContextWindowDetector(Detector):
             if any(hint in text for hint in _PARAM_REJECTION_HINTS):
                 return False, False, "param_error"
             return False, False, "http_error"
-        # Timeouts, 5xx, malformed/empty responses — treat as a non-recall failure
+        if "timeout" in (outcome.error_type or "").lower():
+            return False, False, "timeout"
+        # Other transport errors, 5xx, malformed/empty responses — treat as a non-recall failure
         # but not a deliberate size rejection.
         return False, False, "error"
 

@@ -115,14 +115,43 @@ def test_api_kb_lists_providers_with_models(client):
     assert isinstance(providers, list) and providers
     # Every provider entry exposes only public metadata (no api keys).
     for p in providers:
-        assert {"provider", "display_name", "models"} <= set(p)
+        assert {"provider", "display_name", "base_urls", "relay", "entry_id", "models"} <= set(p)
         for m in p["models"]:
-            assert set(m) == {"id", "aliases"}
+            assert set(m) == {"id", "aliases", "kind"} and m["kind"] in ("chat", "embedding")
     # At least one provider has models; deepseek ships a deepseek-* id.
     assert any(p["models"] for p in providers)
     deepseek = next((p for p in providers if p["provider"] == "deepseek"), None)
     assert deepseek is not None
     assert any(m["id"].startswith("deepseek") for m in deepseek["models"])
+    # usable base URLs only (the hints also hold paths, hosts and templates)
+    assert deepseek["base_urls"][0] == "https://api.deepseek.com" and not deepseek["relay"]
+    openai = next(p for p in providers if p["provider"] == "openai")
+    assert openai["base_urls"] == ["https://api.openai.com/v1"]
+    assert any(m["kind"] == "embedding" for m in openai["models"])
+
+
+def test_api_kb_relays_saves_a_relay(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("ZING_DATA_DIR", str(tmp_path))
+    r = client.post("/api/kb/relays", json={"name": "My Relay", "base_url": "https://relay.example.com/v1/"})
+    assert r.status_code == 201, r.text
+    saved = r.json()
+    assert saved["provider"] == "my-relay" and saved["display_name"] == "My Relay"
+    assert saved["base_url"] == "https://relay.example.com/v1" and saved["entry_id"]
+    mine = next(p for p in client.get("/api/kb").json()["providers"] if p["provider"] == "my-relay")
+    assert mine["relay"] and mine["base_urls"] == ["https://relay.example.com/v1"] and mine["models"] == []
+    assert mine["entry_id"] == saved["entry_id"]
+    # taken names and known URLs are refused; nothing is overwritten
+    assert client.post("/api/kb/relays", json={"name": "my relay", "base_url": "https://other.example/v1"}).status_code == 409
+    assert client.post("/api/kb/relays", json={"name": "OpenAI", "base_url": "https://other.example/v1"}).status_code == 409
+    dup = client.post("/api/kb/relays", json={"name": "Copy", "base_url": "https://api.openai.com/v1/chat/completions"})
+    assert dup.status_code == 409 and "already in the knowledge base" in dup.json()["error"]
+    for bad in ({"name": "", "base_url": "https://x.example"}, {"name": "x", "base_url": "relay.example.com"},
+                {"name": "x" * 65, "base_url": "https://x.example"}):
+        assert client.post("/api/kb/relays", json=bad).status_code == 400
+    assert client.post("/api/kb/relays", json=["x"]).status_code == 400
+    # a saved relay can be deleted like any other entry
+    assert client.delete(f"/api/kb/entries/{saved['entry_id']}").status_code == 200
+    assert all(p["provider"] != "my-relay" for p in client.get("/api/kb").json()["providers"])
 
 
 def test_history_module_roundtrip(tmp_path, monkeypatch):
@@ -345,13 +374,16 @@ def test_console_is_classic_only(client):
 
 
 def test_v2_audit_sends_the_declared_provider(client):
-    # the audit form takes a declared provider, sends it and lets the model
-    # picker fill it in
-    for path in ("/v2/",):
-        html = client.get(path).text
-        assert '<input class="in' in html and 'id="i-prov"' in html, path
-        assert 'declared_provider: $("#i-prov").value.trim()' in html, path
-        assert 'providerInput: "#i-prov"' in html, path
+    # the declared provider is derived by the relay configuration (a hidden
+    # field) and still sent with the audit
+    html = client.get("/v2/").text
+    assert '<input type="hidden" id="i-prov">' in html
+    assert 'declared_provider: $("#i-prov").value.trim()' in html
+    assert 'claimed: "#i-claimed", provider: "#i-prov"' in html
+    assert "/v2/static/relaycfg.js" in html and "/modelpicker.js" not in html
+    tools = client.get("/v2/tools").text
+    assert '<input type="hidden" id="e-provider">' in tools and 'kind: "embedding"' in tools
+    assert "/v2/static/relaycfg.js" in tools and "/modelpicker.js" not in tools
 
 
 def test_v2_accessibility_report_page(client):

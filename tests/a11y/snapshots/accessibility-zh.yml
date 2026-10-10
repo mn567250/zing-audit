@@ -42,11 +42,11 @@
     - definition:
       - code: <id>
     - term: zing 版本
-    - definition: 0.11.0
+    - definition: 0.18.0
     - term: axe-core 版本
     - definition: 4.13.0
     - term: 测试
-    - definition: 1109 个已运行，1109 个通过，0 个失败，0 个跳过
+    - definition: 1115 个已运行，1115 个通过，0 个失败，0 个跳过
     - term: 语言
     - definition: English, Deutsch, Español, Français, Italiano, Português, 中文
     - term: 主题

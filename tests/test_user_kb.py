@@ -560,7 +560,12 @@ def test_kb_api_resolve_names_a_switched_off_profile(client):
     client.post("/api/kb/import", json={"yaml": NEW_PROVIDER_YAML})
     client.put("/api/kb/enabled", json={"key": "provider:acmeai", "enabled": False})
     res = client.post("/api/kb/resolve", json={"model": "acme-large-2"}).json()
-    assert res == {"matched": False, "disabled": True, "provider": "acmeai", "model_id": "acme-large-2"}
+    assert res == {"matched": False, "switched_off": {"provider": "acmeai", "model_id": "acme-large-2"}}
+    # a fuzzy match is still used, but the exact profile that is off is named
+    client.put("/api/kb/enabled", json={"key": "model:openai/gpt-4o-mini", "enabled": False})
+    res = client.post("/api/kb/resolve", json={"model": "gpt-4o-mini"}).json()
+    assert res["matched"] and res["match_confidence"] != "exact"
+    assert res["switched_off"] == {"provider": "openai", "model_id": "gpt-4o-mini"}
 
 
 def test_kb_import_refuses_cross_site_and_non_json(client):

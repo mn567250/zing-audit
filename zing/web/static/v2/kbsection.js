@@ -245,7 +245,8 @@
   }
 
   // ---- add form: research prompt + YAML check/save -------------------------- //
-  // opts.prefix (unique per page), opts.prompt (show the research-prompt step)
+  // opts.prefix (unique per page), opts.prompt (show the research-prompt step),
+  // opts.placeholder (of the YAML field), opts.hint (markup above it, data-en)
   function wizard(el, page, opts) {
     var p = opts.prefix, n = 0;
     var id = function (k) { return p + "-" + k; };
@@ -268,7 +269,7 @@
     }
     html +=
       '<div class="step"><h3><span class="n">' + (++n) + '</span><span data-en="Upload or paste the YAML">上传或粘贴 YAML</span></h3>' +
-      (opts.hint ? '<p class="hint" data-en="' + esc(opts.hint[1]) + '">' + esc(opts.hint[0]) + "</p>" : "") +
+      (opts.hint || "") +
       '<div class="grp"><label class="lab" for="' + id("yaml") + '" data-en="Profile YAML">资料 YAML</label>' +
       '<textarea class="in yaml" id="' + id("yaml") + '" spellcheck="false" autocapitalize="off" placeholder="' + esc(opts.placeholder) + '"></textarea></div>' +
       '<div class="row"><label class="btn" for="' + id("file") + '">' + icon("folder") + ' <span data-en="Choose a .yaml file">选择 .yaml 文件</span></label>' +

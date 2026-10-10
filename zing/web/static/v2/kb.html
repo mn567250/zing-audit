@@ -236,8 +236,8 @@
       add: function (el) {
         S.wizard(el, page, {
           prefix: "p", prompt: false, placeholder: "provider: …\ndisplay_name: …\nbase_url_hints: [https://…]\nmodels: []",
-          hint: ["一份厂商 YAML 包含 provider、display_name、base_url_hints 和 models。对已有厂商只会补充其模型、指纹、基础地址和中转站警示。",
-            "A provider YAML has provider, display_name, base_url_hints and models. For a provider that already exists only its models, fingerprints, base URLs and relay red flags are added."],
+          hint: '<p class="hint" data-en="A provider YAML has <code>provider</code>, <code>display_name</code>, <code>base_url_hints</code> and <code>models</code>. For a provider that already exists only its models, fingerprints, base URLs and relay red flags are added.">' +
+            "一份厂商 YAML 包含 <code>provider</code>、<code>display_name</code>、<code>base_url_hints</code> 和 <code>models</code>。对已有厂商只会补充其模型、指纹、基础地址和中转站警示。</p>",
         });
       },
     },
@@ -271,21 +271,19 @@
   function paintResolve() {
     var el = $("res");
     if (!resolved) { el.innerHTML = ""; return; }
-    if (resolved.disabled) {
-      el.innerHTML = Tf("{profile} 会匹配，但它已停用：检测将在没有资料比对的情况下运行。",
-        "{profile} would match, but it is switched off: the audit runs without a profile to compare against.",
-        { profile: code(resolved.provider + "/" + resolved.model_id) });
-      return;
-    }
+    var off = resolved.switched_off
+      ? " " + Tf("{profile} 更匹配，但它已停用。", "{profile} would match better, but it is switched off.",
+        { profile: code(resolved.switched_off.provider + "/" + resolved.switched_off.model_id) })
+      : "";
     if (!resolved.matched) {
-      el.textContent = T("没有匹配的资料：检测会在没有资料比对的情况下运行。", "No profile matches: the audit runs without a profile to compare against.");
+      el.innerHTML = esc(T("没有匹配的资料：检测会在没有资料比对的情况下运行。", "No profile matches: the audit runs without a profile to compare against.")) + off;
       return;
     }
     el.innerHTML = Tf("使用 {profile}（匹配方式：{match}，来源：{source}）", "Uses {profile} (match: {match}, source: {source})", {
       profile: code(resolved.provider + "/" + resolved.model_id),
       match: esc(resolved.match_confidence),
       source: esc(S.sourceText(resolved.source)),
-    });
+    }) + off;
   }
   $("res-form").addEventListener("submit", function (ev) {
     ev.preventDefault();

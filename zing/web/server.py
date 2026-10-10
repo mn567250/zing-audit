@@ -798,19 +798,22 @@ def create_app() -> FastAPI:
 
         body = await request.json()
         knowledge = await asyncio.to_thread(load_knowledge_base)
-        r = knowledge.resolve(str(body.get("model") or "")[:200], body.get("provider") or None)
-        if r is None:
-            # a profile that exists but is switched off: say so
+        model, hint = str(body.get("model") or "")[:200], body.get("provider") or None
+        r = knowledge.resolve(model, hint)
+        off = None
+        if r is None or r.match_confidence not in ("exact", "alias"):
+            # a closer profile that exists but is switched off: name it
             full = await asyncio.to_thread(load_knowledge_base, full=True)
-            off = full.resolve(str(body.get("model") or "")[:200], body.get("provider") or None)
-            if off is None:
-                return JSONResponse({"matched": False})
-            return JSONResponse({"matched": False, "disabled": True, "provider": off.provider.provider,
-                                 "model_id": off.model.id})
+            f = full.resolve(model, hint)
+            if f is not None and (r is None or f.match_confidence in ("exact", "alias")):
+                off = {"provider": f.provider.provider, "model_id": f.model.id}
+        if r is None:
+            return JSONResponse({"matched": False, **({"switched_off": off} if off else {})})
         key = f"{r.provider.provider}/{r.model.id}"
         return JSONResponse({"matched": True, "provider": r.provider.provider, "model_id": r.model.id,
                              "match_confidence": r.match_confidence,
-                             "source": knowledge.model_sources.get(key)})
+                             "source": knowledge.model_sources.get(key),
+                             **({"switched_off": off} if off else {})})
 
     async def _yaml_body(request: Request) -> tuple[str, str | None]:
         body = await request.json()

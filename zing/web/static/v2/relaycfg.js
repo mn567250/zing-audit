@@ -162,13 +162,15 @@
     var tog = el("button", "linkbtn zmp-custom", { type: "button", "aria-pressed": "false" });
     wrap.appendChild(sel);
     wrap.appendChild(input);
-    var c = { wrap: wrap, sel: sel, input: input, toggle: tog, manual: false, chosen: false };
+    var c = { wrap: wrap, sel: sel, input: input, toggle: tog, manual: false, chosen: false, hasList: true };
     c.setManual = function (on, byUser) {
       c.manual = !!on;
       if (byUser) c.chosen = true;
       sel.hidden = c.manual;
       input.hidden = !c.manual;
       tog.setAttribute("aria-pressed", String(c.manual));
+      // nothing to pick from (yet): no "pick from the list" toggle
+      tog.hidden = c.manual && !c.hasList;
       tog.textContent = c.manual ? T("← 从列表选择", "← Pick from the list") : T("手动输入", "Enter manually");
     };
     c.paint = function () { c.setManual(c.manual); sel.setAttribute("aria-label", labelText(input)); };
@@ -310,11 +312,13 @@
       m.sel.innerHTML = "";
       m.sel.appendChild(opt("", T("选择模型…", "Select a model…")));
       fetched.forEach(function (id) { m.sel.appendChild(opt(id, id, id)); });
+      m.hasList = fetched.length > 0;
       if (keep && fetched.indexOf(keep) < 0) {
         m.sel.appendChild(opt(keep, keep + " " + T("（中转站未列出）", "(not listed by the relay)")));
       }
       m.sel.value = keep;
       paintSel(m.sel);
+      m.setManual(m.manual);
     }
     function paintFetch() {
       var hasUrl = !!url.value.trim(), st = fstate, k = "", text = "";
@@ -352,6 +356,7 @@
       if (keep && !known) c.sel.appendChild(opt(keep, keep + " " + T("（知识库未收录）", "(not in the knowledge base)")));
       c.sel.value = keep;
       paintSel(c.sel);
+      c.hasList = !loaded || cGroups.length > 0;
       if (loaded && !cGroups.length && !c.chosen) c.setManual(true);
     }
     var match = null;
@@ -393,7 +398,13 @@
       var u = url.value.trim();
       if (fctl) fctl.abort();
       fctl = null;
-      if (!u) { fstate = null; fetched = []; fkey = ""; paintFetch(); return Promise.resolve(); }
+      if (!u) {
+        fstate = null; fetched = []; fkey = "";
+        paintModels();
+        if (!m.chosen) m.setManual(true);
+        paintFetch();
+        return Promise.resolve();
+      }
       var body = { base_url: u, api_key: key ? key.value.trim() : "", api: api() || "auto" };
       var ck = body.base_url + "|" + body.api_key + "|" + body.api;
       if (!force && ck === fkey) return Promise.resolve();
@@ -540,6 +551,7 @@
     window.addEventListener("zing:lang", paintAll);
 
     // ---- init ----
+    m.hasList = false;
     m.setManual(true);
     if (c) c.setManual(false);
     sv.hidden = true;

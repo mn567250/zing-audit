@@ -41,39 +41,29 @@
     - tab "Audit d'embedding" [selected]
     - tab "Audit de rerank"
   - tabpanel "Audit d'embedding":
-    - text: URL du relais base_url
-    - textbox "URL du relais base_url":
-      - /placeholder: https://relay.example.com/v1
+    - text: Relais / fournisseur Facultatif
+    - combobox "Relais / fournisseur Facultatif":
+      - option "Sélectionnez un relais ou un fournisseur…" [selected]
+      - option "Autre (saisir l'URL)"
+    - text: En choisir un remplit son URL ; pour tout autre relais, choisissez « Autre » et saisissez l'URL. URL du relais base_url
+    - combobox "URL du relais base_url"
     - text: Clé API Accepte env:VAR / file:/chemin
     - textbox "Clé API":
       - /placeholder: sk-... ou env:ZING_API_KEY
       - text: env:ZING_API_KEY
     - button "Afficher la clé" [pressed]
     - text: Modèle demandé model
-    - combobox "Modèle demandé fournisseur":
-      - option "Choisir un fournisseur…" [selected]
-      - option "Anthropic"
-      - option "DeepSeek"
-      - option "Google"
-      - option "Zhipu AI"
-      - option "Moonshot AI"
-      - option "OpenAI"
-      - option "Alibaba Cloud"
-      - option "Personnalisé (depuis le relais)"
-    - button "Récupérer les modèles" [disabled]
-    - status
-    - combobox "Modèle demandé modèle" [disabled]:
-      - option "Choisir un modèle…" [selected]
-    - button "Saisie libre"
+    - textbox "Modèle demandé model":
+      - /placeholder: text-embedding-3-large
+    - button "Actualiser les modèles" [disabled]
+    - status: Sélectionnez un relais ou saisissez son URL, et zing liste ses modèles.
     - text: Modèle annoncé claimed_model Facultatif
-    - textbox "Modèle annoncé claimed_model Facultatif":
-      - /placeholder: Vide = identique au modèle demandé
+    - combobox "Modèle annoncé":
+      - option "Identique au modèle demandé" [selected]
+    - button "Saisir manuellement"
     - text: Seulement si le relais le vend sous un autre nom — zing vérifie les réponses par rapport à ce modèle. Dimension annoncée claimed_dimensions Facultatif
     - spinbutton "Dimension annoncée claimed_dimensions Facultatif"
-    - text: Fournisseur déclaré declared_provider Facultatif
-    - textbox "Fournisseur déclaré declared_provider Facultatif":
-      - /placeholder: p. ex. openai / deepseek
-    - text: Aide zing à choisir le bon profil de modèle lorsque le nom du modèle seul est ambigu. Choisir un modèle dans la liste le remplit. Protocole
+    - text: Protocole
     - group "Protocole":
       - button "Auto" [pressed]
       - button "Compatible OpenAI"

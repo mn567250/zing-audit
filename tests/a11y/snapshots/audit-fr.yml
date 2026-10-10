@@ -37,38 +37,28 @@
     - listitem: Rapport
   - region "Ce relais sert-il le vrai modèle ?":
     - heading "Ce relais sert-il le vrai modèle ?" [level=1]
-    - paragraph: Saisissez l'adresse du relais et le modèle qu'il prétend servir. zing exécute une suite complète de tests boîte noire sur votre machine et produit un rapport de vérification lisible et étayé par des preuves.
-    - text: URL du relais base_url
-    - textbox "URL du relais base_url":
-      - /placeholder: https://relay.example.com/v1
+    - paragraph: Choisissez le relais, le modèle à auditer et, s'il est vendu sous un autre nom, le modèle qu'il prétend être. zing exécute sur votre machine une batterie complète de tests en boîte noire et produit un rapport de vérification lisible et étayé par des preuves.
+    - text: Relais / fournisseur Facultatif
+    - combobox "Relais / fournisseur Facultatif":
+      - option "Sélectionnez un relais ou un fournisseur…" [selected]
+      - option "Autre (saisir l'URL)"
+    - text: En choisir un remplit son URL ; pour tout autre relais, choisissez « Autre » et saisissez l'URL. URL du relais base_url
+    - combobox "URL du relais base_url"
     - text: Clé API Accepte env:VAR / file:/chemin
     - textbox "Clé API":
       - /placeholder: sk-... ou env:ZING_API_KEY
       - text: env:ZING_API_KEY
     - button "Afficher la clé" [pressed]
     - text: Modèle demandé model
-    - combobox "Modèle demandé fournisseur":
-      - option "Choisir un fournisseur…" [selected]
-      - option "Anthropic"
-      - option "DeepSeek"
-      - option "Google"
-      - option "Zhipu AI"
-      - option "Moonshot AI"
-      - option "OpenAI"
-      - option "Alibaba Cloud"
-      - option "Personnalisé (depuis le relais)"
-    - button "Récupérer les modèles" [disabled]
-    - status
-    - combobox "Modèle demandé modèle" [disabled]:
-      - option "Choisir un modèle…" [selected]
-    - button "Saisie libre"
+    - textbox "Modèle demandé model":
+      - /placeholder: deepseek-chat
+    - button "Actualiser les modèles" [disabled]
+    - status: Sélectionnez un relais ou saisissez son URL, et zing liste ses modèles.
     - text: Modèle annoncé claimed_model Facultatif
-    - textbox "Modèle annoncé claimed_model Facultatif":
-      - /placeholder: Vide = identique au modèle demandé
-    - text: Seulement si le relais le vend sous un autre nom — zing vérifie les réponses par rapport à ce modèle. Fournisseur déclaré declared_provider Facultatif
-    - textbox "Fournisseur déclaré declared_provider Facultatif":
-      - /placeholder: p. ex. openai / deepseek
-    - text: Aide zing à choisir le bon profil de modèle lorsque le nom du modèle seul est ambigu. Choisir un modèle dans la liste le remplit. Protocole
+    - combobox "Modèle annoncé":
+      - option "Identique au modèle demandé" [selected]
+    - button "Saisir manuellement"
+    - text: Seulement si le relais le vend sous un autre nom — zing vérifie les réponses par rapport à ce modèle. Protocole
     - group "Protocole":
       - button "Auto" [pressed]
       - button "OpenAI"
@@ -88,29 +78,21 @@
     - text: En standard, la sonde ne s'exécute qu'avec une référence ; sinon, les requêtes de l'audit lui-même sont utilisées.
     - button "Comparer à une référence de confiance compare" [expanded]
     - paragraph: Indiquez un point d'accès du même modèle en qui vous avez confiance (p. ex. l'API officielle). zing s'en sert pour corroborer le comportement de la cible et fiabiliser les verdicts de substitution/déclassement — l'évaluation de qualité et la détection de falsification n'atteignent leur niveau maximal qu'avec une référence.
-    - text: URL de référence base_url
-    - textbox "URL de référence base_url":
-      - /placeholder: https://api.openai.com/v1
+    - text: Relais / fournisseur Facultatif
+    - combobox "Relais / fournisseur Facultatif":
+      - option "Sélectionnez un relais ou un fournisseur…" [selected]
+      - option "Autre (saisir l'URL)"
+    - text: En choisir un remplit son URL ; pour tout autre relais, choisissez « Autre » et saisissez l'URL. URL de référence base_url
+    - combobox "URL de référence base_url"
     - text: Clé API de référence
     - textbox "Clé API de référence":
       - /placeholder: sk-... ou env:OPENAI_API_KEY
     - button "Afficher la clé"
     - text: Modèle de référence model
-    - combobox "Modèle de référence fournisseur":
-      - option "Choisir un fournisseur…" [selected]
-      - option "Anthropic"
-      - option "DeepSeek"
-      - option "Google"
-      - option "Zhipu AI"
-      - option "Moonshot AI"
-      - option "OpenAI"
-      - option "Alibaba Cloud"
-      - option "Personnalisé (depuis le relais)"
-    - button "Récupérer les modèles" [disabled]
-    - status
-    - combobox "Modèle de référence modèle" [disabled]:
-      - option "Choisir un modèle…" [selected]
-    - button "Saisie libre"
+    - textbox "Modèle de référence model":
+      - /placeholder: id officiel du même modèle
+    - button "Actualiser les modèles" [disabled]
+    - status: Sélectionnez un relais ou saisissez son URL, et zing liste ses modèles.
     - text: Protocole de référence
     - group "Protocole de référence":
       - button "Auto" [pressed]

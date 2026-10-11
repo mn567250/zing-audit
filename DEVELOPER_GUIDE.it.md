@@ -317,7 +317,7 @@ solo la libreria standard.
   obiettivo e modello (`history.latest_for()`, una sola ricerca indicizzata) e
   invia gli avvisi via webhook (`zing/notify.py`) in parallelo al superamento di
   una soglia o a un peggioramento. `POST /api/watches/{id}/run` risponde 409
-  mentre lo scheduler ha appena avviato quel monitor; un reset della chiave
+  se lo scheduler ha appena avviato quel monitor; un reset della chiave
   principale annulla le esecuzioni pianificate non ancora iniziate, e lo
   spegnimento annulla quelle in corso.
 - **Compressione e cache.** `caching.py` comprime con gzip le risposte da 1 KiB in
@@ -455,8 +455,7 @@ Le funzionalità possono fornire i propri testi come frammenti,
 uniti alla lingua al caricamento. `/locales.js` invia solo la lingua scelta
 (`?lang=<code>` o il cookie `zing_lang` impostato da `lang.js`; senza nessuno dei
 due, tutte le lingue), generato e compresso con gzip una volta per variante e
-rivalidato tramite `ETag`; un cambio
-di lingua carica la nuova su richiesta.
+rivalidato tramite `ETag`; un cambio di lingua carica la nuova su richiesta.
 
 - **Nuovo testo dell'interfaccia:** scrivi il cinese nell'HTML e l'inglese in
   `data-en` (o usa `T(zh, en)`), poi aggiungi la chiave inglese a `en.json` o a
@@ -518,7 +517,7 @@ pytest -n auto               # in parallelo, un worker per CPU (pytest-xdist)
   dentro il comando che ne ha bisogno.
 - `test_filler_perf.py` fissa il testo di riempimento byte per byte e fallisce
   quando la sonda della finestra di contesto blocca l'event loop.
-- `tests/a11y/` verifica la nuova interfaccia web rispetto a BITV 2.0 /
+- `tests/a11y/` verifica la nuova interfaccia web (v2) rispetto a BITV 2.0 /
   EN 301 549 / WCAG 2.1 AA in un browser reale (Playwright + axe-core), in ogni
   lingua dell'interfaccia e con entrambi i temi:
   `pip install -e '.[web,a11y]' && playwright install chromium`, poi

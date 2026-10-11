@@ -314,7 +314,7 @@ WAV) usa apenas a biblioteca padrão.
   recente do mesmo alvo e modelo (`history.latest_for()`, uma única consulta
   indexada) e envia os alertas por webhook (`zing/notify.py`) em simultâneo ao
   ultrapassar um limite ou ao piorar. `POST /api/watches/{id}/run` responde 409
-  enquanto o agendador acabou de iniciar esse monitor; uma reposição da chave
+  quando o agendador acabou de iniciar esse monitor; uma reposição da chave
   mestra cancela as execuções agendadas que ainda não começaram, e o
   encerramento cancela as execuções em curso.
 - **Compressão e cache.** `caching.py` comprime com gzip as respostas de 1 KiB ou
@@ -453,8 +453,7 @@ As funcionalidades podem trazer os seus textos como fragmentos,
 fundidos no idioma ao carregar. `/locales.js` envia apenas o idioma escolhido
 (`?lang=<code>` ou o cookie `zing_lang` definido por `lang.js`; sem nenhum dos
 dois, todos os idiomas), gerado e comprimido com gzip uma vez por variante e
-revalidado por `ETag`; uma troca de
-idioma carrega o novo sob demanda.
+revalidado por `ETag`; uma troca de idioma carrega o novo sob demanda.
 
 - **Novo texto de interface:** escreva o chinês no HTML e o inglês em `data-en`
   (ou use `T(zh, en)`), depois acrescente a chave inglesa a `en.json` ou a um
@@ -514,7 +513,7 @@ pytest -n auto               # em paralelo, um worker por CPU (pytest-xdist)
   Importe-os dentro do comando que precisa deles.
 - `test_filler_perf.py` fixa o texto de enchimento byte a byte e falha quando a
   sonda da janela de contexto bloqueia o event loop.
-- `tests/a11y/` verifica a nova interface web face a BITV 2.0 / EN 301 549 /
+- `tests/a11y/` verifica a nova interface web (v2) face a BITV 2.0 / EN 301 549 /
   WCAG 2.1 AA num navegador real (Playwright + axe-core), em cada idioma da
   interface e em ambos os temas:
   `pip install -e '.[web,a11y]' && playwright install chromium`, depois

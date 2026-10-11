@@ -201,9 +201,9 @@ auditorías e infla las latencias que registran. `helpers.build_filler()`
 construye el texto de relleno en tiempo lineal y memoriza los últimos pocos
 tamaños, y los detectores de ventana de contexto y de caché de prompts lo llaman
 (así como a `build_haystack()`) mediante `asyncio.to_thread`. Los conteos de
-tokens vienen de `zing/utils/tokenize.py`, una heurística con la biblioteca estándar: zing no
-importa ninguna biblioteca de tokenizer y no descarga nada en tiempo de
-ejecución, así que funciona en entornos restringidos. El argumento `tokenizer`
+tokens vienen de `zing/utils/tokenize.py`, una heurística con la biblioteca
+estándar: zing no importa ninguna biblioteca de tokenizer y no descarga nada en
+tiempo de ejecución, así que funciona en entornos restringidos. El argumento `tokenizer`
 de `estimate_tokens()` se acepta pero no cambia el conteo, y los campos del
 informe `tokens_exact` / `exact_tokenizer` se conservan por compatibilidad y
 siempre valen false.

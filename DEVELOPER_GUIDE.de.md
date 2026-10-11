@@ -371,7 +371,10 @@ dynamischen Text und `ZING_LANG.server(text)` für Text aus dem Backend
 `watches.db` (`web/watches.py`, enthält die API-Schlüssel der Überwachungen,
 verschlüsselt) und `kb.db` (`knowledge/store.py`). Jeder Aufruf öffnet eine
 kurzlebige Verbindung, daher sind die Speicher im Threadpool von FastAPI sicher.
-Verlaufszeilen sind nach Ziel und Modell indiziert (`idx_history_target`), was
+Die globale Option `--data-dir` (auch bei `zing serve`) setzt lediglich
+`ZING_DATA_DIR` auf den absoluten Pfad, und `zing data-dir` gibt das aufgelöste
+Verzeichnis aus. Ein bereits vorhandenes Verzeichnis behält seine Rechte; nur das
+Standardverzeichnis `~/.zing` wird auf `0700` verschärft. Verlaufszeilen sind nach Ziel und Modell indiziert (`idx_history_target`), was
 `history.latest_for()` nutzt, um den vorigen Lauf einer Überwachung zu finden.
 
 Gespeicherte API-Schlüssel verschlüsselt `zing/secretbox.py` (Fernet,

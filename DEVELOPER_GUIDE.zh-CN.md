@@ -279,7 +279,9 @@ v2 的**检测**和**工具**页面用 `v2/relaycfg.js` 配置中转站：选择
 `zing/datadir.py` 管理 `$ZING_DATA_DIR`（默认 `~/.zing`），以 `0700` 创建，其中的 SQLite 文件
 为 `0600`：`history.db`（`web/history.py`）、`watches.db`（`web/watches.py`，加密保存监控的
 API 密钥）和 `kb.db`（`knowledge/store.py`）。每次调用都打开一个短生命周期的连接，因此这些存储
-在 FastAPI 的线程池中是安全的。检测历史的记录按目标和模型建立索引（`idx_history_target`），
+在 FastAPI 的线程池中是安全的。全局选项 `--data-dir`（`zing serve` 也支持）只是把 `ZING_DATA_DIR`
+设为该绝对路径，`zing data-dir` 输出解析后的目录。已存在的目录保留其权限；只有默认的 `~/.zing`
+会被收紧为 `0700`。检测历史的记录按目标和模型建立索引（`idx_history_target`），
 `history.latest_for()` 借此找到监控的上一次运行。
 
 保存的 API 密钥由 `zing/secretbox.py` 加密（Fernet，存为 `enc:v1:…`；`env:`/`file:` 引用保持原样）。

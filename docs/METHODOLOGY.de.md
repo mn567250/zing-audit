@@ -561,7 +561,7 @@ Gemeldete Prompt-Token über dem 2,5-Fachen der Schätzung und mehr als 50 Token
 darüber gelten als aufgebläht. Completion-Token eines Reasoning-Modells
 enthalten legitim versteckte Reasoning-Token und werden nicht markiert; sonst
 sind Completion-Token über dem 3-Fachen der Schätzung und mehr als 80 Token
-darüber eine schwächere Warnung, nie ein Fehlschlag, weil die Schätzung einer
+darüber nur eine weiche Warnung, nie ein Fehlschlag, weil die Schätzung einer
 kurzen Antwort ungenau ist. `total` muss `prompt + completion` entsprechen
 (±2), und ein Total ohne Aufteilung wird markiert. Eine Unterzählung (unter der
 Hälfte der Schätzung) dient nur zur Information (schadet dem Käufer nicht).

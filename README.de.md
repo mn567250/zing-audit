@@ -455,9 +455,9 @@ Bewertung, nie das Risikourteil. Ohne die Messung (`standard` ohne Referenz,
 
 Token werden doppelt gezählt — aus der `usage` des Relays und lokal —, sodass der
 Durchsatz auch ohne `usage` messbar ist. Die lokale Zählung ist eine Schätzung
-mit einer eingebauten Heuristik (etwa ±15-20 %; kein Tokenizer wird verwendet oder
-heruntergeladen), und der Abschnitt weist immer darauf hin. Ein Perzentil wird nur bei ausreichend
-Stichproben angezeigt (p90 ab 10, p95 ab 20, p99 ab 100). Der JSON-Bericht
+mit einer eingebauten Heuristik (etwa ±15-20 %; kein Tokenizer wird verwendet
+oder heruntergeladen), und der Abschnitt weist immer darauf hin. Ein Perzentil
+wird nur bei ausreichend Stichproben angezeigt (p90 ab 10, p95 ab 20, p99 ab 100). Der JSON-Bericht
 speichert die Zeiten jeder Anfrage (nur Zahlen, kein Text); HTML-Bericht und
 Weboberfläche stellen sie entlang der Zeitachse der Prüfung dar.
 
@@ -552,8 +552,8 @@ Zeit eines Laufs ist der Start seines Audits, nach einer etwaigen Wartezeit. Die
 Prüfung auf Verschlechterung vergleicht mit dem zuletzt gespeicherten Lauf
 desselben Relays und Modells, egal wie viele andere Läufe seitdem gespeichert
 wurden. Die Warn-Webhooks eines Laufs werden gleichzeitig gesendet, sodass ein
-langsamer oder toter Webhook die anderen nicht aufhält. Schlüssel werden verschlüsselt in Ihrem lokalen Datenverzeichnis
-gespeichert und nie an den Browser zurückgegeben.
+langsamer oder toter Webhook die anderen nicht aufhält. Schlüssel werden
+verschlüsselt in Ihrem lokalen Datenverzeichnis gespeichert und nie an den Browser zurückgegeben.
 
 **Hauptschlüssel.** Die API-Schlüssel der Überwachungen sind mit einem
 Hauptschlüssel verschlüsselt, den zing nie auf die Festplatte schreibt. Wenn Sie

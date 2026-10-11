@@ -70,7 +70,7 @@ navegador se ejecutan con `node` y se omiten sin él.
 ```bash
 git clone https://github.com/cenbonew/zing
 cd zing
-pip install -e '.[dev,web]'   # instalación editable con las herramientas de desarrollo y la interfaz web
+pip install -e '.[dev,web]'   # editable, con herramientas de dev e interfaz web
 pytest                        # suite de pruebas
 ruff check zing tests         # lint
 mypy zing                     # comprobación de tipos
@@ -198,10 +198,10 @@ Los detectores comparten un mismo bucle de eventos con todas las demás
 auditorías de `zing serve`, así que el trabajo intensivo en CPU no debe
 ejecutarse en él: un bucle bloqueado retrasa las peticiones de las demás
 auditorías e infla las latencias que registran. `helpers.build_filler()`
-construye el texto de relleno en tiempo lineal y memoriza los últimos tamaños, y
-los detectores de ventana de contexto y de caché de prompts lo llaman (igual que
-`build_haystack()`) mediante `asyncio.to_thread`. Los conteos de tokens vienen
-de `zing/utils/tokenize.py`, una heurística con la biblioteca estándar: zing no
+construye el texto de relleno en tiempo lineal y memoriza los últimos pocos
+tamaños, y los detectores de ventana de contexto y de caché de prompts lo llaman
+(así como a `build_haystack()`) mediante `asyncio.to_thread`. Los conteos de
+tokens vienen de `zing/utils/tokenize.py`, una heurística con la biblioteca estándar: zing no
 importa ninguna biblioteca de tokenizer y no descarga nada en tiempo de
 ejecución, así que funciona en entornos restringidos. El argumento `tokenizer`
 de `estimate_tokens()` se acepta pero no cambia el conteo, y los campos del

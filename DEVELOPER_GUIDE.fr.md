@@ -73,7 +73,7 @@ navigateur s'exécutent sous `node` et sont ignorés sans lui.
 ```bash
 git clone https://github.com/cenbonew/zing
 cd zing
-pip install -e '.[dev,web]'   # installation éditable avec les outils de dev et l'interface web
+pip install -e '.[dev,web]'   # éditable, avec outils de dev et interface web
 pytest                        # suite de tests
 ruff check zing tests         # lint
 mypy zing                     # vérification de types
@@ -200,7 +200,7 @@ Les détecteurs partagent une même boucle d'événements avec tous les autres
 audits de `zing serve` ; le travail gourmand en CPU ne doit donc pas s'y
 exécuter : une boucle bloquée retarde les requêtes des autres audits et gonfle
 les latences qu'ils mesurent. `helpers.build_filler()` construit le texte de
-remplissage en temps linéaire et mémorise les dernières tailles, et les
+remplissage en temps linéaire et mémorise les quelques dernières tailles, et les
 détecteurs de fenêtre de contexte et de cache de prompt l'appellent (ainsi que
 `build_haystack()`) via `asyncio.to_thread`. Les comptes de tokens viennent de
 `zing/utils/tokenize.py`, une heuristique en bibliothèque standard : zing
@@ -323,7 +323,7 @@ que la bibliothèque standard.
   maîtresse annule les exécutions planifiées qui n'ont pas encore démarré, et
   l'arrêt du serveur annule les exécutions en cours.
 - **Compression et cache.** `caching.py` compresse en gzip les réponses de
-  1 Kio ou plus (sauf les Server-Sent Events) pour les clients qui l'acceptent
+  1 KiB ou plus (sauf les Server-Sent Events) pour les clients qui l'acceptent
   (`gzip;q=0` le refuse). Les pages et `/locales.js` sont compressés une seule
   fois, à leur construction, et servis précompressés avec
   `Content-Encoding: gzip`, `Vary: Accept-Encoding` et un ETag distinct se

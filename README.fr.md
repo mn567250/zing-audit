@@ -451,8 +451,8 @@ score, jamais le verdict de risque. Sans la sonde (`standard` sans référence,
 Les tokens sont comptés deux fois — depuis l'`usage` du relais et localement —,
 si bien que le débit reste mesurable même sans `usage`. Le comptage local est
 une estimation par une heuristique intégrée (environ ±15-20 % ; aucun tokenizer
-n'est utilisé ni téléchargé), et la section l'indique toujours. Un percentile n'est
-affiché qu'avec assez d'échantillons (p90 dès 10, p95 dès 20, p99 dès 100). Le
+n'est utilisé ni téléchargé), et la section l'indique toujours. Un percentile
+n'est affiché qu'avec assez d'échantillons (p90 dès 10, p95 dès 20, p99 dès 100). Le
 rapport JSON conserve les temps de chaque requête (des nombres uniquement, aucun
 texte) ; le rapport HTML et l'interface web les tracent sur la chronologie de
 l'audit.

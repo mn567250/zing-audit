@@ -450,8 +450,8 @@ referencia, `smoke`), la dimensión no se ejecuta y sale de la puntuación globa
 Los tokens se cuentan dos veces — a partir del `usage` del relay y localmente —,
 así que el throughput se puede medir incluso sin `usage`. El conteo local es una
 estimación con una heurística integrada (aproximadamente ±15-20 %; no se usa ni
-se descarga ningún tokenizer), y la sección siempre lo indica. Un percentil solo se
-muestra con suficientes muestras (p90 desde 10, p95 desde 20, p99 desde 100). El
+se descarga ningún tokenizer), y la sección siempre lo indica. Un percentil solo
+se muestra con suficientes muestras (p90 desde 10, p95 desde 20, p99 desde 100). El
 informe JSON guarda los tiempos de cada petición (solo números, sin texto); el
 informe HTML y la interfaz web los representan a lo largo de la línea temporal de
 la auditoría.

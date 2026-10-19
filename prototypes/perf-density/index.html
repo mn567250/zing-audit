@@ -1,0 +1,734 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Probe Chart Variants</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one column of variant cards on the v2 page ground; each card = the
+   production chart panel at its real 720×230 viewBox, plus a verdict list.
+   Tokens are copied from zing/web/static/v2/zing.css + perf.css (unchanged). */
+:root {
+  --bg: #eef2ec; --card: #fffefb; --surface-2: #f3f6f2; --field: #fbfdfa;
+  --line: #e2e8e0; --line-strong: #cfe0d6;
+  --ink: #0c211e; --ink2: #566460; --faint: #5e6c67; --on-ink: #ffffff;
+  --teal: #0f6f5f; --orange: #c8561c; --bad: #b8352a; --bad-fill: #cb3b2e;
+  --good: #1d7a45; --warn: #8a5a00;
+  --shadow: 0 1px 2px rgba(12,33,30,.06), 0 8px 24px -16px rgba(12,33,30,.25);
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1012; --card: #11181b; --surface-2: #151e22; --field: #0e1417;
+    --line: #1f2b31; --line-strong: #2d3d45;
+    --ink: #e3ece8; --ink2: #a7b6b0; --faint: #8a9a94; --on-ink: #0b1012;
+    --teal: #4fd8a4; --orange: #f39a5c; --bad: #ff7b72; --bad-fill: #f0625a;
+    --good: #5fd08a; --warn: #f0c060;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 8px 24px -16px rgba(0,0,0,.8);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1012; --card: #11181b; --surface-2: #151e22; --field: #0e1417;
+  --line: #1f2b31; --line-strong: #2d3d45;
+  --ink: #e3ece8; --ink2: #a7b6b0; --faint: #8a9a94; --on-ink: #0b1012;
+  --teal: #4fd8a4; --orange: #f39a5c; --bad: #ff7b72; --bad-fill: #f0625a;
+  --good: #5fd08a; --warn: #f0c060;
+  --shadow: 0 1px 2px rgba(0,0,0,.5), 0 8px 24px -16px rgba(0,0,0,.8);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px;
+}
+.wrap { max-width: 860px; margin: 0 auto; display: grid; gap: 20px; }
+h1 { font-size: 26px; margin: 0; letter-spacing: -0.3px; text-wrap: balance; }
+h2 { font-size: 17px; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.lead { color: var(--ink2); max-width: 68ch; }
+.eyebrow { font: 600 11.5px/1 var(--mono); letter-spacing: .8px; text-transform: uppercase; color: var(--ink2); }
+
+/* controls */
+.controls {
+  display: flex; flex-wrap: wrap; gap: 12px 22px; align-items: center;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; box-shadow: var(--shadow);
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.ctl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ctl > span { font-size: 13px; color: var(--ink2); font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px; background: var(--field); }
+.seg button {
+  font: 600 13px var(--sans); border: 0; background: transparent; color: var(--ink2);
+  padding: 5px 11px; border-radius: 999px; cursor: pointer; min-height: 30px;
+}
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
+.seg button:not([aria-pressed="true"]):hover { color: var(--ink); }
+input[type="range"] { accent-color: var(--teal); width: 150px; }
+output { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; min-width: 6ch; }
+.btn {
+  font: 600 13px var(--sans); border: 1px solid var(--line-strong); background: var(--field); color: var(--ink);
+  border-radius: 999px; padding: 5px 13px; cursor: pointer; min-height: 32px;
+}
+.btn:hover { border-color: var(--ink2); }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+/* variant cards */
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 18px 16px;
+  display: grid; gap: 12px; min-width: 0;
+}
+.card.rec { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal); }
+.head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.tag { font: 600 11.5px var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--ink2); }
+.tag.go { border-color: var(--teal); color: var(--ink); }
+.why { color: var(--ink2); font-size: 14px; max-width: 72ch; }
+.chartbox { position: relative; min-width: 0; }
+.chartbar { display: flex; justify-content: flex-end; gap: 8px; }
+svg.zc { width: 100%; height: auto; display: block; overflow: visible; touch-action: pan-y; border-radius: 8px; }
+svg.zc:focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; }
+.panel-title { font: 600 12.5px var(--sans); color: var(--ink2); margin: 4px 0 2px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.panel-title b { color: var(--ink); }
+
+/* chart marks (mirror the production .zp-* rules) */
+.grid { stroke: var(--line); stroke-width: 1; }
+.grid.minor { stroke-dasharray: 0; opacity: .55; }
+.tick { fill: var(--faint); font: 11px var(--sans); font-variant-numeric: tabular-nums; }
+.axis-title { fill: var(--ink2); font: 600 11px var(--sans); }
+.pt { stroke: var(--card); stroke-width: 2; }
+.pt.t { fill: var(--teal); } .pt.b { fill: var(--orange); }
+.pt.passive { fill-opacity: .35; } .pt.passive.t { stroke: var(--teal); } .pt.passive.b { stroke: var(--orange); }
+.pt.slim { stroke: none; fill-opacity: .55; }
+.pt.slim.passive { fill-opacity: .35; stroke-width: 1.5; }
+.pt.slim.passive.t { stroke: var(--teal); } .pt.slim.passive.b { stroke: var(--orange); }
+.fail { stroke: var(--bad-fill); stroke-width: 2; stroke-linecap: round; fill: none; }
+.trend { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.trend.t { stroke: var(--teal); } .trend.b { stroke: var(--orange); }
+.band.t { fill: var(--teal); fill-opacity: .14; } .band.b { fill: var(--orange); fill-opacity: .14; }
+.probe-zone { fill: var(--surface-2); }
+.probe-label { fill: var(--ink2); font: 600 11px var(--sans); }
+.off { stroke: var(--card); stroke-width: 1.5; }
+.off.t { fill: var(--teal); } .off.b { fill: var(--orange); }
+.off-strip { fill: var(--surface-2); }
+.off-label { fill: var(--ink2); font: 600 11px var(--sans); }
+.sel { fill: none; stroke: var(--ink); stroke-width: 2; pointer-events: none; }
+.cross { stroke: var(--ink2); stroke-width: 1; pointer-events: none; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.k { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+.k.t { background: var(--teal); } .k.b { background: var(--orange); }
+.k.passive { background: color-mix(in srgb, var(--teal) 35%, transparent); border: 2px solid var(--teal); }
+.k.line { width: 16px; height: 2px; border-radius: 1px; background: var(--ink2); }
+.k.band { width: 16px; height: 9px; border-radius: 2px; background: color-mix(in srgb, var(--teal) 22%, transparent); }
+.k.x { width: auto; height: auto; border-radius: 0; color: var(--bad-fill); font-weight: 800; font-style: normal; line-height: 1; }
+.k.tri { width: 0; height: 0; border-radius: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--teal); }
+
+.verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 18px; font-size: 13.5px; }
+.verdict ul { margin: 4px 0 0; padding-left: 18px; color: var(--ink2); }
+.verdict li + li { margin-top: 2px; }
+.verdict h3 { margin: 0; font-size: 12px; letter-spacing: .5px; text-transform: uppercase; color: var(--ink); }
+.verdict h3::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; }
+.verdict .pro h3::before { background: var(--good); }
+.verdict .con h3::before { background: var(--warn); }
+
+.tip {
+  position: fixed; z-index: 20; pointer-events: none; display: none;
+  background: var(--ink); color: var(--on-ink); font: 12.5px/1.45 var(--mono); white-space: pre;
+  padding: 8px 10px; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.35); max-width: calc(100vw - 16px);
+}
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.summary { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; display: grid; gap: 8px; }
+.summary ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.summary li { max-width: 74ch; }
+code { font: 13px var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+@media (max-width: 520px) { h1 { font-size: 22px; } .card { padding: 14px 12px; } input[type="range"] { width: 110px; } }
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:8px">
+    <div class="eyebrow">zing · UI v2 · performance panel · prototype</div>
+    <h1>Making the probe readable</h1>
+    <p class="lead">The 100-request performance probe lands 1–2&nbsp;s requests next to audit requests that take up to three minutes. On one linear axis the probe flattens into a row of overlapping rings at zero. Below are four alternatives to the current chart. All of them use the same synthetic run, which is shaped like the reported screenshot. Hover, tap, or focus a chart and use the arrow keys to step through requests.</p>
+  </header>
+
+  <div class="controls" role="group" aria-label="Prototype controls">
+    <div class="ctl"><span id="lbl-theme">Theme</span>
+      <div class="seg" role="group" aria-labelledby="lbl-theme" id="theme">
+        <button type="button" data-v="system" aria-pressed="true">System</button>
+        <button type="button" data-v="light" aria-pressed="false">Light</button>
+        <button type="button" data-v="dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+    <div class="ctl"><label for="progress"><span>Probe</span></label>
+      <input id="progress" type="range" min="0" max="100" value="54">
+      <output id="progress-out" for="progress">54/100</output>
+      <button type="button" class="btn" id="play">Play live</button>
+    </div>
+    <div class="ctl"><span id="lbl-base">Baseline</span>
+      <div class="seg" role="group" aria-labelledby="lbl-base" id="baseline">
+        <button type="button" data-v="0" aria-pressed="true">Off</button>
+        <button type="button" data-v="1" aria-pressed="false">On</button>
+      </div>
+    </div>
+  </div>
+
+  <section class="card" id="v-a">
+    <div class="head"><span class="eyebrow">Today</span><h2>A · Current chart</h2><span class="tag">reference</span></div>
+    <p class="why">The production rendering: linear y in raw milliseconds, r=4 dots with a 2&nbsp;px surface ring, and a running median over each endpoint's last 5 requests across both phases.</p>
+    <div class="chartbox" data-chart="a"></div>
+    <div class="legend" data-legend="a"></div>
+    <div class="verdict">
+      <div class="con"><h3>Problems</h3><ul>
+        <li>The probe's 0–2&nbsp;s spread fits into about 2&nbsp;px of height, so every probe request sits on the zero line.</li>
+        <li>The surface rings overlap into a chain, and you can't tell where one request ends and the next begins.</li>
+        <li>The median mixes audit and probe requests, so it holds at 100&nbsp;s and then drops straight down.</li>
+        <li>Hover only works by landing on a 9&nbsp;px dot, which fails on touch and with tremor.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section class="card" id="v-b">
+    <div class="head"><span class="eyebrow">Option 1</span><h2>B · Log scale</h2><span class="tag">smallest change</span></div>
+    <p class="why">Same chart and marks, with a log₁₀ y-axis labelled in human units (100&nbsp;ms, 1&nbsp;s, 10&nbsp;s, 100&nbsp;s). The probe's spread gets visible height.</p>
+    <div class="chartbox" data-chart="b"></div>
+    <div class="legend" data-legend="b"></div>
+    <div class="verdict">
+      <div class="pro"><h3>Gains</h3><ul>
+        <li>About a 20-line change in <code>chartSvg()</code>, and every request stays on one timeline.</li>
+        <li>Works for every metric, and outliers stay in view.</li>
+      </ul></div>
+      <div class="con"><h3>Costs</h3><ul>
+        <li>Probe dots still overlap horizontally: 100 requests in about 170&nbsp;s.</li>
+        <li>Many readers misread a log axis, so it needs a visible "log scale" label and a mention in the accessible summary.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section class="card rec" id="v-c">
+    <div class="head"><span class="eyebrow">Option 2</span><h2>C · Split by phase</h2><span class="tag go">recommended</span></div>
+    <p class="why">Two small multiples, each with one axis. The audit panel keeps the timeline. The probe panel puts the request number on x, so 100 requests get 100 evenly spaced slots, with its own y-scale and a p25–p75 band.</p>
+    <div class="chartbox" data-chart="c"></div>
+    <div class="legend" data-legend="c"></div>
+    <div class="verdict">
+      <div class="pro"><h3>Gains</h3><ul>
+        <li>No overlap by construction: the probe x-axis is fixed at 1–100, so live points fill left to right like the progress bar.</li>
+        <li>Each panel's median uses only its own phase, so the line no longer drops off a cliff.</li>
+        <li>Linear axes that start at zero are honest and easy to read.</li>
+        <li>Two small charts instead of one dual-axis chart follows the dataviz rules.</li>
+      </ul></div>
+      <div class="con"><h3>Costs</h3><ul>
+        <li>The panel gets about 140&nbsp;px taller while a probe runs (the probe panel only shows up once there is probe data).</li>
+        <li>Wall-clock time is gone from the probe panel. The tooltip and the data table still show the start time.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section class="card" id="v-d">
+    <div class="head"><span class="eyebrow">Option 3</span><h2>D · Focus on the probe</h2><span class="tag">single chart</span></div>
+    <p class="why">One timeline, with the y-axis fitted to the probe while one exists (1.3 × its p98). Requests above that are pinned as ▲ markers in an off-scale strip, along with a count. Use "Show all values" to switch back to the full range.</p>
+    <div class="chartbar"><button type="button" class="btn" id="fit-d" aria-pressed="false">Show all values</button></div>
+    <div class="chartbox" data-chart="d"></div>
+    <div class="legend" data-legend="d"></div>
+    <div class="verdict">
+      <div class="pro"><h3>Gains</h3><ul>
+        <li>Keeps the familiar single timeline and puts the vertical space where the probe is.</li>
+        <li>Outliers are labelled with a count and stay reachable with hover and the keyboard, so nothing is hidden.</li>
+      </ul></div>
+      <div class="con"><h3>Costs</h3><ul>
+        <li>Horizontal crowding stays, and audit values above the fit are flattened onto the strip.</li>
+        <li>The y-range changes when the probe starts, so the jump needs a short, motion-safe transition.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section class="card" id="v-e">
+    <div class="head"><span class="eyebrow">Option 4</span><h2>E · Log scale with a density treatment</h2><span class="tag">B + lighter marks</span></div>
+    <p class="why">B's log axis plus marks that suit dense data. Probe dots are r=3 at 55% opacity with no ring, so overlap reads as darker ink instead of a chain of rings. Behind them is the p25–p75 band and a median per phase.</p>
+    <div class="chartbox" data-chart="e"></div>
+    <div class="legend" data-legend="e"></div>
+    <div class="verdict">
+      <div class="pro"><h3>Gains</h3><ul>
+        <li>Clusters read as a shape: the band and line carry the story, and the dots show the spread.</li>
+        <li>The density treatment also applies to C's probe panel.</li>
+      </ul></div>
+      <div class="con"><h3>Costs</h3><ul>
+        <li>A single translucent dot is fainter than 3:1. The band, the median line, the tooltip, and the data table carry the values, so they must stay.</li>
+        <li>Still a log axis (see B).</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section class="summary">
+    <h2>What every variant shares (the accessibility baseline)</h2>
+    <ol>
+      <li><b>Nearest-point hover</b> within 24&nbsp;px, plus a crosshair. You no longer need to hit an 8&nbsp;px dot, and it works with touch.</li>
+      <li><b>Keyboard:</b> focus a chart, then use ←/→ (PageUp/PageDown for 10, Home/End). A polite live region reads out each request, the same text as the tooltip.</li>
+      <li><b>Identity never by colour alone:</b> audit requests are lighter with an outline, failures are a red ×, off-scale requests are ▲, and baseline points are orange, always listed in the legend.</li>
+      <li><b>Both themes</b> use the existing v2 tokens. Target teal and baseline orange are the production pair, already validated as ≥ 3:1 against <code>--card</code> in each theme.</li>
+      <li><b>Readable ticks:</b> durations from 1,000&nbsp;ms up are shown as "1.5&nbsp;s" / "120&nbsp;s" instead of "120,000" (B–E).</li>
+      <li>The existing <code>Show data table</code> and the chart's accessible summary stay as they are. C and E add one sentence to the summary: "probe median 1.6&nbsp;s, p25–p75 1.5–1.8&nbsp;s".</li>
+    </ol>
+  </section>
+</div>
+<div class="tip" id="tip" aria-hidden="true"></div>
+<div class="sr" aria-live="polite" id="live"></div>
+
+<script>
+(function () {
+  "use strict";
+  var W = 720, ML = 56, MR = 14, MB = 30;
+  var NS = "http://www.w3.org/2000/svg";
+
+  // ---- synthetic run (seeded so every reload matches) ------------------ //
+  function rng(seed) {
+    return function () {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function gauss(r) { return Math.sqrt(-2 * Math.log(r() + 1e-9)) * Math.cos(2 * Math.PI * r()); }
+  function build(withBaseline) {
+    var r = rng(7), recs = [], seq = 0;
+    // audit: 34 requests over ~560 s, mostly small with a heavy tail (like the screenshot)
+    var audit = [
+      [2, 12000], [4, 3000], [6, 8000], [9, 14000], [12, 4000], [18, 9000], [26, 22000], [40, 58000],
+      [52, 2500], [70, 6000], [96, 3800], [110, 6500], [130, 178000], [160, 9000], [190, 14000], [220, 26000],
+      [250, 31000], [280, 0], [282, 56000], [300, 105000], [330, 72000], [360, 80000], [390, 101000],
+      [420, 98000], [450, 12000], [470, 35000], [490, 9500], [505, 68000], [520, 74000], [530, 41000],
+      [540, 18000], [548, 7500], [555, 22000], [560, 1900]
+    ];
+    audit.forEach(function (a) {
+      var ok = a[1] > 0;
+      recs.push({ seq: ++seq, ep: "target", phase: "passive", detector: "identity", start: a[0], ok: ok,
+        lat: ok ? a[1] : null, ttft: ok ? Math.round(a[1] * 0.06 + 120) : null, status: ok ? 200 : 502 });
+    });
+    if (withBaseline) {
+      [30, 140, 260, 410, 530].forEach(function (s, i) {
+        var v = [16000, 41000, 88000, 52000, 23000][i];
+        recs.push({ seq: ++seq, ep: "baseline", phase: "passive", detector: "identity", start: s + 3, ok: true,
+          lat: v, ttft: Math.round(v * 0.05 + 180), status: 200 });
+      });
+    }
+    // probe: 100 sequential requests from 575 s, ~1.6 s each (+ a few slow ones)
+    var t = 575;
+    for (var i = 1; i <= 100; i++) {
+      var lat = Math.max(900, 1600 + gauss(r) * 160 + (r() < 0.04 ? 1400 + r() * 1800 : 0));
+      recs.push({ seq: ++seq, ep: "target", phase: "probe", detector: "performance", probeIdx: i, start: t, ok: true,
+        lat: Math.round(lat), ttft: Math.round(150 + gauss(r) * 18), status: 200 });
+      t += lat / 1000 + 0.15;
+      if (withBaseline) {
+        var bl = Math.max(1100, 2350 + gauss(r) * 260);
+        recs.push({ seq: ++seq, ep: "baseline", phase: "probe", detector: "performance", probeIdx: i, start: t, ok: true,
+          lat: Math.round(bl), ttft: Math.round(240 + gauss(r) * 30), status: 200 });
+        t += bl / 1000 + 0.15;
+      }
+    }
+    return recs;
+  }
+
+  // ---- stats ----------------------------------------------------------- //
+  function q(sorted, p) {
+    if (!sorted.length) return null;
+    var k = (p / 100) * (sorted.length - 1), lo = Math.floor(k), hi = Math.ceil(k);
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (k - lo);
+  }
+  // running median of the last 5 successful requests, grouped by key(r)
+  function trend(recs, key) {
+    var last = {}, out = new Map();
+    recs.filter(function (r) { return r.ok; }).sort(function (a, b) { return a.start - b.start; }).forEach(function (r) {
+      var k = key(r), l = last[k] || (last[k] = []);
+      l.push(r.lat); if (l.length > 5) l.shift();
+      out.set(r, q(l.slice().sort(function (a, b) { return a - b; }), 50));
+    });
+    return out;
+  }
+  // rolling p25/p50/p75 over a centred window of the probe (for the band)
+  function rollingBand(pts, win) {
+    return pts.map(function (r, i) {
+      var s = pts.slice(Math.max(0, i - win), Math.min(pts.length, i + win + 1)).map(function (p) { return p.lat; })
+        .sort(function (a, b) { return a - b; });
+      return { r: r, lo: q(s, 25), mid: q(s, 50), hi: q(s, 75) };
+    });
+  }
+
+  // ---- axes + formatting ---------------------------------------------- //
+  function niceAxis(v) {
+    if (!(v > 0)) return { max: 1, step: 0.25, n: 4 };
+    var base = Math.pow(10, Math.floor(Math.log10(v / 6))), steps = [1, 2, 2.5, 5, 10];
+    for (var i = 0; ; i++) {
+      var step = steps[i] * base, n = Math.ceil(v / step - 1e-9);
+      if (n <= 6) return { max: n * step, step: step, n: n };
+    }
+  }
+  var nf = new Intl.NumberFormat("en");
+  var nf1 = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
+  function raw(v) { return nf.format(Math.round(v)); }                 // production tick style
+  function dur(v) {                                                    // proposed tick style
+    if (v < 1000) return nf.format(Math.round(v)) + " ms";
+    var s = v / 1000;
+    return (s < 10 ? nf1.format(s) : nf.format(Math.round(s))) + " s";
+  }
+  function tipText(r) {
+    var head = "#" + r.seq + " · " + (r.ep === "baseline" ? "baseline" : "target") + " · " + r.detector + " · " +
+      (r.phase === "probe" ? "probe" + (r.probeIdx ? " " + r.probeIdx + "/100" : "") : "audit");
+    if (!r.ok) return head + "\nfailed (" + r.status + ")\nstart: " + nf1.format(r.start) + " s";
+    return head + "\nLatency: " + raw(r.lat) + " ms\nTTFT: " + raw(r.ttft) + " ms\nstart: " + nf1.format(r.start) + " s";
+  }
+
+  // ---- svg helpers ----------------------------------------------------- //
+  function el(name, attrs, parent) {
+    var e = document.createElementNS(NS, name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function text(parent, x, y, s, cls, anchor) {
+    var t = el("text", { x: x, y: y, class: cls, "text-anchor": anchor || "start" }, parent);
+    t.textContent = s; return t;
+  }
+  function newSvg(h, label) {
+    var s = el("svg", { viewBox: "0 0 " + W + " " + h, class: "zc", role: "img", tabindex: "0", "aria-label": label });
+    s._marks = []; s._h = h;
+    return s;
+  }
+  function yGrid(g, ticks, y, fmt, minor) {
+    ticks.forEach(function (v) {
+      var yy = y(v).toFixed(1);
+      el("line", { class: "grid", x1: ML, x2: W - MR, y1: yy, y2: yy }, g);
+      text(g, ML - 6, +yy + 4, fmt(v), "tick", "end");
+    });
+    (minor || []).forEach(function (v) {
+      var yy = y(v).toFixed(1);
+      el("line", { class: "grid minor", x1: ML, x2: W - MR, y1: yy, y2: yy }, g);
+    });
+  }
+  function xTicks(g, xa, x, baseY, suffix) {
+    for (var j = 0; j <= xa.n; j++) {
+      var s = xa.step * j;
+      text(g, x(s).toFixed(1), baseY + 16, nf.format(s) + suffix, "tick", j === 0 ? "start" : j === xa.n ? "end" : "middle");
+    }
+  }
+  function dot(svg, g, r, cx, cy, rad, extra) {
+    var c = el("circle", {
+      class: "pt " + (r.ep === "baseline" ? "b" : "t") + (r.phase === "passive" ? " passive" : "") + (extra || ""),
+      cx: cx.toFixed(1), cy: cy.toFixed(1), r: rad
+    }, g);
+    svg._marks.push({ x: cx, y: cy, r: r });
+    return c;
+  }
+  function cross(svg, g, r, cx, by) {
+    el("path", { class: "fail", d: "M" + (cx - 4).toFixed(1) + "," + (by - 4) + "l8,8m0,-8l-8,8" }, g);
+    svg._marks.push({ x: cx, y: by, r: r });
+  }
+  function line(g, d, cls) { if (d.length > 1) el("path", { class: "trend " + cls, d: "M" + d.join("L") }, g); }
+  function pathOf(list, x, y) { return list.map(function (p) { return x(p[0]).toFixed(1) + "," + y(p[1]).toFixed(1); }); }
+  function endOf(recs) { var e = 1; recs.forEach(function (r) { e = Math.max(e, r.start + (r.lat || 0) / 1000); }); return e; }
+
+  function logTicks(min, max) {
+    var lo = Math.floor(Math.log10(min)), hi = Math.ceil(Math.log10(max)), major = [], minor = [];
+    for (var e = lo; e <= hi; e++) {
+      major.push(Math.pow(10, e));
+      if (e < hi) [2, 5].forEach(function (m) { minor.push(m * Math.pow(10, e)); });
+    }
+    return { lo: Math.pow(10, lo), hi: Math.pow(10, hi), major: major, minor: minor };
+  }
+
+  // ---- A: production --------------------------------------------------- //
+  function chartA(recs) {
+    var H = 230, MT = 10, ph = H - MT - MB, pw = W - ML - MR;
+    var pts = recs.filter(function (r) { return r.ok; }), failed = recs.filter(function (r) { return !r.ok; });
+    var xa = niceAxis(endOf(recs)), ya = niceAxis(Math.max.apply(null, pts.map(function (r) { return r.lat; })) * 1.05);
+    var x = function (s) { return ML + s / xa.max * pw; }, y = function (v) { return MT + ph - v / ya.max * ph; };
+    var svg = newSvg(H, "Latency over time, linear scale: " + recs.length + " requests");
+    var g = el("g", {}, svg), ticks = [];
+    for (var i = 0; i <= ya.n; i++) ticks.push(ya.step * i);
+    yGrid(g, ticks, y, raw); xTicks(g, xa, x, MT + ph, "s");
+    var tr = trend(recs, function (r) { return r.ep; });
+    ["target", "baseline"].forEach(function (ep) {
+      line(g, pathOf(pts.filter(function (r) { return r.ep === ep; }).map(function (r) { return [r.start, tr.get(r)]; }), x, y),
+        ep === "baseline" ? "b" : "t");
+    });
+    pts.forEach(function (r) { dot(svg, g, r, x(r.start), y(r.lat), 4); });
+    failed.forEach(function (r) { cross(svg, g, r, x(r.start), MT + ph); });
+    return [svg];
+  }
+
+  // ---- B / E: log scale ------------------------------------------------ //
+  function chartLog(recs, dense) {
+    var H = 250, MT = 14, ph = H - MT - MB, pw = W - ML - MR;
+    var pts = recs.filter(function (r) { return r.ok; }), failed = recs.filter(function (r) { return !r.ok; });
+    var vals = pts.map(function (r) { return r.lat; });
+    var lt = logTicks(Math.min.apply(null, vals.concat([1000])) * 0.8, Math.max.apply(null, vals) * 1.1);
+    var L0 = Math.log10(lt.lo), L1 = Math.log10(lt.hi);
+    var xa = niceAxis(endOf(recs));
+    var x = function (s) { return ML + s / xa.max * pw; };
+    var y = function (v) { return MT + ph - (Math.log10(v) - L0) / (L1 - L0) * ph; };
+    var svg = newSvg(H, "Latency over time, log scale: " + recs.length + " requests");
+    var g = el("g", {}, svg);
+    yGrid(g, lt.major, y, dur, lt.minor); xTicks(g, xa, x, MT + ph, "s");
+    text(g, ML + 4, MT + 10, "log scale", "axis-title");
+    var probe = pts.filter(function (r) { return r.phase === "probe"; });
+    if (dense && probe.length) {
+      // probe zone + p25–p75 band + per-phase median
+      var x0 = x(probe[0].start), x1 = x(probe[probe.length - 1].start);
+      el("rect", { class: "probe-zone", x: (x0 - 6).toFixed(1), y: MT, width: (x1 - x0 + 12).toFixed(1), height: ph, rx: 4 }, g);
+      text(g, x0 - 2, MT + ph - 6, "probe", "probe-label");
+      ["target", "baseline"].forEach(function (ep) {
+        var ps = probe.filter(function (r) { return r.ep === ep; });
+        if (ps.length < 3) return;
+        var band = rollingBand(ps, 4), c = ep === "baseline" ? "b" : "t";
+        var up = band.map(function (b) { return x(b.r.start).toFixed(1) + "," + y(b.hi).toFixed(1); });
+        var dn = band.slice().reverse().map(function (b) { return x(b.r.start).toFixed(1) + "," + y(b.lo).toFixed(1); });
+        el("path", { class: "band " + c, d: "M" + up.join("L") + "L" + dn.join("L") + "Z" }, g);
+      });
+    }
+    var tr = trend(recs, dense ? function (r) { return r.ep + r.phase; } : function (r) { return r.ep; });
+    ["target", "baseline"].forEach(function (ep) {
+      (dense ? ["passive", "probe"] : [null]).forEach(function (phase) {
+        line(g, pathOf(pts.filter(function (r) { return r.ep === ep && (!phase || r.phase === phase); })
+          .map(function (r) { return [r.start, tr.get(r)]; }), x, y), ep === "baseline" ? "b" : "t");
+      });
+    });
+    pts.forEach(function (r) {
+      var slim = dense && r.phase === "probe";
+      dot(svg, g, r, x(r.start), y(r.lat), slim ? 3 : 4, slim ? " slim" : "");
+    });
+    failed.forEach(function (r) { cross(svg, g, r, x(r.start), MT + ph); });
+    return [svg];
+  }
+
+  // ---- C: split by phase ---------------------------------------------- //
+  function chartC(recs) {
+    var out = [];
+    var audit = recs.filter(function (r) { return r.phase === "passive"; });
+    var probe = recs.filter(function (r) { return r.phase === "probe"; });
+    var pw = W - ML - MR;
+    // audit panel (timeline)
+    (function () {
+      var H = 170, MT = 10, ph = H - MT - MB;
+      var pts = audit.filter(function (r) { return r.ok; }), failed = audit.filter(function (r) { return !r.ok; });
+      var xa = niceAxis(endOf(audit)), ya = niceAxis(Math.max.apply(null, pts.map(function (r) { return r.lat; })) * 1.05);
+      var x = function (s) { return ML + s / xa.max * pw; }, y = function (v) { return MT + ph - v / ya.max * ph; };
+      var svg = newSvg(H, "Audit requests, latency over time: " + audit.length + " requests");
+      var g = el("g", {}, svg), ticks = [];
+      for (var i = 0; i <= ya.n; i++) ticks.push(ya.step * i);
+      yGrid(g, ticks, y, dur); xTicks(g, xa, x, MT + ph, " s");
+      var tr = trend(audit, function (r) { return r.ep; });
+      ["target", "baseline"].forEach(function (ep) {
+        line(g, pathOf(pts.filter(function (r) { return r.ep === ep; }).map(function (r) { return [r.start, tr.get(r)]; }), x, y),
+          ep === "baseline" ? "b" : "t");
+      });
+      pts.forEach(function (r) { dot(svg, g, r, x(r.start), y(r.lat), 4); });
+      failed.forEach(function (r) { cross(svg, g, r, x(r.start), MT + ph); });
+      svg._title = "<b>Audit requests</b> · " + audit.length + " · over time";
+      out.push(svg);
+    })();
+    // probe panel (request number 1..100)
+    if (probe.length) (function () {
+      var H = 200, MT = 10, ph = H - MT - MB;
+      var pts = probe.filter(function (r) { return r.ok; });
+      var ya = niceAxis(Math.max.apply(null, pts.map(function (r) { return r.lat; })) * 1.08);
+      var x = function (i) { return ML + 6 + (i - 1) / 99 * (pw - 12); }, y = function (v) { return MT + ph - v / ya.max * ph; };
+      var tgt = pts.filter(function (r) { return r.ep === "target"; }).map(function (r) { return r.lat; }).sort(function (a, b) { return a - b; });
+      var svg = newSvg(H, "Performance probe, latency by request number: " + probe.length + " of 100 requests" +
+        (tgt.length ? "; target median " + dur(q(tgt, 50)) + ", p25–p75 " + dur(q(tgt, 25)) + "–" + dur(q(tgt, 75)) : ""));
+      var g = el("g", {}, svg), ticks = [];
+      for (var i = 0; i <= ya.n; i++) ticks.push(ya.step * i);
+      yGrid(g, ticks, y, dur);
+      [1, 25, 50, 75, 100].forEach(function (n, j) {
+        text(g, x(n).toFixed(1), MT + ph + 16, n === 1 ? "#1" : "#" + n, "tick", j === 0 ? "start" : j === 4 ? "end" : "middle");
+      });
+      ["target", "baseline"].forEach(function (ep) {
+        var ps = pts.filter(function (r) { return r.ep === ep; }), c = ep === "baseline" ? "b" : "t";
+        if (ps.length >= 3) {
+          var band = rollingBand(ps, 4);
+          var up = band.map(function (b) { return x(b.r.probeIdx).toFixed(1) + "," + y(b.hi).toFixed(1); });
+          var dn = band.slice().reverse().map(function (b) { return x(b.r.probeIdx).toFixed(1) + "," + y(b.lo).toFixed(1); });
+          el("path", { class: "band " + c, d: "M" + up.join("L") + "L" + dn.join("L") + "Z" }, g);
+        }
+        var tr = trend(ps, function () { return 0; });
+        line(g, ps.map(function (r) { return x(r.probeIdx).toFixed(1) + "," + y(tr.get(r)).toFixed(1); }), c);
+      });
+      pts.forEach(function (r) { dot(svg, g, r, x(r.probeIdx), y(r.lat), 3, " slim"); });
+      svg._title = "<b>Performance probe</b> · " + Math.max.apply(null, probe.map(function (r) { return r.probeIdx; })) +
+        "/100 · by request number" + (tgt.length ? " · median " + dur(q(tgt, 50)) : "");
+      out.push(svg);
+    })();
+    return out;
+  }
+
+  // ---- D: focus on probe ---------------------------------------------- //
+  var fitAll = false;
+  function chartD(recs) {
+    var probe = recs.filter(function (r) { return r.ok && r.phase === "probe"; });
+    var focus = probe.length >= 3 && !fitAll;
+    var H = 250, STRIP = focus ? 22 : 0, MT = 10 + STRIP, ph = H - MT - MB, pw = W - ML - MR;
+    var pts = recs.filter(function (r) { return r.ok; }), failed = recs.filter(function (r) { return !r.ok; });
+    var cap = focus
+      ? q(probe.map(function (r) { return r.lat; }).sort(function (a, b) { return a - b; }), 98) * 1.3
+      : Math.max.apply(null, pts.map(function (r) { return r.lat; })) * 1.05;
+    var ya = niceAxis(cap), xa = niceAxis(endOf(recs));
+    var x = function (s) { return ML + s / xa.max * pw; }, y = function (v) { return MT + ph - v / ya.max * ph; };
+    var over = focus ? pts.filter(function (r) { return r.lat > ya.max; }) : [];
+    var svg = newSvg(H, "Latency over time" + (focus ? ", scaled to the probe; " + over.length + " requests above " + dur(ya.max) + " shown as markers" : "") +
+      ": " + recs.length + " requests");
+    var g = el("g", {}, svg), ticks = [];
+    for (var i = 0; i <= ya.n; i++) ticks.push(ya.step * i);
+    yGrid(g, ticks, y, dur); xTicks(g, xa, x, MT + ph, " s");
+    if (focus) {
+      el("rect", { class: "off-strip", x: ML, y: 4, width: pw, height: STRIP - 4, rx: 4 }, g);
+      text(g, ML - 6, 4 + (STRIP - 4) / 2 + 4, "> " + dur(ya.max), "tick", "end");
+      text(g, W - MR - 6, 4 + (STRIP - 4) / 2 + 4, over.length + " above range", "off-label", "end");
+    }
+    var clipId = "clipD" + Math.random().toString(36).slice(2);
+    var cp = el("clipPath", { id: clipId }, el("defs", {}, svg));
+    el("rect", { x: ML, y: MT - 2, width: pw, height: ph + 4 }, cp);
+    var lg = el("g", { "clip-path": "url(#" + clipId + ")" }, g);
+    var tr = trend(recs, function (r) { return r.ep + r.phase; });
+    ["target", "baseline"].forEach(function (ep) {
+      ["passive", "probe"].forEach(function (phase) {
+        line(lg, pathOf(pts.filter(function (r) { return r.ep === ep && r.phase === phase; })
+          .map(function (r) { return [r.start, tr.get(r)]; }), x, y), ep === "baseline" ? "b" : "t");
+      });
+    });
+    pts.forEach(function (r) {
+      if (r.lat > ya.max) {
+        var cx = x(r.start), cy = 4 + (STRIP - 4) / 2;
+        el("path", { class: "off " + (r.ep === "baseline" ? "b" : "t"),
+          d: "M" + cx.toFixed(1) + "," + (cy - 6).toFixed(1) + "l5.5,10h-11z" }, g);
+        svg._marks.push({ x: cx, y: cy, r: r });
+      } else dot(svg, g, r, x(r.start), y(r.lat), r.phase === "probe" ? 3 : 4, r.phase === "probe" ? " slim" : "");
+    });
+    failed.forEach(function (r) { cross(svg, g, r, x(r.start), MT + ph); });
+    return [svg];
+  }
+
+  // ---- legends ---------------------------------------------------------- //
+  function legend(kind, base) {
+    var s = ['<span><i class="k t"></i>target</span>'];
+    if (base) s.push('<span><i class="k b"></i>baseline</span>');
+    s.push('<span><i class="k passive"></i>audit request (lighter)</span>');
+    s.push('<span><i class="k x">×</i>failed request</span>');
+    s.push('<span><i class="k line"></i>running median (last 5' + (kind === "a" || kind === "b" ? ")" : ", per phase)") + "</span>");
+    if (kind === "c" || kind === "e") s.push('<span><i class="k band"></i>probe p25–p75</span>');
+    if (kind === "d" && !fitAll) s.push('<span><i class="k tri"></i>above range</span>');
+    return s.join("");
+  }
+
+  // ---- interaction: nearest point, crosshair, keyboard ----------------- //
+  var tip = document.getElementById("tip"), live = document.getElementById("live");
+  function scaleOf(svg) { return svg.getBoundingClientRect().width / W; }
+  function select(svg, m, announce) {
+    var old = svg.querySelector(".hl"); if (old) old.remove();
+    hideTip();
+    if (!m) return;
+    svg._sel = m;
+    var g = el("g", { class: "hl" }, svg);
+    el("line", { class: "cross", x1: m.x, x2: m.x, y1: 4, y2: svg._h - MB }, g);
+    el("circle", { class: "sel", cx: m.x, cy: m.y, r: 7 }, g);
+    var b = svg.getBoundingClientRect(), k = scaleOf(svg);
+    var px = b.left + m.x * k, py = b.top + m.y * (b.height / svg._h);
+    tip.textContent = tipText(m.r); tip.style.display = "block";
+    var w = tip.offsetWidth, h = tip.offsetHeight, left = px + 14, top = py + 14;
+    if (left + w > innerWidth - 8) left = px - w - 14;
+    if (top + h > innerHeight - 8) top = py - h - 14;
+    tip.style.left = Math.max(8, left) + "px"; tip.style.top = Math.max(8, top) + "px";
+    if (announce) live.textContent = tipText(m.r).replace(/\n/g, ", ");
+  }
+  function hideTip() { tip.style.display = "none"; }
+  function wire(svg) {
+    svg._order = svg._marks.slice().sort(function (a, b) { return a.x - b.x || a.y - b.y; });
+    svg.addEventListener("pointermove", function (e) {
+      var b = svg.getBoundingClientRect(), k = scaleOf(svg);
+      var vx = (e.clientX - b.left) / k, vy = (e.clientY - b.top) / (b.height / svg._h);
+      var best = null, bd = Infinity;
+      svg._marks.forEach(function (m) {
+        var d = Math.hypot((m.x - vx) * k, (m.y - vy) * k);
+        if (d < bd) { bd = d; best = m; }
+      });
+      if (best && bd <= 24) { if (svg._sel !== best || tip.style.display === "none") select(svg, best, false); }
+      else { svg._sel = null; var o = svg.querySelector(".hl"); if (o) o.remove(); hideTip(); }
+    });
+    svg.addEventListener("pointerleave", function () { if (document.activeElement !== svg) { var o = svg.querySelector(".hl"); if (o) o.remove(); hideTip(); } });
+    svg.addEventListener("blur", function () { var o = svg.querySelector(".hl"); if (o) o.remove(); hideTip(); });
+    svg.addEventListener("focus", function () {
+      if (!svg._order.length) return;
+      select(svg, svg._sel && svg._order.indexOf(svg._sel) >= 0 ? svg._sel : svg._order[0], true);
+    });
+    svg.addEventListener("keydown", function (e) {
+      var o = svg._order, i = Math.max(0, o.indexOf(svg._sel)), n = o.length, j;
+      var step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1, PageDown: 10, PageUp: -10 }[e.key];
+      if (step) j = Math.min(n - 1, Math.max(0, i + step));
+      else if (e.key === "Home") j = 0;
+      else if (e.key === "End") j = n - 1;
+      else if (e.key === "Escape") { hideTip(); return; }
+      else return;
+      e.preventDefault(); select(svg, o[j], true);
+    });
+  }
+
+  // ---- render ----------------------------------------------------------- //
+  var state = { progress: 54, base: false }, runs = { 0: build(false), 1: build(true) };
+  var charts = { a: chartA, b: function (r) { return chartLog(r, false); }, c: chartC, d: chartD, e: function (r) { return chartLog(r, true); } };
+  function visible() {
+    return runs[state.base ? 1 : 0].filter(function (r) { return r.phase !== "probe" || r.probeIdx <= state.progress; });
+  }
+  function render() {
+    var recs = visible();
+    Object.keys(charts).forEach(function (k) {
+      var box = document.querySelector('[data-chart="' + k + '"]');
+      var keepFocus = box.contains(document.activeElement) ? Array.prototype.indexOf.call(box.querySelectorAll("svg"), document.activeElement) : -1;
+      box.textContent = "";
+      charts[k](recs).forEach(function (svg, i) {
+        if (svg._title) { var t = document.createElement("div"); t.className = "panel-title"; t.innerHTML = svg._title; box.appendChild(t); }
+        box.appendChild(svg); wire(svg);
+        if (i === keepFocus) svg.focus({ preventScroll: true });
+      });
+      document.querySelector('[data-legend="' + k + '"]').innerHTML = legend(k, state.base);
+    });
+    hideTip();
+  }
+
+  // controls
+  var root = document.documentElement;
+  function pressed(group, v) {
+    group.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.v === v)); });
+  }
+  var themeSeg = document.getElementById("theme");
+  themeSeg.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.v === "system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", b.dataset.v);
+    pressed(themeSeg, b.dataset.v);
+  });
+  var baseSeg = document.getElementById("baseline");
+  baseSeg.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    state.base = b.dataset.v === "1"; pressed(baseSeg, b.dataset.v); render();
+  });
+  var range = document.getElementById("progress"), out = document.getElementById("progress-out");
+  range.addEventListener("input", function () { stop(); state.progress = +range.value; out.textContent = range.value + "/100"; render(); });
+  var playBtn = document.getElementById("play"), timer = null;
+  function stop() { if (timer) { clearInterval(timer); timer = null; playBtn.textContent = "Play live"; } }
+  playBtn.addEventListener("click", function () {
+    if (timer) return stop();
+    if (state.progress >= 100) state.progress = 0;
+    playBtn.textContent = "Pause";
+    timer = setInterval(function () {
+      state.progress = Math.min(100, state.progress + 1);
+      range.value = state.progress; out.textContent = state.progress + "/100"; render();
+      if (state.progress >= 100) stop();
+    }, 120);
+  });
+  var fitBtn = document.getElementById("fit-d");
+  fitBtn.addEventListener("click", function () {
+    fitAll = !fitAll; fitBtn.setAttribute("aria-pressed", String(fitAll));
+    fitBtn.textContent = fitAll ? "Focus on probe" : "Show all values"; render();
+  });
+  addEventListener("scroll", hideTip, { passive: true });
+  render();
+})();
+</script>

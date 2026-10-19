@@ -219,8 +219,8 @@ code { font: 13px var(--mono); background: var(--surface-2); padding: 1px 5px; b
     <div class="scroll"><table class="spec">
       <thead><tr><th>Situation</th><th>Automatic scale</th><th>Notes</th></tr></thead>
       <tbody>
-        <tr><td>No probe yet</td><td>Full range</td><td>Probe focus is disabled until there is probe data.</td></tr>
-        <tr><td>Probe running</td><td>Probe focus</td><td>The y-axis fits 1.25 × the probe's p95 and is re-fitted with each new request. Requests above the range become ▲ markers on the top edge, with a count in the corner.</td></tr>
+        <tr><td>No probe yet</td><td>Full range</td><td>Probe focus is disabled until there is probe data. Full range runs from 0 to the slowest request so far, so it only ever grows. It does not change while the probe runs unless a probe request is slower than every audit request.</td></tr>
+        <tr><td>Probe running</td><td>Probe focus</td><td>The y-range is fixed once from the first 5 probe requests: p75 + 3 × (p75 − p25), at least 1.5 × p75, rounded up to a clean tick. It stays the same for the rest of the probe, also after it finishes with "Keep focus". Before the 5th request the range is provisional (the label says so). Requests above it become ▲ markers on the top edge, with a count in the corner.</td></tr>
         <tr><td>Probe finished</td><td>Full range <i>or</i> Keep focus</td><td>Open question, so it is a prototype switch above. Full range matches "probe focus while the probe runs" but brings the squash back in finished reports. Keep focus stays readable.</td></tr>
         <tr><td>You pick a scale</td><td>Your choice</td><td>Automatic switching stops and the label shows "set by you". "Back to automatic" hands control back. A new audit starts automatic again.</td></tr>
       </tbody>
@@ -432,11 +432,22 @@ code { font: 13px var(--mono); background: var(--surface-2); padding: 1px 5px; b
 
   // ---- the combined chart: whole run on x, y = full range or probe focus - //
   function probeOf(recs) { return recs.filter(function (r) { return r.phase === "probe"; }); }
+  // Probe focus has one fixed y-range, taken from the first CALIB probe
+  // requests (both endpoints): p75 + 3 × (p75 − p25), at least 1.5 × p75,
+  // rounded up to a nice tick. Until CALIB requests exist it is provisional.
+  var CALIB = 5;
+  function probeRange(recs) {
+    var first = probeOf(recs).filter(function (r) { return r.ok; })
+      .sort(function (a, b) { return a.start - b.start; }).slice(0, CALIB);
+    var v = first.map(function (r) { return r.lat; }).sort(function (a, b) { return a - b; });
+    var p25 = q(v, 25), p75 = q(v, 75);
+    return { top: Math.max(p75 + 3 * (p75 - p25), 1.5 * p75), n: v.length, p25: p25, p75: p75 };
+  }
   function chart(recs, scale) {
     var xd = { lo: 0, hi: niceMax(endOf(recs), 5).max };
     if (scale === "probe") {
-      var pl = lats(probeOf(recs)), all = lats(recs);
-      var ym = linearY(Math.min(q(pl, 95) * 1.25, all[all.length - 1] * 1.05));
+      var pl = lats(probeOf(recs)), all = lats(recs), pr = probeRange(recs);
+      var ym = linearY(Math.min(pr.top, all[all.length - 1] * 1.05));
       ym.cap = ym.max;
       return draw(recs, xd, ym, summary(recs, "y-axis focused on the performance probe, 0 to " + dur(ym.max) +
         "; probe median " + dur(q(pl, 50)) + ", p25–p75 " + dur(q(pl, 25)) + "–" + dur(q(pl, 75))));
@@ -538,6 +549,12 @@ code { font: 13px var(--mono); background: var(--surface-2); padding: 1px 5px; b
     var why = scale.user ? "" : ps === "running" ? "while the probe runs" : ps === "none" ? "until a probe starts" : "probe finished";
     stateEl.innerHTML = '<span class="pill' + (scale.user ? " user" : "") + '">' + (scale.user ? "set by you" : "automatic") +
       "</span><span>Y-axis: <b>" + NAME[eff] + "</b>" + (why ? " · " + why : "") + "</span>";
+    if (eff === "probe") {
+      var pr = probeRange(recs);
+      stateEl.innerHTML += "<span>· " + (pr.n < CALIB
+        ? "range provisional, set after " + CALIB + " probe requests (" + pr.n + "/" + CALIB + ")"
+        : "range fixed from the first " + CALIB + " probe requests (p25–p75 " + dur(pr.p25) + "–" + dur(pr.p75) + ")") + "</span>";
+    }
 
     var box = document.getElementById("chart"), had = box.contains(document.activeElement);
     box.textContent = "";

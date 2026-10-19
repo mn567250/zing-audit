@@ -1,0 +1,589 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Probe Focus Chart</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one column of variant cards on the v2 page ground; each card = the
+   production chart panel at its real 720-wide viewBox, plus a verdict list.
+   Tokens are copied from zing/web/static/v2/zing.css + perf.css (unchanged). */
+:root {
+  --bg: #eef2ec; --card: #fffefb; --surface-2: #f3f6f2; --field: #fbfdfa;
+  --line: #e2e8e0; --line-strong: #cfe0d6;
+  --ink: #0c211e; --ink2: #566460; --faint: #5e6c67; --on-ink: #ffffff;
+  --teal: #0f6f5f; --orange: #c8561c; --bad: #b8352a; --bad-fill: #cb3b2e;
+  --good: #1d7a45; --warn: #8a5a00;
+  --shadow: 0 1px 2px rgba(12,33,30,.06), 0 8px 24px -16px rgba(12,33,30,.25);
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1012; --card: #11181b; --surface-2: #151e22; --field: #0e1417;
+    --line: #1f2b31; --line-strong: #2d3d45;
+    --ink: #e3ece8; --ink2: #a7b6b0; --faint: #8a9a94; --on-ink: #0b1012;
+    --teal: #4fd8a4; --orange: #f39a5c; --bad: #ff7b72; --bad-fill: #f0625a;
+    --good: #5fd08a; --warn: #f0c060;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 8px 24px -16px rgba(0,0,0,.8);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1012; --card: #11181b; --surface-2: #151e22; --field: #0e1417;
+  --line: #1f2b31; --line-strong: #2d3d45;
+  --ink: #e3ece8; --ink2: #a7b6b0; --faint: #8a9a94; --on-ink: #0b1012;
+  --teal: #4fd8a4; --orange: #f39a5c; --bad: #ff7b72; --bad-fill: #f0625a;
+  --good: #5fd08a; --warn: #f0c060;
+  --shadow: 0 1px 2px rgba(0,0,0,.5), 0 8px 24px -16px rgba(0,0,0,.8);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px;
+}
+.wrap { max-width: 860px; margin: 0 auto; display: grid; gap: 20px; }
+h1 { font-size: 26px; margin: 0; letter-spacing: -0.3px; text-wrap: balance; }
+h2 { font-size: 17px; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.lead { color: var(--ink2); max-width: 68ch; }
+.eyebrow { font: 600 11.5px/1 var(--mono); letter-spacing: .8px; text-transform: uppercase; color: var(--ink2); }
+
+.brief { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 18px; font-size: 14px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.brief h3 { margin: 0; font-size: 12px; letter-spacing: .5px; text-transform: uppercase; }
+.brief ul { margin: 4px 0 0; padding-left: 18px; color: var(--ink2); }
+
+.controls {
+  display: flex; flex-wrap: wrap; gap: 12px 22px; align-items: center;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; box-shadow: var(--shadow);
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.ctl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ctl > span, .ctl label { font-size: 13px; color: var(--ink2); font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px; background: var(--field); }
+.seg button {
+  font: 600 13px var(--sans); border: 0; background: transparent; color: var(--ink2);
+  padding: 5px 11px; border-radius: 999px; cursor: pointer; min-height: 30px;
+}
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
+.seg button:not([aria-pressed="true"]):hover { color: var(--ink); }
+input[type="range"] { accent-color: var(--teal); width: 150px; }
+output { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; min-width: 6ch; }
+.btn {
+  font: 600 13px var(--sans); border: 1px solid var(--line-strong); background: var(--field); color: var(--ink);
+  border-radius: 999px; padding: 5px 13px; cursor: pointer; min-height: 32px;
+}
+.btn:hover { border-color: var(--ink2); }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 18px 16px;
+  display: grid; gap: 12px; min-width: 0;
+}
+.card.rec { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal); }
+.head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.tag { font: 600 11.5px var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--ink2); }
+.tag.go { border-color: var(--teal); color: var(--ink); }
+.why { color: var(--ink2); font-size: 14px; max-width: 72ch; }
+.chartbar { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
+.chartbox { position: relative; min-width: 0; }
+svg.zc { width: 100%; height: auto; display: block; overflow: visible; touch-action: pan-y; border-radius: 8px; }
+svg.zc:focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; }
+
+/* chart marks (mirror the production .zp-* rules) */
+.grid { stroke: var(--line); stroke-width: 1; }
+.tick { fill: var(--faint); font: 11px var(--sans); font-variant-numeric: tabular-nums; }
+.note { fill: var(--ink2); font: 600 11px var(--sans); }
+.pt { stroke: var(--card); stroke-width: 2; }
+.pt.t { fill: var(--teal); } .pt.b { fill: var(--orange); }
+.pt.passive { fill-opacity: .35; } .pt.passive.t { stroke: var(--teal); } .pt.passive.b { stroke: var(--orange); }
+.pt.probe { stroke: none; fill-opacity: .5; }
+.fail { stroke: var(--bad-fill); stroke-width: 2; stroke-linecap: round; fill: none; }
+.trend { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.trend.t { stroke: var(--teal); } .trend.b { stroke: var(--orange); }
+.band.t { fill: var(--teal); fill-opacity: .16; } .band.b { fill: var(--orange); fill-opacity: .16; }
+.off { stroke: var(--card); stroke-width: 1.5; }
+.off.t { fill: var(--teal); } .off.b { fill: var(--orange); }
+.brk { stroke: var(--ink2); stroke-width: 1.5; fill: none; stroke-linecap: round; }
+.brk-gap { fill: var(--card); }
+.sel { fill: none; stroke: var(--ink); stroke-width: 2; pointer-events: none; }
+.cross { stroke: var(--ink2); stroke-width: 1; pointer-events: none; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.k { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+.k.t { background: var(--teal); } .k.b { background: var(--orange); }
+.k.passive { background: color-mix(in srgb, var(--teal) 35%, transparent); border: 2px solid var(--teal); }
+.k.probe { width: 7px; height: 7px; background: color-mix(in srgb, var(--teal) 50%, transparent); }
+.k.mb { width: 18px; height: 10px; border-radius: 2px; background:
+  linear-gradient(var(--ink2), var(--ink2)) center / 100% 2px no-repeat, color-mix(in srgb, var(--ink2) 22%, transparent); }
+.k.x { width: auto; height: auto; border-radius: 0; color: var(--bad-fill); font-weight: 800; font-style: normal; line-height: 1; }
+.k.tri { width: 0; height: 0; border-radius: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--teal); }
+.k.zz { width: 16px; height: 10px; border-radius: 0; background: none; position: relative; }
+.k.zz::before { content: "≈"; position: absolute; inset: -5px 0 0; color: var(--ink2); font: 700 14px var(--sans); }
+
+.verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 18px; font-size: 13.5px; }
+.verdict ul { margin: 4px 0 0; padding-left: 18px; color: var(--ink2); }
+.verdict li + li { margin-top: 2px; }
+.verdict h3 { margin: 0; font-size: 12px; letter-spacing: .5px; text-transform: uppercase; color: var(--ink); }
+.verdict h3::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; }
+.verdict .pro h3::before { background: var(--good); }
+.verdict .con h3::before { background: var(--warn); }
+
+.tip {
+  position: fixed; z-index: 20; pointer-events: none; display: none;
+  background: var(--ink); color: var(--on-ink); font: 12.5px/1.45 var(--mono); white-space: pre;
+  padding: 8px 10px; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.35); max-width: calc(100vw - 16px);
+}
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.summary { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; display: grid; gap: 8px; }
+.summary ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.summary li { max-width: 74ch; }
+code { font: 13px var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+@media (max-width: 520px) { h1 { font-size: 22px; } .card { padding: 14px 12px; } input[type="range"] { width: 110px; } }
+</style>
+<style>
+.scalebar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
+.scalestate { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 13.5px; color: var(--ink2); min-width: 0; }
+.scalestate b { color: var(--ink); font-weight: 600; }
+.pill { font: 600 11.5px var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--ink2); }
+.pill.user { border-color: var(--ink2); color: var(--ink); }
+.scalectl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.seg button:disabled { opacity: .45; cursor: not-allowed; }
+.linkbtn { font: 600 13px var(--sans); background: none; border: 0; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 4px 2px; min-height: 32px; }
+.linkbtn:hover { color: var(--teal); }
+.spec { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.spec th, .spec td { text-align: left; padding: 7px 10px 7px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.spec th { font-size: 12px; letter-spacing: .4px; text-transform: uppercase; color: var(--ink2); font-weight: 600; }
+.spec td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
+.spec td { color: var(--ink2); }
+.scroll { overflow-x: auto; }
+@media (prefers-reduced-motion: no-preference) { svg.zc.rescaled { animation: rescale .28s ease-out; } }
+@keyframes rescale { from { opacity: .35; } to { opacity: 1; } }
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:8px">
+    <div class="eyebrow">zing · UI v2 · performance panel · prototype round 3</div>
+    <h1>Probe focus with an automatic y-scale</h1>
+    <p class="lead">This combines F, G and H. The x-axis always spans the whole run, and every request stays visible. Only the y-scale changes. Probe focus fits the axis to the probe and pins slower requests as ▲ markers on the top edge, as in H. Full range is F. The scale follows the probe automatically, and you can override it. Press <b>Play live</b> to watch it switch.</p>
+  </header>
+
+  <div class="controls" role="group" aria-label="Prototype controls">
+    <div class="ctl"><span id="lbl-theme">Theme</span>
+      <div class="seg" role="group" aria-labelledby="lbl-theme" id="theme">
+        <button type="button" data-v="system" aria-pressed="true">System</button>
+        <button type="button" data-v="light" aria-pressed="false">Light</button>
+        <button type="button" data-v="dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+    <div class="ctl"><label for="progress">Probe</label>
+      <input id="progress" type="range" min="0" max="100" value="54">
+      <output id="progress-out" for="progress">54/100</output>
+      <button type="button" class="btn" id="play">Play live</button>
+    </div>
+    <div class="ctl"><span id="lbl-base">Baseline</span>
+      <div class="seg" role="group" aria-labelledby="lbl-base" id="baseline">
+        <button type="button" data-v="0" aria-pressed="true">Off</button>
+        <button type="button" data-v="1" aria-pressed="false">On</button>
+      </div>
+    </div>
+    <div class="ctl"><span id="lbl-after">After the probe</span>
+      <div class="seg" role="group" aria-labelledby="lbl-after" id="after">
+        <button type="button" data-v="full" aria-pressed="true">Full range</button>
+        <button type="button" data-v="probe" aria-pressed="false">Keep focus</button>
+      </div>
+    </div>
+  </div>
+
+  <section class="card rec">
+    <div class="head"><span class="eyebrow">Performance · live</span><h2>Latency</h2></div>
+    <div class="scalebar">
+      <p class="scalestate" id="scalestate"></p>
+      <div class="scalectl">
+        <div class="seg" role="group" aria-label="Y-axis range" id="scale">
+          <button type="button" data-v="probe" aria-pressed="false">Probe focus</button>
+          <button type="button" data-v="full" aria-pressed="false">Full range</button>
+        </div>
+        <button type="button" class="linkbtn" id="auto" hidden>Back to automatic</button>
+      </div>
+    </div>
+    <div class="chartbox" id="chart"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="summary">
+    <h2>How the y-scale behaves</h2>
+    <div class="scroll"><table class="spec">
+      <thead><tr><th>Situation</th><th>Automatic scale</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>No probe yet</td><td>Full range</td><td>Probe focus is disabled until there is probe data.</td></tr>
+        <tr><td>Probe running</td><td>Probe focus</td><td>The y-axis fits 1.25 × the probe's p95 and is re-fitted with each new request. Requests above the range become ▲ markers on the top edge, with a count in the corner.</td></tr>
+        <tr><td>Probe finished</td><td>Full range <i>or</i> Keep focus</td><td>Open question, so it is a prototype switch above. Full range matches "probe focus while the probe runs" but brings the squash back in finished reports. Keep focus stays readable.</td></tr>
+        <tr><td>You pick a scale</td><td>Your choice</td><td>Automatic switching stops and the label shows "set by you". "Back to automatic" hands control back. A new audit starts automatic again.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="summary">
+    <h2>Accessibility</h2>
+    <ol>
+      <li><b>The switch</b> is a labelled group of two toggle buttons with <code>aria-pressed</code>. They work with Tab, Space and Enter, and their target size is at least 30&nbsp;px.</li>
+      <li><b>Automatic switches are announced</b> in a polite live region ("Y-axis switched to probe focus"). The visible label always says whether the scale is automatic or set by you. The chart only dims and fades back in briefly, and not at all with reduced motion.</li>
+      <li><b>Nothing is hidden:</b> ▲ markers are part of the hover and keyboard order, and their tooltip gives the exact value. The chart's accessible name states the scale and how many requests are above it.</li>
+      <li><b>Shape as well as colour:</b> audit requests are outlined, probe requests are small and translucent, failures are ×, and requests above the range are ▲. The median line and band carry the probe values that a single faint dot cannot.</li>
+    </ol>
+  </section>
+</div>
+<div class="tip" id="tip" aria-hidden="true"></div>
+<div class="sr" aria-live="polite" id="live"></div>
+<div class="sr" aria-live="polite" id="live-scale"></div>
+
+<script>
+(function () {
+  "use strict";
+  var W = 720, H = 250, ML = 56, MR = 14, MB = 30, MT = 24;
+  var PW = W - ML - MR, PH = H - MT - MB, BASE = MT + PH;
+  var NS = "http://www.w3.org/2000/svg";
+
+  // ---- synthetic run (same seed and shape as round 1) ------------------ //
+  function rng(seed) {
+    return function () {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function gauss(r) { return Math.sqrt(-2 * Math.log(r() + 1e-9)) * Math.cos(2 * Math.PI * r()); }
+  function build(withBaseline) {
+    var r = rng(7), recs = [], seq = 0;
+    var audit = [
+      [2, 12000], [4, 3000], [6, 8000], [9, 14000], [12, 4000], [18, 9000], [26, 22000], [40, 58000],
+      [52, 2500], [70, 6000], [96, 3800], [110, 6500], [130, 178000], [160, 9000], [190, 14000], [220, 26000],
+      [250, 31000], [280, 0], [282, 56000], [300, 105000], [330, 72000], [360, 80000], [390, 101000],
+      [420, 98000], [450, 12000], [470, 35000], [490, 9500], [505, 68000], [520, 74000], [530, 41000],
+      [540, 18000], [548, 7500], [555, 22000], [560, 1900]
+    ];
+    audit.forEach(function (a) {
+      var ok = a[1] > 0;
+      recs.push({ seq: ++seq, ep: "target", phase: "passive", detector: "identity", start: a[0], ok: ok,
+        lat: ok ? a[1] : null, ttft: ok ? Math.round(a[1] * 0.06 + 120) : null, status: ok ? 200 : 502 });
+    });
+    if (withBaseline) {
+      [30, 140, 260, 410, 530].forEach(function (s, i) {
+        var v = [16000, 41000, 88000, 52000, 23000][i];
+        recs.push({ seq: ++seq, ep: "baseline", phase: "passive", detector: "identity", start: s + 3, ok: true,
+          lat: v, ttft: Math.round(v * 0.05 + 180), status: 200 });
+      });
+    }
+    var t = 575;
+    for (var i = 1; i <= 100; i++) {
+      var lat = Math.max(900, 1600 + gauss(r) * 160 + (r() < 0.04 ? 1400 + r() * 1800 : 0));
+      recs.push({ seq: ++seq, ep: "target", phase: "probe", detector: "performance", probeIdx: i, start: t, ok: true,
+        lat: Math.round(lat), ttft: Math.round(150 + gauss(r) * 18), status: 200 });
+      t += lat / 1000 + 0.15;
+      if (withBaseline) {
+        var bl = Math.max(1100, 2350 + gauss(r) * 260);
+        recs.push({ seq: ++seq, ep: "baseline", phase: "probe", detector: "performance", probeIdx: i, start: t, ok: true,
+          lat: Math.round(bl), ttft: Math.round(240 + gauss(r) * 30), status: 200 });
+        t += bl / 1000 + 0.15;
+      }
+    }
+    return recs;
+  }
+
+  // ---- stats: running median + p25/p75 of each endpoint's last 5 ------- //
+  function q(sorted, p) {
+    if (!sorted.length) return null;
+    var k = (p / 100) * (sorted.length - 1), lo = Math.floor(k), hi = Math.ceil(k);
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (k - lo);
+  }
+  function trend(recs) {
+    var last = {}, out = new Map();
+    recs.filter(function (r) { return r.ok; }).sort(function (a, b) { return a.start - b.start; }).forEach(function (r) {
+      var l = last[r.ep] || (last[r.ep] = []);
+      l.push(r.lat); if (l.length > 5) l.shift();
+      var s = l.slice().sort(function (a, b) { return a - b; });
+      out.set(r, { mid: q(s, 50), lo: q(s, 25), hi: q(s, 75) });
+    });
+    return out;
+  }
+
+  // ---- axes + formatting ---------------------------------------------- //
+  function niceStep(span, n) {
+    var raw = span / n, base = Math.pow(10, Math.floor(Math.log10(raw)));
+    var steps = [1, 2, 2.5, 5, 10];
+    for (var i = 0; i < steps.length; i++) if (steps[i] * base >= raw) return steps[i] * base;
+    return 10 * base;
+  }
+  function niceMax(v, n) { var s = niceStep(v, n || 5); return { max: Math.ceil(v / s - 1e-9) * s, step: s }; }
+  var nf = new Intl.NumberFormat("en");
+  var nf1 = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
+  function raw(v) { return nf.format(Math.round(v)); }
+  function dur(v) {
+    if (v === 0) return "0";
+    if (v < 1000) return nf.format(Math.round(v)) + " ms";
+    var s = v / 1000;
+    return (s < 10 ? nf1.format(s) : nf.format(Math.round(s))) + " s";
+  }
+  function tipText(r, tr) {
+    var head = "#" + r.seq + " · " + (r.ep === "baseline" ? "baseline" : "target") + " · " + r.detector + " · " +
+      (r.phase === "probe" ? "probe " + r.probeIdx + "/100" : "audit");
+    if (!r.ok) return head + "\nfailed (" + r.status + ")\nstart: " + nf1.format(r.start) + " s";
+    var t = tr.get(r);
+    return head + "\nLatency: " + raw(r.lat) + " ms\nTTFT: " + raw(r.ttft) + " ms\n" +
+      "median (last 5): " + raw(t.mid) + " ms\np25–p75: " + raw(t.lo) + "–" + raw(t.hi) + " ms\nstart: " + nf1.format(r.start) + " s";
+  }
+
+  // ---- svg helpers ----------------------------------------------------- //
+  function el(name, attrs, parent) {
+    var e = document.createElementNS(NS, name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function text(parent, x, y, s, cls, anchor) {
+    var t = el("text", { x: x, y: y, class: cls, "text-anchor": anchor || "start" }, parent);
+    t.textContent = s; return t;
+  }
+  var uid = 0;
+
+  // One renderer; the variants differ only in the x/y mappings they pass.
+  //   xd: {lo, hi}           visible time range (s)
+  //   ym: {y(v), ticks[], cap?, brk?}
+  function draw(recs, xd, ym, label) {
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, class: "zc", role: "img", tabindex: "0", "aria-label": label });
+    svg._marks = []; svg._h = H;
+    var tr = trend(recs); svg._tr = tr;
+    var x = function (s) { return ML + (s - xd.lo) / (xd.hi - xd.lo) * PW; };
+    var inX = function (r) { return r.start >= xd.lo - 1e-9 && r.start <= xd.hi + 1e-9; };
+    var g = el("g", {}, svg);
+    ym.ticks.forEach(function (v) {
+      var yy = ym.y(v).toFixed(1);
+      el("line", { class: "grid", x1: ML, x2: W - MR, y1: yy, y2: yy }, g);
+      text(g, ML - 6, +yy + 4, dur(v), "tick", "end");
+    });
+    var xs = niceStep(xd.hi - xd.lo, 5);
+    for (var s = Math.ceil(xd.lo / xs) * xs; s <= xd.hi + 1e-9; s += xs) {
+      var xx = x(s);
+      text(g, xx.toFixed(1), BASE + 16, nf.format(s) + " s", "tick", xx < ML + 12 ? "start" : xx > W - MR - 12 ? "end" : "middle");
+    }
+    if (ym.brk) {   // the axis break: a gap with no gridlines + a ≈ mark on the axis
+      el("rect", { class: "brk-gap", x: ML - 4, y: ym.brk.y0, width: PW + 4, height: ym.brk.y1 - ym.brk.y0 }, g);
+      [ym.brk.y0 + 1, ym.brk.y1 - 1].forEach(function (yy) {
+        el("path", { class: "brk", d: "M" + (ML - 3) + "," + (yy + 2) + "l4,-3l4,3l4,-3" }, g);
+      });
+    }
+    // clip band + line to the plot (they may run above a capped range)
+    var cid = "clip" + (++uid);
+    var cp = el("clipPath", { id: cid }, el("defs", {}, svg));
+    el("rect", { x: ML, y: MT - 1, width: PW, height: PH + 2 }, cp);
+    var lg = el("g", { "clip-path": "url(#" + cid + ")" }, g);
+    var ok = recs.filter(function (r) { return r.ok; }).sort(function (a, b) { return a.start - b.start; });
+    var yc = function (v) { return ym.y(ym.cap ? Math.min(v, ym.cap * 1.4) : v); };
+    ["target", "baseline"].forEach(function (ep) {
+      var ps = ok.filter(function (r) { return r.ep === ep; }), c = ep === "baseline" ? "b" : "t";
+      if (ps.length < 2) return;
+      var up = ps.map(function (r) { return x(r.start).toFixed(1) + "," + yc(tr.get(r).hi).toFixed(1); });
+      var dn = ps.slice().reverse().map(function (r) { return x(r.start).toFixed(1) + "," + yc(tr.get(r).lo).toFixed(1); });
+      el("path", { class: "band " + c, d: "M" + up.join("L") + "L" + dn.join("L") + "Z" }, lg);
+      el("path", { class: "trend " + c, d: "M" + ps.map(function (r) { return x(r.start).toFixed(1) + "," + yc(tr.get(r).mid).toFixed(1); }).join("L") }, lg);
+    });
+    var over = 0;
+    ok.filter(inX).forEach(function (r) {
+      var cx = x(r.start), c = r.ep === "baseline" ? "b" : "t";
+      if (ym.cap && r.lat > ym.cap) {
+        over++;
+        el("path", { class: "off " + c, d: "M" + cx.toFixed(1) + "," + (MT - 15) + "l5,9h-10z" }, g);
+        svg._marks.push({ x: cx, y: MT - 10, r: r });
+        return;
+      }
+      var cy = ym.y(r.lat), probe = r.phase === "probe";
+      el("circle", { class: "pt " + c + (probe ? " probe" : " passive"), cx: cx.toFixed(1), cy: cy.toFixed(1), r: probe ? 3 : 4 }, g);
+      svg._marks.push({ x: cx, y: cy, r: r });
+    });
+    recs.filter(function (r) { return !r.ok && inX(r); }).forEach(function (r) {
+      var cx = x(r.start);
+      el("path", { class: "fail", d: "M" + (cx - 4).toFixed(1) + "," + (BASE - 4) + "l8,8m0,-8l-8,8" }, g);
+      svg._marks.push({ x: cx, y: BASE, r: r });
+    });
+    svg._over = over;
+    if (ym.cap) text(g, W - MR, MT - 8, over ? "▲ " + over + " above " + dur(ym.cap) : "", "note", "end");
+    var hidden = recs.filter(function (r) { return r.start < xd.lo - 1e-9; }).length;
+    if (hidden) text(g, ML, MT - 8, "← " + hidden + " earlier requests", "note");
+    return svg;
+  }
+
+  function endOf(recs) { var e = 1; recs.forEach(function (r) { e = Math.max(e, r.start + (r.lat || 0) / 1000); }); return e; }
+  function linearY(max) {
+    var a = niceMax(max, 5), ticks = [];
+    for (var v = 0; v <= a.max + 1e-9; v += a.step) ticks.push(v);
+    return { y: function (v) { return BASE - v / a.max * PH; }, ticks: ticks, max: a.max };
+  }
+  function lats(list) { return list.filter(function (r) { return r.ok; }).map(function (r) { return r.lat; }).sort(function (a, b) { return a - b; }); }
+  function summary(recs, extra) {
+    var t = lats(recs.filter(function (r) { return r.ep === "target"; }));
+    return "Latency over time: " + recs.length + " requests; target median " + dur(q(t, 50)) + (extra ? "; " + extra : "");
+  }
+
+
+  // ---- the combined chart: whole run on x, y = full range or probe focus - //
+  function probeOf(recs) { return recs.filter(function (r) { return r.phase === "probe"; }); }
+  function chart(recs, scale) {
+    var xd = { lo: 0, hi: niceMax(endOf(recs), 5).max };
+    if (scale === "probe") {
+      var pl = lats(probeOf(recs)), all = lats(recs);
+      var ym = linearY(Math.min(q(pl, 95) * 1.25, all[all.length - 1] * 1.05));
+      ym.cap = ym.max;
+      return draw(recs, xd, ym, summary(recs, "y-axis focused on the performance probe, 0 to " + dur(ym.max) +
+        "; probe median " + dur(q(pl, 50)) + ", p25–p75 " + dur(q(pl, 25)) + "–" + dur(q(pl, 75))));
+    }
+    var a = lats(recs);
+    return draw(recs, xd, linearY(a[a.length - 1] * 1.05), summary(recs, "full y range"));
+  }
+  function legend(over) {
+    var s = ['<span><i class="k t"></i>target</span>'];
+    if (state.base) s.push('<span><i class="k b"></i>baseline</span>');
+    s.push('<span><i class="k passive"></i>audit request</span>');
+    s.push('<span><i class="k probe"></i>probe request (small, lighter)</span>');
+    s.push('<span><i class="k x">×</i>failed</span>');
+    s.push('<span><i class="k mb"></i>running median (last 5) with p25–p75</span>');
+    if (over) s.push('<span><i class="k tri"></i>above range (exact value on hover)</span>');
+    return s.join("");
+  }
+
+  // ---- interaction: nearest point, crosshair, keyboard ----------------- //
+  var tip = document.getElementById("tip"), live = document.getElementById("live");
+  function clearHl(svg) { var o = svg.querySelector(".hl"); if (o) o.remove(); tip.style.display = "none"; }
+  function select(svg, m, announce) {
+    clearHl(svg);
+    if (!m) return;
+    svg._sel = m;
+    var g = el("g", { class: "hl" }, svg);
+    el("line", { class: "cross", x1: m.x, x2: m.x, y1: MT - 16, y2: BASE }, g);
+    el("circle", { class: "sel", cx: m.x, cy: m.y, r: 7 }, g);
+    var b = svg.getBoundingClientRect(), k = b.width / W;
+    var px = b.left + m.x * k, py = b.top + m.y * (b.height / H);
+    tip.textContent = tipText(m.r, svg._tr); tip.style.display = "block";
+    var w = tip.offsetWidth, h = tip.offsetHeight, left = px + 14, top = py + 14;
+    if (left + w > innerWidth - 8) left = px - w - 14;
+    if (top + h > innerHeight - 8) top = py - h - 14;
+    tip.style.left = Math.max(8, left) + "px"; tip.style.top = Math.max(8, top) + "px";
+    if (announce) live.textContent = tip.textContent.replace(/\n/g, ", ");
+  }
+  function wire(svg) {
+    svg._order = svg._marks.slice().sort(function (a, b) { return a.x - b.x || a.y - b.y; });
+    svg.addEventListener("pointermove", function (e) {
+      var b = svg.getBoundingClientRect(), k = b.width / W;
+      var vx = (e.clientX - b.left) / k, vy = (e.clientY - b.top) / (b.height / H);
+      var best = null, bd = Infinity;
+      svg._marks.forEach(function (m) {
+        var d = Math.hypot((m.x - vx) * k, (m.y - vy) * k);
+        if (d < bd) { bd = d; best = m; }
+      });
+      if (best && bd <= 24) { if (svg._sel !== best || tip.style.display === "none") select(svg, best, false); }
+      else { svg._sel = null; clearHl(svg); }
+    });
+    svg.addEventListener("pointerleave", function () { if (document.activeElement !== svg) clearHl(svg); });
+    svg.addEventListener("blur", function () { clearHl(svg); });
+    svg.addEventListener("focus", function () {
+      if (svg._order.length) select(svg, svg._order[svg._order.length - 1], true);
+    });
+    svg.addEventListener("keydown", function (e) {
+      var o = svg._order, i = Math.max(0, o.indexOf(svg._sel)), n = o.length, j;
+      var step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1, PageDown: 10, PageUp: -10 }[e.key];
+      if (step) j = Math.min(n - 1, Math.max(0, i + step));
+      else if (e.key === "Home") j = 0;
+      else if (e.key === "End") j = n - 1;
+      else if (e.key === "Escape") { clearHl(svg); return; }
+      else return;
+      e.preventDefault(); select(svg, o[j], true);
+    });
+  }
+
+  // ---- state: automatic scale, user override ---------------------------- //
+  var state = { progress: 54, base: false, after: "full" }, runs = { 0: build(false), 1: build(true) };
+  var scale = { user: null, last: null };
+  function visible() {
+    return runs[state.base ? 1 : 0].filter(function (r) { return r.phase !== "probe" || r.probeIdx <= state.progress; });
+  }
+  function probeState() {
+    return state.progress <= 0 ? "none" : state.progress < 100 ? "running" : "done";
+  }
+  function autoScale() {
+    var ps = probeState();
+    return ps === "running" || (ps === "done" && state.after === "probe") ? "probe" : "full";
+  }
+  var NAME = { probe: "probe focus", full: "full range" };
+  var scaleSeg = document.getElementById("scale"), autoBtn = document.getElementById("auto");
+  var stateEl = document.getElementById("scalestate"), liveScale = document.getElementById("live-scale");
+
+  function render() {
+    var recs = visible(), ps = probeState();
+    if (ps === "none" && scale.user === "probe") scale.user = null; // nothing to focus on
+    var eff = scale.user || autoScale();
+    var switched = scale.last && eff !== scale.last;
+    if (switched && !scale.user) liveScale.textContent = "Y-axis switched to " + NAME[eff] + " automatically";
+    scale.last = eff;
+
+    // scale controls + state line
+    scaleSeg.querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.v === eff));
+      if (b.dataset.v === "probe") b.disabled = ps === "none";
+    });
+    autoBtn.hidden = !scale.user;
+    var why = scale.user ? "" : ps === "running" ? "while the probe runs" : ps === "none" ? "until a probe starts" : "probe finished";
+    stateEl.innerHTML = '<span class="pill' + (scale.user ? " user" : "") + '">' + (scale.user ? "set by you" : "automatic") +
+      "</span><span>Y-axis: <b>" + NAME[eff] + "</b>" + (why ? " · " + why : "") + "</span>";
+
+    var box = document.getElementById("chart"), had = box.contains(document.activeElement);
+    box.textContent = "";
+    var svg = chart(recs, eff);
+    if (switched) svg.classList.add("rescaled");
+    box.appendChild(svg); wire(svg);
+    if (had) svg.focus({ preventScroll: true });
+    document.getElementById("legend").innerHTML = legend(svg._over);
+    tip.style.display = "none";
+  }
+
+  var root = document.documentElement;
+  function pressed(group, v) {
+    group.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.v === v)); });
+  }
+  function seg(id, fn) {
+    var g = document.getElementById(id);
+    g.addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b || b.disabled) return;
+      fn(b.dataset.v, g);
+    });
+  }
+  seg("theme", function (v, g) { pressed(g, v); if (v === "system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", v); });
+  seg("baseline", function (v, g) { pressed(g, v); state.base = v === "1"; render(); });
+  seg("after", function (v, g) { pressed(g, v); state.after = v; render(); });
+  seg("scale", function (v) { scale.user = v; render(); });
+  autoBtn.addEventListener("click", function () {
+    scale.user = null; render();
+    liveScale.textContent = "Y-axis back to automatic: " + NAME[scale.last];
+    scaleSeg.querySelector('[aria-pressed="true"]').focus();
+  });
+  var range = document.getElementById("progress"), out = document.getElementById("progress-out");
+  range.addEventListener("input", function () { stop(); state.progress = +range.value; out.textContent = range.value + "/100"; render(); });
+  var playBtn = document.getElementById("play"), timer = null;
+  function stop() { if (timer) { clearInterval(timer); timer = null; playBtn.textContent = "Play live"; } }
+  playBtn.addEventListener("click", function () {
+    if (timer) return stop();
+    if (state.progress >= 100) { state.progress = 0; scale.user = null; } // a new run starts automatic
+    playBtn.textContent = "Pause";
+    timer = setInterval(function () {
+      state.progress = Math.min(100, state.progress + 1);
+      range.value = state.progress; out.textContent = state.progress + "/100"; render();
+      if (state.progress >= 100) stop();
+    }, 120);
+  });
+  addEventListener("scroll", function () { tip.style.display = "none"; }, { passive: true });
+  render();
+})();
+</script>

@@ -2,6 +2,12 @@
 
 > [🇬🇧 English](README.md) · [🇨🇳 中文](README.zh-CN.md) · [🇫🇷 Français](README.fr.md) · [🇪🇸 Español](README.es.md) · **🇵🇹 Português** · [🇮🇹 Italiano](README.it.md) · [🇩🇪 Deutsch](README.de.md)
 
+> [!IMPORTANT]
+> **Este projeto mudou-se.** Continua como **ekte**: [github.com/mn567250/ekte](https://github.com/mn567250/ekte),
+> publicado no PyPI como [`ekte`](https://pypi.org/project/ekte/) (`pip install ekte`). Este repositório está
+> arquivado e já não recebe atualizações. Para migrar uma instalação existente:
+> [Se vem do zing](https://github.com/mn567250/ekte/blob/main/README.pt.md#se-vem-do-zing).
+
 [![CI](https://github.com/cenbonew/zing/actions/workflows/ci.yml/badge.svg)](https://github.com/cenbonew/zing/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
